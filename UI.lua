@@ -65,9 +65,26 @@ panel:SetClampedToScreen(true)
 panel:SetScript("OnDragStart", panel.StartMoving)
 panel:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
-    local _, _, _, x, y = self:GetPoint(1)
-    RR:SetSetting("panelX", math.floor((x or 0) + 0.5))
-    RR:SetSetting("panelY", math.floor((y or 0) + 0.5))
+    -- Normalize the anchor back to CENTER/CENTER so the offsets we save
+    -- can be correctly re-applied by RestorePanelPosition on reload.
+    -- WoW's StartMoving/StopMovingOrSizing may rewrite the frame's
+    -- "first point" into a different anchor system (e.g. TOPLEFT of
+    -- UIParent BOTTOMLEFT) depending on where the drag ended. If we
+    -- saved those raw x/y values, they'd be interpreted as CENTER/
+    -- CENTER offsets on the next restore and the panel would land in
+    -- the wrong place. Normalizing here guarantees the saved values
+    -- always match the CENTER-anchored contract that the restore path
+    -- expects.
+    local cx, cy   = self:GetCenter()
+    local pcx, pcy = UIParent:GetCenter()
+    local scale    = self:GetEffectiveScale()
+    local pscale   = UIParent:GetEffectiveScale()
+    local x = (cx * scale - pcx * pscale) / pscale
+    local y = (cy * scale - pcy * pscale) / pscale
+    self:ClearAllPoints()
+    self:SetPoint("CENTER", UIParent, "CENTER", x, y)
+    RR:SetSetting("panelX", math.floor(x + 0.5))
+    RR:SetSetting("panelY", math.floor(y + 0.5))
 end)
 
 -- Forward-declared so the panel.closeButton OnClick handler (defined below)
@@ -557,9 +574,18 @@ local function BuildSettingsPanel()
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        local _, _, _, x, y = self:GetPoint(1)
-        RR:SetSetting("settingsX", math.floor((x or 0) + 0.5))
-        RR:SetSetting("settingsY", math.floor((y or 0) + 0.5))
+        -- See main-panel OnDragStop above for why we normalize the anchor
+        -- to CENTER/CENTER here before reading offsets.
+        local cx, cy   = self:GetCenter()
+        local pcx, pcy = UIParent:GetCenter()
+        local scale    = self:GetEffectiveScale()
+        local pscale   = UIParent:GetEffectiveScale()
+        local x = (cx * scale - pcx * pscale) / pscale
+        local y = (cy * scale - pcy * pscale) / pscale
+        self:ClearAllPoints()
+        self:SetPoint("CENTER", UIParent, "CENTER", x, y)
+        RR:SetSetting("settingsX", math.floor(x + 0.5))
+        RR:SetSetting("settingsY", math.floor(y + 0.5))
     end)
 
     f.RestorePosition = function(self)
