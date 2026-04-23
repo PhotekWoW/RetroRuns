@@ -287,9 +287,11 @@ panel.transmog.GetHeight = function(self) return self.label:GetHeight() end
 
 panel.listHeader = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 panel.listHeader:SetPoint("TOPLEFT", panel.transmog, "BOTTOMLEFT", 0, -12)
+panel.listHeader:SetWidth(BODY_WIDTH)
+panel.listHeader:SetJustifyH("LEFT")
 
 panel.list = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-panel.list:SetPoint("TOPLEFT", panel.listHeader, "BOTTOMLEFT", 0, -4)
+panel.list:SetPoint("TOPLEFT", panel.listHeader, "BOTTOMLEFT", 0, -8)
 panel.list:SetWidth(BODY_WIDTH)
 panel.list:SetJustifyH("LEFT")
 panel.list:SetJustifyV("TOP")
@@ -378,7 +380,7 @@ function UI.ApplySettings()
     local targets = {
         { panel.mode,       11, "OUTLINE" },
         { panel.raid,       14, ""        },
-        { panel.progress,   13, "OUTLINE" },
+        { panel.progress,   14, "OUTLINE" },
         { panel.next,       14, "OUTLINE" },
         { panel.travel,     12, ""        },
         { panel.encounter,  12, ""        },
@@ -1552,35 +1554,6 @@ end
 -- Summary builder (main panel)
 -------------------------------------------------------------------------------
 
--- Scans an entire boss's loot and returns an aggregate count of:
---   needed   -> items where at least one difficulty bucket is missing
---               (gray dot in the Tmog browser)
---   shared   -> items where no buckets are missing, but at least one is
---               owned via a sibling source (amber dot)
---   total    -> total display-candidate items
--- Kept for the dropdown label counters (CountRaidLoot,
--- CountExpansionLoot) which use this cross-all-difficulties rollup to
--- build the "(needed/total)" badges on dropdown entries. The main
--- summary line uses a different shape (current-vs-other split) --
--- see BuildTransmogSummary.
-local function CountBossLoot(boss)
-    if not boss or not boss.loot or #boss.loot == 0 then return nil end
-    local needed, shared, total = 0, 0, 0
-    for _, item in ipairs(boss.loot) do
-        if ItemIsTransmogCandidate(item) then
-            total = total + 1
-            local state = ItemSummaryState(item)
-            if state == "missing" then
-                needed = needed + 1
-            elseif state == "shared" then
-                shared = shared + 1
-            end
-        end
-    end
-    if total == 0 then return nil end
-    return needed, shared, total
-end
-
 -- Count items where the specified difficulty bucket is missing/shared.
 -- Returns (needed, shared, total). Only counts items that HAVE a source
 -- for the given difficulty; items with no source for that difficulty
@@ -1663,6 +1636,49 @@ local function CountBossLootAcrossDifficulties(boss, diffIDs)
                 elseif s == "shared" then
                     shared = shared + 1
                 end
+            end
+        end
+    end
+    if total == 0 then return nil end
+    return needed, shared, total
+end
+
+-- Scans an entire boss's loot and returns an aggregate count of:
+--   needed   -> items in the "missing" state (gray dot in the Tmog browser)
+--   shared   -> items in the "shared" state (amber dot)
+--   total    -> total display-candidate items considered
+-- Used by the dropdown label counters (CountRaidLoot, CountExpansionLoot)
+-- to build the "(have/total)" badges on dropdown entries.
+--
+-- Semantics: if the player has an active difficulty (in a supported
+-- raid, on a tracked difficulty), this returns the per-difficulty slice
+-- for that difficulty only -- matching the "Current (Mythic)" line on
+-- the main-panel summary. If there's no active difficulty (browsing
+-- outside a raid, or on an untracked difficulty), falls back to a
+-- cross-all-difficulties rollup where an item counts as `missing` if
+-- ANY of its buckets is missing, else `shared` if any is shared, else
+-- collected. The fallback path matches the pre-v0.5.2 dropdown behavior
+-- so numbers stay visible when browsing out of raid.
+local function CountBossLoot(boss)
+    if not boss or not boss.loot or #boss.loot == 0 then return nil end
+    local activeID = ActiveDifficulty()
+    if activeID then
+        -- Per-difficulty slice. Returns nil if no items have a source
+        -- for this difficulty -- in that case, fall through to the
+        -- cross-all rollup rather than hiding the badge entirely.
+        local n, s, t = CountBossLootForDifficulty(boss, activeID)
+        if t and t > 0 then return n, s, t end
+    end
+    -- Fallback: cross-all-difficulties rollup via ItemSummaryState.
+    local needed, shared, total = 0, 0, 0
+    for _, item in ipairs(boss.loot) do
+        if ItemIsTransmogCandidate(item) then
+            total = total + 1
+            local state = ItemSummaryState(item)
+            if state == "missing" then
+                needed = needed + 1
+            elseif state == "shared" then
+                shared = shared + 1
             end
         end
     end
@@ -2929,11 +2945,11 @@ function UI.Update()
         panel.transmog:SetText("")
         -- Don't Hide() the transmog wrapper here -- panel.listHeader
         -- anchors to its bottom-left, so hiding it orphans that
-        -- anchor and the "Supported Raids" header disappears.
+        -- anchor and the "Currently supported:" header disappears.
         -- Empty text + EnableMouse(false) keeps the layout intact
         -- while making the invisible wrapper non-interactive.
         panel.transmog:EnableMouse(false)
-        panel.listHeader:SetText("Supported Raids")
+        panel.listHeader:SetText("|cff9d9d9dCurrently supported:|r")
         panel.list:SetText(BuildIdleListText())
         panel.mapBtn:Disable()
         panel.mapBtn:SetAlpha(0.45)
