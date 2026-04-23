@@ -1549,11 +1549,20 @@ local function ItemStateForActiveDifficulty(item)
 end
 
 -------------------------------------------------------------------------------
--- Summary builder (single-line main panel)
+-- Summary builder (main panel)
 -------------------------------------------------------------------------------
 
--- Scans an entire boss's loot directly. Returns (needed, shared, total).
--- Works for any boss object -- doesn't require a routing step.
+-- Scans an entire boss's loot and returns an aggregate count of:
+--   needed   -> items where at least one difficulty bucket is missing
+--               (gray dot in the Tmog browser)
+--   shared   -> items where no buckets are missing, but at least one is
+--               owned via a sibling source (amber dot)
+--   total    -> total display-candidate items
+-- Kept for the dropdown label counters (CountRaidLoot,
+-- CountExpansionLoot) which use this cross-all-difficulties rollup to
+-- build the "(needed/total)" badges on dropdown entries. The main
+-- summary line uses a different shape (current-vs-other split) --
+-- see BuildTransmogSummary.
 local function CountBossLoot(boss)
     if not boss or not boss.loot or #boss.loot == 0 then return nil end
     local needed, shared, total = 0, 0, 0
@@ -1572,44 +1581,186 @@ local function CountBossLoot(boss)
     return needed, shared, total
 end
 
--- Scans an entire boss's loot and returns an aggregate count of:
---   needed   -> items where at least one difficulty bucket is missing
---               (gray dot in the Tmog browser)
---   shared   -> items where no buckets are missing, but at least one is
---               owned via a sibling source (amber dot)
---   total    -> total display-candidate items
-local function GetBossLootStats(step)
-    if not step then return nil end
-    local boss = RR:GetBossByIndex(step.bossIndex)
-    return CountBossLoot(boss)
+-- Count items where the specified difficulty bucket is missing/shared.
+-- Returns (needed, shared, total). Only counts items that HAVE a source
+-- for the given difficulty; items with no source for that difficulty
+-- (some raids have fewer variants) are skipped entirely, not counted.
+local function CountBossLootForDifficulty(boss, diffID)
+    if not boss or not boss.loot or #boss.loot == 0 then return nil end
+    if not diffID then return nil end
+    local needed, shared, total = 0, 0, 0
+    for _, item in ipairs(boss.loot) do
+        if ItemIsTransmogCandidate(item) then
+            -- Only items WITH a source for this difficulty are countable.
+            local src = item.sources and item.sources[diffID]
+            if src then
+                total = total + 1
+                local s = CollectionStateForSource(src, item.id)
+                if s == "missing" then
+                    needed = needed + 1
+                elseif s == "shared" then
+                    shared = shared + 1
+                end
+            elseif not item.sources then
+                -- Items without any sources table fall through to the
+                -- item-level check; counted as a single undifferentiated
+                -- unit under every difficulty that reaches this path.
+                total = total + 1
+                local s = FallbackStateForItem(item.id)
+                if s == "missing" then
+                    needed = needed + 1
+                elseif s == "shared" then
+                    shared = shared + 1
+                end
+            end
+        end
+    end
+    if total == 0 then return nil end
+    return needed, shared, total
 end
 
--- The summary line is STRICT: "needed" means at least one difficulty
--- bucket of an item is uncollected by any means -- matching the Tmog
--- browser's per-dot rendering. An item is only "all collected" when
--- every dot in its strip is green. Previously the code was supposed to
--- be lenient (any-source-owned = collected) but the implementation only
--- checked the active difficulty, producing false "All appearances
--- collected!" claims when the player was zoned in on Mythic with all
--- Mythic sources owned but missing LFR/N/H elsewhere. Fixed
--- 2026-04-21 by switching to ItemSummaryState (strict per-difficulty
--- rollup that walks all 4 buckets).
-local function BuildTransmogSummary(step)
-    local needed, shared, _ = GetBossLootStats(step)
-    if not needed then return nil end
-
-    local label = ("|cff%sTransmog|r"):format(C_LABEL)
-    if needed == 0 and shared == 0 then
-        return label .. "  |cff00ff00All appearances collected!|r"
-    elseif needed == 0 then
-        return label .. ("  |cffbf9000%d via other items|r  |cff555555[click to browse]|r"):format(shared)
-    elseif shared == 0 then
-        return label .. ("  |cffff9900%d needed|r  |cff555555[click to browse]|r"):format(needed)
-    else
-        return label ..
-            ("  |cffff9900%d needed|r, |cffbf9000%d via other items|r  |cff555555[click to browse]|r"):format(
-                needed, shared)
+-- Count items where AT LEAST ONE of the given difficulty buckets is
+-- missing/shared. Used for the "Other difficulties" summary row, which
+-- rolls up the three non-active difficulties into a single count.
+local function CountBossLootAcrossDifficulties(boss, diffIDs)
+    if not boss or not boss.loot or #boss.loot == 0 then return nil end
+    local needed, shared, total = 0, 0, 0
+    for _, item in ipairs(boss.loot) do
+        if ItemIsTransmogCandidate(item) then
+            if item.sources then
+                -- Evaluate each difficulty bucket in this item's sources.
+                -- "hasMissing/hasShared" per-item: the item rolls up to
+                -- `missing` if any listed bucket is missing, else `shared`
+                -- if any is shared, else `collected`.
+                local sawBucket, hasMissing, hasShared = false, false, false
+                for _, diffID in ipairs(diffIDs) do
+                    local src = item.sources[diffID]
+                    if src then
+                        sawBucket = true
+                        local s = CollectionStateForSource(src, item.id)
+                        if s == "missing" then
+                            hasMissing = true
+                        elseif s == "shared" then
+                            hasShared = true
+                        end
+                    end
+                end
+                if sawBucket then
+                    total = total + 1
+                    if hasMissing then
+                        needed = needed + 1
+                    elseif hasShared then
+                        shared = shared + 1
+                    end
+                end
+            else
+                -- No sources table: falls through to item-level check,
+                -- counted once regardless of the diffIDs requested.
+                total = total + 1
+                local s = FallbackStateForItem(item.id)
+                if s == "missing" then
+                    needed = needed + 1
+                elseif s == "shared" then
+                    shared = shared + 1
+                end
+            end
+        end
     end
+    if total == 0 then return nil end
+    return needed, shared, total
+end
+
+-- Format a single stats tuple (needed, shared) in the
+-- "Missing (N) Shared (N)" shape. Number color is:
+--   0    -> green   (user has nothing outstanding in this category)
+--   1+   -> orange  (user needs / has duplicates here)
+-- The category labels themselves stay at the default text color.
+--
+-- When BOTH categories are zero, returns a single green "Complete"
+-- token instead of the Missing/Shared breakdown -- the caller can
+-- emit that in place of the counts so users see explicit confirmation
+-- rather than a row of zeros.
+local function FormatStatsFragment(needed, shared)
+    if needed == 0 and shared == 0 then
+        return "|cff00ff00Complete|r"
+    end
+    local missingColor = (needed == 0) and "ff00ff00" or "ffff9900"
+    local sharedColor  = (shared == 0) and "ff00ff00" or "ffff9900"
+    return ("Missing |c%s(%d)|r Shared |c%s(%d)|r"):format(
+        missingColor, needed, sharedColor, shared)
+end
+
+-- Main-panel transmog summary. Renders in the Achievements-section
+-- style: a "Transmog Needed:" header line followed by dash-prefixed
+-- entries for the current difficulty and the other three difficulties
+-- rolled up separately. Example output:
+--
+--   Transmog Needed:
+--   - Current (Mythic): Missing (0) Shared (1)
+--   - Other difficulties: Missing (2) Shared (0)  [click to browse]
+--
+-- Display rules:
+--   * Both dash lines always shown when active difficulty is known.
+--   * Per-line: if both Missing and Shared are zero, the line reads
+--     "...: Complete" (in green) instead of the zeros breakdown.
+--   * Numbers: 0 renders green, 1+ renders orange.
+--   * Collapses to single-line "Transmog Needed: All appearances
+--     collected!" when everything is done across all four difficulties.
+--   * Falls back to a single-fragment rollup if active difficulty is
+--     unknown or unsupported.
+local function BuildTransmogSummary(step)
+    if not step then return nil end
+    local boss = RR:GetBossByIndex(step.bossIndex)
+    if not boss then return nil end
+
+    local header   = ("|cff%sTransmog Needed:|r"):format(C_LABEL)
+    local clickHnt = "|cff555555[click to browse]|r"
+    local activeID = ActiveDifficulty()
+
+    -- Compute the current-difficulty counts (if active difficulty known).
+    local curNeeded, curShared, curTotal
+    if activeID then
+        curNeeded, curShared, curTotal = CountBossLootForDifficulty(boss, activeID)
+    end
+
+    -- Compute the other-difficulties counts (rollup of the 3 non-active).
+    local otherIDs = {}
+    for _, diffID in ipairs(DIFFS_FOR_SUMMARY) do
+        if diffID ~= activeID then
+            table.insert(otherIDs, diffID)
+        end
+    end
+    local othNeeded, othShared, othTotal = CountBossLootAcrossDifficulties(boss, otherIDs)
+
+    -- Edge case: active difficulty not set / not tracked. Fall back to
+    -- a cross-all-difficulties single-line rollup.
+    if not activeID or not curTotal then
+        local n, s, t = CountBossLootAcrossDifficulties(boss, DIFFS_FOR_SUMMARY)
+        if not t then return nil end
+        if n == 0 and s == 0 then
+            return header .. " |cff00ff00All appearances collected!|r"
+        end
+        return header .. "\n- " .. FormatStatsFragment(n, s) .. "  " .. clickHnt
+    end
+
+    -- Both counts computed. Is everything done across the board?
+    local curDone = (curNeeded == 0 and curShared == 0)
+    local othDone = (not othTotal) or (othNeeded == 0 and othShared == 0)
+    if curDone and othDone then
+        return header .. " |cff00ff00All appearances collected!|r"
+    end
+
+    -- Header + two dash lines, matching the Achievements section format.
+    -- Each line renders either Missing/Shared counts or "Complete".
+    -- Click hint always on the last (Other difficulties) line.
+    local diffName = DIFF_NAME[activeID] or tostring(activeID)
+    local line1 = ("- Current (%s): %s"):format(
+        diffName, FormatStatsFragment(curNeeded, curShared))
+    local othFrag = othTotal
+        and FormatStatsFragment(othNeeded, othShared)
+        or "|cff00ff00Complete|r"
+    local line2 = ("- Other difficulties: %s  %s"):format(othFrag, clickHnt)
+    return header .. "\n" .. line1 .. "\n" .. line2
 end
 
 -------------------------------------------------------------------------------
@@ -2736,6 +2887,13 @@ function UI.Update()
             panel.transmog:SetText(tmog or "")
             panel.transmog:SetShown(tmog ~= nil)
             panel.transmog:EnableMouse(true)
+            -- Size the click frame to match the rendered text height.
+            -- The summary can wrap to two lines (current-diff / other-diffs
+            -- split), and without this resize the OnClick hit zone stays
+            -- at its 14px construction height and misses the second line.
+            if tmog then
+                panel.transmog:SetHeight(math.max(14, panel.transmog.label:GetStringHeight()))
+            end
         else
             panel.next:SetText("|cff00ff00Run complete!|r")
             panel.travel:SetText(
