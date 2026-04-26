@@ -55,22 +55,64 @@ function RR:MarkBossKilled(boss)
     if self.state.manualTargetBossIndex == boss.index then
         self.state.manualTargetBossIndex = nil
     end
+
+    -- Mark all segments of this boss's step complete. Route-aware
+    -- mapID-change marking (in HandleLocationChange) only marks
+    -- segments whose successor's mapID matches the new mapID -- the
+    -- LAST segment of any step never matches that rule (no successor)
+    -- so it would stay incomplete forever without this. Marking all
+    -- segs complete on the kill is also a defense-in-depth: if any
+    -- earlier segment got missed by the mapID-change rule (e.g. due
+    -- to the player teleporting past it, or a quirk we haven't seen),
+    -- the kill cleans up the state anyway.
+    if self.currentRaid and self.currentRaid.routing then
+        for _, step in ipairs(self.currentRaid.routing) do
+            if step.bossIndex == boss.index and step.segments then
+                local stepIndex = step.step or step.priority or 0
+                for segIndex = 1, #step.segments do
+                    if not self:IsSegmentCompleted(stepIndex, segIndex) then
+                        self:MarkSegmentCompleted(stepIndex, segIndex)
+                    end
+                end
+            end
+        end
+    end
 end
 
 function RR:MarkBossKilledByEncounterName(encounterName)
-    if not self.currentRaid or not encounterName then return end
+    if not self.currentRaid or not encounterName then
+        if self.ZoneLog then
+            self:ZoneLog(("MarkBossKilledByEncounterName: bailing -- currentRaid=%s name=%s")
+                :format(tostring(self.currentRaid), tostring(encounterName)))
+        end
+        return
+    end
     local boss = self:ResolveBoss(encounterName)
     if boss then
+        if self.ZoneLog then
+            self:ZoneLog(("MarkBossKilledByEncounterName: resolved %q -> bossIndex %d (%s)")
+                :format(encounterName, boss.index, boss.name))
+        end
         self:MarkBossKilled(boss)
         self:ComputeNextStep()
     else
+        if self.ZoneLog then
+            self:ZoneLog(("MarkBossKilledByEncounterName: NO MATCH for %q"):format(encounterName))
+        end
         self:Debug("No boss matched encounter: " .. encounterName)
     end
 end
 
 function RR:ClearBossState()
     wipe(self.state.bossesKilled)
-    wipe(self.state.completedSegments)
+    -- DO NOT wipe completedSegments here. Segment completion is purely
+    -- client-side state derived from player movement (zone-change
+    -- transitions, kill-segment proximity), not from saved raid info.
+    -- Wiping it on every server-state sync caused freshly-marked
+    -- segments to be cleared at the end of the same HandleLocationChange
+    -- invocation that marked them, which broke same-mapID disambiguation
+    -- in Vault (Terros's two Vault Approach segments). Segments are
+    -- wiped only when the user explicitly resets state via /rr reset.
 end
 
 -------------------------------------------------------------------------------
@@ -86,6 +128,21 @@ function RR:MarkSegmentCompleted(stepIndex, segIndex)
     self.state.completedSegments[stepIndex] =
         self.state.completedSegments[stepIndex] or {}
     self.state.completedSegments[stepIndex][segIndex] = true
+
+    -- Persist to SavedVariable, scoped by raid instanceID. Segment
+    -- completion is purely client-side (no server cache to sync from)
+    -- so without persistence, /reload mid-route loses progress and
+    -- the renderer's earliest-incomplete picker shows the wrong
+    -- segment when multiple segments share a mapID. Restore happens
+    -- in LoadCurrentRaid. See HANDOFF 2026-04-25 investigation.
+    if self.currentRaid and self.currentRaid.instanceID and RetroRunsDB then
+        RetroRunsDB.completedSegments = RetroRunsDB.completedSegments or {}
+        local raidStore = RetroRunsDB.completedSegments[self.currentRaid.instanceID]
+                       or {}
+        raidStore[stepIndex] = raidStore[stepIndex] or {}
+        raidStore[stepIndex][segIndex] = true
+        RetroRunsDB.completedSegments[self.currentRaid.instanceID] = raidStore
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -144,6 +201,12 @@ end
 -- Progress
 -------------------------------------------------------------------------------
 
+-- Returns "X/Y" where X is bosses killed on the player's current
+-- difficulty and Y is the raid's total boss count. Currently unused
+-- after UI.lua's "Progress: X/Y" line was retired (information now
+-- redundant with the per-difficulty pills row in the panel header).
+-- Kept available for future callers (tooltip text, alternate UI
+-- modes, etc.).
 function RR:GetProgressText()
     if not self.currentRaid then return "0/0" end
     local total, killed = #self.currentRaid.bosses, 0
@@ -231,7 +294,20 @@ function RR:GetRelevantSegmentsForMap(step, mapID)
     end
     local _, px, py = self:GetPlayerMapPosition()
     if not px then
-        table.insert(results, matches[#matches].seg)
+        -- Inside raid instances, C_Map.GetPlayerMapPosition returns nil
+        -- (Blizzard restriction -- see Recorder.lua's preamble for the
+        -- documented behavior). When player position can't be resolved
+        -- we default to the EARLIEST incomplete segment matching the
+        -- player's mapID, on the principle of "show the player the
+        -- next thing they need to do, not the last." This is the path
+        -- that fires for every multi-segment-same-mapID case during
+        -- actual raid play; the closest-distance heuristic below is
+        -- effectively dead code inside instances. Picking matches[#matches]
+        -- here would surface a later segment (e.g. Eranog's "After
+        -- killing Volcanius..." instead of the dragon flyover) on
+        -- fresh zone-in, which is exactly what was reported by
+        -- Photek 2026-04-25.
+        table.insert(results, matches[1].seg)
         return results
     end
     local bestSeg, bestDist
@@ -305,6 +381,61 @@ function RR:CheckTeleportArrivalAdvance()
             local arr = nextSeg.points[1]
             if (px - arr[1])^2 + (py - arr[2])^2 <= 0.06^2 then
                 self:MarkSegmentCompleted(stepIndex, i)
+                RR.UI.Update()
+                if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
+                return
+            end
+        end
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Kill-gate advancement  (segment kind="kill" with targetName="<mob name>")
+--
+-- Position-based, NOT combat-log-based. Advances the segment when the
+-- player reaches the last point of the kill segment's path -- i.e. when
+-- they've walked to the mini-boss's pull spot. The `targetName` field
+-- is kept on the segment for authoring clarity and potential future
+-- features (tooltips, status output) but the actual advancement
+-- trigger is proximity to points[#points].
+--
+-- Why position-based instead of CLEU:
+--   COMBAT_LOG_EVENT_UNFILTERED registration produces a taint popup
+--   on some WoW 12.0 configurations, reproducible with an isolated
+--   20-line test addon that does nothing but register CLEU. Not a
+--   code-fixable issue -- it's environmental. Position triggers use
+--   the existing ticker infrastructure (same pattern as
+--   CheckTeleportArrivalAdvance) and have zero taint exposure.
+--
+-- User-visible behavior:
+--   Player walks toward Volcanius along the kill-segment path. When
+--   they arrive at his pull spot, they fight him. Seconds after the
+--   kill they move off that spot (or before the kill if they kite),
+--   and by then the ticker has already marked the segment complete
+--   based on proximity to points[#points]. The note advances to the
+--   next segment ("the path opens") smoothly. Indistinguishable from
+--   the CLEU-triggered version in practice.
+--
+-- Radius tuning:
+--   Uses the same 0.06 radius as CheckTeleportArrivalAdvance, since
+--   that's been validated in Sanctum. Represents about a 6% map
+--   coordinate distance -- roughly a typical melee-range footprint.
+-------------------------------------------------------------------------------
+
+function RR:CheckKillAdvance()
+    local step = self.state.activeStep
+    if not step or not step.segments then return end
+    local playerMapID, px, py = self:GetPlayerMapPosition()
+    if not playerMapID then return end
+    local stepIndex = step.step or step.priority or 0
+    for segIndex, seg in ipairs(step.segments) do
+        if seg.kind == "kill"
+            and not self:IsSegmentCompleted(stepIndex, segIndex)
+            and seg.mapID == playerMapID
+            and seg.points and #seg.points > 0 then
+            local last = seg.points[#seg.points]
+            if (px - last[1])^2 + (py - last[2])^2 <= 0.06^2 then
+                self:MarkSegmentCompleted(stepIndex, segIndex)
                 RR.UI.Update()
                 if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
                 return

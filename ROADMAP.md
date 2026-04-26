@@ -1,6 +1,6 @@
 # RetroRuns — Roadmap & Feature Tracker
 
-## Current Version: 0.5.2 (Beta — v1.0 release candidate)
+## Current Version: 0.6.0 (Beta — v1.0 release candidate)
 
 ---
 
@@ -116,6 +116,17 @@
     HANDOFF's 2026-04-22 session summary for the full investigation
     trail and why per-covenant data is deferred indefinitely.
     Shipped in v0.4.9.
+  - Dragonflight: Vault of the Incarnates — **DONE.** Full skeleton
+    + 8 bosses + 55 non-tier loot + 65 class tier pieces + 20 tier-
+    set token sources + Iskaara Trader's Ottuk barter mount + 8
+    routes + soloTips + achievements. Shipped in v0.6.0. First raid
+    exercising the barter-mount specialLoot schema and DF-era gem-
+    encoded tier token naming (Jade/Amethyst/Garnet/Lapis/Topaz =
+    Legs/Chest/Hands/Shoulders/Head), and the first raid where a
+    boss's route revisits a mapID -- which surfaced the route-aware
+    segment-completion architecture (HandleLocationChange's
+    successor-mapID rule + ENCOUNTER_END safety net) that's now the
+    foundation for any future raid with similar topology.
   - BFA: Ny'alotha, The Waking City
   - BFA: Eternal Palace
   - Legion: Antorus, the Burning Throne
@@ -255,4 +266,5 @@ per-item list is secondary.
 | 0.3.0   | Second raid added (Sanctum of Domination)                 |
 | 0.4.0   | Sanctum data-validated end-to-end; AutoSize rendering bug fixed; RetroRunsDB centralization refactor; `/rr tmogverify` diagnostic tool |
 | 0.5.0   | Third raid (Castle Nathria) + any broad UX/settings expansion |
+| 0.6.0   | Fourth raid (Vault of the Incarnates) + difficulty pills + collapsible Boss Encounter section + route-aware segment completion |
 | 1.0.0   | Polished, publicly releasable, 4+ raids with full data    |

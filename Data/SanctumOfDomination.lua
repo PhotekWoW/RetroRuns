@@ -44,7 +44,6 @@ RetroRuns_Data[2450] = {
             mapID              = 1998,
             coord              = { 0.522, 0.491 },
             aliases            = { "Tarragrue" },
-            soloTip            = "Standard Nuke.",
             achievements       = {
                 { id = 14998, name = "Name A Better Duo, I'll Wait", meta = true },
             },
@@ -121,7 +120,7 @@ RetroRuns_Data[2450] = {
             mapID              = 2000,
             coord              = { 0.858, 0.381 },
             aliases            = { "Ner'zhul", "Nerzhul" },
-            soloTip            = "Kill trash to engage the boss. Standard Nuke.",
+            soloTip            = "Kill trash to engage the boss.",
             achievements       = {
                 { id = 15058, name = "I Used to Bullseye Deeprun Rats Back Home", meta = true },
             },
@@ -143,7 +142,6 @@ RetroRuns_Data[2450] = {
             mapID              = 2000,
             coord              = { 0.558, 0.734 },
             aliases            = { "Dormazain", "Soulrender" },
-            soloTip            = "Standard Nuke.",
             achievements       = {
                 { id = 15105, name = "Tormentor's Tango", meta = true },
             },
@@ -171,7 +169,6 @@ RetroRuns_Data[2450] = {
             mapID              = 2000,
             coord              = { 0.672, 0.332 },
             aliases            = { "Painsmith", "Raznal" },
-            soloTip            = "Standard Nuke.",
             achievements       = {
                 { id = 15131, name = "Whack-A-Soul", meta = true },
             },
@@ -194,7 +191,6 @@ RetroRuns_Data[2450] = {
             mapID              = 2001,
             coord              = { 0.631, 0.191 },
             aliases            = { "Guardian" },
-            soloTip            = "Standard Nuke.",
             achievements       = {
                 { id = 15132, name = "Knowledge is Power", meta = true },
             },
@@ -219,7 +215,6 @@ RetroRuns_Data[2450] = {
             mapID              = 2001,
             coord              = { 0.547, 0.724 },
             aliases            = { "Fatescribe", "Roh-Kalo" },
-            soloTip            = "Standard Nuke.",
             achievements       = {
                 { id = 15040, name = "Flawless Fate", meta = true },
             },
@@ -276,7 +271,6 @@ RetroRuns_Data[2450] = {
             -- to be refined.
             coord              = { 0.500, 0.500 },
             aliases            = { "Sylvanas" },
-            soloTip            = "Standard Nuke.",
             achievements       = {
                 { id = 15133, name = "This World is a Prism", meta = true },
             },

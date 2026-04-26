@@ -207,12 +207,24 @@ end
 
 -- Token names contain a slot keyword that maps to one of the five tier slots.
 -- Order matters: more specific keywords (helm) go before less specific (head).
+-- Token-name keywords used to infer a token's slot. Historically this was
+-- just body-part words (helm, shoulder, etc.) matching Sepulcher-era
+-- "{Family} {Slot} Module" naming. DF Season 1 Vault of the Incarnates
+-- broke that convention and encoded the slot as a gem name instead:
+-- "Dreadful Jade Forgestone" drops on Sennarth and redeems for a Legs
+-- piece. The gem->slot mapping there is:
+--   Jade=Legs, Amethyst=Chest, Garnet=Hands, Lapis=Shoulders, Topaz=Head.
+-- Future DF+ raids may continue this pattern with new gem words or may
+-- revert to body-part words; extend this table as needed.
 local TOKEN_SLOT_KEYWORDS = {
-    { keywords = { "helm", "head", "crown", "cowl" },              slot = "Head"     },
-    { keywords = { "shoulder", "mantle", "pauldron", "spaulder" }, slot = "Shoulder" },
-    { keywords = { "chest", "robe", "tunic", "breastplate" },      slot = "Chest"    },
-    { keywords = { "hand", "glove", "gauntlet", "grip" },          slot = "Hands"    },
-    { keywords = { "leg", "pant", "breech", "kilt" },              slot = "Legs"     },
+    { keywords = { "helm", "head", "crown", "cowl",    "topaz"    }, slot = "Head"     },
+    { keywords = { "shoulder", "mantle", "pauldron", "spaulder",
+                                                      "lapis"    }, slot = "Shoulder" },
+    { keywords = { "chest", "robe", "tunic", "breastplate",
+                                                      "amethyst" }, slot = "Chest"    },
+    { keywords = { "hand", "glove", "gauntlet", "grip",
+                                                      "garnet"   }, slot = "Hands"    },
+    { keywords = { "leg", "pant", "breech", "kilt",   "jade"     }, slot = "Legs"     },
 }
 
 -- Parse a token name like "Mystic Leg Module" -> ("MYSTIC", "Legs").
@@ -339,6 +351,44 @@ function RR:HarvestDiagnose()
 
     add("-- /rr ej for: " .. (RR.currentRaid and RR.currentRaid.name or "(no raid loaded)"))
     add("")
+
+    -- === Live GetInstanceInfo() ===
+    -- When the player is zoned into a raid, this gives us the authoritative
+    -- instanceID (position 8 in the 10-value return). This is the ID used
+    -- as the top-level key in Data/*.lua files. When NOT in an instance,
+    -- instanceType is "none" and we say so explicitly.
+    add("=== Live GetInstanceInfo() ===")
+    local ok, iname, itype, _, _, _, _, _, iid =
+        pcall(function() return GetInstanceInfo() end)
+    if ok and itype and itype ~= "none" then
+        add(("  name=%s  type=%s  instanceID=%s"):format(
+            tostring(iname), tostring(itype), tostring(iid)))
+        add("  (Use instanceID as the Data/*.lua top-level key.)")
+    else
+        add("  (not zoned into an instance -- instanceID unavailable from")
+        add("   GetInstanceInfo(). Zone into the raid to capture it.)")
+    end
+    add("")
+
+    -- === EJ_GetInstanceInfo for currently-selected journal instance ===
+    -- If the player has the Encounter Journal open (or recently selected
+    -- a raid in it), this returns the raid's uiMapID at position 10 --
+    -- useful for Data/*.lua `maps` table seeding. Works even when NOT
+    -- zoned into the raid, which is handy for stubbing out data files
+    -- before doing a first run.
+    add("=== EJ_GetInstanceInfo() for selected journal instance ===")
+    local selectedEJ = EJ_GetSelectedInstance and EJ_GetSelectedInstance() or nil
+    if selectedEJ then
+        local ejName, _, _, _, _, _, _, _, _, ejMapID, _, isRaid =
+            EJ_GetInstanceInfo(selectedEJ)
+        add(("  journalInstanceID=%d  name=%s  uiMapID=%s  isRaid=%s"):format(
+            selectedEJ, tostring(ejName), tostring(ejMapID), tostring(isRaid)))
+    else
+        add("  (no journal instance selected -- open the Encounter Journal")
+        add("   to the raid first so EJ_GetSelectedInstance() returns a value.)")
+    end
+    add("")
+
     add("=== Stored journalEncounterIDs for current raid ===")
 
     if RR.currentRaid then
@@ -371,8 +421,8 @@ function RR:HarvestDiagnose()
     end
     if found == 0 then
         add("  (EJ_GetEncounterInfoByIndex returned nothing -- is the")
-        add("   Encounter Journal selected to a raid? Run /rr ej after")
-        add("   opening the EJ to Sanctum, or zone into the raid first.)")
+        add("   Encounter Journal selected to a raid? Open the EJ to")
+        add("   the raid, or zone into it, then retry.)")
     end
 
     local body = table.concat(out, "\n")
@@ -1227,15 +1277,17 @@ SET_DESCRIPTION_TO_DIFFICULTY[PLAYER_DIFFICULTY3 or "Mythic"]      = 16  -- Myth
 local CollectTierSets_Build
 
 local function CollectTierSets(tierSets, onDone)
-    local result = {}
-    local function finish() if onDone then onDone(result) end end
-
-    if not tierSets then return finish() end
-    if not C_TransmogSets then return finish() end
+    if not tierSets or not C_TransmogSets then
+        if onDone then onDone({}) end
+        return
+    end
 
     local labels       = tierSets.labels       or {}
     local tokenSources = tierSets.tokenSources or {}
-    if #labels == 0 then return finish() end
+    if #labels == 0 then
+        if onDone then onDone({}) end
+        return
+    end
 
     -- Pre-compute label set for O(1) check.
     local labelSet = {}

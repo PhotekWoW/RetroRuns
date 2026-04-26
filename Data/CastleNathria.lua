@@ -374,7 +374,6 @@ RetroRuns_Data[2296] = {
             mapID              = 1735,
             coord              = { 0.571, 0.807 },
             aliases            = {},
-            soloTip            = "Standard Nuke",
             achievements       = {
                 { id = 14293, name = "Blind as a Bat", meta = true },
             },
@@ -394,7 +393,6 @@ RetroRuns_Data[2296] = {
             mapID              = 1735,
             coord              = { 0.674, 0.531 },
             aliases            = { "Altimor" },
-            soloTip            = "Standard Nuke",
             achievements       = {
                 { id = 14523, name = "Taking Care of Business", meta = true },
             },
@@ -433,7 +431,6 @@ RetroRuns_Data[2296] = {
             mapID              = 1745,
             coord              = { 0.652, 0.280 },
             aliases            = { "Xy'mox" },
-            soloTip            = "Standard Nuke",
             achievements       = {
                 { id = 14617, name = "Private Stock", meta = true },
             },
@@ -452,7 +449,6 @@ RetroRuns_Data[2296] = {
             mapID              = 1735,
             coord              = { 0.383, 0.348 },
             aliases            = { "Destroyer" },
-            soloTip            = "Standard Nuke",
             achievements       = {
                 { id = 14376, name = "Feed the Beast", meta = true },
             },
@@ -474,7 +470,6 @@ RetroRuns_Data[2296] = {
             mapID              = 1744,
             coord              = { 0.387, 0.443 },
             aliases            = { "Inerva", "Darkvein" },
-            soloTip            = "Standard Nuke",
             achievements       = {
                 { id = 14524, name = "I Don't Know What I Expected", meta = true },
             },
@@ -514,7 +509,6 @@ RetroRuns_Data[2296] = {
             mapID              = 1735,
             coord              = { 0.633, 0.806 },
             aliases            = {},
-            soloTip            = "Standard Nuke",
             achievements       = {
                 { id = 14294, name = "Dirtflap's Revenge", meta = true },
             },
@@ -556,7 +550,6 @@ RetroRuns_Data[2296] = {
             mapID              = 1747,
             coord              = { 0.492, 0.520 },
             aliases            = { "Denathrius", "Sire" },
-            soloTip            = "Standard Nuke",
             achievements       = {
                 { id = 14610, name = "Clear Conscience", meta = true },
             },

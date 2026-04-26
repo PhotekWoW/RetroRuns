@@ -11,7 +11,14 @@
 --                                  teleport. Open the new map, keep
 --                                  shift-clicking; the new clicks attach
 --                                  to the new map automatically.
---   4. /rr record note <text>    -- attach a travel note to the current segment
+--      At a same-mapID sub-zone threshold (rare):
+--        /rr record break     -- closes current segment, opens a fresh
+--                                  one with the same mapID. Issue this
+--                                  AFTER walking across the threshold,
+--                                  before any clicks on the new side.
+--   4. /rr record note <text>    -- attach a travel note to the current
+--                                  segment (can be issued at any time
+--                                  during recording, not just at the end)
 --   5. /rr record stop           -- finalise
 --   6. /rr record dump           -- open a copy window with a complete,
 --                                  pasteable routing entry
@@ -51,10 +58,20 @@ end
 
 local function NewSegment(mapID, kind)
     return {
-        mapID  = mapID,
-        kind   = kind or "path",
-        note   = nil,
-        points = {},
+        mapID   = mapID,
+        kind    = kind or "path",
+        note    = nil,
+        subZone = nil,   -- player's sub-zone string at the most recent click;
+                         -- captured for human-readable dumps and for future
+                         -- engine use, NOT currently consulted by routing
+                         -- logic (which only uses mapID for segment
+                         -- advancement). Updated on every shift-click so
+                         -- the final value reflects the segment's endpoint.
+                         -- Sub-zones that GetSubZoneText returns "" for
+                         -- (e.g. Primal Convergence) end up with an empty
+                         -- subZone field, which is honest data but means
+                         -- those segments get no subZone field in the dump.
+        points  = {},
     }
 end
 
@@ -119,6 +136,15 @@ function RR:RecorderHandleMapClick()
     end
 
     table.insert(rec.current.points, { R3(nx), R3(ny) })
+
+    -- Capture the player's current sub-zone string. Updated on every
+    -- click so the final value on the segment reflects the destination
+    -- (the spot the player is standing when they finish mapping the
+    -- route). Empty string means the player is in the parent zone with
+    -- no named sub-zone (still useful as a distinct value vs. nil).
+    if GetSubZoneText then
+        rec.current.subZone = GetSubZoneText()
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -142,10 +168,13 @@ function RR:StartRecording()
     rec.segments = {}
     rec.current  = NewSegment(mapID, "path")
 
+    self:ShowRecorderHUD()
+
     self:Print("Recording started.")
     self:Print("  Open the World Map and SHIFT+CLICK each waypoint along the route.")
     self:Print("  Switch World Map floors between clicks to record across multiple maps.")
     self:Print("  /rr record tp <name>   -- mark current segment as a teleporter use")
+    self:Print("  /rr record break       -- split AFTER crossing a sub-zone threshold")
     self:Print("  /rr record note <text> -- attach a travel note to the current segment")
     self:Print("  /rr record stop        -- finish")
 end
@@ -153,6 +182,8 @@ end
 function RR:StopRecording()
     local rec = self.recorder
     rec.active = false
+
+    self:HideRecorderHUD()
 
     if rec.current then
         if #rec.current.points > 0 then
@@ -197,6 +228,32 @@ function RR:RecordTeleport(destination)
 
     self:Print(("Teleport marked: %s"):format(destination))
     self:Print("  Open the new map after teleporting, then SHIFT+CLICK to continue.")
+end
+
+--- Insert a segment break on the current map. Closes the current segment and
+--- opens a fresh one with the SAME mapID. Use when the player crosses a
+--- sub-zone threshold inside a single map (e.g. Vault Approach -> Quarry of
+--- Infusion, both on mapID 2122) and the route engine needs the two halves
+--- as separate segments for disambiguation. The new segment will pick up
+--- the player's current sub-zone string on its first shift-click, since
+--- subZone is captured per-click and reflects the most recent value.
+---
+--- Distinct from RecordTeleport: no kind change, no mapID change, no
+--- destination string. Just "stop this segment here, start a new one."
+function RR:RecordBreak()
+    local rec = self.recorder
+    if not rec.active then
+        self:Print("Recorder is not running. Use /rr record start first.")
+        return
+    end
+    if not rec.current or #rec.current.points == 0 then
+        self:Print("No points in current segment yet; nothing to break.")
+        return
+    end
+    local mapID = rec.current.mapID
+    table.insert(rec.segments, rec.current)
+    rec.current = NewSegment(mapID, "path")
+    self:Print(("Segment break inserted (mapID %d). Continue shift-clicking."):format(mapID))
 end
 
 --- Attach a travel note to the current segment.
@@ -270,6 +327,9 @@ function RR:BuildRecordingExport()
         table.insert(out, "        {")
         table.insert(out, ("            mapID = %d,"):format(s.mapID or 0))
         table.insert(out, ("            kind  = %q,"):format(s.kind or "path"))
+        if s.subZone and s.subZone ~= "" then
+            table.insert(out, ("            subZone = %q,"):format(s.subZone))
+        end
         if s.destination then
             table.insert(out, ("            destination = %q,"):format(s.destination))
         end
@@ -319,4 +379,143 @@ function RR:DumpRecording()
         self:Print("-------------------------------------")
         self:Print("Copy the above into your data file.")
     end
+end
+
+-------------------------------------------------------------------------------
+-- Recorder HUD
+--
+-- A small floating frame that shows the player's current zone, sub-zone, and
+-- mapID in real time. Shown only while recording is active. Purpose: the
+-- author needs to know when route waypoints are crossing into named sub-zones
+-- (so they can issue /rr record break for same-mapID segment splits, decide
+-- when waypoint clicks should be made, and verify segment endpoints land in
+-- the expected sub-zone for the dump). Watching the white sub-zone toast
+-- flicker by on screen is unreliable; this HUD shows current state in place,
+-- always glance-able.
+--
+-- Frame is created lazily on first /rr record start so we don't allocate UI
+-- bandwidth on installs that never record. Position is draggable and saved
+-- to RetroRunsDB.recorderHudX/Y. Default position is roughly top-center.
+--
+-- Refresh sources:
+--   * ZONE_CHANGED, ZONE_CHANGED_INDOORS, ZONE_CHANGED_NEW_AREA events
+--     (the _INDOORS variant catches sub-sub-zone transitions that don't
+--     fire ZONE_CHANGED).
+--   * 1Hz polling ticker, started on Show, cancelled on Hide. Catches
+--     the case where C_Map.GetBestMapForUnit's return value drifts
+--     without a corresponding zone event firing (observed during
+--     Sennarth's ascent: mapID 2122 -> 2123 transition completed
+--     without ZONE_CHANGED, leaving event-only refresh stale until
+--     the next event happened to fire).
+-------------------------------------------------------------------------------
+
+local hud  -- frame, lazily created
+
+local function HudUpdate()
+    if not hud or not hud:IsShown() then return end
+    local zone    = (GetZoneText and GetZoneText())       or ""
+    local subZone = (GetSubZoneText and GetSubZoneText()) or ""
+    local mapID   = (C_Map and C_Map.GetBestMapForUnit and
+                     C_Map.GetBestMapForUnit("player")) or 0
+    if zone    == "" then zone    = "<empty>" end
+    if subZone == "" then subZone = "<empty>" end
+    hud.zoneFS:SetText("zone:    " .. zone)
+    hud.subFS:SetText( "subZone: " .. subZone)
+    hud.mapFS:SetText( "mapID:   " .. tostring(mapID))
+end
+
+local function HudCreate()
+    if hud then return hud end
+    local f = CreateFrame("Frame", "RetroRunsRecorderHUD", UIParent, "BackdropTemplate")
+    f:SetSize(260, 64)
+    f:SetFrameStrata("HIGH")
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetClampedToScreen(true)
+    f:SetBackdrop({
+        bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
+        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 12,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    f:SetBackdropColor(0.03, 0.03, 0.03, 0.85)
+
+    -- Restore saved position. Same CENTER-anchored contract as the main
+    -- panel uses (UI.lua RestorePanelPosition).
+    f:ClearAllPoints()
+    f:SetPoint("CENTER", UIParent, "CENTER",
+        RR:GetSetting("recorderHudX", 0),
+        RR:GetSetting("recorderHudY", 240))
+
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local cx, cy   = self:GetCenter()
+        local pcx, pcy = UIParent:GetCenter()
+        local scale    = self:GetEffectiveScale()
+        local pscale   = UIParent:GetEffectiveScale()
+        local x = (cx * scale - pcx * pscale) / pscale
+        local y = (cy * scale - pcy * pscale) / pscale
+        self:ClearAllPoints()
+        self:SetPoint("CENTER", UIParent, "CENTER", x, y)
+        RR:SetSetting("recorderHudX", math.floor(x + 0.5))
+        RR:SetSetting("recorderHudY", math.floor(y + 0.5))
+    end)
+
+    -- Three left-aligned FontStrings, monospace-ish via GameFontHighlight
+    -- (the addon's standard small-text font). Stacked top-to-bottom.
+    local function makeFS(parent, yOffset)
+        local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        fs:SetPoint("TOPLEFT", parent, "TOPLEFT", 10, yOffset)
+        fs:SetJustifyH("LEFT")
+        fs:SetTextColor(0.9, 0.9, 0.9)
+        return fs
+    end
+    f.zoneFS = makeFS(f, -8)
+    f.subFS  = makeFS(f, -24)
+    f.mapFS  = makeFS(f, -40)
+
+    -- Event listening. Three zone events cover most transitions; HudUpdate
+    -- is also called eagerly on Show() so the HUD has correct state the
+    -- moment it appears (events won't fire until the player moves). A
+    -- polling ticker (1Hz, started on Show, cancelled on Hide) catches
+    -- the case where C_Map.GetBestMapForUnit's return value drifts
+    -- without a corresponding zone event firing -- e.g. during the
+    -- Sennarth ascent the player's mapID transitions from 2122 to 2123
+    -- without a ZONE_CHANGED, so event-only refresh leaves the HUD stale.
+    -- /rr status reads on demand and stays correct, but the HUD needs
+    -- continuous updates while it's visible. Polling cost is three
+    -- string reads per tick, only while HUD is visible (i.e. during
+    -- active recording), so the overhead is negligible.
+    f:SetScript("OnEvent", HudUpdate)
+    f:RegisterEvent("ZONE_CHANGED")
+    f:RegisterEvent("ZONE_CHANGED_INDOORS")
+    f:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+
+    f:SetScript("OnShow", function(self)
+        HudUpdate()
+        if not self.ticker then
+            self.ticker = C_Timer.NewTicker(1.0, HudUpdate)
+        end
+    end)
+    f:SetScript("OnHide", function(self)
+        if self.ticker then
+            self.ticker:Cancel()
+            self.ticker = nil
+        end
+    end)
+    f:Hide()
+
+    hud = f
+    return hud
+end
+
+function RR:ShowRecorderHUD()
+    HudCreate()
+    if hud then hud:Show() end
+end
+
+function RR:HideRecorderHUD()
+    if hud then hud:Hide() end
 end

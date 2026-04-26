@@ -177,10 +177,84 @@ panel.raid:SetPoint("TOPLEFT", panel, "TOPLEFT", PAD_LEFT, -52)
 panel.raid:SetWidth(PANEL_W - PAD_LEFT - 80)
 panel.raid:SetJustifyH("LEFT")
 
-panel.progress  = AddField(panel.raid,     "TOPLEFT", "BOTTOMLEFT", -8,  BODY_WIDTH, "GameFontNormal")
+-- Per-difficulty kill-count pills. Replaces the trailing "(Heroic)"
+-- portion of the raid name. Format: "[ LFR x/y | N x/y | H x/y | M x/y ]"
+-- matching the bracketed/piped style of the tmog popup's per-difficulty
+-- dot row (see BuildPerDiffRow). The player's current difficulty is
+-- rendered in white; every other difficulty (whether fully cleared,
+-- partially cleared, or untouched) is gray. Reader picks out "what am
+-- I playing" by the white highlight, then reads the x/y to know status.
+-- Counts come from RR:GetPerDifficultyKillCounts which uses
+-- C_RaidLocks.IsEncounterComplete; updates whenever UI.Update runs
+-- (which already fires on zone change, ENCOUNTER_END, and the 1Hz
+-- heartbeat). No separate event wiring needed.
+panel.pills = AddField(panel.raid, "TOPLEFT", "BOTTOMLEFT", -2, BODY_WIDTH, "GameFontNormalSmall")
+
+panel.progress  = AddField(panel.pills,    "TOPLEFT", "BOTTOMLEFT", -6,  BODY_WIDTH, "GameFontNormal")
 panel.next      = AddField(panel.progress, "TOPLEFT", "BOTTOMLEFT", -8,  BODY_WIDTH, "GameFontNormal")
 panel.travel    = AddField(panel.next,     "TOPLEFT", "BOTTOMLEFT", -12, BODY_WIDTH)
-panel.encounter = AddField(panel.travel,   "TOPLEFT", "BOTTOMLEFT", -8,  BODY_WIDTH)
+
+-- Boss Encounter section. Was a plain FontString; converted 2026-04-25
+-- to a Button so the section can be clicked to expand/collapse the
+-- soloTip and Achievements content. Default state is collapsed for
+-- bosses with custom notes (player clicks to view); for bosses with
+-- no custom note ("Standard Nuke" or empty), the line reads "Standard"
+-- and isn't clickable. Single global expand/collapse state stored in
+-- RetroRunsDB.encounterExpanded -- one click affects all bosses.
+panel.encounter = CreateFrame("Button", nil, panel)
+panel.encounter:SetPoint("TOPLEFT", panel.travel, "BOTTOMLEFT", 0, -8)
+panel.encounter:SetSize(BODY_WIDTH, 14)
+panel.encounter.label = panel.encounter:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+panel.encounter.label:SetPoint("TOPLEFT", 0, 0)
+panel.encounter.label:SetWidth(BODY_WIDTH)
+panel.encounter.label:SetJustifyH("LEFT")
+panel.encounter.label:SetWordWrap(true)
+panel.encounter.label:SetNonSpaceWrap(true)
+-- Proxy SetText/GetHeight to the label for compatibility with anchor
+-- callers (panel.transmog anchors to panel.encounter's BOTTOMLEFT).
+panel.encounter.SetText   = function(self, t) self.label:SetText(t) end
+panel.encounter.GetHeight = function(self) return self.label:GetHeight() end
+
+-- Hover and click. Hover effect (gold tint) only applies when the
+-- button is currently in clickable state (custom note exists) -- this
+-- is signalled by panel.encounter.clickable being set true by the
+-- render path. When false, hover is a no-op. Click toggles the
+-- global expand/collapse state and forces a UI refresh.
+--
+-- Hyperlinks (achievements) need their own routing because converting
+-- panel.encounter from a plain FontString to a Button broke the
+-- bubble-to-panel path the achievement-click handler used to rely on.
+-- The Button now owns hyperlinks directly via SetHyperlinksEnabled +
+-- an OnHyperlinkClick script that routes to SetItemRef. A flag
+-- (clickFromLink) is set when a hyperlink is clicked and consumed by
+-- OnClick so the expand/collapse toggle doesn't also fire. WoW dispatches
+-- OnHyperlinkClick before OnClick, which is what makes the flag pattern
+-- work.
+panel.encounter.clickable = false
+panel.encounter:SetHyperlinksEnabled(true)
+panel.encounter:SetScript("OnHyperlinkClick", function(self, link, text, button)
+    self.clickFromLink = true
+    SetItemRef(link, text, button)
+end)
+panel.encounter:SetScript("OnEnter", function(self)
+    if self.clickable then
+        self.label:SetTextColor(1.0, 0.85, 0.0, 1.0)
+    end
+end)
+panel.encounter:SetScript("OnLeave", function(self)
+    self.label:SetTextColor(1.0, 1.0, 1.0, 1.0)
+end)
+panel.encounter:RegisterForClicks("LeftButtonUp")
+panel.encounter:SetScript("OnClick", function(self)
+    if self.clickFromLink then
+        self.clickFromLink = nil
+        return
+    end
+    if not self.clickable then return end
+    local now = RR:GetSetting("encounterExpanded")
+    RR:SetSetting("encounterExpanded", not now)
+    UI.Update()
+end)
 
 -- Forward declarations for transmog popup (defined later in file)
 local GetOrCreateTmogWindow
@@ -380,10 +454,11 @@ function UI.ApplySettings()
     local targets = {
         { panel.mode,       11, "OUTLINE" },
         { panel.raid,       14, ""        },
+        { panel.pills,      11, ""        },
         { panel.progress,   14, "OUTLINE" },
         { panel.next,       14, "OUTLINE" },
         { panel.travel,     12, ""        },
-        { panel.encounter,  12, ""        },
+        { panel.encounter.label, 12, ""    },
         { panel.transmog.label, 12, ""    },
         { panel.listHeader, 12, "OUTLINE" },
         { panel.list,       12, ""        },
@@ -881,9 +956,6 @@ local function HighlightNames(text)
     return text
 end
 
--- Keep old name as alias for backwards compat
-local HighlightTravelNodes = HighlightNames
-
 local function GetBestMapForStep(step)
     if not step then return nil end
     local playerMapID = C_Map and C_Map.GetBestMapForUnit and
@@ -903,6 +975,53 @@ local function GetBestMapForStep(step)
     return playerMapID or worldMapID
 end
 
+-- Per-difficulty pill row text. Renders as a bracketed pipe-separated
+-- strip matching the tmog dot row's visual style (BuildPerDiffRow at
+-- ~line 2080):
+--   [ LFR 0/8 | N 8/8 | H 0/8 | M 0/8 ]
+-- with brackets and pipes in dark gray, the player's current difficulty
+-- in white, every other difficulty (including fully-cleared ones) in
+-- mid gray. Reader picks out "what am I playing right now" by the white
+-- highlight, then reads the x/y count to know whether each difficulty
+-- is fresh, partial, or done.
+--
+-- Returns "" when no kill data available (raid not loaded, API
+-- unsupported, no encounters mapped) so the FontString just renders
+-- empty without breaking layout.
+local function BuildPillsText()
+    local counts = RR:GetPerDifficultyKillCounts()
+    if not counts then return "" end
+
+    local activeDiff = RR.state and RR.state.currentDifficultyID
+    local WHITE_HEX  = "FFFFFF"
+    local GRAY_HEX   = "888888"
+
+    -- Order matches typical Blizzard UI: easiest -> hardest.
+    -- difficultyID -> short label.
+    local PILLS = {
+        { id = 17, label = "LFR" },
+        { id = 14, label = "N"   },
+        { id = 15, label = "H"   },
+        { id = 16, label = "M"   },
+    }
+
+    local parts = {}
+    for _, p in ipairs(PILLS) do
+        local c = counts[p.id]
+        if c then
+            local hex = (p.id == activeDiff) and WHITE_HEX or GRAY_HEX
+            table.insert(parts, ("|cff%s%s %d/%d|r"):format(
+                hex, p.label, c.complete, c.total))
+        end
+    end
+    if #parts == 0 then return "" end
+
+    local sep = "|cff555555 | |r"
+    return "|cff777777[ |r"
+        .. table.concat(parts, sep)
+        .. "|cff777777 ]|r"
+end
+
 local function BuildTravelText(step)
     local prefix = ("|cff%sTraveling:|r "):format(C_LABEL)
     if not step then return prefix .. "N/A" end
@@ -910,16 +1029,26 @@ local function BuildTravelText(step)
     if step.segments and mapID then
         local relevant = RR:GetRelevantSegmentsForMap(step, mapID)
         for _, seg in ipairs(relevant) do
-            if seg.note then return prefix .. HighlightTravelNodes(seg.note) end
+            if seg.note then return prefix .. HighlightNames(seg.note) end
         end
         for _, seg in ipairs(step.segments) do
             if seg.mapID == mapID and seg.note then
-                return prefix .. HighlightTravelNodes(seg.note)
+                return prefix .. HighlightNames(seg.note)
             end
+        end
+        -- Player IS on a mapID this step covers, but the relevant
+        -- segment(s) carry no note (intentionally -- e.g. Sennarth's
+        -- during-fight ascent segment on mapID 2123). Don't fall
+        -- through to the "first segment note" fallback below, which
+        -- would surface seg 1's "After killing Terros, go back..."
+        -- text -- stale and misleading mid-fight. Show neutral text
+        -- instead; the soloTip line is doing the useful work here.
+        if #relevant > 0 then
+            return prefix .. "|cff888888(No directions for this section)|r"
         end
     end
     if step.travelText then
-        return prefix .. HighlightTravelNodes(step.travelText)
+        return prefix .. HighlightNames(step.travelText)
     end
     -- No segment matches the current map (e.g. player is at the instance entrance
     -- after resuming a run). Fall back to the first segment note so there is always
@@ -931,61 +1060,109 @@ local function BuildTravelText(step)
     return prefix .. "|cff888888Open the map and select a section to see directions.|r"
 end
 
-local function BuildEncounterText(step)
-    local prefix = ("|cff%sEncounter:|r "):format(C_LABEL)
-    if not step then return prefix .. "N/A" end
-    local boss = RR:GetBossByIndex(step.bossIndex)
+-- Detects whether a boss has a "custom" encounter note worth surfacing
+-- behind the click affordance. A note is custom when it's non-empty
+-- AND not the default "Standard Nuke" placeholder. Achievements are
+-- explicitly NOT considered here -- they render unconditionally below
+-- the encounter line, regardless of expand state.
+local function HasCustomEncounterNote(boss, step)
+    local tip = (boss and boss.soloTip) or (step and step.soloTip) or ""
+    if tip == "" or tip == "N/A" then return false end
+    if tip:lower() == "standard nuke" then return false end
+    return true
+end
 
-    local tip = (boss and boss.soloTip) or step.soloTip or ""
-    tip = tip:gsub("%.$", "")
-    if tip == "" or tip == "N/A" then
-        tip = "Standard Nuke"
+-- Builds the Achievements block as a concatenated multi-line string.
+-- Returns "" if the boss has no achievements (caller can append
+-- unconditionally; empty result contributes nothing). Header line is
+-- "Achievements:" in the standard label color; each achievement is a
+-- per-row clickable hyperlink (with "- " prefix and (Meta) tag if
+-- applicable), color-coded green/yellow for completed/uncollected.
+local function BuildAchievementsBlock(boss)
+    if not boss or not boss.achievements or #boss.achievements == 0 then
+        return ""
     end
-    tip = HighlightNames(tip)
-    local lines = { prefix .. tip }
-    local achievements = boss and boss.achievements
-    if achievements and #achievements > 0 then
-        table.insert(lines, "")
-        table.insert(lines, ("|cff%sAchievements:|r"):format(C_LABEL))
-        for _, ach in ipairs(achievements) do
-            local _, name, _, completed = GetAchievementInfo(ach.id)
-            local label = name or ach.name or ("ID " .. ach.id)
-            local tag   = ach.meta and " (Meta)" or ""
-            local color = completed and "ff00ff00" or "ffffff00"
+    local lines = { ("|cff%sAchievements:|r"):format(C_LABEL) }
+    for _, ach in ipairs(boss.achievements) do
+        local _, name, _, completed = GetAchievementInfo(ach.id)
+        local label = name or ach.name or ("ID " .. ach.id)
+        local tag   = ach.meta and " (Meta)" or ""
+        local color = completed and "ff00ff00" or "ffffff00"
 
-            -- Build a clickable achievement hyperlink. GetAchievementLink
-            -- returns a pre-formatted |Hachievement:...|h[Name]|h string
-            -- which, when clicked inside a FontString whose parent has
-            -- hyperlinks enabled, routes to SetItemRef (see panel wiring
-            -- below). Falls back to plain text if GetAchievementLink fails
-            -- or the achievement isn't in the cache yet.
-            local link = GetAchievementLink and GetAchievementLink(ach.id)
-            if link then
-                -- Fold the "(Meta)" tag INTO the hyperlink's display text
-                -- so the whole visible string is clickable, not just the
-                -- achievement name. The hyperlink uses |h[text]|h for the
-                -- display portion; we inject tag before the closing bracket.
-                if tag ~= "" then
-                    link = link:gsub("|h%[(.-)%]|h", "|h[%1" .. tag .. "]|h", 1)
-                end
-                -- GetAchievementLink includes its own color code; we wrap
-                -- it with our collected/uncollected color so the visual
-                -- state still comes through. The inner |cXX|r/|Hlink|h|h
-                -- markup remains functional.
-                table.insert(lines,
-                    ("|c%s- %s|r"):format(color, link))
-            else
-                table.insert(lines,
-                    ("|c%s- %s%s|r"):format(color, label, tag))
+        -- Build a clickable achievement hyperlink. GetAchievementLink
+        -- returns a pre-formatted |Hachievement:...|h[Name]|h string
+        -- which, when clicked inside a FontString whose parent has
+        -- hyperlinks enabled, routes to SetItemRef (see panel wiring
+        -- below). Falls back to plain text if GetAchievementLink fails
+        -- or the achievement isn't in the cache yet.
+        local link = GetAchievementLink and GetAchievementLink(ach.id)
+        if link then
+            -- Fold the "(Meta)" tag INTO the hyperlink's display text
+            -- so the whole visible string is clickable, not just the
+            -- achievement name. The hyperlink uses |h[text]|h for the
+            -- display portion; we inject tag before the closing bracket.
+            if tag ~= "" then
+                link = link:gsub("|h%[(.-)%]|h", "|h[%1" .. tag .. "]|h", 1)
             end
+            -- GetAchievementLink includes its own color code; we wrap
+            -- it with our collected/uncollected color so the visual
+            -- state still comes through. The inner |cXX|r/|Hlink|h|h
+            -- markup remains functional.
+            table.insert(lines, ("|c%s- %s|r"):format(color, link))
+        else
+            table.insert(lines, ("|c%s- %s%s|r"):format(color, label, tag))
         end
     end
+    return table.concat(lines, "\n")
+end
 
-    -- Special Loot section (mounts, pets, toys that drop from this boss
-    -- but aren't part of the transmog pipeline). Opt-in per-boss via
-    -- the `specialLoot` schema field; BuildSpecialLootSection returns
-    -- nil for bosses that don't declare one, so the section is entirely
-    -- absent (no header, no blank line) when there's nothing to show.
+-- BuildEncounterText returns up to two values:
+--   text    - the rendered string for panel.encounter
+--   clickable - whether panel.encounter should accept clicks (custom
+--               soloTip exists; collapsed or expanded both clickable,
+--               so the user can toggle either way)
+--
+-- Section composition (top to bottom):
+--   1. "Boss Encounter:" line
+--        - "Standard"            (no custom soloTip)
+--        - "view special note"   (custom soloTip, collapsed)
+--        - <full soloTip text>   (custom soloTip, expanded)
+--   2. Achievements block (if any) -- ALWAYS rendered, independent of
+--      the encounter expand state. Achievements were previously
+--      bundled with the encounter expand toggle; decoupled 2026-04-25
+--      so each section can have its own collapse behaviour later.
+--   3. Special Loot block (if any) -- ALWAYS rendered.
+local function BuildEncounterText(step)
+    local prefix = ("|cff%sBoss Encounter:|r "):format(C_LABEL)
+    if not step then return prefix .. "N/A", false end
+    local boss = RR:GetBossByIndex(step.bossIndex)
+
+    local hasCustom = HasCustomEncounterNote(boss, step)
+
+    -- Compose the Boss Encounter line based on state.
+    local headerLine
+    local clickable
+    if not hasCustom then
+        headerLine = prefix .. "|cffaaaaaaStandard|r"
+        clickable  = false
+    elseif not RR:GetSetting("encounterExpanded") then
+        headerLine = prefix .. "|cffaaaaaaview special note|r"
+        clickable  = true
+    else
+        local tip = (boss and boss.soloTip) or step.soloTip or ""
+        tip = tip:gsub("%.$", "")
+        tip = HighlightNames(tip)
+        headerLine = prefix .. tip
+        clickable  = true
+    end
+
+    -- Achievements + Special Loot render unconditionally below.
+    local lines = { headerLine }
+    local achBlock = BuildAchievementsBlock(boss)
+    if achBlock ~= "" then
+        table.insert(lines, "")
+        table.insert(lines, achBlock)
+    end
     if boss then
         local special = BuildSpecialLootSection(boss)
         if special then
@@ -994,7 +1171,7 @@ local function BuildEncounterText(step)
         end
     end
 
-    return table.concat(lines, "\n")
+    return table.concat(lines, "\n"), clickable
 end
 
 -- Slots that have no transmog value -- exclude from display entirely
@@ -1404,53 +1581,146 @@ BuildSpecialLootSection = function(boss)
 
     local lines = { ("|cff%sSpecial Loot:|r"):format(C_LABEL) }
     for _, item in ipairs(boss.specialLoot) do
-        local state = SpecialCollectionStateForItem(item)
-        local isCollected = (state == "collected")
-        local stateColor = isCollected and SPECIAL_COLLECTED
-                                        or SPECIAL_UNCOLLECTED
-        local stateGlyph = isCollected and SPECIAL_GLYPH_COLLECTED
-                                        or SPECIAL_GLYPH_UNCOLLECTED
-
-        -- Prefer the real itemLink so clicking opens the tooltip.
-        -- GetItemInfo is async -- if it returns nil, fall back to the
-        -- schema's name field and a plain-text display. The 1s UI
-        -- heartbeat will re-render once the cache warms up.
-        local _, itemLink = GetItemInfo(item.id)
-        local display = itemLink or item.name or ("Item "..tostring(item.id))
-
-        local kindLabel = SPECIAL_KIND_LABEL[item.kind] or item.kind or "?"
-        local kindColor = SPECIAL_KIND_COLOR[item.kind] or "ffaaaaaa"
-
-        -- Build the parenthetical kind+restriction group. Most items
-        -- are just "(Pet)"; Mythic-only items become
-        -- "(Pet, Mythic only)" with the restriction in the Blizzard
-        -- mythic quality color (ffa335ee = purple) so the gate is
-        -- scannable at a glance. The colored suffix is spliced
-        -- inside the kindColor wrapper so the parens themselves stay
-        -- the kind's color.
-        local kindInner = kindLabel
-        if item.mythicOnly then
-            -- Close kindColor, insert mythic-purple "Mythic only",
-            -- reopen kindColor for the closing paren. The comma
-            -- stays in kindColor so the parenthetical reads as one
-            -- visually-connected group.
-            kindInner = kindLabel .. ", |r|cffa335eeMythic only|r|c" .. kindColor
+        -- For items with a barter group (e.g. Iskaara Trader's Ottuk, which
+        -- is purchased from an NPC for two neck-slot ingredients looted
+        -- from other bosses), we need a different layout:
+        --
+        --   [ X ] Iskaara Trader's Ottuk (Mount -- 1/2 necks in bags)
+        --       [ X ] Terros's Captive Core (in bags: yes)
+        --       [ X ] Eye of the Vengeful Hurricane (in bags: no)
+        --       Trade both at Tattukiaka in Iskaara.
+        --       (Only current bags are checked -- banked necks won't show.)
+        --
+        -- When the mount is already collected, we skip the barter details
+        -- entirely and fall through to the simple "(Mount)" display, because
+        -- there's nothing left for the player to do.
+        local mountCollected = false
+        if item.barter and item.kind == "mount" and C_MountJournal then
+            local mountID = item.mountID
+                         or (C_MountJournal.GetMountFromItem
+                             and C_MountJournal.GetMountFromItem(item.id))
+            if mountID then
+                local _, _, _, _, _, _, _, _, _, _, isCollected =
+                    C_MountJournal.GetMountInfoByID(mountID)
+                mountCollected = isCollected and true or false
+            end
         end
 
-        -- Bracketed state indicator goes BEFORE the name, matching the
-        -- visual language of the transmog section's per-difficulty dot
-        -- row: "|cff777777[ |r" ... "|cff777777 ]|r" with a glyph
-        -- inside. Collected = green check texture (Blizzard ReadyCheck
-        -- icon); uncollected = gray letter "X". See the glyph constants
-        -- above for why we don't use Unicode U+2713 / U+2717.
-        -- We CAN'T wrap the item name with a color because itemLinks
-        -- embed their own |cff<quality>...|r code for item rarity, and
-        -- WoW's color codes don't nest -- the inner code wins. Keeping
-        -- the state indicator as a separate prefix preserves the link's
-        -- native quality color.
-        table.insert(lines,
-            ("|cff777777[ |r|c%s%s|r|cff777777 ]|r %s |c%s(%s)|r"):format(
-                stateColor, stateGlyph, display, kindColor, kindInner))
+        if item.barter and not mountCollected then
+            -- Barter progress path. Count ingredients held in bags.
+            local total = #item.barter.ingredients
+            local held  = 0
+            local ingredientHeld = {}  -- [idx] = boolean
+            for idx, ing in ipairs(item.barter.ingredients) do
+                local count = GetItemCount(ing.id, false) or 0
+                local has   = count > 0
+                ingredientHeld[idx] = has
+                if has then held = held + 1 end
+            end
+
+            -- State of the mount row itself: all held = ready-to-trade
+            -- (rendered in the "collected" green glyph for visual pop, but
+            -- with an explicit "ready to trade!" callout so the user knows
+            -- it's not actually collected yet). Some held = partial amber.
+            -- None held = uncollected gray.
+            local parenSuffix
+            local stateColor, stateGlyph
+            if held == total then
+                stateColor, stateGlyph = SPECIAL_COLLECTED,   SPECIAL_GLYPH_COLLECTED
+                parenSuffix = ("Mount -- %d/%d necks, ready to trade!"):format(held, total)
+            elseif held > 0 then
+                stateColor, stateGlyph = SPECIAL_PARTIAL,     SPECIAL_GLYPH_PARTIAL
+                parenSuffix = ("Mount -- %d/%d necks in bags"):format(held, total)
+            else
+                stateColor, stateGlyph = SPECIAL_UNCOLLECTED, SPECIAL_GLYPH_UNCOLLECTED
+                parenSuffix = ("Mount -- %d/%d necks in bags"):format(held, total)
+            end
+
+            local kindColor  = SPECIAL_KIND_COLOR[item.kind] or "ffaaaaaa"
+            local _, itemLink = GetItemInfo(item.id)
+            local display    = itemLink or item.name or ("Item "..tostring(item.id))
+
+            table.insert(lines,
+                ("|cff777777[ |r|c%s%s|r|cff777777 ]|r %s |c%s(%s)|r"):format(
+                    stateColor, stateGlyph, display, kindColor, parenSuffix))
+
+            -- Nested ingredient rows. Indented with a leading spacer so they
+            -- visually group under the parent mount row. Color scheme for
+            -- the inner state indicator mirrors the parent's vocabulary:
+            -- green check = ingredient in bags, gray X = not in bags.
+            for idx, ing in ipairs(item.barter.ingredients) do
+                local has = ingredientHeld[idx]
+                local ingColor = has and SPECIAL_COLLECTED  or SPECIAL_UNCOLLECTED
+                local ingGlyph = has and SPECIAL_GLYPH_COLLECTED or SPECIAL_GLYPH_UNCOLLECTED
+                local _, ingLink = GetItemInfo(ing.id)
+                local ingDisplay = ingLink or ing.name or ("Item "..tostring(ing.id))
+                local ingSuffix  = has and "in bags" or "not in bags"
+                table.insert(lines,
+                    ("    |cff777777[ |r|c%s%s|r|cff777777 ]|r %s |cffaaaaaa(%s)|r"):format(
+                        ingColor, ingGlyph, ingDisplay, ingSuffix))
+            end
+
+            -- Trade location hint + bags-only caveat. Dim gray so it reads
+            -- as secondary info, not another loot row. Only shown when the
+            -- player still needs to act (held < total OR held == total).
+            if item.barter.at then
+                table.insert(lines,
+                    ("    |cffaaaaaaTrade at %s.|r"):format(item.barter.at))
+            end
+            table.insert(lines,
+                "    |cff777777(Only current bags are checked -- banked necks won't show.)|r")
+
+        else
+            -- Standard (non-barter or mount-already-collected) path. Same
+            -- rendering as before: single row, collected or not.
+            local state = SpecialCollectionStateForItem(item)
+            local isCollected = (state == "collected")
+            local stateColor = isCollected and SPECIAL_COLLECTED
+                                            or SPECIAL_UNCOLLECTED
+            local stateGlyph = isCollected and SPECIAL_GLYPH_COLLECTED
+                                            or SPECIAL_GLYPH_UNCOLLECTED
+
+            -- Prefer the real itemLink so clicking opens the tooltip.
+            -- GetItemInfo is async -- if it returns nil, fall back to the
+            -- schema's name field and a plain-text display. The 1s UI
+            -- heartbeat will re-render once the cache warms up.
+            local _, itemLink = GetItemInfo(item.id)
+            local display = itemLink or item.name or ("Item "..tostring(item.id))
+
+            local kindLabel = SPECIAL_KIND_LABEL[item.kind] or item.kind or "?"
+            local kindColor = SPECIAL_KIND_COLOR[item.kind] or "ffaaaaaa"
+
+            -- Build the parenthetical kind+restriction group. Most items
+            -- are just "(Pet)"; Mythic-only items become
+            -- "(Pet, Mythic only)" with the restriction in the Blizzard
+            -- mythic quality color (ffa335ee = purple) so the gate is
+            -- scannable at a glance. The colored suffix is spliced
+            -- inside the kindColor wrapper so the parens themselves stay
+            -- the kind's color.
+            local kindInner = kindLabel
+            if item.mythicOnly then
+                -- Close kindColor, insert mythic-purple "Mythic only",
+                -- reopen kindColor for the closing paren. The comma
+                -- stays in kindColor so the parenthetical reads as one
+                -- visually-connected group.
+                kindInner = kindLabel .. ", |r|cffa335eeMythic only|r|c" .. kindColor
+            end
+
+            -- Bracketed state indicator goes BEFORE the name, matching the
+            -- visual language of the transmog section's per-difficulty dot
+            -- row: "|cff777777[ |r" ... "|cff777777 ]|r" with a glyph
+            -- inside. Collected = green check texture (Blizzard ReadyCheck
+            -- icon); uncollected = gray letter "X". See the glyph constants
+            -- above for why we don't use Unicode U+2713 / U+2717.
+            -- We CAN'T wrap the item name with a color because itemLinks
+            -- embed their own |cff<quality>...|r code for item rarity, and
+            -- WoW's color codes don't nest -- the inner code wins. Keeping
+            -- the state indicator as a separate prefix preserves the link's
+            -- native quality color.
+            table.insert(lines,
+                ("|cff777777[ |r|c%s%s|r|cff777777 ]|r %s |c%s(%s)|r"):format(
+                    stateColor, stateGlyph, display, kindColor, kindInner))
+        end
     end
     return table.concat(lines, "\n")
 end
@@ -1483,18 +1753,9 @@ local function ActiveDifficulty()
     return RR.state and RR.state.currentDifficultyID
 end
 
--- Classify an item's overall "needed" state at the player's active difficulty.
--- Returns one of: "collected", "shared", "missing", "unknown".
--- "unknown" is used when we can't evaluate (no sources, no active difficulty).
 -- Returns the rolled-up state of an item across ALL its difficulty
 -- buckets. Used by the in-raid summary line so that line agrees with
 -- the Tmog browser's per-dot rendering.
---
--- This previously checked ONLY the player's currently-active difficulty
--- (ItemStateForActiveDifficulty), which produced false "All appearances
--- collected!" summaries when the player was zoned in on Mythic with all
--- Mythic sources collected but missing LFR/N/H sources elsewhere. Switched
--- to strict per-difficulty rollup 2026-04-21.
 --
 -- Strict rollup definition:
 --   complete -> every populated bucket is `collected` (all green dots in
@@ -1510,6 +1771,11 @@ end
 -- For items with no `sources` table (special-loot mishaps that route
 -- through here, hand-edited entries), falls through to FallbackStateForItem
 -- which gives a single state with no per-bucket logic.
+--
+-- Earlier implementation checked ONLY the player's active difficulty,
+-- which produced false "All appearances collected!" summaries when a
+-- Mythic-zoned player had all Mythic sources collected but was missing
+-- LFR/N/H sources. Switched to strict per-difficulty rollup 2026-04-21.
 local DIFFS_FOR_SUMMARY = { 17, 14, 15, 16 }
 local function ItemSummaryState(item)
     if not item.sources then
@@ -1537,17 +1803,6 @@ local function ItemSummaryState(item)
     if hasMissing then return "missing" end
     if hasShared  then return "shared"  end
     return "collected"
-end
-
--- Kept for any callers that genuinely want the active-difficulty state
--- (e.g. potential per-difficulty UI hints). Not used by the summary
--- anymore. Safe to remove if no future caller materializes.
-local function ItemStateForActiveDifficulty(item)
-    local activeDiff = ActiveDifficulty()
-    if item.sources and activeDiff and item.sources[activeDiff] then
-        return CollectionStateForSource(item.sources[activeDiff], item.id)
-    end
-    return FallbackStateForItem(item.id)
 end
 
 -------------------------------------------------------------------------------
@@ -2396,7 +2651,13 @@ end
 -- early handlers on panel.transmog can close over it. See the declaration
 -- of `browserState` up there.
 
-local EXPANSION_ORDER = {
+-- Expansion ordering used by the transmog browser's dropdown. Ascending
+-- (oldest first) so Classic, BC, Wrath... appear in the order players
+-- would progress through them chronologically. Compare with
+-- EXPANSION_ORDER_NEWEST_FIRST below, used by the idle-state supported-
+-- raids list (which benefits from newest-first since that's what most
+-- players care about at a glance).
+local EXPANSION_ORDER_ASCENDING = {
     "Classic", "Burning Crusade", "Wrath of the Lich King",
     "Cataclysm", "Mists of Pandaria", "Warlords of Draenor",
     "Legion", "Battle for Azeroth", "Shadowlands", "Dragonflight",
@@ -2417,7 +2678,7 @@ local function EnumerateRaids()
     end
     local expansions = {}
     local seen = {}
-    for _, e in ipairs(EXPANSION_ORDER) do
+    for _, e in ipairs(EXPANSION_ORDER_ASCENDING) do
         if byExpansion[e] then
             table.insert(expansions, e)
             seen[e] = true
@@ -2812,8 +3073,10 @@ end
 local IDLE_FOOTER =
     "|cff9d9d9dDesigned for max-level characters running legacy content.|r"
 
--- Expansion display order (newest first, matches Blizzard's EJ ordering)
-local EXPANSION_ORDER = {
+-- Expansion display order for the idle-state supported-raids list. Newest
+-- first (matches Blizzard's EJ ordering on the expansion-selector). See
+-- EXPANSION_ORDER_ASCENDING above for the browser dropdown's ordering.
+local EXPANSION_ORDER_NEWEST_FIRST = {
     "The War Within",
     "Dragonflight",
     "Shadowlands",
@@ -2837,7 +3100,7 @@ local function BuildIdleListText()
 
     local lines = {}
     -- Emit known expansions in canonical order
-    for _, exp in ipairs(EXPANSION_ORDER) do
+    for _, exp in ipairs(EXPANSION_ORDER_NEWEST_FIRST) do
         if byExpansion[exp] then
             table.sort(byExpansion[exp])
             table.insert(lines, ("|cffffff00%s|r"):format(exp))
@@ -2887,8 +3150,17 @@ function UI.Update()
     panel.mode:SetText(RR.state.testMode and "|cffffff00[ TEST MODE ]|r" or "")
 
     if raid and loaded then
-        panel.raid:SetText("Raid: " .. (RR:GetRaidDisplayName() or raid.name))
-        panel.progress:SetText("Progress: " .. RR:GetProgressText())
+        -- Pills row now carries per-difficulty kill state, so the raid
+        -- name line shows just the raid name (no trailing "(Heroic)").
+        panel.raid:SetText("Raid: " .. raid.name)
+        panel.pills:SetText(BuildPillsText())
+        -- Progress line was "Progress: X/Y" -- the player's current-
+        -- difficulty kill count -- but the pills row now displays the
+        -- same number (the active-difficulty pill, e.g. "H 0/8").
+        -- Empty here so it doesn't duplicate. The FontString is kept
+        -- so the unloaded path below can still use it for "Detected:"
+        -- and "No supported raid" status messages.
+        panel.progress:SetText("")
         panel.mapBtn:Enable()
         panel.mapBtn:SetAlpha(1)
 
@@ -2898,7 +3170,16 @@ function UI.Update()
             panel.next:SetText(("Boss #%d: %s"):format(
                 num, boss and boss.name or "Unknown"))
             panel.travel:SetText(BuildTravelText(step))
-            panel.encounter:SetText(BuildEncounterText(step))
+            local encText, encClickable = BuildEncounterText(step)
+            panel.encounter:SetText(encText)
+            panel.encounter.clickable = encClickable
+            panel.encounter:EnableMouse(encClickable)
+            -- Size the click frame to match rendered text height (same
+            -- pattern used by panel.transmog below). Without this, the
+            -- hit area stays at the 14px construction default and a
+            -- multi-line expanded soloTip's lower lines wouldn't be
+            -- clickable.
+            panel.encounter:SetHeight(math.max(14, panel.encounter.label:GetStringHeight()))
             local tmog = BuildTransmogSummary(step)
             panel.transmog:SetText(tmog or "")
             panel.transmog:SetShown(tmog ~= nil)
@@ -2915,6 +3196,8 @@ function UI.Update()
             panel.travel:SetText(
                 ("|cff%sTraveling:|r This lockout is complete."):format(C_LABEL))
             panel.encounter:SetText("")
+            panel.encounter.clickable = false
+            panel.encounter:EnableMouse(false)
             panel.transmog:SetText("")
             panel.transmog:Hide()
         end
@@ -2923,6 +3206,7 @@ function UI.Update()
         panel.list:SetText(table.concat(RR:GetProgressLines(), "\n"))
     else
         panel.raid:SetText("RetroRuns v" .. RetroRuns.VERSION)
+        panel.pills:SetText("")
 
         if raid then
             -- Case: raid was detected (we're zoned into a supported raid)
@@ -2942,6 +3226,8 @@ function UI.Update()
 
         panel.travel:SetText("")
         panel.encounter:SetText("")
+        panel.encounter.clickable = false
+        panel.encounter:EnableMouse(false)
         panel.transmog:SetText("")
         -- Don't Hide() the transmog wrapper here -- panel.listHeader
         -- anchors to its bottom-left, so hiding it orphans that
@@ -2959,7 +3245,3 @@ function UI.Update()
     -- different boss counts, longer strings). Re-fit after content is set.
     UI.AutoSize()
 end
-
--- Backward-compatible global for any external callers
-function RetroRunsUI_Update() UI.Update() end
-

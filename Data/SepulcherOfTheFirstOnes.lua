@@ -92,7 +92,7 @@ RetroRuns_Data[2481] = {
             mapID              = 2061,
             coord              = { 0.126, 0.620 },
             aliases            = { "Skolex" },
-            soloTip            = "Kill the three Foul Controller trash mobs to spawn the boss. Boss is Standard Nuke.",
+            soloTip            = "Kill the three Foul Controller trash mobs to spawn the boss.",
             achievements = {
                 { id = 15401, name = "Wisdom Comes From the Desert", meta = true },
             },
@@ -139,7 +139,6 @@ RetroRuns_Data[2481] = {
             mapID              = 2048,
             coord              = { 0.542, 0.467 },
             aliases            = { "Dausegne" },
-            soloTip            = "Standard Nuke.",
             achievements = {
                 { id = 15397, name = "Four Ring Circus", meta = true },
             },
@@ -220,7 +219,7 @@ RetroRuns_Data[2481] = {
             mapID              = 2050,
             coord              = { 0.377, 0.520 },
             aliases            = { "Halondrus" },
-            soloTip            = "Standard Nuke. After the kill, find the loot chest near the teleporter down the path.",
+            soloTip            = "After the kill, find the loot chest near the teleporter down the path.",
             achievements = {
                 { id = 15386, name = "Shimmering Secrets", meta = true },
             },
@@ -252,7 +251,6 @@ RetroRuns_Data[2481] = {
             mapID              = 2050,
             coord              = { 0.433, 0.522 },
             aliases            = { "Anduin" },
-            soloTip            = "Standard Nuke.",
             achievements = {
                 { id = 15399, name = "Coming to Terms", meta = false },
             },
@@ -283,7 +281,7 @@ RetroRuns_Data[2481] = {
             mapID              = 2052,
             coord              = { 0.608, 0.439 },
             aliases            = {},
-            soloTip            = "Two purple-glowing trash mobs before the boss door -- attack both to open it. Boss is Standard Nuke.",
+            soloTip            = "Two purple-glowing trash mobs before the boss door -- attack both to open it.",
             achievements = {
                 { id = 15315, name = "Amidst Ourselves", meta = true },
             },
@@ -316,7 +314,6 @@ RetroRuns_Data[2481] = {
             mapID              = 2052,
             coord              = { 0.362, 0.459 },
             aliases            = {},
-            soloTip            = "Standard Nuke.",
             achievements = {
                 { id = 15396, name = "We Are All Made of Stars", meta = true },
             },

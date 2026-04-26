@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "0.5.2"
+local VERSION    = "0.6.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -29,6 +29,7 @@ RetroRuns = {
         lastUnsupportedRaid   = nil,
         currentDifficultyID   = nil,
         currentDifficultyName = nil,
+        zoneLog               = {},   -- ring buffer of zone-change debug lines, viewable via /rr zonelog
     },
 
     -- SavedVariable defaults; user values are preserved via MergeDefaults
@@ -79,6 +80,15 @@ function RR:Debug(msg)
         DEFAULT_CHAT_FRAME:AddMessage(
             "|cffaaaaaa[RR Debug]|r " .. tostring(msg))
     end
+end
+
+--- Append a line to the in-memory zone-change log. Bounded ring buffer so
+--- a long session doesn't accumulate unbounded memory. View with
+--- /rr zonelog to open a copyable window.
+function RR:ZoneLog(msg)
+    local buf = self.state.zoneLog
+    table.insert(buf, ("[%s] %s"):format(date("%H:%M:%S"), tostring(msg)))
+    while #buf > 200 do table.remove(buf, 1) end
 end
 
 --- Normalise a name for fuzzy matching:
@@ -135,18 +145,24 @@ local function ValidateRaidData()
         return
     end
 
+    -- Validation output is developer / maintainer signal, not something a
+    -- regular player needs to see in chat every /reload. Route all warnings
+    -- through RR:Debug(), which no-ops unless `/rr debug` is on. Turn debug
+    -- on when iterating on new raid data or chasing a suspected bad entry.
+    local warn = function(msg) RR:Debug(msg) end
+
     for instanceID, raid in pairs(RetroRuns_Data) do
         local prefix = ("Data[%s] (%s):"):format(
             tostring(instanceID), tostring(raid.name or "?"))
 
         if not raid.instanceID then
-            RR:Print(prefix .. " missing instanceID")
+            warn(prefix .. " missing instanceID")
         end
         if type(raid.bosses) ~= "table" or #raid.bosses == 0 then
-            RR:Print(prefix .. " missing or empty bosses table")
+            warn(prefix .. " missing or empty bosses table")
         end
         if type(raid.routing) ~= "table" or #raid.routing == 0 then
-            RR:Print(prefix .. " missing or empty routing table")
+            warn(prefix .. " missing or empty routing table")
         end
 
         -- Build a set of valid boss indices for cross-checking, and
@@ -156,28 +172,28 @@ local function ValidateRaidData()
         local VALID_SPECIAL_KINDS = { mount = true, pet = true, toy = true, decor = true }
         for _, boss in ipairs(raid.bosses or {}) do
             if not boss.index then
-                RR:Print(prefix .. " boss missing index field")
+                warn(prefix .. " boss missing index field")
             elseif not boss.name then
-                RR:Print(prefix .. " boss #" .. boss.index .. " missing name")
+                warn(prefix .. " boss #" .. boss.index .. " missing name")
             else
                 validBossIndices[boss.index] = true
             end
 
             if boss.specialLoot ~= nil then
                 if type(boss.specialLoot) ~= "table" then
-                    RR:Print(prefix .. (" boss #%s specialLoot must be a table"):format(
+                    warn(prefix .. (" boss #%s specialLoot must be a table"):format(
                         tostring(boss.index)))
                 else
                     for si, item in ipairs(boss.specialLoot) do
                         local bp = prefix .. (" boss #%s specialLoot[%d]:"):format(
                             tostring(boss.index), si)
                         if not item.id then
-                            RR:Print(bp .. " missing id")
+                            warn(bp .. " missing id")
                         end
                         if not item.kind then
-                            RR:Print(bp .. " missing kind (mount|pet|toy|decor)")
+                            warn(bp .. " missing kind (mount|pet|toy|decor)")
                         elseif not VALID_SPECIAL_KINDS[item.kind] then
-                            RR:Print(bp .. (" unrecognized kind '%s' (expected mount|pet|toy|decor)"):format(
+                            warn(bp .. (" unrecognized kind '%s' (expected mount|pet|toy|decor)"):format(
                                 tostring(item.kind)))
                         end
                     end
@@ -188,33 +204,36 @@ local function ValidateRaidData()
         for i, step in ipairs(raid.routing or {}) do
             local sp = prefix .. " step " .. i .. ":"
             if not step.bossIndex then
-                RR:Print(sp .. " missing bossIndex")
+                warn(sp .. " missing bossIndex")
             elseif not validBossIndices[step.bossIndex] then
-                RR:Print(sp .. (" bossIndex %d has no matching boss"):format(
+                warn(sp .. (" bossIndex %d has no matching boss"):format(
                     step.bossIndex))
             end
             if not step.requires then
-                RR:Print(sp .. " missing requires table (use {} for none)")
+                warn(sp .. " missing requires table (use {} for none)")
             else
                 for _, req in ipairs(step.requires) do
                     if not validBossIndices[req] then
-                        RR:Print(sp .. (" requires unknown bossIndex %d"):format(req))
+                        warn(sp .. (" requires unknown bossIndex %d"):format(req))
                     end
                 end
             end
             if not step.segments or #step.segments == 0 then
-                RR:Print(sp .. " has no segments")
+                warn(sp .. " has no segments")
             else
                 for si, seg in ipairs(step.segments) do
                     if not seg.mapID then
-                        RR:Print(sp .. (" segment %d missing mapID"):format(si))
+                        warn(sp .. (" segment %d missing mapID"):format(si))
                     end
                     if not seg.kind then
-                        RR:Print(sp .. (" segment %d missing kind"):format(si))
+                        warn(sp .. (" segment %d missing kind"):format(si))
                     end
-                    if not seg.points or #seg.points == 0 then
-                        RR:Print(sp .. (" segment %d has no points"):format(si))
-                    end
+                    -- `points` may legitimately be empty for teleport /
+                    -- portal segments that carry only a note, so we don't
+                    -- warn on an empty points list the way we warn on
+                    -- missing mapID/kind. Segments with NO points table at
+                    -- all (structurally malformed) would still be caught
+                    -- by the nil-check in the rendering path.
                 end
             end
         end
@@ -274,6 +293,91 @@ function RR:GetRaidDisplayName()
     return self.currentRaid.name
 end
 
+-- Returns per-difficulty kill counts for the current raid as
+--   { [difficultyID] = { complete = N, total = M } }
+-- for difficultyIDs 17 (LFR), 14 (Normal), 15 (Heroic), 16 (Mythic).
+--
+-- Reads via C_RaidLocks.IsEncounterComplete which queries the same
+-- saved-instance cache that GetSavedInstanceInfo reads from but with
+-- a per-encounter-per-difficulty API surface (no need to walk every
+-- saved instance and parse out matching encounters by hand).
+--
+-- IsEncounterComplete needs `dungeonEncounterID` (runtime encounter
+-- instance ID), not the `journalEncounterID` we store in our boss
+-- data. We bridge by walking EJ_GetEncounterInfoByIndex once per
+-- call (cheap; raids have ~8-12 encounters) and matching on
+-- journalEncounterID.
+--
+-- Returns nil if no current raid loaded, no journalInstanceID known,
+-- or the IsEncounterComplete API is unavailable (older clients).
+-- Difficulties that the raid doesn't support (e.g. older raids
+-- without LFR/Mythic) get total=0; caller decides how to render.
+function RR:GetPerDifficultyKillCounts()
+    if not self.currentRaid then return nil end
+    if not C_RaidLocks or not C_RaidLocks.IsEncounterComplete then return nil end
+
+    local journalInstanceID = self.currentRaid.journalInstanceID
+    local instanceID        = self.currentRaid.instanceID
+    if not journalInstanceID or not instanceID then return nil end
+
+    -- Build journalEncounterID -> dungeonEncounterID map by walking EJ.
+    -- EJ_GetEncounterInfoByIndex's 7th return is dungeonEncounterID
+    -- (per Plumber's RaidCheck/API_Encounter.lua reference; verified
+    -- against the live API surface 2026-04-25).
+    local jeToDe = {}
+    local i = 1
+    while true do
+        local _, _, je, _, _, _, de = EJ_GetEncounterInfoByIndex(i, journalInstanceID)
+        if not je then break end
+        if de then jeToDe[je] = de end
+        i = i + 1
+    end
+
+    -- Walk our boss list and check each difficulty for each boss.
+    -- Difficulties: 17=LFR, 14=Normal, 15=Heroic, 16=Mythic. These
+    -- are the modern raid difficulty IDs; older raids may not have
+    -- valid kill data on all four. IsEncounterComplete handles the
+    -- "doesn't apply" case by returning false, so the count stays 0.
+    --
+    -- Active-difficulty special case: ENCOUNTER_END marks bossesKilled
+    -- immediately, but the saved-instance cache that IsEncounterComplete
+    -- reads from updates asynchronously (server pushes a new snapshot
+    -- via UPDATE_INSTANCE_INFO some time after the kill). To make the
+    -- pills update in real time when the player kills a boss, the
+    -- active-difficulty count uses whichever value is HIGHER -- our
+    -- in-memory bossesKilled or the cache. Other-difficulty counts
+    -- come purely from cache (we don't have local state for kills on
+    -- difficulties we're not actively running).
+    local difficulties      = { 17, 14, 15, 16 }
+    local activeDifficulty  = self.state.currentDifficultyID
+    local result = {}
+    local total  = 0
+    for _, b in ipairs(self.currentRaid.bosses or {}) do
+        local de = jeToDe[b.journalEncounterID]
+        if de then total = total + 1 end
+    end
+    for _, dID in ipairs(difficulties) do
+        local complete = 0
+        for _, b in ipairs(self.currentRaid.bosses or {}) do
+            local de = jeToDe[b.journalEncounterID]
+            if de and C_RaidLocks.IsEncounterComplete(instanceID, de, dID) then
+                complete = complete + 1
+            end
+        end
+        if dID == activeDifficulty then
+            local localCount = 0
+            for _, b in ipairs(self.currentRaid.bosses or {}) do
+                if self.state.bossesKilled[b.index] then
+                    localCount = localCount + 1
+                end
+            end
+            if localCount > complete then complete = localCount end
+        end
+        result[dID] = { complete = complete, total = total }
+    end
+    return result
+end
+
 function RR:GetSupportedRaid()
     local info = self:GetCurrentInstanceInfo()
     if info.instanceType ~= "raid" then return nil end
@@ -300,6 +404,27 @@ end
 function RR:LoadCurrentRaid()
     if not self.currentRaid then return end
     self.state.loadedRaidKey = self:GetRaidContextKey()
+
+    -- Restore segment-completion state from SavedVariable, scoped by
+    -- raid instanceID. The wipe in HandleLocationChange's new-raid
+    -- branch (raid context change detection) clears in-memory state
+    -- to defeat cross-raid contamination; this restore re-populates
+    -- with this raid's persisted progress so /reload mid-route
+    -- doesn't lose track of which segments the player has already
+    -- traversed. See HANDOFF 2026-04-25 investigation.
+    if RetroRunsDB and RetroRunsDB.completedSegments then
+        local raidStore = RetroRunsDB.completedSegments[self.currentRaid.instanceID]
+        if raidStore then
+            wipe(self.state.completedSegments)
+            for stepIndex, segs in pairs(raidStore) do
+                self.state.completedSegments[stepIndex] = {}
+                for segIndex, v in pairs(segs) do
+                    self.state.completedSegments[stepIndex][segIndex] = v
+                end
+            end
+        end
+    end
+
     self:SetSetting("showPanel", true)
     self:RefreshAll()
 end
@@ -336,8 +461,91 @@ function RR:HandleLocationChange()
         self.state.currentDifficultyID   = nil
         self.state.currentDifficultyName = nil
         self.state.lastUnsupportedRaid   = nil
+        self.state.lastPlayerMapID       = nil
         self:UnloadCurrentRaid()
         return
+    end
+
+    -- Zone-change segment completion. When the player leaves a mapID, mark
+    -- the earliest incomplete segment of the active step that matches the
+    -- mapID they just left as complete. This is the only segment-completion
+    -- mechanism that works inside raid instances, since Blizzard restricts
+    -- C_Map.GetPlayerMapPosition to nil there (see Recorder.lua's preamble).
+    -- Disambiguates the case where a step has multiple segments on the
+    -- same mapID separated by a detour through another mapID -- e.g.
+    -- Terros's path traverses Vault Approach (2122) twice with a Primal
+    -- Convergence (2124) crossing in between. Without this, the renderer's
+    -- earliest-incomplete-on-current-mapID picker would surface seg 2
+    -- ("toward Convergence") even after the player has come back through
+    -- Convergence and is heading toward seg 4 ("to Terros").
+    local currentMapID = C_Map and C_Map.GetBestMapForUnit and
+                         C_Map.GetBestMapForUnit("player")
+    local previousMapID = self.state.lastPlayerMapID
+    -- Helper: resolve mapID -> sub-zone name from the active raid's
+    -- maps table, falling back to the raw ID if no name is registered.
+    local mapName = function(id)
+        if not id then return "(none)" end
+        local raidMaps = self.currentRaid and self.currentRaid.maps
+        local n = raidMaps and raidMaps[id]
+        if n then return ("%s (%d)"):format(n, id) end
+        return ("mapID %d"):format(id)
+    end
+    -- DEBUG (remove once segment-completion is verified working):
+    local zoneText    = (GetZoneText and GetZoneText())       or ""
+    local subZoneText = (GetSubZoneText and GetSubZoneText()) or ""
+    local minimapText = (GetMinimapZoneText and GetMinimapZoneText()) or ""
+    self:ZoneLog(("HLC fired. prev=%s curr=%s | zone=%q subZone=%q minimap=%q")
+        :format(mapName(previousMapID), mapName(currentMapID),
+                zoneText, subZoneText, minimapText))
+    if currentMapID and previousMapID and currentMapID ~= previousMapID then
+        local step = self.state.activeStep
+        if step and step.segments then
+            local stepIndex = step.step or step.priority or 0
+            self:ZoneLog(("mapID changed; active step=%s, looking for forward seg %s -> %s")
+                :format(tostring(stepIndex),
+                        mapName(previousMapID), mapName(currentMapID)))
+            -- Route-aware segment-completion. Marks seg N complete only
+            -- if seg N's mapID matches the previous mapID AND seg N+1's
+            -- mapID matches the new mapID. This is the "did the player
+            -- legitimately progress from seg N to seg N+1" check. It
+            -- defeats two failure modes the simpler "mark first
+            -- incomplete on previous mapID" rule had:
+            --   1. Backtracks. Walking 2124->2122 after already
+            --      progressing through seg 2 (mapID 2122) used to
+            --      over-mark seg 4 (also 2122). With this rule, the
+            --      backtrack only matches if seg 2's successor (seg 3)
+            --      has mapID currentMapID; seg 4's successor doesn't
+            --      exist, so seg 4 never gets marked here.
+            --   2. Same-mapID multi-segment ordering. The simpler rule
+            --      always picked the earliest incomplete; this rule
+            --      requires both endpoints to align with the route
+            --      sequence, so it picks the right one or none.
+            -- The LAST segment of any step never matches this rule
+            -- (no successor to check against). It gets marked by
+            -- ENCOUNTER_END for the boss instead.
+            for segIndex, seg in ipairs(step.segments) do
+                local completed = self:IsSegmentCompleted(stepIndex, segIndex)
+                local segSubZone = seg.subZone or "(none)"
+                self:ZoneLog(("  seg %d: %s subZone=%q completed=%s")
+                    :format(segIndex, mapName(seg.mapID),
+                            segSubZone, tostring(completed)))
+                if seg.mapID == previousMapID and not completed then
+                    local nextSeg = step.segments[segIndex + 1]
+                    if nextSeg and nextSeg.mapID == currentMapID then
+                        self:ZoneLog(("  -> marking seg %d complete (next seg's mapID matches)")
+                            :format(segIndex))
+                        self:MarkSegmentCompleted(stepIndex, segIndex)
+                        break
+                    end
+                end
+            end
+        else
+            self:ZoneLog("mapID changed but no active step or no segments")
+        end
+    end
+
+    if currentMapID then
+        self.state.lastPlayerMapID = currentMapID
     end
 
     local supported = self:GetSupportedRaid()
@@ -348,6 +556,23 @@ function RR:HandleLocationChange()
 
         local key = self:GetRaidContextKey(supported, info)
         if self.state.lastSeenRaidKey ~= key then
+            -- New raid context (different raid, or same raid but
+            -- different difficulty). Wipe in-memory raid state before
+            -- showing the load popup, otherwise the new raid would
+            -- inherit bossesKilled and completedSegments from the
+            -- previous raid -- which are bossIndex-keyed without raid
+            -- scoping, so they collide. SyncFromSavedRaidInfo's
+            -- removal-rejection guard (added 2026-04-25 to defeat
+            -- saved-instance cache hiccups mid-session) would
+            -- otherwise refuse to clear the stale data when the new
+            -- raid's cache reports no kills.
+            --
+            -- This wipes IN-MEMORY state only -- SavedVariable
+            -- (RetroRunsDB.completedSegments) persists across raid
+            -- contexts and is restored in LoadCurrentRaid for the
+            -- raid the user opts into via the popup.
+            wipe(self.state.bossesKilled)
+            wipe(self.state.completedSegments)
             self.state.lastSeenRaidKey = key
             self.state.loadedRaidKey   = nil
             self:SetSetting("showPanel", false)
@@ -358,6 +583,13 @@ function RR:HandleLocationChange()
             self:RefreshAll()
         end
     else
+        -- Player has left all raids (or zoned to a non-raid map).
+        -- Same wipe rationale as the new-raid branch above: in-memory
+        -- raid state is bossIndex-keyed without raid scoping, so it
+        -- must be cleared when the player leaves so the next raid
+        -- they enter starts with a clean baseline.
+        wipe(self.state.bossesKilled)
+        wipe(self.state.completedSegments)
         self.currentRaid                 = nil
         self.state.loadedRaidKey         = nil
         self.state.currentDifficultyID   = nil
@@ -375,10 +607,21 @@ end
 
 function RR:RefreshAll()
     if self.currentRaid then
-        self:SyncFromSavedRaidInfo(true)   -- request fresh server data
+        local changed = self:SyncFromSavedRaidInfo(true)   -- request fresh server data
+        self:ZoneLog(("RefreshAll: changed=%s"):format(tostring(changed)))
+        -- If the sync detected no kill-state change, skip the UI.Update
+        -- and MapOverlay refresh -- there is nothing new to render. This
+        -- avoids panel-flicker on every zone-change event in raid
+        -- instances where most events don't represent meaningful state
+        -- transitions (sub-zone toggles, periodic UPDATE_INSTANCE_INFO,
+        -- etc.). When real state changes happen (boss kill via
+        -- ENCOUNTER_END, saved-instance reset between sessions, etc.)
+        -- the sync returns true and the UI updates normally.
+        if changed == false then return end
     else
         self.state.activeStep = nil
     end
+    self:ZoneLog("RefreshAll: calling UI.Update + MapOverlay:Refresh")
     RR.UI.Update()
     if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
 end
@@ -389,6 +632,7 @@ end
 
 function RR:ResetTestState()
     self:ClearBossState()
+    wipe(self.state.completedSegments)
     self.state.testMode             = true
     self.state.manualTargetBossIndex = nil
     self:ComputeNextStep()
@@ -408,6 +652,7 @@ function RR:SimulateKillNext()
     if not self.state.testMode then
         self.state.testMode = true
         self:ClearBossState()
+        wipe(self.state.completedSegments)
         self:ComputeNextStep()
     end
     local step = self.state.activeStep or self:ComputeNextStep()
@@ -531,18 +776,27 @@ function RR:PrintStatus()
         add(FormatMapLine("WorldMap", worldMapID))
     end
 
-    -- Step.
+    -- Live zone/sub-zone strings. These are independent of mapID --
+    -- e.g. mapID 2120 covers "The Elemental Conclave" but the player's
+    -- live sub-zone string can flicker to "" mid-walk inside that
+    -- mapID. Flicker can drive UI re-renders that the kill-state path
+    -- doesn't surface, so showing both here makes /rr status useful
+    -- for sub-zone-driven debugging.
+    local zone    = (GetZoneText and GetZoneText())       or ""
+    local subZone = (GetSubZoneText and GetSubZoneText()) or ""
+    if zone == "" then zone = "<empty>" end
+    if subZone == "" then subZone = "<empty>" end
+    add(("Zone: %q  SubZone: %q"):format(zone, subZone))
+
+    -- Step. activeStep is the routing-entry TABLE (set by ComputeNextStep
+    -- from raid.routing). Pull the step index and title off it directly --
+    -- no need to re-scan routing[] for the matching entry.
     local step = self.state.activeStep or self:ComputeNextStep()
     if step then
-        local routing = raid.routing
-        local stepEntry
-        for _, r in ipairs(routing or {}) do
-            if r.step == step then stepEntry = r; break end
-        end
-        if stepEntry then
-            add(("Step: %d -- %s"):format(step, stepEntry.title or "?"))
+        if step.title then
+            add(("Step: %d -- %s"):format(step.step or 0, step.title))
         else
-            add(("Step: %d"):format(step))
+            add(("Step: %d"):format(step.step or 0))
         end
     else
         add("Step: (none -- raid complete?)")
@@ -609,6 +863,18 @@ SlashCmdList["RETRORUNS"] = function(input)
     elseif cmd == "settings" then
         RR.UI.ToggleSettings()
 
+    elseif cmd == "zonelog" then
+        -- Diagnostic dump of the in-memory zone-change log. Used to
+        -- investigate segment-completion behavior on cross-mapID
+        -- transitions inside raid instances.
+        local buf = RR.state.zoneLog or {}
+        if #buf == 0 then
+            RR:Print("Zone log is empty. Move between sub-zones to populate it.")
+        else
+            RR:ShowCopyWindow("RetroRuns -- Zone Log",
+                table.concat(buf, "\n"))
+        end
+
     elseif cmd == "reset" then
         -- Preserve "transient toggle" state across reset. Reset is about
         -- restoring appearance/positioning settings (font, scale, panel
@@ -663,6 +929,26 @@ SlashCmdList["RETRORUNS"] = function(input)
         RR:DisableTestMode()
         RR:Print("Returned to live raid state.")
 
+    elseif cmd == "resetsegments" then
+        -- Clear persisted segment-completion state for the CURRENT raid.
+        -- Use when a backtrack or other quirk has left a segment marked
+        -- complete that shouldn't be -- the renderer's "earliest
+        -- incomplete on current mapID" picker then surfaces the wrong
+        -- segment (or nothing at all if all segs on a mapID get marked
+        -- complete). Scoped to the current raid; other raids' persisted
+        -- segment state is preserved.
+        if not RR.currentRaid then
+            RR:Print("No raid loaded. Zone into a supported raid first.")
+        else
+            wipe(RR.state.completedSegments)
+            if RetroRunsDB and RetroRunsDB.completedSegments then
+                RetroRunsDB.completedSegments[RR.currentRaid.instanceID] = nil
+            end
+            RR.UI.Update()
+            if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
+            RR:Print(("Segment state cleared for %s."):format(RR.currentRaid.name))
+        end
+
     elseif cmd == "kill" then
         if rest == "" then
             RR:Print("Usage: /rr kill <boss name>")
@@ -705,7 +991,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("No dot-row trace captured. Open the transmog popup (mouseover) with debug on, then try again.")
         else
             local lines = {}
-            for id, trace in pairs(RR._dotTrace) do
+            for _, trace in pairs(RR._dotTrace) do
                 table.insert(lines, trace)
                 table.insert(lines, "")
             end
@@ -1014,6 +1300,101 @@ SlashCmdList["RETRORUNS"] = function(input)
                 ("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug: specialtest %d|r"):format(id),
                 table.concat(lines, "\n"))
             RR:Print(("specialtest %d complete. Copy window opened."):format(id))
+        end
+
+    elseif cmd == "dragontest" then
+        -- Probe a single itemID against APIs likely to track dragon-
+        -- riding manuscript appearance unlocks. Manuscripts are
+        -- consumable items: using one casts a spell that unlocks a
+        -- customization in the dragonriding UI. After consumption the
+        -- itemID is gone, but the unlock state persists. We need to
+        -- find which API surface answers "is the unlock learned" --
+        -- this probe dumps every plausible call so we can identify it
+        -- empirically.
+        local id = tonumber(args[2])
+        if not id then
+            RR:Print("Usage: /rr dragontest <itemID>  (e.g. 201790 for Renewed Proto-Drake: Embodiment of the Storm-Eater)")
+        else
+            local lines = {}
+            local function add(s) table.insert(lines, s) end
+
+            add(("dragontest itemID=%d"):format(id))
+
+            -- Item-level info first
+            local name, link, _, _, _, itemType, itemSubType, _, equipLoc, _, _, classID, subclassID = GetItemInfo(id)
+            add(("GetItemInfo: name=%s itemType=%s itemSubType=%s equipLoc=%q classID=%s subclassID=%s"):format(
+                tostring(name), tostring(itemType), tostring(itemSubType),
+                tostring(equipLoc or ""), tostring(classID), tostring(subclassID)))
+            add(("  link=%s"):format(tostring(link)))
+
+            -- The item triggers a spell on use. That spell's ID is
+            -- usually the durable identifier for the unlock.
+            if GetItemSpell then
+                local spellName, spellID = GetItemSpell(id)
+                add(("GetItemSpell: name=%s spellID=%s"):format(
+                    tostring(spellName), tostring(spellID)))
+                if spellID then
+                    if IsPlayerSpell then
+                        add(("  IsPlayerSpell(%d): %s"):format(spellID, tostring(IsPlayerSpell(spellID))))
+                    end
+                    if IsSpellKnown then
+                        add(("  IsSpellKnown(%d): %s"):format(spellID, tostring(IsSpellKnown(spellID))))
+                    end
+                    if IsSpellKnownOrOverridesKnown then
+                        add(("  IsSpellKnownOrOverridesKnown(%d): %s"):format(
+                            spellID, tostring(IsSpellKnownOrOverridesKnown(spellID))))
+                    end
+                end
+            else
+                add("GetItemSpell: (function missing)")
+            end
+
+            -- Dragonriding-specific namespace (might exist as
+            -- C_PlayerInfo, C_MountJournal extension, or its own C_*).
+            -- Probe with try-catch so missing tables don't crash.
+            local function probeNamespace(ns, label)
+                if type(ns) == "table" then
+                    add(("%s: (table present)"):format(label))
+                    -- List visible function-typed members for orientation
+                    for k, v in pairs(ns) do
+                        if type(v) == "function" then
+                            add(("    %s.%s (function)"):format(label, k))
+                        end
+                    end
+                else
+                    add(("%s: (not present)"):format(label))
+                end
+            end
+            -- Dragon riding lived under different names through DF/TWW
+            -- patches. Probe several.
+            probeNamespace(C_PlayerInfo, "C_PlayerInfo")
+
+            -- C_MountJournal.GetMountFromItem still useful here in case
+            -- manuscripts unlock customizations associated with a parent
+            -- mount ID.
+            if C_MountJournal and C_MountJournal.GetMountFromItem then
+                local mountID = C_MountJournal.GetMountFromItem(id)
+                add(("C_MountJournal.GetMountFromItem: %s"):format(tostring(mountID)))
+            end
+
+            -- C_MountJournal might have a GetIsDragonRidingMount or
+            -- similar extension on parent mounts.
+            if C_MountJournal and C_MountJournal.GetMountIDs then
+                add("C_MountJournal.GetMountIDs: (skipped enumeration; too many entries)")
+            end
+
+            -- Toy/PlayerHasToy is unlikely to apply but cheap to confirm
+            if PlayerHasToy then
+                add(("PlayerHasToy(%d): %s"):format(id, tostring(PlayerHasToy(id))))
+            end
+
+            RetroRunsDebug = RetroRunsDebug or {}
+            RetroRunsDebug.dragontest = table.concat(lines, "\n")
+
+            RR:ShowCopyWindow(
+                ("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug: dragontest %d|r"):format(id),
+                table.concat(lines, "\n"))
+            RR:Print(("dragontest %d complete. Copy window opened."):format(id))
         end
 
     elseif cmd == "dottest" then
@@ -1903,8 +2284,7 @@ SlashCmdList["RETRORUNS"] = function(input)
 
             local instName, instID
             do
-                local _, _, _, _, _, iID, iname = nil, nil, nil, nil, nil, nil, nil
-                _, _, _, _, _, iID = EJ_GetEncounterInfo(encID)
+                local _, _, _, _, _, iID = EJ_GetEncounterInfo(encID)
                 instID = iID
                 if instID then
                     instName = EJ_GetInstanceInfo(instID)
@@ -2011,6 +2391,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         elseif sub == "dump"   then RR:DumpRecording()
         elseif sub == "reset"  then RR:ResetRecording()
         elseif sub == "status" then RR:RecordingStatus()
+        elseif sub == "break"  then RR:RecordBreak()
         elseif sub == "tp"     then
             local dest = RR.Trim(rest:sub(3))   -- strip "tp"
             if dest == "" then
@@ -2026,7 +2407,7 @@ SlashCmdList["RETRORUNS"] = function(input)
                 RR:RecordSetNote(note)
             end
         else
-            RR:Print("Record: /rr record [start|stop|dump|reset|status|tp <dest>|note <text>]")
+            RR:Print("Record: /rr record [start|stop|dump|reset|status|break|tp <dest>|note <text>]")
         end
 
     elseif cmd == "status" then
@@ -2043,8 +2424,9 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("RetroRuns dev / maintainer commands:")
             RR:Print("  /rr  debug                       (toggle verbose logging)")
             RR:Print("  /rr  test | next | real          (test-mode stepping)")
+            RR:Print("  /rr  resetsegments               (clear persisted segment state)")
             RR:Print("  /rr  kill <name> | unkill <name> (manual kill-state override)")
-            RR:Print("  /rr  record [start|stop|dump|reset|status|tp <dest>|note <text>]")
+            RR:Print("  /rr  record [start|stop|dump|reset|status|break|tp <dest>|note <text>]")
             RR:Print("  /rr  harvest [dump | boss <name>]")
             RR:Print("  /rr  tiersets                    (dump C_TransmogSets labels)")
             RR:Print("  /rr  weaponharvest               (harvest CN weapon-token pools)")
@@ -2052,6 +2434,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("  /rr  tmogtest <itemID>           (transmog diagnostic)")
             RR:Print("  /rr  srctest <sourceID>          (transmog source diagnostic)")
             RR:Print("  /rr  specialtest <itemID>        (special-loot API probe)")
+            RR:Print("  /rr  dragontest <itemID>         (dragonriding manuscript API probe)")
             RR:Print("  /rr  dottest <itemID>            (per-diff dot state probe)")
             RR:Print("  /rr  tmogaudit [raid name]       (full-raid tmog audit dump)")
             RR:Print("  /rr  tmogverify [raid name]      (full-raid data-integrity audit)")
@@ -2117,23 +2500,44 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
     elseif event == "PLAYER_ENTERING_WORLD" then
         C_Timer.After(1.0, function() RR:HandleLocationChange() end)
 
-    elseif event == "ZONE_CHANGED_NEW_AREA" then
+    elseif event == "ZONE_CHANGED_NEW_AREA"
+        or event == "ZONE_CHANGED"
+        or event == "ZONE_CHANGED_INDOORS" then
+        -- ZONE_CHANGED_NEW_AREA fires for major zone transitions (entering
+        -- or leaving the raid instance itself). ZONE_CHANGED and
+        -- ZONE_CHANGED_INDOORS fire for sub-zone transitions within the
+        -- current zone -- which is what we need to detect movement
+        -- between Vault's sub-zones (Primal Bulwark, Vault Approach,
+        -- etc.) since they're sub-zones of the parent raid map, not
+        -- distinct zones. One of these also fires when the minimap text
+        -- changes (sub-sub-zones like Quarry of Infusion) -- the
+        -- separate MINIMAP_ZONE_CHANGED event was removed in patch 2.4.0.
+        RR:ZoneLog(event .. " event fired")
         C_Timer.After(0.5, function() RR:HandleLocationChange() end)
 
     elseif event == "UPDATE_INSTANCE_INFO" then
         if not RR.state.testMode
             and RR.currentRaid
             and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
-            RR:SyncFromSavedRaidInfo(false)  -- data already fresh from server push
-            RR.UI.Update()
-            if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
+            local changed = RR:SyncFromSavedRaidInfo(false)  -- data already fresh from server push
+            RR:ZoneLog(("UPDATE_INSTANCE_INFO handler: changed=%s"):format(tostring(changed)))
+            if changed ~= false then
+                RR:ZoneLog("UPDATE_INSTANCE_INFO handler: calling UI.Update + MapOverlay:Refresh")
+                RR.UI.Update()
+                if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
+            end
         end
 
     elseif event == "ENCOUNTER_END" then
+        local _, encounterName, _, _, success = ...
+        RR:ZoneLog(("ENCOUNTER_END fired: name=%q success=%s testMode=%s loadedKey=%s currentKey=%s")
+            :format(tostring(encounterName), tostring(success),
+                    tostring(RR.state.testMode),
+                    tostring(RR.state.loadedRaidKey),
+                    tostring(RR:GetRaidContextKey())))
         if not RR.state.testMode
             and RR.currentRaid
             and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
-            local _, encounterName, _, _, success = ...
             if success == 1 then
                 RR:MarkBossKilledByEncounterName(encounterName)
                 RR.UI.Update()
@@ -2148,6 +2552,8 @@ RR.frame:RegisterEvent("ADDON_LOADED")
 RR.frame:RegisterEvent("PLAYER_LOGIN")
 RR.frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 RR.frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+RR.frame:RegisterEvent("ZONE_CHANGED")
+RR.frame:RegisterEvent("ZONE_CHANGED_INDOORS")
 RR.frame:RegisterEvent("UPDATE_INSTANCE_INFO")
 RR.frame:RegisterEvent("ENCOUNTER_END")
 
@@ -2155,17 +2561,30 @@ RR.frame:RegisterEvent("ENCOUNTER_END")
 -- Tickers
 -------------------------------------------------------------------------------
 
--- Teleport-arrival detection
+-- Teleport-arrival and kill-gate advancement. Both are position-based
+-- checks on the same cadence: teleport arrival marks a teleport segment
+-- complete when the player arrives at the next segment's start, kill-gate
+-- advancement marks a kill segment complete when the player arrives at
+-- that segment's endpoint (typically the miniboss pull spot).
 C_Timer.NewTicker(0.5, function()
     if RR.currentRaid and RR.state.loadedRaidKey and RR.state.activeStep then
         RR:CheckTeleportArrivalAdvance()
+        RR:CheckKillAdvance()
     end
 end)
 
--- UI heartbeat
+-- UI heartbeat. Fires once per second while in a loaded raid; calls
+-- UI.Update unconditionally. Heartbeat is logged to ZoneLog only when
+-- explicitly requested via /rr debug -- otherwise it would flood the
+-- log buffer (60 entries per minute) and push useful entries out.
+local heartbeatTicks = 0
 C_Timer.NewTicker(1.0, function()
     if RR.currentRaid
         and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
+        heartbeatTicks = heartbeatTicks + 1
+        if RR:GetSetting("debug") then
+            RR:ZoneLog(("HEARTBEAT tick #%d: calling UI.Update"):format(heartbeatTicks))
+        end
         RR.UI.Update()
         if WorldMapFrame and WorldMapFrame:IsShown() and RetroRunsMapOverlay then
             RetroRunsMapOverlay:Refresh()
