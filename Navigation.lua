@@ -65,16 +65,35 @@ function RR:MarkBossKilled(boss)
     -- earlier segment got missed by the mapID-change rule (e.g. due
     -- to the player teleporting past it, or a quirk we haven't seen),
     -- the kill cleans up the state anyway.
+    local killedStepIndex
     if self.currentRaid and self.currentRaid.routing then
         for _, step in ipairs(self.currentRaid.routing) do
             if step.bossIndex == boss.index and step.segments then
                 local stepIndex = step.step or step.priority or 0
+                killedStepIndex = stepIndex
                 for segIndex = 1, #step.segments do
                     if not self:IsSegmentCompleted(stepIndex, segIndex) then
                         self:MarkSegmentCompleted(stepIndex, segIndex)
                     end
                 end
             end
+        end
+    end
+
+    -- Prune persisted segments for the now-killed step. Persisted
+    -- walk progress is only useful for the active step (where the
+    -- player is currently routing to); once a boss is killed, that
+    -- step's segments are no longer relevant and shouldn't carry
+    -- across sessions to confuse the next walk-through. See HANDOFF
+    -- 2026-04-26 stale-persistence investigation -- the second-pass
+    -- fix that addresses the within-lockout staleness case.
+    if killedStepIndex
+        and self.currentRaid and self.currentRaid.instanceID
+        and RetroRunsDB and RetroRunsDB.completedSegments
+    then
+        local store = RetroRunsDB.completedSegments[self.currentRaid.instanceID]
+        if store and store.segments then
+            store.segments[killedStepIndex] = nil
         end
     end
 end
@@ -134,14 +153,41 @@ function RR:MarkSegmentCompleted(stepIndex, segIndex)
     -- so without persistence, /reload mid-route loses progress and
     -- the renderer's earliest-incomplete picker shows the wrong
     -- segment when multiple segments share a mapID. Restore happens
-    -- in LoadCurrentRaid. See HANDOFF 2026-04-25 investigation.
+    -- in LoadCurrentRaid via RestorePersistedSegments. See HANDOFF
+    -- 2026-04-25 (initial persistence) and 2026-04-26 (lockout-reset
+    -- staleness fix) for context.
+    --
+    -- Schema includes lockoutId so the restore path can detect when
+    -- the weekly reset has rolled a fresh lockout and the stored
+    -- segments are stale.
+    --
+    -- Edge case: lockoutId is nil if no boss has been killed yet this
+    -- lockout (no GetSavedInstanceInfo record exists). In that case we
+    -- skip persistence entirely -- the restore path can't distinguish
+    -- "fresh lockout, zero kills" from "old-schema record with no
+    -- lockoutId field," so it would treat the write as stale on next
+    -- read anyway. Tradeoff: pre-first-kill walk progress doesn't
+    -- survive /reload. Acceptable -- once you kill any boss, lockoutId
+    -- populates and persistence resumes working normally.
     if self.currentRaid and self.currentRaid.instanceID and RetroRunsDB then
-        RetroRunsDB.completedSegments = RetroRunsDB.completedSegments or {}
-        local raidStore = RetroRunsDB.completedSegments[self.currentRaid.instanceID]
-                       or {}
-        raidStore[stepIndex] = raidStore[stepIndex] or {}
-        raidStore[stepIndex][segIndex] = true
-        RetroRunsDB.completedSegments[self.currentRaid.instanceID] = raidStore
+        local lockoutId = self:GetCurrentLockoutId()
+        if lockoutId then
+            RetroRunsDB.completedSegments = RetroRunsDB.completedSegments or {}
+            local store = RetroRunsDB.completedSegments[self.currentRaid.instanceID]
+            -- If the existing record is the old flat-table schema (no
+            -- segments field), or doesn't exist yet, OR the lockoutId
+            -- has changed since the previous save (cross-lockout
+            -- write), replace it with a fresh new-schema record.
+            if not store or not store.segments or store.lockoutId ~= lockoutId then
+                store = {
+                    lockoutId = lockoutId,
+                    segments  = {},
+                }
+            end
+            store.segments[stepIndex] = store.segments[stepIndex] or {}
+            store.segments[stepIndex][segIndex] = true
+            RetroRunsDB.completedSegments[self.currentRaid.instanceID] = store
+        end
     end
 end
 

@@ -59,7 +59,7 @@ Main commands — type in chat:
 
 ## Status
 
-Version **0.6.0** — release candidate for v1.0.
+Version **0.6.1** — release candidate for v1.0.
 
 All three Shadowlands raids and Vault of the Incarnates (Dragonflight Season 1) are feature-complete with full routing, encounter notes, armor transmog tracking, weapon-token indicators, and achievement callouts. Data integrity has been verified via the addon's own `/rr tmogverify` command: zero errors across 413 items and 39 bosses.
 

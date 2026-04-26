@@ -1083,11 +1083,32 @@ local function BuildAchievementsBlock(boss)
         return ""
     end
     local lines = { ("|cff%sAchievements:|r"):format(C_LABEL) }
+
+    -- Bracketed state indicator matches the Special Loot section's
+    -- visual language (see SPECIAL_COLLECTED / SPECIAL_GLYPH_COLLECTED
+    -- definitions later in the file -- those constants live near the
+    -- specialLoot rendering and we mirror their values here rather than
+    -- restructure file order). The pattern is:
+    --   "|cff777777[ |r|c<color><glyph>|r|cff777777 ]|r <link>"
+    -- We CANNOT wrap the achievement name with our own color because
+    -- GetAchievementLink embeds its own |cff<...>| code, and WoW color
+    -- codes don't nest -- the inner code wins. Keeping the indicator
+    -- as a separate prefix preserves the link's native color while
+    -- still giving us a clearly visible completion state.
+    local STATE_COLOR_DONE   = "ff00ff00"
+    local STATE_COLOR_TODO   = "ff888888"
+    local STATE_GLYPH_DONE   = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
+    local STATE_GLYPH_TODO   = "X"
+
     for _, ach in ipairs(boss.achievements) do
         local _, name, _, completed = GetAchievementInfo(ach.id)
         local label = name or ach.name or ("ID " .. ach.id)
         local tag   = ach.meta and " (Meta)" or ""
-        local color = completed and "ff00ff00" or "ffffff00"
+
+        local stateColor = completed and STATE_COLOR_DONE or STATE_COLOR_TODO
+        local stateGlyph = completed and STATE_GLYPH_DONE or STATE_GLYPH_TODO
+        local indicator  = ("|cff777777[ |r|c%s%s|r|cff777777 ]|r"):format(
+            stateColor, stateGlyph)
 
         -- Build a clickable achievement hyperlink. GetAchievementLink
         -- returns a pre-formatted |Hachievement:...|h[Name]|h string
@@ -1104,13 +1125,30 @@ local function BuildAchievementsBlock(boss)
             if tag ~= "" then
                 link = link:gsub("|h%[(.-)%]|h", "|h[%1" .. tag .. "]|h", 1)
             end
-            -- GetAchievementLink includes its own color code; we wrap
-            -- it with our collected/uncollected color so the visual
-            -- state still comes through. The inner |cXX|r/|Hlink|h|h
-            -- markup remains functional.
-            table.insert(lines, ("|c%s- %s|r"):format(color, link))
+
+            -- For completed achievements: strip the link's leading
+            -- |cff<6hex> wrapper and trailing |r, then re-wrap with
+            -- gray. Visual de-emphasis since the achievement is done.
+            -- Incomplete achievements keep Blizzard's native yellow
+            -- (which `GetAchievementLink` embeds for both states; we
+            -- only override it on completion).
+            -- Color codes don't nest in WoW chat formatting -- the
+            -- inner code wins -- so without stripping, a completed
+            -- achievement would render yellow even when wrapped in
+            -- our gray. The |H...|h[Name]|h payload is preserved
+            -- intact, so clickability survives the unwrap.
+            if completed then
+                link = link:gsub("^|cff%x%x%x%x%x%x", ""):gsub("|r$", "")
+                table.insert(lines, ("%s |c%s%s|r"):format(
+                    indicator, STATE_COLOR_TODO, link))
+            else
+                table.insert(lines, ("%s %s"):format(indicator, link))
+            end
         else
-            table.insert(lines, ("|c%s- %s%s|r"):format(color, label, tag))
+            -- Plain-text fallback (cache miss). Wrap the label in our
+            -- state color since there's no embedded link color to fight.
+            table.insert(lines, ("%s |c%s%s%s|r"):format(
+                indicator, stateColor, label, tag))
         end
     end
     return table.concat(lines, "\n")
@@ -1394,16 +1432,18 @@ RR.FallbackStateForItem     = FallbackStateForItem
 -- tag in each row. Chosen to visually distinguish the four kinds without
 -- clashing with class colors or achievement yellow.
 local SPECIAL_KIND_LABEL = {
-    mount = "Mount",
-    pet   = "Pet",
-    toy   = "Toy",
-    decor = "Decor",
+    mount      = "Mount",
+    pet        = "Pet",
+    toy        = "Toy",
+    decor      = "Decor",
+    manuscript = "Manuscript",
 }
 local SPECIAL_KIND_COLOR = {
-    mount = "ff8080ff",   -- light blue
-    pet   = "ffff80ff",   -- light magenta
-    toy   = "ffffcc66",   -- light amber
-    decor = "ffd4a373",   -- warm cream/tan (evokes housing/home)
+    mount      = "ff8080ff",   -- light blue
+    pet        = "ffff80ff",   -- light magenta
+    toy        = "ffffcc66",   -- light amber
+    decor      = "ffd4a373",   -- warm cream/tan (evokes housing/home)
+    manuscript = "ff7fffd4",   -- aquamarine (evokes dragonriding sky/scale)
 }
 
 -- Colors for the state indicator:
@@ -1450,11 +1490,12 @@ local SPECIAL_PARTIAL     = "ffff9333"
 -- rather than the neutral "not yet collected" signal we want.
 local SPECIAL_GLYPH_COLLECTED   = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
 local SPECIAL_GLYPH_UNCOLLECTED = "X"
--- Partial glyph: Blizzard's ReadyCheck-Waiting is the yellow-hourglass
--- "waiting" texture used during ready checks before a player responds.
--- Reads as "in-progress" — semantically right for "some collected." We
--- recolor via surrounding wrapper (see SPECIAL_PARTIAL) so the visual
--- pops as red-orange rather than the texture's native yellow.
+-- Partial glyph: Blizzard's ReadyCheck-Waiting is the yellow question-mark
+-- texture used during ready checks before a player responds. Reads as
+-- "in-progress / awaiting action" — semantically right for "some
+-- collected" or "all gathered, not yet acted on." We recolor via
+-- surrounding wrapper (see SPECIAL_PARTIAL) so the visual pops as
+-- red-orange rather than the texture's native yellow.
 local SPECIAL_GLYPH_PARTIAL     = "|TInterface\\RaidFrame\\ReadyCheck-Waiting:14:14|t"
 
 -- Returns "collected" or "missing" for a specialLoot item. Branches on
@@ -1488,6 +1529,28 @@ local function SpecialCollectionStateForItem(item)
             return "collected"
         end
         return "missing"
+
+    elseif item.kind == "manuscript" then
+        -- Drakewatcher Manuscripts are consumable items: clicking one
+        -- casts a "Deciphering" spell whose only effect is to flag a
+        -- hidden quest as complete on the current character. The item
+        -- is gone after use, but the quest flag persists for life --
+        -- so the durable "is the unlock learned?" check is
+        -- IsQuestFlaggedCompleted(questID).
+        --
+        -- Per-character (not account-wide). That's intentional and
+        -- matches the rest of RetroRuns' "what does THIS character
+        -- still need?" model.
+        --
+        -- 12.x exposes both the namespaced C_QuestLog form and the
+        -- legacy global. Prefer the namespaced one when available,
+        -- fall back to the global for safety on older clients.
+        if not item.questID then return "missing" end
+        local fn = (C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted)
+                   or IsQuestFlaggedCompleted
+        if not fn then return "missing" end
+        local ok, completed = pcall(fn, item.questID)
+        return (ok and completed) and "collected" or "missing"
 
     elseif item.kind == "decor" then
         -- C_HousingCatalog landed in 11.2.7 (Dec 2025). On earlier
@@ -1585,11 +1648,16 @@ BuildSpecialLootSection = function(boss)
         -- is purchased from an NPC for two neck-slot ingredients looted
         -- from other bosses), we need a different layout:
         --
-        --   [ X ] Iskaara Trader's Ottuk (Mount -- 1/2 necks in bags)
-        --       [ X ] Terros's Captive Core (in bags: yes)
-        --       [ X ] Eye of the Vengeful Hurricane (in bags: no)
-        --       Trade both at Tattukiaka in Iskaara.
-        --       (Only current bags are checked -- banked necks won't show.)
+        --   While farming (held < total):
+        --     [ X ] Iskaara Trader's Ottuk (Mount -- 1/2 necks in bags)
+        --         [ X ] Terros's Captive Core (in bags: yes)
+        --         [ X ] Eye of the Vengeful Hurricane (in bags: no)
+        --
+        --   Ready to trade (held == total):
+        --     [ check ] Iskaara Trader's Ottuk (Mount -- 2/2 necks, ready to trade!)
+        --         [ check ] Terros's Captive Core (in bags: yes)
+        --         [ check ] Eye of the Vengeful Hurricane (in bags: yes)
+        --         Trade at Tattukiaka in Iskaara (Azure Span 14, 50).
         --
         -- When the mount is already collected, we skip the barter details
         -- entirely and fall through to the simple "(Mount)" display, because
@@ -1618,15 +1686,24 @@ BuildSpecialLootSection = function(boss)
                 if has then held = held + 1 end
             end
 
-            -- State of the mount row itself: all held = ready-to-trade
-            -- (rendered in the "collected" green glyph for visual pop, but
-            -- with an explicit "ready to trade!" callout so the user knows
-            -- it's not actually collected yet). Some held = partial amber.
-            -- None held = uncollected gray.
+            -- State of the mount row itself.
+            --
+            -- "Ready to trade" (held == total but mount not yet learned)
+            -- uses the SAME partial glyph/color as the in-progress
+            -- (held > 0 < total) state. Both are "you have work to do
+            -- here": for 1/2, get the other neck; for 2/2, walk to the
+            -- trader. The ONLY thing that should flip a row to the
+            -- collected-green state is actually owning the mount, which
+            -- is handled by the mountCollected branch above (entire
+            -- barter block is skipped, falls through to standard
+            -- single-row "(Mount)" render).
+            --
+            -- The text suffix disambiguates the two partial sub-states:
+            -- "1/2 necks in bags" vs "2/2 necks, ready to trade!".
             local parenSuffix
             local stateColor, stateGlyph
             if held == total then
-                stateColor, stateGlyph = SPECIAL_COLLECTED,   SPECIAL_GLYPH_COLLECTED
+                stateColor, stateGlyph = SPECIAL_PARTIAL,     SPECIAL_GLYPH_PARTIAL
                 parenSuffix = ("Mount -- %d/%d necks, ready to trade!"):format(held, total)
             elseif held > 0 then
                 stateColor, stateGlyph = SPECIAL_PARTIAL,     SPECIAL_GLYPH_PARTIAL
@@ -1660,15 +1737,18 @@ BuildSpecialLootSection = function(boss)
                         ingColor, ingGlyph, ingDisplay, ingSuffix))
             end
 
-            -- Trade location hint + bags-only caveat. Dim gray so it reads
-            -- as secondary info, not another loot row. Only shown when the
-            -- player still needs to act (held < total OR held == total).
-            if item.barter.at then
+            -- Trade location hint. Only shown once both ingredients are in
+            -- bags (held == total), since that's the moment the player can
+            -- actually act on the location. While still farming, the
+            -- trader's location is irrelevant noise. The "in bags" /
+            -- "not in bags" text on each ingredient row already
+            -- communicates that bag-only validation is what's being
+            -- checked, so a separate caveat line was redundant and was
+            -- removed in v0.6.1.
+            if item.barter.at and held == total then
                 table.insert(lines,
                     ("    |cffaaaaaaTrade at %s.|r"):format(item.barter.at))
             end
-            table.insert(lines,
-                "    |cff777777(Only current bags are checked -- banked necks won't show.)|r")
 
         else
             -- Standard (non-barter or mount-already-collected) path. Same
@@ -3090,34 +3170,98 @@ local EXPANSION_ORDER_NEWEST_FIRST = {
     "Classic",
 }
 
+-- Build the per-raid pill row for the idle-state list. Same shape as the
+-- in-raid pill row, but each pill is colored by its OWN lockout state
+-- rather than active-difficulty highlighting:
+--   green  = fully cleared this lockout (nothing to farm until reset)
+--   amber  = partial kills (still farmable, knows what's left)
+--   gray   = no kills / fresh lockout / never entered
+--   dim "-" = difficulty doesn't apply to this raid (rare; some legacy
+--             raids predate certain difficulties)
+local function BuildIdleListPills(raid)
+    local counts = RR:GetPerDifficultyKillCountsForRaid(raid)
+    if not counts then return "" end
+
+    local PILLS = {
+        { id = 17, label = "LFR" },
+        { id = 14, label = "N"   },
+        { id = 15, label = "H"   },
+        { id = 16, label = "M"   },
+    }
+
+    -- Color constants are 6-char RGB; the format string prepends |cff.
+    -- Earlier version included the alpha byte in these and produced
+    -- malformed |cffff00ff00... output (extra "00" leaked as visible
+    -- characters before the pill label).
+    local CLEARED  = "00ff00"  -- matches SPECIAL_COLLECTED RGB
+    local PARTIAL  = "ff9333"  -- matches SPECIAL_PARTIAL RGB
+    local FRESH    = "888888"  -- matches SPECIAL_UNCOLLECTED RGB
+    local INACTIVE = "555555"  -- doesn't apply
+
+    local parts = {}
+    for _, p in ipairs(PILLS) do
+        local c = counts[p.id]
+        if c and c.total > 0 then
+            local hex
+            if c.complete >= c.total then
+                hex = CLEARED
+            elseif c.complete > 0 then
+                hex = PARTIAL
+            else
+                hex = FRESH
+            end
+            table.insert(parts, ("|cff%s%s %d/%d|r"):format(
+                hex, p.label, c.complete, c.total))
+        else
+            table.insert(parts, ("|cff%s%s -|r"):format(INACTIVE, p.label))
+        end
+    end
+    if #parts == 0 then return "" end
+
+    local sep = "|cff555555 | |r"
+    return "|cff777777[ |r"
+        .. table.concat(parts, sep)
+        .. "|cff777777 ]|r"
+end
+
 local function BuildIdleListText()
     local byExpansion = {}
     for _, raid in pairs(RetroRuns_Data or {}) do
         local exp = raid.expansion or "Unknown"
         byExpansion[exp] = byExpansion[exp] or {}
-        table.insert(byExpansion[exp], raid.name or "??")
+        table.insert(byExpansion[exp], raid)
     end
 
     local lines = {}
+    local function emitRaid(raid)
+        local name = raid.name or "??"
+        table.insert(lines, ("|cffffffff* %s|r"):format(name))
+        local pills = BuildIdleListPills(raid)
+        if pills ~= "" then
+            -- Indent the pill row two spaces under the raid name so the
+            -- visual hierarchy is clear: name on the bullet line,
+            -- lockout summary on the sub-line.
+            table.insert(lines, "  " .. pills)
+        end
+    end
+
     -- Emit known expansions in canonical order
     for _, exp in ipairs(EXPANSION_ORDER_NEWEST_FIRST) do
         if byExpansion[exp] then
-            table.sort(byExpansion[exp])
+            table.sort(byExpansion[exp], function(a, b)
+                return (a.name or "") < (b.name or "")
+            end)
             table.insert(lines, ("|cffffff00%s|r"):format(exp))
-            for _, name in ipairs(byExpansion[exp]) do
-                table.insert(lines, ("|cffffffff* %s|r"):format(name))
-            end
+            for _, raid in ipairs(byExpansion[exp]) do emitRaid(raid) end
             table.insert(lines, "")
             byExpansion[exp] = nil
         end
     end
     -- Anything left over (unknown/new expansion) goes at the end
-    for exp, names in pairs(byExpansion) do
-        table.sort(names)
+    for exp, raids in pairs(byExpansion) do
+        table.sort(raids, function(a, b) return (a.name or "") < (b.name or "") end)
         table.insert(lines, ("|cffffff00%s|r"):format(exp))
-        for _, name in ipairs(names) do
-            table.insert(lines, ("|cffffffff* %s|r"):format(name))
-        end
+        for _, raid in ipairs(raids) do emitRaid(raid) end
         table.insert(lines, "")
     end
 
@@ -3202,10 +3346,20 @@ function UI.Update()
             panel.transmog:Hide()
         end
 
+        -- Restore listHeader's normal anchor (below transmog). The idle
+        -- branch re-anchors directly to panel.progress for tighter
+        -- spacing; this branch puts it back so in-raid layout is normal.
+        panel.listHeader:ClearAllPoints()
+        panel.listHeader:SetPoint("TOPLEFT", panel.transmog, "BOTTOMLEFT", 0, -12)
         panel.listHeader:SetText("Boss Progress")
         panel.list:SetText(table.concat(RR:GetProgressLines(), "\n"))
     else
-        panel.raid:SetText("RetroRuns v" .. RetroRuns.VERSION)
+        -- Idle state. The "RetroRuns v..." line is intentionally blank --
+        -- the addon name is already in the title bar at the top of the
+        -- panel, and the version is in the footer's bottom-right. A body
+        -- line repeating both was redundant. The slot itself stays
+        -- because in-raid mode populates it with the raid name.
+        panel.raid:SetText("")
         panel.pills:SetText("")
 
         if raid then
@@ -3220,8 +3374,11 @@ function UI.Update()
                 ("|cffffff00Detected:|r %s"):format(displayName))
             panel.next:SetText("Type |cffffffff/rr|r to load navigation.")
         else
-            panel.progress:SetText("No supported legacy raid detected.")
-            panel.next:SetText("Travel to a supported raid to begin.")
+            -- Single line. The "Travel to..." text by itself implies
+            -- "you're not in a supported raid yet" -- a separate
+            -- "No supported legacy raid detected" line was redundant.
+            panel.progress:SetText("Travel to a supported raid to begin.")
+            panel.next:SetText("")
         end
 
         panel.travel:SetText("")
@@ -3230,11 +3387,17 @@ function UI.Update()
         panel.encounter:EnableMouse(false)
         panel.transmog:SetText("")
         -- Don't Hide() the transmog wrapper here -- panel.listHeader
-        -- anchors to its bottom-left, so hiding it orphans that
-        -- anchor and the "Currently supported:" header disappears.
-        -- Empty text + EnableMouse(false) keeps the layout intact
-        -- while making the invisible wrapper non-interactive.
+        -- normally anchors to its bottom-left, so hiding it would orphan
+        -- that anchor. Empty text + EnableMouse(false) keeps the layout
+        -- intact while making the invisible wrapper non-interactive.
         panel.transmog:EnableMouse(false)
+        -- Re-anchor listHeader directly below "Travel to..." (panel.progress)
+        -- so the supported-raids list sits tight against the prompt.
+        -- The intermediate widgets (next, travel, encounter, transmog)
+        -- are all empty in idle state but their anchor offsets still
+        -- accumulate as visible gap, hence this re-anchor.
+        panel.listHeader:ClearAllPoints()
+        panel.listHeader:SetPoint("TOPLEFT", panel.progress, "BOTTOMLEFT", 0, -8)
         panel.listHeader:SetText("|cff9d9d9dCurrently supported:|r")
         panel.list:SetText(BuildIdleListText())
         panel.mapBtn:Disable()

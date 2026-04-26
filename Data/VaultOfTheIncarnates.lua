@@ -324,6 +324,21 @@ RetroRuns_Data[2522] = {
             achievements = {
                 { id = 16451, name = "The Ol Raszle Daszle", meta = true },
             },
+            specialLoot = {
+                -- Renewed Proto-Drake: Embodiment of the Storm-Eater
+                -- (Drakewatcher Manuscript). Item is consumed on use; the
+                -- "use" spell (394780 "Deciphering") completes hidden quest
+                -- 72367 as its only effect. Tracking the unlock therefore
+                -- comes down to IsQuestFlaggedCompleted(72367), which
+                -- persists per-character even after the item is gone.
+                -- Drops on all difficulties (LFR through Mythic).
+                {
+                    id      = 201790,
+                    kind    = "manuscript",
+                    name    = "Renewed Proto-Drake: Embodiment of the Storm-Eater",
+                    questID = 72367,
+                },
+            },
             loot = {
                 { id=195532, slot="Feet",     name="Sandals of the Wild Sovereign",   sources={ [17]=181618, [14]=181191, [15]=181616, [16]=181617 } },
                 { id=195531, slot="Hands",    name="Calamitous Shockguards",          sources={ [17]=181648, [14]=181190, [15]=181646, [16]=181647 } },

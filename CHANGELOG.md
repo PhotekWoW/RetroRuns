@@ -1,188 +1,82 @@
 # Changelog
 
-All notable changes to RetroRuns are documented here. This file is read
-by the CurseForge packager and used as the public release notes.
+All notable changes to RetroRuns are documented here.
 
-## [Unreleased]
+## [0.6.1] - 2026-04-26
+
+### Added
+
+- **Drakewatcher Manuscript tracking.** Raszageth's Renewed Proto-Drake: Embodiment of the Storm-Eater now appears in Vault of the Incarnates' Special Loot section with a per-character collected/missing indicator. Pattern will extend to future Drakewatcher Manuscripts as new raids ship.
+- **Per-raid lockout pills in the supported-raids list.** When the panel is idle (not in a raid), each supported raid now shows a `[ LFR | N | H | M ]` pill row colored by lockout state — green for fully cleared, amber for partial, gray for fresh. Tells you at a glance which raids have farmable lockouts available right now.
+
+### Changed
+
+- **Achievement completion is now visually obvious.** Completed achievements show a green check mark in brackets with grayed-out text; uncompleted achievements keep yellow text with a bracketed X. Matches the Special Loot section's visual language.
+- **Iskaara Trader's Ottuk display polished.** The "Trade at Tattukiaka" location hint only appears when both necks are in your bags (when it's actually actionable). Removed the redundant "only current bags are checked" caveat since the per-neck "in bags / not in bags" text already conveys what's being validated.
+- **New minimap icon.** Replaces the cropped square logo with a properly circular icon that fits the minimap button cleanly alongside other addons.
+- **Idle-state panel polish.** Removed redundant lines (the "RetroRuns v0.6.0" body header and the "No supported legacy raid detected." prompt). Tightened the spacing so the supported-raids list sits directly under "Travel to a supported raid to begin."
+
+### Fixed
+
+- **Walk progress no longer leaks across game sessions.** Previously, route segments marked as walked in one session could persist into a fresh login and cause lines to draw incorrectly. Walk progress now stays within a single WoW session: `/reload` mid-walk preserves where you are, but quitting WoW and coming back starts you cleanly at segment 1 of your current boss.
+- **Exiting test mode now restores real raid state.** `/rr real` now properly resyncs kill counts and walk progress from your actual raid lockout, instead of leaving fake test-mode state on the panel until a `/reload`.
 
 ## [0.6.0] - 2026-04-25
 
 ### Added
 
-- **Vault of the Incarnates routing.** All 8 bosses now have full
-  walk-along routes, encounter notes, achievement callouts, and
-  Iskaara Trader's Ottuk barter mount tracking. Vault is now feature-
-  complete alongside Sanctum, Sepulcher, and Castle Nathria.
-- **Per-difficulty kill counts in the panel header.** A new pill row
-  replaces the trailing "(Heroic)" suffix on the raid name with a
-  bracketed strip showing all four difficulties: `[ LFR | N | H | M ]`
-  with X/Y kill counts per difficulty. The player's current difficulty
-  renders in white; others render in gray. Counts are server-cache
-  authoritative, with the active-difficulty count updating instantly
-  on ENCOUNTER_END so kills register without lag.
-- **Collapsible Boss Encounter section.** The encounter notes line now
-  renders as `Boss Encounter: Standard` (gray, not clickable) when the
-  boss has no special notes, or `Boss Encounter: view special note`
-  (clickable) when it does. Clicking expands to show the full notes.
-  A single global toggle controls expand/collapse state across all
-  bosses, persisted across `/reload`. Achievements render
-  unconditionally below — independent of the encounter toggle.
+- **Vault of the Incarnates** is now fully supported — walk-along routes for all 8 bosses, encounter notes, achievement callouts, and Iskaara Trader's Ottuk mount tracking.
+- **Per-difficulty kill counts in the panel header.** New pill row `[ LFR | N | H | M ]` shows X/Y kill counts per difficulty. Your active difficulty renders in white, others in gray. Updates instantly on boss kill.
+- **Collapsible Boss Encounter section.** Encounter notes line now reads `Boss Encounter: Standard` for routine fights or `Boss Encounter: view special note` (clickable) for fights with custom guidance. One global toggle expands/collapses across all bosses, persisted across `/reload`.
 
 ### Changed
 
+- Iskaara Trader's Ottuk barter mount now tracked in Vault of the Incarnates (Terros and Dathea). Shows live "0/N necks in bags" progress with per-ingredient rows and a trade-location hint. Bank contents aren't scanned — only what's currently in your bags counts.
+- Encounter notes across all 4 raids cleaned up. Bosses with no special notes now read simply as "Standard" instead of "Standard Nuke". Bosses with custom guidance keep it intact.
 - "Encounter:" panel section renamed to "Boss Encounter:" for clarity.
-- Iskaara Trader's Ottuk barter mount wired up for Vault of the
-  Incarnates (Terros and Dathea both show it in Special Loot). When
-  the mount isn't collected, the entry renders a live "0/N necks in
-  bags" progress tally with nested per-ingredient rows, a trade-
-  location hint ("Tattukiaka in Iskaara, Azure Span 14, 50"), and an
-  explicit caveat that only current bags are scanned (bank contents
-  don't count).
-- Encounter notes across all 4 raids cleaned up. Pure "Standard Nuke"
-  placeholders removed from boss data; bosses with no special notes
-  now render as "Standard". Notes that previously embedded "Standard
-  Nuke" alongside real custom info had the placeholder phrasing
-  stripped, leaving the useful guidance intact.
-- The redundant "Progress: X/Y" line in the panel header was removed.
-  The same kill count is now visible in the difficulty pills row.
+- Removed redundant "Progress: X/Y" line from the panel header — same count is now in the difficulty pills row.
 
 ### Fixed
 
-- **Routing now correctly handles same-mapID multi-segment paths.** Vault
-  is the first raid where a single boss's route revisits a map (Terros
-  and Sennarth both walk through Vault Approach twice with a Primal
-  Convergence detour). The previous segment-completion rule could mark
-  the wrong segment when the player crossed back through, causing the
-  map to draw the wrong polyline. The new rule is route-aware: a segment
-  is only marked complete when crossing into the *next* segment's map,
-  which defeats backtracks naturally. Boss kills also mark all of that
-  step's segments complete as a safety net.
-- **Segment progress survives `/reload`.** Walk progress was previously
-  in-memory only, so reloading mid-route lost track of which segments
-  the player had already walked. Now persisted per-character per-raid
-  and restored on raid load.
-- **Cross-raid kill state contamination.** Switching raids in the same
-  session (e.g. Castle Nathria → Vault) could leave the previous raid's
-  kill counts visible in the new raid's pills. State now wipes cleanly
-  at every raid context change.
-- **Saved-instance cache hiccups no longer cause UI flicker.** The
-  panel previously re-rendered briefly with wrong kill state when the
-  cache transiently dropped a kill (then immediately restored it),
-  visible as a one-frame stutter. Removal-only updates from the cache
-  are now rejected; only legitimate kill additions pass through.
-- **Sennarth's mid-fight ascent now shows correct travel guidance.** The
-  panel previously showed stale text from earlier in the route while
-  the player was up top during the fight.
-- **Post-Sennarth Gust of Wind guidance.** The "click Gust of Wind to
-  return to the bottom of the room" instruction is now shown as
-  Kurog's first segment, so the guidance persists past Sennarth's
-  kill instead of vanishing instantly.
-- **Harmless validator warnings no longer print to chat at addon load.**
-  Players previously saw "segment has no points" / "missing routing
-  table" messages from intentionally-empty segments and in-progress
-  raid stubs. Validator output is still available to developers via
-  `/rr debug`.
-
-### Developer
-
-- `/rr record break` — closes the current segment and opens a fresh
-  one with the same mapID. For routes with same-mapID sub-zone splits
-  (rare; not currently used by any shipped raid).
-- `/rr resetsegments` — clears persisted segment-completion state for
-  the current raid. Useful when stale state needs a clean baseline.
-- `/rr status` now displays live zone and sub-zone strings alongside
-  the mapID, for debugging zone-aware features.
-- `/rr status` no longer throws a Lua error when run inside a loaded
-  raid with an unkilled boss. The step-index formatter was comparing
-  against the wrong type.
-- `/rr ej` now also prints the live `instanceID` from `GetInstanceInfo()`
-  (when zoned into a raid) and the `uiMapID` from `EJ_GetInstanceInfo()`
-  (when a raid is selected in the Encounter Journal). One command now
-  captures all the top-level IDs needed to stub out a new raid data file,
-  instead of requiring manual `/run` probes.
-- `/rr tiersets` now recognizes Dragonflight Season 1's gem-encoded tier
-  tokens (e.g. "Dreadful Jade Forgestone" -> Dreadful/Legs). Previously
-  only Sepulcher-era body-part naming ("Dreadful Leg Module") was
-  recognized, so Vault of the Incarnates token discovery silently found
-  zero tokens. Added Jade/Amethyst/Garnet/Lapis/Topaz as slot keywords.
-- Recorder HUD: a small live readout of zone/sub-zone/mapID that
-  appears while `/rr record start` is active, with 1Hz polling to
-  catch transitions that don't fire ZONE_CHANGED events.
-- Removed unused `ItemStateForActiveDifficulty` helper and the dead
-  `RetroRunsUI_Update` backward-compat global from UI.lua.
-- Inlined the `HighlightTravelNodes` alias at its three call sites and
-  dropped the alias.
-- Renamed the two shadowed `EXPANSION_ORDER` locals in UI.lua to
-  `EXPANSION_ORDER_ASCENDING` (browser dropdown) and
-  `EXPANSION_ORDER_NEWEST_FIRST` (idle-state list) for clarity.
-- Removed dead teleporter-icon branch from the map overlay. Teleporters
-  are rendered natively by the World Map; the custom draw path was
-  vestigial from an early iteration.
-- Small internal cleanups across `/rr ejdiff`, `/rr tmogtrace`, and the
-  tier-set harvester's early-exit paths.
+- **Routes now handle bosses whose path revisits the same area.** Vault is the first raid where this happens (Terros and Sennarth both pass through Vault Approach twice). The map could previously draw the wrong line when you crossed back through; routes now follow your actual progress correctly.
+- **Segment progress now survives `/reload`.** Walk progress is saved per-character per-raid and restored on raid load.
+- **Switching raids no longer carries over kill counts from the previous raid.** Going from Castle Nathria to Vault in the same session now wipes the pills cleanly.
+- **No more brief panel flicker after a kill.** The panel no longer momentarily re-renders with wrong kill counts when the game refreshes its raid lockout data.
+- **Sennarth mid-fight travel guidance fixed.** Panel no longer shows stale travel text while you're up top during the fight.
+- **Post-Sennarth Gust of Wind guidance now persists.** The "click Gust of Wind to return to the bottom" instruction shows as Kurog's first step, so it's still visible after Sennarth dies.
 
 ## [0.5.2] - 2026-04-23
 
+### Added
+
+- Support email added to README: retroruns.support@gmail.com.
+
 ### Changed
 
-- Transmog browser dropdown labels (expansion / raid / boss) now
-  reflect the player's current difficulty instead of rolling up all
-  four difficulties. A Mythic-mode player browsing Soulrender Dormazain
-  now sees a Mythic-slice count; switching difficulty updates the
-  numbers. Falls back to the cross-all rollup when no active difficulty
-  is known (browsing outside a raid).
-- Idle-state list header renamed from "Supported Raids" to
-  "Currently supported:" for clearer framing. Rendered in grey to sit
-  as a subtle label above the list rather than competing with the
-  yellow expansion headings.
-- Idle-state "No supported legacy raid detected." and "Travel to a
-  supported raid to begin." lines now render at matching font sizes.
+- Transmog browser dropdown labels (expansion / raid / boss) now reflect your current difficulty instead of rolling up all four. Switching difficulty updates the numbers live. Falls back to the cross-all rollup when browsing outside a raid.
+- Idle-state list header renamed from "Supported Raids" to "Currently supported:" for clearer framing.
+- Idle-state "No supported legacy raid detected." and "Travel to a supported raid to begin." lines now render at matching font sizes.
 
 ### Fixed
 
-- Idle-state list header ("Currently supported:") now renders reliably
-  after transitioning from an in-raid state. Previously the header
-  could silently disappear due to a layout geometry issue when
-  adjacent text fields were empty.
-
-### Infrastructure
-
-- Added CHANGELOG.md and .pkgmeta so CurseForge release notes are
-  hand-written going forward instead of being auto-generated from
-  git log output.
-- Support email (retroruns.support@gmail.com) added to README contact
-  list.
+- Idle-state list header now reliably reappears after you leave a raid. Previously could silently disappear.
 
 ## [0.5.1] - 2026-04-23
 
 ### Changed
 
-- Transmog summary on the main panel redesigned. Now splits by current
-  difficulty vs. other difficulties, with explicit Missing and Shared
-  counts per line. Numbers render green when zero, orange otherwise.
-  Collapses to "All appearances collected!" when everything is done
-  across all four difficulties.
+- **Transmog summary redesigned.** Splits by current difficulty vs. other difficulties, with explicit Missing and Shared counts per line. Numbers go green at zero, orange otherwise. Collapses to "All appearances collected!" when fully complete across all four difficulties.
 
 ### Fixed
 
-- Main panel no longer resets to its default position on `/reload`
-  inside a supported raid. Drag handlers now normalize the frame
-  anchor to CENTER/CENTER before saving position, so saved offsets
-  correctly round-trip through reload.
-
-### Maintenance
-
-- Data files cleaned up for customer-facing readability. No functional
-  changes.
+- Main panel no longer resets to its default position on `/reload` inside a supported raid. Your saved position now sticks.
 
 ## [0.5.0] - 2026-04-22
 
 ### Added
 
-- Castle Nathria (Shadowlands) raid support with weapon-token tracking
-  and covenant-aware vendor hints.
-- MIT License. Addon is now formally licensed and free to use, modify,
-  and redistribute under the MIT terms.
+- **Castle Nathria** (Shadowlands) raid support with weapon-token tracking and covenant-aware vendor hints.
+- MIT License. RetroRuns is now formally licensed and free to use, modify, and redistribute under the MIT terms.
 
 ### Changed
 

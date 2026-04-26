@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "0.6.0"
+local VERSION    = "0.6.1"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -29,6 +29,7 @@ RetroRuns = {
         lastUnsupportedRaid   = nil,
         currentDifficultyID   = nil,
         currentDifficultyName = nil,
+        isReloadingUi         = false, -- captured from PLAYER_ENTERING_WORLD
         zoneLog               = {},   -- ring buffer of zone-change debug lines, viewable via /rr zonelog
     },
 
@@ -312,18 +313,18 @@ end
 -- or the IsEncounterComplete API is unavailable (older clients).
 -- Difficulties that the raid doesn't support (e.g. older raids
 -- without LFR/Mythic) get total=0; caller decides how to render.
-function RR:GetPerDifficultyKillCounts()
-    if not self.currentRaid then return nil end
-    if not C_RaidLocks or not C_RaidLocks.IsEncounterComplete then return nil end
+-- Cache for journalEncounterID -> dungeonEncounterID maps, keyed by
+-- journalInstanceID. Walking EJ_GetEncounterInfoByIndex is moderately
+-- expensive (server-cache lookup + per-encounter call) and the result
+-- is stable for the entire WoW session, so we memoize. Cleared only
+-- on /reload (since the cache lives in module-level state, not in
+-- SavedVariables).
+local ejMapCache = {}
 
-    local journalInstanceID = self.currentRaid.journalInstanceID
-    local instanceID        = self.currentRaid.instanceID
-    if not journalInstanceID or not instanceID then return nil end
-
-    -- Build journalEncounterID -> dungeonEncounterID map by walking EJ.
-    -- EJ_GetEncounterInfoByIndex's 7th return is dungeonEncounterID
-    -- (per Plumber's RaidCheck/API_Encounter.lua reference; verified
-    -- against the live API surface 2026-04-25).
+local function GetEJMapForJournalInstance(journalInstanceID)
+    if not journalInstanceID then return nil end
+    local cached = ejMapCache[journalInstanceID]
+    if cached then return cached end
     local jeToDe = {}
     local i = 1
     while true do
@@ -332,48 +333,78 @@ function RR:GetPerDifficultyKillCounts()
         if de then jeToDe[je] = de end
         i = i + 1
     end
+    ejMapCache[journalInstanceID] = jeToDe
+    return jeToDe
+end
 
-    -- Walk our boss list and check each difficulty for each boss.
-    -- Difficulties: 17=LFR, 14=Normal, 15=Heroic, 16=Mythic. These
-    -- are the modern raid difficulty IDs; older raids may not have
-    -- valid kill data on all four. IsEncounterComplete handles the
-    -- "doesn't apply" case by returning false, so the count stays 0.
-    --
+-- Compute per-difficulty kill counts for ANY raid (not just the
+-- currently-loaded one). Used by both the in-raid pill row and the
+-- idle-state supported-raids list.
+--
+-- For the currently-loaded raid (active difficulty in particular), the
+-- caller is responsible for the MAX-with-bossesKilled trick that lets
+-- ENCOUNTER_END register kills before the saved-instance cache catches
+-- up. This function reads PURELY from cache; no live state.
+function RR:GetPerDifficultyKillCountsForRaid(raid)
+    if not raid then return nil end
+    if not C_RaidLocks or not C_RaidLocks.IsEncounterComplete then return nil end
+
+    local journalInstanceID = raid.journalInstanceID
+    local instanceID        = raid.instanceID
+    if not journalInstanceID or not instanceID then return nil end
+
+    local jeToDe = GetEJMapForJournalInstance(journalInstanceID)
+    if not jeToDe then return nil end
+
+    -- Difficulties: 17=LFR, 14=Normal, 15=Heroic, 16=Mythic. These are
+    -- the modern raid difficulty IDs; older raids may not have valid
+    -- kill data on all four. IsEncounterComplete handles the "doesn't
+    -- apply" case by returning false, so the count stays 0.
+    local difficulties = { 17, 14, 15, 16 }
+    local result = {}
+    local total  = 0
+    for _, b in ipairs(raid.bosses or {}) do
+        local de = jeToDe[b.journalEncounterID]
+        if de then total = total + 1 end
+    end
+    for _, dID in ipairs(difficulties) do
+        local complete = 0
+        for _, b in ipairs(raid.bosses or {}) do
+            local de = jeToDe[b.journalEncounterID]
+            if de and C_RaidLocks.IsEncounterComplete(instanceID, de, dID) then
+                complete = complete + 1
+            end
+        end
+        result[dID] = { complete = complete, total = total }
+    end
+    return result
+end
+
+function RR:GetPerDifficultyKillCounts()
+    if not self.currentRaid then return nil end
+    local result = self:GetPerDifficultyKillCountsForRaid(self.currentRaid)
+    if not result then return nil end
+
     -- Active-difficulty special case: ENCOUNTER_END marks bossesKilled
     -- immediately, but the saved-instance cache that IsEncounterComplete
     -- reads from updates asynchronously (server pushes a new snapshot
     -- via UPDATE_INSTANCE_INFO some time after the kill). To make the
     -- pills update in real time when the player kills a boss, the
     -- active-difficulty count uses whichever value is HIGHER -- our
-    -- in-memory bossesKilled or the cache. Other-difficulty counts
-    -- come purely from cache (we don't have local state for kills on
-    -- difficulties we're not actively running).
-    local difficulties      = { 17, 14, 15, 16 }
-    local activeDifficulty  = self.state.currentDifficultyID
-    local result = {}
-    local total  = 0
-    for _, b in ipairs(self.currentRaid.bosses or {}) do
-        local de = jeToDe[b.journalEncounterID]
-        if de then total = total + 1 end
-    end
-    for _, dID in ipairs(difficulties) do
-        local complete = 0
+    -- in-memory bossesKilled or the cache. Only applied to the
+    -- currently-loaded raid + active difficulty, since for other raids
+    -- we have no local kill state.
+    local activeDifficulty = self.state.currentDifficultyID
+    if activeDifficulty and result[activeDifficulty] then
+        local localCount = 0
         for _, b in ipairs(self.currentRaid.bosses or {}) do
-            local de = jeToDe[b.journalEncounterID]
-            if de and C_RaidLocks.IsEncounterComplete(instanceID, de, dID) then
-                complete = complete + 1
+            if self.state.bossesKilled[b.index] then
+                localCount = localCount + 1
             end
         end
-        if dID == activeDifficulty then
-            local localCount = 0
-            for _, b in ipairs(self.currentRaid.bosses or {}) do
-                if self.state.bossesKilled[b.index] then
-                    localCount = localCount + 1
-                end
-            end
-            if localCount > complete then complete = localCount end
+        if localCount > result[activeDifficulty].complete then
+            result[activeDifficulty].complete = localCount
         end
-        result[dID] = { complete = complete, total = total }
     end
     return result
 end
@@ -401,29 +432,98 @@ end
 -- Raid load / unload
 -------------------------------------------------------------------------------
 
+-- Walk GetNumSavedInstances and return the lockoutId for the currently-
+-- loaded raid (matching instanceID + active difficulty). Returns nil if no
+-- saved instance matches -- usually means a fresh lockout with no kills yet.
+--
+-- The lockoutId is unique per-lockout: when the weekly reset rolls a new
+-- lockout, the lockoutId changes, even if instanceID and difficulty are
+-- the same. That's what makes it the right key for invalidating persisted
+-- per-lockout state (like completedSegments) on lockout reset.
+function RR:GetCurrentLockoutId()
+    if not self.currentRaid then return nil end
+    if not self.state.currentDifficultyID then return nil end
+
+    local numSaved = GetNumSavedInstances()
+    for i = 1, numSaved do
+        local _, lockoutId, _, difficultyId, _, _, _, isRaid,
+              _, _, _, _, _, instanceID = GetSavedInstanceInfo(i)
+        if isRaid
+            and instanceID   == self.currentRaid.instanceID
+            and difficultyId == self.state.currentDifficultyID then
+            return lockoutId
+        end
+    end
+    return nil
+end
+
+-- Restore from persisted SavedVariable IF the lockout matches. Wipes
+-- persisted state if the lockout has changed (weekly reset since last
+-- save) so stale segment marks don't survive into a fresh lockout. See
+-- HANDOFF 2026-04-26 stale-persistence investigation for context.
+--
+-- Schema: RetroRunsDB.completedSegments[instanceID] = {
+--     lockoutId = <number>,
+--     segments  = { [stepIndex] = { [segIndex] = true } },
+-- }
+--
+-- Old (pre-0.6.1) schema was just the segments table directly under the
+-- instanceID key. We migrate transparently: if the persisted value
+-- doesn't have a lockoutId field, we treat it as stale and wipe (a
+-- conservative call -- migration could preserve it, but we have no way
+-- to know if the user's current lockout matches the unrecorded one).
+function RR:RestorePersistedSegments()
+    wipe(self.state.completedSegments)
+
+    if not (RetroRunsDB and RetroRunsDB.completedSegments) then return end
+    if not self.currentRaid then return end
+
+    local store = RetroRunsDB.completedSegments[self.currentRaid.instanceID]
+    if not store then return end
+
+    local currentLockoutId = self:GetCurrentLockoutId()
+    -- Old-schema record (no segments field) OR lockoutId mismatch:
+    -- persistence is stale (different lockout, or pre-0.6.1 schema),
+    -- wipe it. Initial-login wipe in PEW handles cross-WoW-session
+    -- staleness; this guard handles the smaller case where a /reload
+    -- happens AFTER the weekly reset rolled the lockout.
+    if not store.lockoutId or store.lockoutId ~= currentLockoutId then
+        RetroRunsDB.completedSegments[self.currentRaid.instanceID] = nil
+        return
+    end
+
+    -- Lockout matches: restore segments.
+    if store.segments then
+        for stepIndex, segs in pairs(store.segments) do
+            self.state.completedSegments[stepIndex] = {}
+            for segIndex, v in pairs(segs) do
+                self.state.completedSegments[stepIndex][segIndex] = v
+            end
+        end
+    end
+end
+
+-- Single canonical "go to real raid state" routine. Wipes any test-mode
+-- or stale state, syncs bossesKilled from the saved-instance cache,
+-- restores persisted segments (if the lockout still matches), recomputes
+-- the active step, and fires a UI refresh.
+--
+-- Called from LoadCurrentRaid (after raid context change) and from
+-- DisableTestMode (after exiting /rr test). Both contexts need exactly
+-- the same state-rebuild sequence.
+function RR:RestoreRealRaidState()
+    self:ClearBossState()
+    self:SyncFromSavedRaidInfo(true)   -- request fresh server data
+    self:RestorePersistedSegments()
+    self:ComputeNextStep()
+    self:RefreshAll()
+end
+
 function RR:LoadCurrentRaid()
     if not self.currentRaid then return end
     self.state.loadedRaidKey = self:GetRaidContextKey()
 
-    -- Restore segment-completion state from SavedVariable, scoped by
-    -- raid instanceID. The wipe in HandleLocationChange's new-raid
-    -- branch (raid context change detection) clears in-memory state
-    -- to defeat cross-raid contamination; this restore re-populates
-    -- with this raid's persisted progress so /reload mid-route
-    -- doesn't lose track of which segments the player has already
-    -- traversed. See HANDOFF 2026-04-25 investigation.
-    if RetroRunsDB and RetroRunsDB.completedSegments then
-        local raidStore = RetroRunsDB.completedSegments[self.currentRaid.instanceID]
-        if raidStore then
-            wipe(self.state.completedSegments)
-            for stepIndex, segs in pairs(raidStore) do
-                self.state.completedSegments[stepIndex] = {}
-                for segIndex, v in pairs(segs) do
-                    self.state.completedSegments[stepIndex][segIndex] = v
-                end
-            end
-        end
-    end
+    self:RestorePersistedSegments()
 
     self:SetSetting("showPanel", true)
     self:RefreshAll()
@@ -641,7 +741,12 @@ end
 function RR:DisableTestMode()
     self.state.testMode             = false
     self.state.manualTargetBossIndex = nil
-    self:RefreshAll()
+    -- Wipe any fake test-mode state and rebuild from real lockout.
+    -- Without this, exiting test mode left the panel showing the
+    -- accumulated test-mode kills/segments rather than reality.
+    -- testMode must be set to false BEFORE this call -- SyncFromSavedRaidInfo
+    -- short-circuits when testMode is true.
+    self:RestoreRealRaidState()
 end
 
 function RR:SimulateKillNext()
@@ -2498,6 +2603,22 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         end
 
     elseif event == "PLAYER_ENTERING_WORLD" then
+        local isInitialLogin, isReloadingUi = ...
+        RR.state.isReloadingUi = isReloadingUi and true or false
+        RR:ZoneLog(("PEW: isInitialLogin=%s isReloadingUi=%s"):format(
+            tostring(isInitialLogin), tostring(isReloadingUi)))
+
+        -- On initial login (new WoW process, not a /reload), wipe
+        -- persisted walk progress entirely. Walk progress is session-
+        -- scoped working memory: it lasts as long as the WoW process
+        -- (so /reload preserves it) but doesn't carry across full
+        -- logout/relaunch. This prevents stale segment marks from a
+        -- prior session showing up as "already walked" on a new login.
+        if isInitialLogin and RetroRunsDB then
+            RetroRunsDB.completedSegments = {}
+            RR:ZoneLog("PEW: initial login -- wiped persisted segments")
+        end
+
         C_Timer.After(1.0, function() RR:HandleLocationChange() end)
 
     elseif event == "ZONE_CHANGED_NEW_AREA"
