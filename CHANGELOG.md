@@ -2,6 +2,28 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [0.7.0] - 2026-04-27
+
+### Added
+
+- **Aberrus, the Shadowed Crucible** is now fully supported — walk-along routes for all 9 bosses, encounter notes, achievement callouts, and Drakewatcher Manuscript tracking for Sarkareth's Highland Drake: Embodiment of the Hellforged.
+- **`/rr raidcapture` command** — single-command raid bring-up for new content. Discovers tier set labels and tokens, then harvests all loot tables in one pass. Replaces the older three-step workflow of running `/rr harvest`, `/rr tiersets`, and `/rr harvest` again. Existing commands are preserved as a fallback.
+- **Drakewatcher Manuscript auto-detection.** The harvester now recognizes Drakewatcher Manuscripts via their use-spell signature, classifies them as `kind="manuscript"`, and resolves the unlock questID automatically for known manuscripts.
+- **Sarkareth Void-Touched Curio note in the transmog browser.** A small footnote on Sarkareth's transmog view calls out that the omnitoken exists but isn't tracked by the addon (it exchanges for any tier slot of the player's choice, which doesn't fit the per-slot tracking model).
+
+### Changed
+
+- **"Show all class tier" checkbox now disables on bosses that don't drop tier tokens.** Previously the checkbox was always clickable; now it greys out on non-tier bosses so the control's reachability matches its effect.
+- **Boss Progress / Where to next pill consistency.** When you kill a boss, both the panel header pill and the per-raid pill in the "Where to next" panel now update at the same instant. Previously the per-raid pill could lag behind by a few seconds until the game's saved-instance data refreshed.
+- **CurseForge Changelog tab now renders as formatted Markdown** instead of raw text. (Tooling fix in the build pipeline.)
+
+### Fixed
+
+- **`/rr ej` no longer fails on the live build.** The Encounter Journal diagnostic now correctly captures journal IDs even when `EJ_GetSelectedInstance()` returns nothing, by falling back to the per-encounter API.
+- **`/rr record stop` automatically opens the export window.** Previously you had to also type `/rr record dump` to see the recording. Now the window pops up as soon as you stop, unless the recording was empty.
+- **Sepulcher of the First Ones encounter notes cleaned up.** Five bosses (Skolex, Lords of Dread, Halondrus, Lihuvim, Xy'mox) now read `Boss Encounter: Standard` instead of carrying outdated solo-tip text.
+- **Run-complete panel layout tightened.** Dropped the redundant "This lockout is complete." line, replaced the per-boss kill checklist with the more useful "Where to next:" raid pill list, and greyed out the now-unusable Map button.
+
 ## [0.6.1] - 2026-04-26
 
 ### Added

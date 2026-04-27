@@ -5,7 +5,17 @@
 # git log output. Without this line, the packager falls back to listing
 # raw git commits, which exposes committer email addresses and clutters
 # the CurseForge changelog page.
-manual-changelog: CHANGELOG.md
+#
+# markup-type: markdown tells CurseForge to render the file with its
+# markdown renderer in BOTH the web view AND the desktop app. Without
+# this directive (when manual-changelog is just a string), CF defaults
+# the format to "text" and the desktop app shows raw markdown chars
+# (literal `#`, `**`, `-`) instead of formatted output. Reference:
+# https://support.curseforge.com/support/solutions/articles/9000197952
+# Pattern matches WeakAuras and Total RP 3's pkgmeta files.
+manual-changelog:
+    filename: CHANGELOG.md
+    markup-type: markdown
 
 # Use the existing MIT LICENSE file as the packager's license reference
 # rather than having it auto-generate a default one.

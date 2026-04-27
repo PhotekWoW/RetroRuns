@@ -121,6 +121,12 @@ local ITEM_CONTEXT_TO_DIFFICULTY = {
     [Enum.ItemCreationContext.RaidMythicExtended_3]  = 16,
 }
 
+-- Expose on the RR namespace so /rr tmogverify (in Core.lua) can use the
+-- same mapping without duplicating it. Keeping a single source of truth
+-- ensures the verifier's bucket-assignment check stays in lockstep with
+-- the harvester's actual integration logic.
+RR.ITEM_CONTEXT_TO_DIFFICULTY = ITEM_CONTEXT_TO_DIFFICULTY
+
 local DIFF_ORDER = { 17, 14, 15, 16 }   -- LFR, Normal, Heroic, Mythic (display order)
 
 -- Map a player class ID (1-13) to its uppercase classFile name. Used when
@@ -214,18 +220,80 @@ end
 -- "Dreadful Jade Forgestone" drops on Sennarth and redeems for a Legs
 -- piece. The gem->slot mapping there is:
 --   Jade=Legs, Amethyst=Chest, Garnet=Hands, Lapis=Shoulders, Topaz=Head.
--- Future DF+ raids may continue this pattern with new gem words or may
--- revert to body-part words; extend this table as needed.
+-- DF Season 2 Aberrus shifted again to verb-form scientific words paired
+-- with "Fluid" -- "Mystic Cooling Fluid" drops on Rashok and redeems for
+-- a Legs piece. The verb->slot mapping for Aberrus is:
+--   Melting=Head, Corrupting=Shoulder, Ventilation=Chest,
+--   Mixing=Hands, Cooling=Legs.
+-- Future DF+ raids may continue inventing new conventions; extend this
+-- table as needed.
 local TOKEN_SLOT_KEYWORDS = {
-    { keywords = { "helm", "head", "crown", "cowl",    "topaz"    }, slot = "Head"     },
+    { keywords = { "helm", "head", "crown", "cowl",    "topaz",
+                                                       "melting"     }, slot = "Head"     },
     { keywords = { "shoulder", "mantle", "pauldron", "spaulder",
-                                                      "lapis"    }, slot = "Shoulder" },
+                                                      "lapis",
+                                                      "corrupting"   }, slot = "Shoulder" },
     { keywords = { "chest", "robe", "tunic", "breastplate",
-                                                      "amethyst" }, slot = "Chest"    },
+                                                      "amethyst",
+                                                      "ventilation"  }, slot = "Chest"    },
     { keywords = { "hand", "glove", "gauntlet", "grip",
-                                                      "garnet"   }, slot = "Hands"    },
-    { keywords = { "leg", "pant", "breech", "kilt",   "jade"     }, slot = "Legs"     },
+                                                      "garnet",
+                                                      "mixing"       }, slot = "Hands"    },
+    { keywords = { "leg", "pant", "breech", "kilt",   "jade",
+                                                      "cooling"      }, slot = "Legs"     },
 }
+
+-------------------------------------------------------------------------------
+-- Drakewatcher Manuscript detection (Dragonflight onward).
+--
+-- Manuscripts are non-equippable items (equipLoc=INVTYPE_NON_EQUIP_IGNORE)
+-- that teach a Dragonriding mount customization by completing a hidden
+-- quest when used. Blizzard does not expose them via any C_*Journal API
+-- (mount/pet/toy/decor all return nil), so DetectSpecialKind needs a
+-- different signal.
+--
+-- The reliable detection signal: GetItemSpell(itemID).name == "Deciphering".
+-- Every Drakewatcher Manuscript shipped to date uses a use-spell named
+-- "Deciphering" (the spellID differs per item, but the name is constant).
+--
+-- The questID is NOT exposed by any clean WoW API -- it's encoded in the
+-- spell's server-side effect bytecode. We resolve it via a small static
+-- map, keyed by spellID. When we hit a spellID not yet in the map (e.g.
+-- a brand-new raid's manuscript), the harvester emits the entry with
+-- questID=nil + a TODO comment so the user knows to look it up from
+-- ATT/wowdb and add the spellID->questID mapping here.
+--
+-- IMPORTANT LIMITATION: this detection only catches manuscripts that
+-- Blizzard listed in the Encounter Journal. Some manuscripts are hidden
+-- from EJ entirely (verified 2026-04-27 via /rr ejprobe 201790 on
+-- Raszageth: itemID 201790 doesn't appear in GetLootInfoByIndex despite
+-- being a real drop). For hidden manuscripts, hand-curate the
+-- specialLoot entry from ATT's mm() data -- DetectManuscript can't help
+-- since the item never reaches DetectSpecialKind in the first place.
+--
+-- To extend the questID map for a new EJ-listed manuscript:
+--   1. Run /rr ejprobe <itemID> on the raid's final boss with EJ open.
+--   2. Note the GetItemSpell line: name=Deciphering spellID=NNNNN.
+--   3. Look up the questID from ATT's mm() entry or wowdb item page.
+--   4. Add a line below: [<spellID>] = <questID>,
+-------------------------------------------------------------------------------
+local MANUSCRIPT_SPELL_NAME = "Deciphering"
+local MANUSCRIPT_QUESTID_BY_SPELLID = {
+    [394780] = 72367,   -- Vault: Renewed Proto-Drake: Embodiment of the Storm-Eater (Raszageth) [hidden from EJ -- entry kept for completeness]
+    [410775] = 75967,   -- Aberrus: Highland Drake: Embodiment of the Hellforged (Sarkareth)
+}
+
+-- Returns (true, questID) if the item is a manuscript, where questID may be
+-- nil if we recognize the item as a manuscript but don't yet have its
+-- questID in the static map. Returns (false, nil) for non-manuscript items.
+local function DetectManuscript(itemID)
+    if not itemID or not GetItemSpell then return false, nil end
+    local spellName, spellID = GetItemSpell(itemID)
+    if spellName == MANUSCRIPT_SPELL_NAME then
+        return true, MANUSCRIPT_QUESTID_BY_SPELLID[spellID]
+    end
+    return false, nil
+end
 
 -- Parse a token name like "Mystic Leg Module" -> ("MYSTIC", "Legs").
 -- Returns nil, nil if the name doesn't match the expected pattern.
@@ -376,13 +444,28 @@ function RR:HarvestDiagnose()
     -- useful for Data/*.lua `maps` table seeding. Works even when NOT
     -- zoned into the raid, which is handy for stubbing out data files
     -- before doing a first run.
+    --
+    -- Source-of-truth: try EJ_GetSelectedInstance first, then fall back
+    -- to EJ_GetEncounterInfoByIndex(1)'s jinstID. Per Aberrus stub
+    -- session 2026-04-26, EJ_GetSelectedInstance can return nil even
+    -- when the EJ is visibly open on a raid -- the index-based API
+    -- reads the same underlying state more reliably.
     add("=== EJ_GetInstanceInfo() for selected journal instance ===")
     local selectedEJ = EJ_GetSelectedInstance and EJ_GetSelectedInstance() or nil
+    local source = "EJ_GetSelectedInstance"
+    if not selectedEJ then
+        local _, _, _, _, _, fallbackJinst = EJ_GetEncounterInfoByIndex(1)
+        if fallbackJinst then
+            selectedEJ = fallbackJinst
+            source = "EJ_GetEncounterInfoByIndex(1).jinstID"
+        end
+    end
     if selectedEJ then
         local ejName, _, _, _, _, _, _, _, _, ejMapID, _, isRaid =
             EJ_GetInstanceInfo(selectedEJ)
         add(("  journalInstanceID=%d  name=%s  uiMapID=%s  isRaid=%s"):format(
             selectedEJ, tostring(ejName), tostring(ejMapID), tostring(isRaid)))
+        add(("  (source: %s)"):format(source))
     else
         add("  (no journal instance selected -- open the Encounter Journal")
         add("   to the raid first so EJ_GetSelectedInstance() returns a value.)")
@@ -435,6 +518,195 @@ function RR:HarvestDiagnose()
 end
 
 -------------------------------------------------------------------------------
+-- EjProbe: dump everything EJ knows about the currently-selected encounter's
+-- loot. Designed for "why doesn't /rr harvest see this item?" investigations.
+--
+-- The harvester's loot scrape uses one specific path:
+--   numLoot = EJ_GetNumLoot()
+--   for i = 1, numLoot do
+--       info = C_EncounterJournal.GetLootInfoByIndex(i)
+--       if info.encounterID == targetEncounterID then ... end
+--
+-- If a known item is missing from the harvest, there are three possible
+-- causes:
+--   A. Returned by GetLootInfoByIndex but its equipLoc puts it in the
+--      EXCLUDED_SLOTS bucket AND DetectSpecialKind returns nil for it
+--      (case for Drakewatcher Manuscripts: no C_Manuscripts API exists).
+--   B. Returned by GetLootInfoByIndex but its info.encounterID doesn't
+--      match the target boss (some Blizzard-side attribution quirk).
+--   C. Not returned by GetLootInfoByIndex at all -- the API surfaces this
+--      class of item through a different EJ call we're not using.
+--
+-- This probe distinguishes all three cases:
+--   1. Reports live EJ state (selected instance/encounter, numLoot).
+--   2. Iterates GetLootInfoByIndex and dumps every entry with its
+--      encounterID, equipLoc, and DetectSpecialKind result.
+--   3. If a needle itemID is provided, highlights its presence/absence
+--      and dumps deeper info about it.
+--
+-- Usage:
+--   /rr ejprobe                  (dump all loot for selected EJ encounter)
+--   /rr ejprobe <needleItemID>   (also highlight needle and probe APIs)
+--
+-- Setup: open Encounter Journal, select the raid + encounter you want
+-- to probe, then run the command. The selected encounter is what
+-- EJ_GetSelectedEncounter() reports.
+-------------------------------------------------------------------------------
+function RR:EjProbe(needleItemID)
+    local out = {}
+    local function add(s) table.insert(out, s) end
+
+    needleItemID = tonumber(needleItemID)
+
+    local instID  = EJ_GetSelectedInstance and EJ_GetSelectedInstance() or nil
+    local encID   = EJ_GetSelectedEncounter and EJ_GetSelectedEncounter() or nil
+    local diffID  = EJ_GetDifficulty and EJ_GetDifficulty() or nil
+    local numLoot = EJ_GetNumLoot and EJ_GetNumLoot() or 0
+
+    add(("ejprobe: selected instance=%s  encounter=%s  difficulty=%s  numLoot=%d"):format(
+        tostring(instID), tostring(encID), tostring(diffID), numLoot))
+    if needleItemID then
+        add(("needle itemID=%d"):format(needleItemID))
+    end
+    add("")
+
+    if not encID then
+        add("(no encounter selected -- open Encounter Journal and select a boss first)")
+    end
+
+    -- Iterate every loot entry. We DON'T filter by encounterID here -- the
+    -- whole point is to surface entries that may have wrong/unexpected
+    -- encounterIDs. The "matches encID" column tells us whether the
+    -- harvester would have considered this item.
+    local foundNeedle      = false
+    local entriesForEnc    = 0
+    local entriesTotal     = 0
+    local missingEquipLoc  = 0
+
+    add("--- All loot entries (1..numLoot), columns: idx | itemID | encID | match | equipLoc | special | name")
+    for i = 1, numLoot do
+        local info = C_EncounterJournal and C_EncounterJournal.GetLootInfoByIndex
+                     and C_EncounterJournal.GetLootInfoByIndex(i) or nil
+        if info then
+            entriesTotal = entriesTotal + 1
+            local matches = (encID and info.encounterID == encID) and "Y" or "n"
+            if matches == "Y" then entriesForEnc = entriesForEnc + 1 end
+
+            local _, _, _, _, _, _, _, _, equipLoc = GetItemInfo(info.itemID or 0)
+            local equipLocStr = equipLoc or "(nil)"
+            if equipLoc == nil then missingEquipLoc = missingEquipLoc + 1 end
+
+            -- DetectSpecialKind is a local in this file; we can't call it
+            -- directly from here, but we can replicate its 4 probes inline.
+            local specialKind = "-"
+            if equipLocStr == "" or equipLocStr == "INVTYPE_NON_EQUIP_IGNORE" then
+                local petS = C_PetJournal and C_PetJournal.GetPetInfoByItemID
+                             and select(13, C_PetJournal.GetPetInfoByItemID(info.itemID))
+                if C_MountJournal and C_MountJournal.GetMountFromItem
+                   and C_MountJournal.GetMountFromItem(info.itemID) then
+                    specialKind = "mount"
+                elseif petS then
+                    specialKind = "pet"
+                elseif C_ToyBox and C_ToyBox.GetToyInfo
+                   and C_ToyBox.GetToyInfo(info.itemID) then
+                    specialKind = "toy"
+                elseif PlayerHasToy and PlayerHasToy(info.itemID) then
+                    specialKind = "toy"
+                elseif C_HousingCatalog and C_HousingCatalog.GetCatalogEntryInfoByItem then
+                    local ok, entry = pcall(C_HousingCatalog.GetCatalogEntryInfoByItem, info.itemID)
+                    if ok and entry then specialKind = "decor" end
+                end
+                if specialKind == "-" then specialKind = "NONE" end
+            end
+
+            local nameStr = info.name or "(no name)"
+            local marker  = (needleItemID and info.itemID == needleItemID) and " <-- NEEDLE" or ""
+
+            add(("  [%3d] %7s | %5s | %s | %-22s | %-5s | %s%s"):format(
+                i, tostring(info.itemID), tostring(info.encounterID),
+                matches, equipLocStr, specialKind, nameStr, marker))
+
+            if needleItemID and info.itemID == needleItemID then
+                foundNeedle = true
+            end
+        else
+            add(("  [%3d] (GetLootInfoByIndex returned nil)"):format(i))
+        end
+    end
+
+    add("")
+    add(("--- Summary: %d total entries, %d for selected encounter, %d with missing equipLoc."):format(
+        entriesTotal, entriesForEnc, missingEquipLoc))
+
+    if needleItemID then
+        add("")
+        add(("--- Needle itemID=%d analysis"):format(needleItemID))
+        if foundNeedle then
+            add("FOUND in GetLootInfoByIndex iteration above. Hypothesis A or B.")
+        else
+            add("NOT FOUND in GetLootInfoByIndex iteration. Hypothesis C: needs a different EJ API.")
+            add("")
+            add("Probing other EJ paths for the needle itemID:")
+
+            -- Probe whether GetItemInfo even has data for this itemID. If
+            -- not, the item-info cache is cold; the answer is genuinely
+            -- "EJ doesn't know about this item via the iteration path."
+            local nm, lk, _, _, _, itype, sub, _, eloc = GetItemInfo(needleItemID)
+            add(("  GetItemInfo: name=%s type=%s subtype=%s equipLoc=%q link=%s"):format(
+                tostring(nm), tostring(itype), tostring(sub), tostring(eloc or ""), tostring(lk)))
+
+            -- Mount/pet/toy/decor probes (mirror DetectSpecialKind).
+            -- All wrapped defensively: many of these APIs return zero
+            -- values (not nil) when their lookup misses, which trips
+            -- tostring() if you inline the call. Capture into a local
+            -- first so "no values" collapses to nil cleanly.
+            if C_MountJournal and C_MountJournal.GetMountFromItem then
+                local mountID = C_MountJournal.GetMountFromItem(needleItemID)
+                add(("  C_MountJournal.GetMountFromItem(%d) = %s"):format(
+                    needleItemID, tostring(mountID)))
+            end
+            if C_PetJournal and C_PetJournal.GetPetInfoByItemID then
+                local petSpecies = select(13, C_PetJournal.GetPetInfoByItemID(needleItemID))
+                add(("  C_PetJournal.GetPetInfoByItemID(%d) speciesID = %s"):format(
+                    needleItemID, tostring(petSpecies)))
+            end
+            if C_ToyBox and C_ToyBox.GetToyInfo then
+                local toyItemID = C_ToyBox.GetToyInfo(needleItemID)
+                add(("  C_ToyBox.GetToyInfo(%d) = %s"):format(
+                    needleItemID, tostring(toyItemID)))
+            end
+            if C_HousingCatalog and C_HousingCatalog.GetCatalogEntryInfoByItem then
+                local ok, entry = pcall(C_HousingCatalog.GetCatalogEntryInfoByItem, needleItemID)
+                add(("  C_HousingCatalog.GetCatalogEntryInfoByItem: ok=%s entry=%s"):format(
+                    tostring(ok), tostring(entry)))
+            end
+
+            -- Drakewatcher hint: most manuscripts have a Use: spell that
+            -- completes a hidden quest. GetItemSpell may return zero values
+            -- for items with no Use spell, so capture into locals first.
+            if GetItemSpell then
+                local spellName, spellID = GetItemSpell(needleItemID)
+                if spellName or spellID then
+                    add(("  GetItemSpell(%d): name=%s spellID=%s"):format(
+                        needleItemID, tostring(spellName), tostring(spellID)))
+                    add("  ^ Manuscripts typically have a Use: spell that completes a hidden quest.")
+                else
+                    add(("  GetItemSpell(%d): (no Use spell)"):format(needleItemID))
+                end
+            end
+        end
+    end
+
+    local body = table.concat(out, "\n")
+    self:SetSetting("lastEjProbe", body)
+    self:ShowCopyWindow(
+        "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaa/rr ejprobe|r",
+        body)
+    self:Print(("ejprobe complete: %d total entries, %d for selected encounter. Window opened."):format(
+        entriesTotal, entriesForEnc))
+end
+
+-------------------------------------------------------------------------------
 -- Source-ID resolution
 --
 -- Given one itemID, returns source info in one of two shapes:
@@ -468,6 +740,9 @@ local function ParseItemContextFromLink(link)
     local context = select(12, LinkUtil.SplitLinkOptions(linkOptions))
     return tonumber(context) or 0
 end
+
+-- Expose so /rr tmogverify (Core.lua) can reuse the same parser.
+RR.ParseItemContextFromLink = ParseItemContextFromLink
 
 -- Map a (link?, modID?) pair to a difficulty ID. Prefers itemContext from the
 -- link (reliable across Sepulcher-era loot); falls back to modID for items
@@ -654,17 +929,24 @@ end
 -------------------------------------------------------------------------------
 
 -- Classifies a non-equippable itemID as mount/pet/toy or nil. The three
--- APIs run in a defined order -- mount first (most specific), then pet,
--- then toy (broadest/last resort). An item that somehow matched multiple
--- would be reported as whichever matched first; in practice the
--- collectible-item categories don't overlap.
+-- Classifies a non-equippable itemID as mount/pet/toy/decor/manuscript or nil.
+-- The probes run in a defined order -- mount first (most specific), then pet,
+-- then toy (broadest of the journal-API kinds), then decor, then manuscript.
+-- An item that somehow matched multiple would be reported as whichever matched
+-- first; in practice the collectible-item categories don't overlap.
 --
--- Returns (kind, resolvedID?) where resolvedID is the mountID/speciesID
--- if we resolved one, or nil for toys (whose kind is resolved via itemID
--- alone). The UI render path can resolve these lazily at render time, so
--- pre-populating them in the schema is optional -- but we do it here
--- anyway so the static data file is self-contained and renders don't
--- need live API calls for resolution.
+-- Returns (kind, resolvedID?) where the meaning of resolvedID depends on kind:
+--   "mount"      -> mountID
+--   "pet"        -> speciesID
+--   "toy"        -> nil (kind is resolved via itemID alone)
+--   "decor"      -> catalogEntryID (or nil if API version doesn't expose one)
+--   "manuscript" -> questID (or nil if the spellID isn't yet in
+--                   MANUSCRIPT_QUESTID_BY_SPELLID -- the harvester emits
+--                   a TODO comment in the data file in that case)
+--
+-- The UI render path can resolve mount/pet/decor IDs lazily, so pre-populating
+-- them in the schema is optional. Manuscript questID is load-bearing
+-- (IsQuestFlaggedCompleted needs it), so when nil the user must hand-fill.
 local function DetectSpecialKind(itemID)
     if not itemID then return nil end
 
@@ -708,6 +990,15 @@ local function DetectSpecialKind(itemID)
             end
             return "decor", resolvedID
         end
+    end
+
+    -- Drakewatcher Manuscript (DF onward). No dedicated journal API exists;
+    -- detected via the use-spell name "Deciphering". questID resolved from
+    -- a static map; nil for new-raid spellIDs not yet in the map. See the
+    -- block above MANUSCRIPT_QUESTID_BY_SPELLID for the extension procedure.
+    local isManuscript, questID = DetectManuscript(itemID)
+    if isManuscript then
+        return "manuscript", questID
     end
 
     return nil
@@ -792,6 +1083,14 @@ local function CollectEncounterLoot(journalInstanceID, journalEncounterID,
                                 entry.speciesID = resolvedID
                             elseif kind == "decor" then
                                 entry.catalogEntryID = resolvedID
+                            elseif kind == "manuscript" then
+                                -- questID may be nil if the spellID isn't yet
+                                -- in MANUSCRIPT_QUESTID_BY_SPELLID. The data-
+                                -- file emit code below renders a TODO comment
+                                -- in that case so the user knows to look it
+                                -- up from ATT/wowdb and add the static map
+                                -- entry.
+                                entry.questID = resolvedID
                             end
                             table.insert(specials, entry)
                         end
@@ -1518,7 +1817,25 @@ end
 -- `tierSets.tokenSources`.
 -------------------------------------------------------------------------------
 
-function RR:HarvestAllBosses(bossFilter)
+--- HarvestAllBosses(bossFilter, opts)
+---
+--- bossFilter (optional): substring match against boss name. When set, only
+---   matching bosses are harvested. Used for single-boss dev iteration.
+---
+--- opts (optional): table with two optional fields used by /rr raidcapture
+---   to inject just-discovered tier data and bundle the harvest output:
+---     tierCfgOverride : table of shape { labels = {...}, tokenSources = {...} }
+---                       used in place of RR.currentRaid.tierSets. Lets the
+---                       harvester see tier rows without requiring the data
+---                       file to be edited first.
+---     onComplete      : function(outputText). Called after the harvest finishes
+---                       with the assembled output text. When nil, the default
+---                       "Harvest complete! Use /rr harvest dump to view." print
+---                       fires instead. Either way, lastHarvestAll is saved.
+---
+--- Existing /rr harvest callers pass no opts; behavior is unchanged.
+function RR:HarvestAllBosses(bossFilter, opts)
+    opts = opts or {}
     if not RR.currentRaid then
         self:Print("No supported raid loaded. Enter a supported raid first.")
         return
@@ -1577,8 +1894,8 @@ function RR:HarvestAllBosses(bossFilter)
     -- CollectTierSets is async (it warms the GetItemInfo cache before reading
     -- names), so the rest of the setup runs inside the callback.
     self:Print("Warming tier-item cache (~1.5s)...")
-    CollectTierSets(RR.currentRaid.tierSets, function(tierByBoss)
-    local tierCfg    = RR.currentRaid.tierSets
+    local tierCfg = opts.tierCfgOverride or RR.currentRaid.tierSets
+    CollectTierSets(tierCfg, function(tierByBoss)
     local tierConfigured = tierCfg
                        and tierCfg.labels
                        and #tierCfg.labels > 0
@@ -1634,8 +1951,13 @@ function RR:HarvestAllBosses(bossFilter)
                 end
             end
 
-            RR:SetSetting("lastHarvestAll", table.concat(output, "\n"))
-            RR:Print("Harvest complete! Use /rr harvest dump to view.")
+            local outputText = table.concat(output, "\n")
+            RR:SetSetting("lastHarvestAll", outputText)
+            if opts.onComplete then
+                opts.onComplete(outputText)
+            else
+                RR:Print("Harvest complete! Use /rr harvest dump to view.")
+            end
             return
         end
 
@@ -1724,18 +2046,40 @@ function RR:HarvestAllBosses(bossFilter)
 
                 table.insert(output, "},")
 
-                -- specialLoot block (mounts/pets/toys): emit only when
-                -- this boss had any. Each entry is a single Lua-table row
-                -- with id, kind, and name. mountID/speciesID are captured
-                -- in the schema but not emitted here -- the UI renderer
-                -- resolves them lazily from itemID, so including them in
-                -- the data file is optional and we keep it terse.
+                -- specialLoot block (mounts/pets/toys/decor/manuscripts):
+                -- emit only when this boss had any. mounts/pets/toys/decor
+                -- collapse to a single-line row (id, kind, name); the UI
+                -- resolves their typed IDs (mountID/speciesID/etc) lazily
+                -- from itemID, so emitting them in the data file is
+                -- optional and we keep it terse.
+                --
+                -- Manuscripts are special: questID is load-bearing because
+                -- IsQuestFlaggedCompleted(questID) drives the unlock-state
+                -- check. We emit a multi-line entry to include questID
+                -- on its own line. When DetectSpecialKind couldn't resolve
+                -- the questID (sp.questID == nil -- spellID not yet in the
+                -- static map), we emit `questID = nil` with a TODO comment
+                -- so the user knows to look it up from ATT/wowdb and add
+                -- the spellID->questID map entry in Harvester.lua.
                 if specials and #specials > 0 then
                     table.insert(output, "specialLoot = {")
                     for _, sp in ipairs(specials) do
-                        table.insert(output,
-                            ("    { id = %d, kind = %q, name = %q },"):format(
-                                sp.id, sp.kind, sp.name))
+                        if sp.kind == "manuscript" then
+                            table.insert(output, "    {")
+                            table.insert(output, ("        id      = %d,"):format(sp.id))
+                            table.insert(output, ("        kind    = %q,"):format(sp.kind))
+                            table.insert(output, ("        name    = %q,"):format(sp.name))
+                            if sp.questID then
+                                table.insert(output, ("        questID = %d,"):format(sp.questID))
+                            else
+                                table.insert(output, "        questID = nil,  -- TODO: look up via ATT/wowdb, then add spellID->questID to MANUSCRIPT_QUESTID_BY_SPELLID in Harvester.lua")
+                            end
+                            table.insert(output, "    },")
+                        else
+                            table.insert(output,
+                                ("    { id = %d, kind = %q, name = %q },"):format(
+                                    sp.id, sp.kind, sp.name))
+                        end
                     end
                     table.insert(output, "},")
                 end
@@ -2205,6 +2549,298 @@ function RR:DumpTransmogSets()
             pcall(EJ_SelectEncounter, bosses[1].journalEncounterID)
         end
         C_Timer.After(0.5, NextBoss)
+    end)
+end
+
+-------------------------------------------------------------------------------
+-- DiscoverTierSets: async tier-set discovery extracted for /rr raidcapture.
+--
+-- Parallel implementation of DumpTransmogSets's discovery phase (Phase 1+2+3
+-- token-walk + label match + tokenSources build), but instead of printing a
+-- ready-to-paste block to chat, returns the discovered tierCfg + a formatted
+-- paste-block string via callback.
+--
+-- Why a parallel implementation rather than refactoring DumpTransmogSets to
+-- share code: keeps the trusted /rr tiersets command 100% byte-for-byte
+-- unchanged (it's been the manual-workflow fallback for 4 prior raids and
+-- known-good). Code duplication is the cost; risk-reduction is the benefit.
+--
+-- Callback signature: onDone(tierCfg, formattedBlock, info)
+--   tierCfg        : { labels = {...}, tokenSources = { [itemID] = bossIdx } }
+--                    or nil on error (specific error printed to chat first)
+--   formattedBlock : string, ready-to-paste tierSets = { ... } block
+--                    or nil on error
+--   info           : { labelCount = N, tokenCount = N, raidName = "...",
+--                      error = "no_api"|"no_raid"|"no_jiid" or nil }
+-------------------------------------------------------------------------------
+function RR:DiscoverTierSets(onDone)
+    if not C_TransmogSets then
+        self:Print("C_TransmogSets unavailable.")
+        onDone(nil, nil, { error = "no_api" })
+        return
+    end
+    if not RR.currentRaid then
+        self:Print("Load a raid first (zone in or use /rr test).")
+        onDone(nil, nil, { error = "no_raid" })
+        return
+    end
+
+    local raid              = RR.currentRaid
+    local bosses            = raid.bosses or {}
+    local journalInstanceID = raid.journalInstanceID
+    if not journalInstanceID then
+        for _, b in ipairs(bosses) do
+            if b.journalEncounterID then
+                local _, _, _, _, _, instID = EJ_GetEncounterInfo(b.journalEncounterID)
+                if instID and instID > 0 then
+                    journalInstanceID = instID
+                    break
+                end
+            end
+        end
+    end
+    if not journalInstanceID then
+        self:Print("Could not determine journal instance ID for the loaded raid.")
+        onDone(nil, nil, { error = "no_jiid" })
+        return
+    end
+
+    local raidExpansionID = EXPANSION_NAME_TO_ID[raid.expansion]
+
+    self:Print(("Discovering tier sets for %d boss(es)..."):format(#bosses))
+
+    local tokensByBoss = {}
+    local bossIdx      = 0
+
+    local function FinishAndCallback()
+        -- Filter to actual tier tokens (parses cleanly via ParseTokenName).
+        local allTierTokens = {}
+        for bIdx, list in pairs(tokensByBoss) do
+            for _, tok in ipairs(list) do
+                local group, slot = ParseTokenName(tok.name)
+                if group and slot then
+                    table.insert(allTierTokens, {
+                        itemID  = tok.itemID,
+                        name    = tok.name,
+                        bossIdx = bIdx,
+                        group   = group,
+                        slot    = slot,
+                    })
+                end
+            end
+        end
+
+        -- Match labels via Strategy 1 (raid-name match) and Strategy 2
+        -- (TIER_GROUPS prefix at correct expansion). Same logic as
+        -- DumpTransmogSets; see that function for the full rationale.
+        local allSets       = C_TransmogSets.GetAllSets() or {}
+        local matchedLabels = {}
+        local raidNameLower = (raid.name or ""):lower()
+
+        for _, s in ipairs(allSets) do
+            local label = s.label
+            if label and label ~= "" then
+                local labelLower = label:lower()
+                local matchReason
+                if labelLower == raidNameLower then
+                    matchReason = "exact match to raid name"
+                elseif raidNameLower ~= ""
+                       and (labelLower:find(raidNameLower, 1, true)
+                            or raidNameLower:find(labelLower, 1, true)) then
+                    matchReason = "substring match to raid name"
+                else
+                    for prefix in pairs(TIER_GROUPS) do
+                        if labelLower == prefix:lower() then
+                            if not raidExpansionID
+                               or s.expansionID == raidExpansionID then
+                                matchReason = ("matches tier group '%s' in raid expansion"):format(prefix)
+                            end
+                            break
+                        end
+                    end
+                end
+                if matchReason and not matchedLabels[label] then
+                    matchedLabels[label] = { setInfo = s, reason = matchReason }
+                end
+            end
+        end
+
+        -- Build tierCfg ready for injection into harvest.
+        local labelList = {}
+        for label in pairs(matchedLabels) do table.insert(labelList, label) end
+        table.sort(labelList)
+
+        local tokenSources = {}
+        for _, t in ipairs(allTierTokens) do
+            tokenSources[t.itemID] = t.bossIdx
+        end
+
+        local tierCfg = {
+            labels       = labelList,
+            tokenSources = tokenSources,
+        }
+
+        -- Build the formatted paste-block (mirror of DumpTransmogSets's
+        -- "READY-TO-PASTE" output, minus the raid-side wrapper). This
+        -- is what the bundled raidcapture output prepends to the harvest.
+        local out = {}
+        table.insert(out, "-- DISCOVERED tierSets block (auto-prepended by /rr raidcapture).")
+        table.insert(out, "-- Paste this into the raid's data file as the raid's `tierSets = { ... }` block,")
+        table.insert(out, "-- replacing any existing tierSets entry. The harvest below already used these")
+        table.insert(out, "-- values, so the loot tables include tier rows accordingly.")
+        table.insert(out, "tierSets = {")
+        table.insert(out, "    labels = {")
+        for _, label in ipairs(labelList) do
+            local entry = matchedLabels[label]
+            local s     = entry.setInfo
+            table.insert(out, ("        %q,  -- %s (setID=%d, exp=%s, patch=%s)"):format(
+                label, entry.reason, s.setID,
+                tostring(s.expansionID), tostring(s.patch)))
+        end
+        table.insert(out, "    },")
+        table.insert(out, "    tokenSources = {")
+        if #allTierTokens == 0 then
+            table.insert(out, "        -- (no tier tokens found in any boss's loot)")
+        else
+            -- Sort tokens by group, then slot, then bossIdx for stable readable output
+            local sorted = {}
+            for _, t in ipairs(allTierTokens) do table.insert(sorted, t) end
+            table.sort(sorted, function(a, b)
+                if a.group ~= b.group then return a.group < b.group end
+                local slotOrder = { Head = 1, Shoulder = 2, Chest = 3, Hands = 4, Legs = 5 }
+                local as, bs = slotOrder[a.slot] or 99, slotOrder[b.slot] or 99
+                if as ~= bs then return as < bs end
+                return a.bossIdx < b.bossIdx
+            end)
+            for _, t in ipairs(sorted) do
+                local bossName = "?"
+                for _, b in ipairs(bosses) do
+                    if b.index == t.bossIdx then bossName = b.name break end
+                end
+                table.insert(out, ("        [%d] = %d,  -- %s -> %s"):format(
+                    t.itemID, t.bossIdx, t.name, bossName))
+            end
+        end
+        table.insert(out, "    },")
+        table.insert(out, "},")
+        table.insert(out, "")
+
+        local formattedBlock = table.concat(out, "\n")
+        local info = {
+            tokenCount = #allTierTokens,
+            labelCount = #labelList,
+            raidName   = raid.name,
+        }
+
+        onDone(tierCfg, formattedBlock, info)
+    end
+
+    local function NextBoss()
+        bossIdx = bossIdx + 1
+        if bossIdx > #bosses then
+            FinishAndCallback()
+            return
+        end
+        local boss = bosses[bossIdx]
+        if not boss.journalEncounterID then
+            C_Timer.After(0, NextBoss)
+            return
+        end
+        CollectEncounterTokens(journalInstanceID, boss.journalEncounterID, 14,
+            function(tokens)
+                if #tokens > 0 then
+                    tokensByBoss[boss.index] = tokens
+                end
+                C_Timer.After(0.3, NextBoss)
+            end)
+    end
+
+    -- Prime the EJ before starting (same sequence as DumpTransmogSets).
+    EJ_SetDifficulty(14)
+    EJ_SelectInstance(journalInstanceID)
+    EJ_ResetLootFilter()
+    C_Timer.After(0.5, function()
+        if bosses[1] and bosses[1].journalEncounterID then
+            pcall(EJ_SelectEncounter, bosses[1].journalEncounterID)
+        end
+        C_Timer.After(0.5, NextBoss)
+    end)
+end
+
+-------------------------------------------------------------------------------
+-- RaidCapture: consolidated single-command flow for new-raid bring-up.
+--
+-- Replaces the manual three-step workflow:
+--   1. /rr harvest   (no tier rows -- tierSets.labels not yet known)
+--   2. /rr tiersets  (discover labels + tokenSources, hand-paste into data file)
+--   3. /rr harvest   (now produces tier rows because labels are configured)
+--
+-- ...with a single /rr raidcapture call that runs discovery, validates the
+-- result, and harvests using the just-discovered tierCfg in-memory (no data-
+-- file edit required mid-flow). The bundled output includes both the tierSets
+-- paste-block and the per-boss loot blocks, so one paste covers everything.
+--
+-- DATA-QUALITY SAFEGUARD: if discovery returns labels-with-zero-tokens, abort
+-- loudly. That case indicates a token-naming convention TOKEN_SLOT_KEYWORDS
+-- doesn't recognize -- proceeding would silently produce a tier-row-less
+-- harvest that LOOKS complete. The user should extend the keyword table or
+-- fall back to the manual /rr harvest + /rr tiersets workflow to investigate.
+-- (Zero labels AND zero tokens is a different case: the raid genuinely has
+-- no tier set, like Sanctum -- proceed with a one-line warning.)
+--
+-- Existing /rr harvest and /rr tiersets remain untouched as fallbacks.
+-------------------------------------------------------------------------------
+function RR:RaidCapture()
+    if not RR.currentRaid then
+        self:Print("No supported raid loaded. Enter a supported raid first.")
+        return
+    end
+
+    self:Print(("|cffF259C7raidcapture|r starting for: %s"):format(RR.currentRaid.name))
+    self:Print("Phase 1/2: discovering tier sets...")
+
+    self:DiscoverTierSets(function(tierCfg, formattedBlock, info)
+        if not tierCfg then
+            -- DiscoverTierSets already printed the specific error.
+            self:Print("|cffff5555raidcapture aborted|r at discovery phase.")
+            return
+        end
+
+        if info.labelCount > 0 and info.tokenCount == 0 then
+            self:Print("|cffff5555raidcapture aborted:|r tier-set labels matched but ZERO tier")
+            self:Print("tokens were detected. Likely cause: this raid uses a token-naming")
+            self:Print("convention that TOKEN_SLOT_KEYWORDS (Harvester.lua) doesn't recognize.")
+            self:Print("Extend the keyword table or use the manual /rr harvest + /rr tiersets")
+            self:Print("workflow to investigate.")
+            return
+        end
+
+        if info.labelCount == 0 then
+            self:Print("Discovery complete: 0 labels matched, 0 tokens. Harvest will run")
+            self:Print("without tier rows. (Raid may genuinely have no tier sets.)")
+        else
+            self:Print(("Discovery complete: %d label(s), %d tier token(s)."):format(
+                info.labelCount, info.tokenCount))
+        end
+
+        self:Print("Phase 2/2: harvesting loot tables (this takes a few minutes)...")
+
+        self:HarvestAllBosses(nil, {
+            tierCfgOverride = tierCfg,
+            onComplete = function(harvestText)
+                local combined = formattedBlock .. "\n" .. harvestText
+                self:SetSetting("lastHarvestAll", combined)
+
+                self:ShowCopyWindow(
+                    "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaa/rr raidcapture|r",
+                    combined)
+
+                self:Print(("|cff00ff00raidcapture complete!|r %d label(s), %d token(s) discovered;"):format(
+                    info.labelCount, info.tokenCount))
+                self:Print("loot harvested. Window opened. Click inside, Ctrl+A, Ctrl+C.")
+                self:Print("(Also saved to RetroRunsDB.lastHarvestAll -- /rr harvest dump to re-show.)")
+            end,
+        })
     end)
 end
 

@@ -92,7 +92,6 @@ RetroRuns_Data[2481] = {
             mapID              = 2061,
             coord              = { 0.126, 0.620 },
             aliases            = { "Skolex" },
-            soloTip            = "Kill the three Foul Controller trash mobs to spawn the boss.",
             achievements = {
                 { id = 15401, name = "Wisdom Comes From the Desert", meta = true },
             },
@@ -116,7 +115,6 @@ RetroRuns_Data[2481] = {
             mapID              = 2061,
             coord              = { 0.406, 0.365 },
             aliases            = { "Artificer Xymox" },
-            soloTip            = "Nuke, kill adds, nuke (x2).",
             achievements = {
                 { id = 15398, name = "Xy Never, Ever Marks the Spot.", meta = true },
             },
@@ -186,7 +184,6 @@ RetroRuns_Data[2481] = {
             mapID              = 2049,
             coord              = { 0.617, 0.260 },
             aliases            = { "Lihuvim" },
-            soloTip            = "Kill the large mob to open the door. Some trash mobs have a far knockback -- stay away from ledge edges.",
             achievements = {
                 { id = 15419, name = "The Protoform Matrix", meta = true },
             },
@@ -219,7 +216,6 @@ RetroRuns_Data[2481] = {
             mapID              = 2050,
             coord              = { 0.377, 0.520 },
             aliases            = { "Halondrus" },
-            soloTip            = "After the kill, find the loot chest near the teleporter down the path.",
             achievements = {
                 { id = 15386, name = "Shimmering Secrets", meta = true },
             },
@@ -281,7 +277,6 @@ RetroRuns_Data[2481] = {
             mapID              = 2052,
             coord              = { 0.608, 0.439 },
             aliases            = {},
-            soloTip            = "Two purple-glowing trash mobs before the boss door -- attack both to open it.",
             achievements = {
                 { id = 15315, name = "Amidst Ourselves", meta = true },
             },
@@ -414,7 +409,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2061,
                     kind   = "path",
-                    note   = "Follow the path down to Skolex.",
+                    note   = "Follow the path down to Skolex. Kill the trash to spawn the boss.",
                     points = {
                         { 0.163, 0.377 },
                         { 0.191, 0.412 },
@@ -557,7 +552,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2049,
                     kind   = "path",
-                    note   = "Follow the path through The Endless Foundry to Lihuvim.",
+                    note   = "Follow the path through The Endless Foundry, killing the trash on the way to Lihuvim.",
                     points = {
                         { 0.349, 0.663 },
                         { 0.621, 0.259 },
@@ -617,7 +612,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2052,
                     kind   = "path",
-                    note   = "Follow the path through The Grand Design to Lords of Dread.",
+                    note   = "Follow the path through The Grand Design, killing trash on the way to Lords of Dread.",
                     points = {
                         { 0.484, 0.202 },
                         { 0.607, 0.204 },
@@ -639,7 +634,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2052,
                     kind   = "path",
-                    note   = "After killing the Lords of Dread, you will find a teleport located behind them. Use it to take a shortcut back to the beginning of the room, and proceed to Rygelon.",
+                    note   = "After killing Lords of Dread, you will find a teleporter behind them. Use it to take a shortcut back to the beginning of the room, and follow the path to Rygelon.",
                     points = {
                         { 0.607, 0.440 },
                         { 0.641, 0.340 },

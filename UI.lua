@@ -2705,6 +2705,52 @@ BuildTransmogDetail = function(stepOrCtx)
         end
     end
 
+    -- Optional per-boss footnote. Used to surface collectible context that
+    -- doesn't fit the existing schema -- e.g., Sarkareth's Void-Touched
+    -- Curio omnitoken, which exchanges for any tier slot and so doesn't
+    -- fit the fixed-slot tokenSources mapping. The footnote tells the
+    -- player "yes there's more here, just not in the format the dots/
+    -- checkbox represent." Rendered in light grey above the color legend
+    -- (close enough to the loot list to read as commentary on it; the
+    -- legend stays at the very bottom as the visual anchor).
+    --
+    -- The schema accepts two forms:
+    --   string                   -- rendered as-is, embedded WoW markup OK
+    --   { text=..., itemID=N }   -- {item} placeholder substituted with
+    --                               GetItemInfo(itemID)'s real WoW item
+    --                               link (clickable, hover-tooltips, shift-
+    --                               clickable into chat). Cold-cache fallback
+    --                               to a colored static name if GetItemInfo
+    --                               returns nil before the cache warms.
+    if boss.tmogFootnote then
+        local footnoteText
+        if type(boss.tmogFootnote) == "table" then
+            local f = boss.tmogFootnote
+            local sub
+            if f.itemID then
+                local _, itemLink = GetItemInfo(f.itemID)
+                sub = itemLink   -- nil on cold cache; fallback below
+            end
+            if not sub then
+                -- Cold-cache fallback: render a bracketed colored name in
+                -- the WoW-link visual style. Loses clickability for this
+                -- one render, but text won't be empty/broken. Subsequent
+                -- renders (after the client warms the item-info cache)
+                -- will produce a real link.
+                local fallbackName = (f.itemID and GetItemInfo(f.itemID))
+                                     or "(item)"
+                sub = ("|cffa335ee[%s]|r"):format(fallbackName)
+            end
+            footnoteText = (f.text or ""):gsub("{item}", sub)
+        else
+            footnoteText = boss.tmogFootnote
+        end
+        if footnoteText and footnoteText ~= "" then
+            table.insert(lines, "")
+            table.insert(lines, ("|cff9d9d9d%s|r"):format(footnoteText))
+        end
+    end
+
     -- Legend at the bottom. Covers both shapes: the binary bracket's
     -- three states (collected/shared/missing) use the same color palette
     -- as the per-difficulty dots, and "white = needed now" only applies
@@ -2895,6 +2941,23 @@ GetOrCreateTmogWindow = function()
     f:HookScript("OnEnter", CancelTmogHide)
     f:HookScript("OnLeave", ScheduleTmogHide)
 
+    -- Hyperlink handlers: makes item links inside contentText (the boss's
+    -- loot list, the tmogFootnote) clickable. Same pattern used by
+    -- panel.encounter for Special Loot links. SetItemRef is Blizzard's
+    -- global router that opens the appropriate frame for each link type
+    -- (item -> tooltip, achievement -> achievement frame, etc.) and is a
+    -- no-op on link types it doesn't recognize, so safe as a catch-all.
+    f:SetHyperlinksEnabled(true)
+    f:SetScript("OnHyperlinkClick", function(_, link, text, button)
+        SetItemRef(link, text, button)
+    end)
+    f:SetScript("OnHyperlinkEnter", function(self, link)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetHyperlink(link)
+        GameTooltip:Show()
+    end)
+    f:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
+
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 14, -10)
     title:SetText("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  Transmog")
@@ -3053,6 +3116,16 @@ GetOrCreateTmogWindow = function()
         text:SetText(detail or "")
         local fontSize = RR:GetSetting("fontSize", 12)
         text:SetFont(STANDARD_TEXT_FONT, fontSize - 1, "")
+        -- The "Show all class tier" checkbox's enabled state depends on
+        -- whether the currently-selected boss drops tier tokens. Refresh
+        -- it here (not in RefreshAll) so it stays in sync with the boss
+        -- dropdown's per-click state changes -- the boss dropdown calls
+        -- RefreshContent only (not the full RefreshAll), so anchoring
+        -- this check to RefreshContent is what keeps it correct on a
+        -- boss-by-boss stepthrough.
+        if self.RefreshShowAllCheckEnabled then
+            self:RefreshShowAllCheckEnabled()
+        end
         -- Resize popup to fit the new content. We count newlines rather
         -- than calling GetStringHeight because the latter returns stale
         -- metrics immediately after a SetFont call, causing the visible
@@ -3064,6 +3137,42 @@ GetOrCreateTmogWindow = function()
         self:RefreshDropdowns()
         self:RefreshContent()
         SaveBrowserState()
+    end
+
+    -- "Show all class tier" checkbox is only meaningful on bosses that
+    -- actually drop tier tokens. On non-tier bosses (and on the very
+    -- first/last bosses of a raid which traditionally don't drop tier),
+    -- the toggle has no observable effect -- clicking it would be a
+    -- dead-end interaction. Disable the checkbox in those cases so the
+    -- player gets a visible "this control doesn't apply right now"
+    -- signal instead of silent no-ops.
+    --
+    -- A boss "drops tier" iff at least one entry in the raid's
+    -- tierSets.tokenSources maps to that boss's index. Sarkareth's
+    -- omnitoken (Void-Touched Curio) is intentionally not tracked in
+    -- tokenSources -- it's a separate item shape -- so Aberrus's last
+    -- boss reads as "no tier" here. That's consistent with the schema
+    -- decision documented in the data file.
+    f.RefreshShowAllCheckEnabled = function(self)
+        local raid, boss = GetBrowserSelection()
+        local hasTier = false
+        if raid and boss and raid.tierSets and raid.tierSets.tokenSources then
+            for _, bossIdx in pairs(raid.tierSets.tokenSources) do
+                if bossIdx == boss.index then
+                    hasTier = true
+                    break
+                end
+            end
+        end
+        if hasTier then
+            showAllCheck:Enable()
+            showAllCheck:SetAlpha(1.0)
+            showAllCheck.text:SetTextColor(1, 1, 1)
+        else
+            showAllCheck:Disable()
+            showAllCheck:SetAlpha(0.45)
+            showAllCheck.text:SetTextColor(0.5, 0.5, 0.5)
+        end
     end
 
     -------------------------------------------------------------------------
@@ -3335,24 +3444,51 @@ function UI.Update()
             if tmog then
                 panel.transmog:SetHeight(math.max(14, panel.transmog.label:GetStringHeight()))
             end
+
+            -- In-progress state: listHeader anchored under transmog
+            -- as designed; shows "Boss Progress" with per-boss kill
+            -- checklist.
+            panel.listHeader:ClearAllPoints()
+            panel.listHeader:SetPoint("TOPLEFT", panel.transmog, "BOTTOMLEFT", 0, -12)
+            panel.listHeader:SetText("Boss Progress")
+            panel.list:SetText(table.concat(RR:GetProgressLines(), "\n"))
         else
+            -- Run-complete state. The user has cleared every boss in
+            -- this lockout. Layout goal: tight, informative, points at
+            -- "what to do next." Per Photek 2026-04-26:
+            --   1. Drop the "Traveling: This lockout is complete." line
+            --      -- panel.pills at the top already shows the lockout's
+            --      complete state, the line was redundant.
+            --   2. Close the vertical gap between "Run complete!" and
+            --      the supported-raids list -- re-anchor listHeader
+            --      directly under panel.next (the "Run complete!" line)
+            --      instead of letting empty intermediate widgets'
+            --      anchor offsets accumulate.
+            --   3. Replace the per-boss "Boss Progress" checklist with
+            --      the idle-state per-raid lockout pill list. The boss
+            --      list was just re-stating what the pill row at top
+            --      already showed; the per-raid list answers the more
+            --      useful question "where to farm next?"
             panel.next:SetText("|cff00ff00Run complete!|r")
-            panel.travel:SetText(
-                ("|cff%sTraveling:|r This lockout is complete."):format(C_LABEL))
+            panel.travel:SetText("")
             panel.encounter:SetText("")
             panel.encounter.clickable = false
             panel.encounter:EnableMouse(false)
             panel.transmog:SetText("")
             panel.transmog:Hide()
-        end
 
-        -- Restore listHeader's normal anchor (below transmog). The idle
-        -- branch re-anchors directly to panel.progress for tighter
-        -- spacing; this branch puts it back so in-raid layout is normal.
-        panel.listHeader:ClearAllPoints()
-        panel.listHeader:SetPoint("TOPLEFT", panel.transmog, "BOTTOMLEFT", 0, -12)
-        panel.listHeader:SetText("Boss Progress")
-        panel.list:SetText(table.concat(RR:GetProgressLines(), "\n"))
+            -- Map button does nothing in the run-complete state (no
+            -- active step means no segments to draw). Gray it out
+            -- the same way the idle state does, so the dead-button
+            -- click is visually flagged as unavailable.
+            panel.mapBtn:Disable()
+            panel.mapBtn:SetAlpha(0.45)
+
+            panel.listHeader:ClearAllPoints()
+            panel.listHeader:SetPoint("TOPLEFT", panel.next, "BOTTOMLEFT", 0, -12)
+            panel.listHeader:SetText("|cff9d9d9dWhere to next:|r")
+            panel.list:SetText(BuildIdleListText())
+        end
     else
         -- Idle state. The "RetroRuns v..." line is intentionally blank --
         -- the addon name is already in the title bar at the top of the

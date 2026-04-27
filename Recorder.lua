@@ -196,7 +196,25 @@ function RR:StopRecording()
     for _, s in ipairs(rec.segments) do total = total + #s.points end
     self:Print(("Stopped. %d segment(s), %d total waypoint(s)."):format(
         #rec.segments, total))
-    self:Print("/rr record dump  -- to export | /rr record reset -- to clear")
+
+    -- Auto-dump on stop. The author's workflow always wants to see (and
+    -- copy) the export immediately after stopping; previously this
+    -- required a separate /rr record dump call. Auto-firing the dump
+    -- saves a keystroke per recording and matches the natural "stop
+    -- and show me what I caught" mental model.
+    --
+    -- Skip silently if there's nothing to export -- this happens when
+    -- the user stops a recording they aborted early (no shift-clicks
+    -- captured) and is about to /rr record reset. Showing a "nothing
+    -- to export" error in that case is noise. The /rr record dump
+    -- command is still available for manual invocation if the user
+    -- wants to re-export later (the data persists in
+    -- RetroRunsDB.lastRecording).
+    if #rec.segments > 0 then
+        self:DumpRecording()
+    else
+        self:Print("/rr record reset -- to clear")
+    end
 end
 
 --- Called at a teleporter. Closes the current walking segment, marks it as

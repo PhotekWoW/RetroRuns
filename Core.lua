@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "0.6.1"
+local VERSION    = "0.7.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -377,36 +377,48 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
         end
         result[dID] = { complete = complete, total = total }
     end
+
+    -- Active-difficulty special case: ENCOUNTER_END marks bossesKilled
+    -- immediately, but the saved-instance cache that IsEncounterComplete
+    -- reads from updates asynchronously (server pushes a new snapshot
+    -- via UPDATE_INSTANCE_INFO some time after the kill). To make pills
+    -- update in real time when the player kills a boss, the active-
+    -- difficulty count uses whichever value is HIGHER -- our in-memory
+    -- bossesKilled or the cache. Only applied to the currently-loaded
+    -- raid + active difficulty, since for other raids we have no local
+    -- kill state.
+    --
+    -- This fallback used to live in GetPerDifficultyKillCounts() (the
+    -- no-arg "current raid" wrapper), which meant the header pill saw
+    -- the immediate update but the "Where to next" panel's per-raid
+    -- pills (which call this function directly per-raid) lagged until
+    -- UPDATE_INSTANCE_INFO arrived. Moving it down to the shared getter
+    -- keeps both render paths consistent.
+    if self.currentRaid and raid == self.currentRaid then
+        local activeDifficulty = self.state.currentDifficultyID
+        if activeDifficulty and result[activeDifficulty] then
+            local localCount = 0
+            for _, b in ipairs(raid.bosses or {}) do
+                if self.state.bossesKilled[b.index] then
+                    localCount = localCount + 1
+                end
+            end
+            if localCount > result[activeDifficulty].complete then
+                result[activeDifficulty].complete = localCount
+            end
+        end
+    end
+
     return result
 end
 
 function RR:GetPerDifficultyKillCounts()
     if not self.currentRaid then return nil end
-    local result = self:GetPerDifficultyKillCountsForRaid(self.currentRaid)
-    if not result then return nil end
-
-    -- Active-difficulty special case: ENCOUNTER_END marks bossesKilled
-    -- immediately, but the saved-instance cache that IsEncounterComplete
-    -- reads from updates asynchronously (server pushes a new snapshot
-    -- via UPDATE_INSTANCE_INFO some time after the kill). To make the
-    -- pills update in real time when the player kills a boss, the
-    -- active-difficulty count uses whichever value is HIGHER -- our
-    -- in-memory bossesKilled or the cache. Only applied to the
-    -- currently-loaded raid + active difficulty, since for other raids
-    -- we have no local kill state.
-    local activeDifficulty = self.state.currentDifficultyID
-    if activeDifficulty and result[activeDifficulty] then
-        local localCount = 0
-        for _, b in ipairs(self.currentRaid.bosses or {}) do
-            if self.state.bossesKilled[b.index] then
-                localCount = localCount + 1
-            end
-        end
-        if localCount > result[activeDifficulty].complete then
-            result[activeDifficulty].complete = localCount
-        end
-    end
-    return result
+    -- The bossesKilled-vs-cache fallback now lives inside
+    -- GetPerDifficultyKillCountsForRaid (it applies whenever the queried
+    -- raid is the current raid), so this wrapper is now a thin
+    -- convenience for callers that don't have a raid handle.
+    return self:GetPerDifficultyKillCountsForRaid(self.currentRaid)
 end
 
 function RR:GetSupportedRaid()
@@ -1074,6 +1086,9 @@ SlashCmdList["RETRORUNS"] = function(input)
     elseif cmd == "tiersets" then
         RR:DumpTransmogSets()
 
+    elseif cmd == "raidcapture" then
+        RR:RaidCapture()
+
     elseif cmd == "weaponharvest" then
         RR:HarvestWeaponPools()
 
@@ -1309,6 +1324,13 @@ SlashCmdList["RETRORUNS"] = function(input)
                 table.concat(lines, "\n"))
             RR:Print(("srctest %d complete. Copy window opened."):format(src))
         end
+
+    elseif cmd == "ejprobe" then
+        -- Dump everything EJ knows about the currently-selected encounter's
+        -- loot. Used for "why doesn't /rr harvest see this item?" diagnosis.
+        -- Optional needle itemID highlights a specific item and probes
+        -- additional EJ paths if the iteration didn't find it.
+        RR:EjProbe(args[2])
 
     elseif cmd == "specialtest" then
         -- Probe a single itemID against every special-loot detection API
@@ -1978,6 +2000,7 @@ SlashCmdList["RETRORUNS"] = function(input)
                     ok              = 0,   -- item had no findings
                     fatal_nil       = 0,   -- source returned nil via every API we tried
                     item_mismatch   = 0,   -- E2: sourceID's itemID disagrees with our item.id
+                    bucket_mismatch = 0,   -- E5: sourceID lives in wrong difficulty slot per its itemLink's itemContext
                     -- E4: source-duplication shape classification (descriptive,
                     -- not error-severity -- binary and perdiff are both fine).
                     shape_binary    = 0,   -- 1 unique source cloned across 2+ buckets (single-variant item)
@@ -2026,14 +2049,15 @@ SlashCmdList["RETRORUNS"] = function(input)
                             -- resolved visualID for each. Fan out into per-
                             -- bucket checks first; shape/dedup checks happen
                             -- once we have all 4.
-                            local perBucket = {}  -- [diffID] = {src, apiItemID, visualID, apiNil}
+                            local perBucket = {}  -- [diffID] = {src, apiItemID, visualID, apiNil, itemLink}
                             for _, diffID in ipairs(DIFFS) do
                                 local src = item.sources and item.sources[diffID]
                                 if src then
                                     local info = C_TransmogCollection.GetSourceInfo(src)
-                                    local apiItemID, visualID, apiNil
+                                    local apiItemID, visualID, apiNil, itemLink
                                     if info then
                                         apiItemID = info.itemID
+                                        itemLink  = info.itemLink
                                     end
                                     -- Resolve visualID via the proven
                                     -- GetAppearanceInfoBySource path (the
@@ -2058,6 +2082,7 @@ SlashCmdList["RETRORUNS"] = function(input)
                                     perBucket[diffID] = {
                                         src = src, apiItemID = apiItemID,
                                         visualID = visualID, apiNil = apiNil,
+                                        itemLink = itemLink,
                                     }
                                 end
                             end
@@ -2084,6 +2109,45 @@ SlashCmdList["RETRORUNS"] = function(input)
                                     table.insert(findings, ("[ERR] %s src=%d: API itemID=%d, expected %d"):format(
                                         DIFF_NAME[diffID], b.src, b.apiItemID, item.id))
                                     T.item_mismatch = T.item_mismatch + 1
+                                end
+                            end
+
+                            -- [E5] Difficulty-bucket mismatch via itemContext.
+                            --
+                            -- Each EJ-generated item link carries an
+                            -- itemContext value (the 12th option in the
+                            -- hyperlink). The harvester uses this as its
+                            -- primary signal to decide which difficulty
+                            -- bucket a sourceID belongs to. So if a source
+                            -- in our `[16]=N` (Mythic) slot has an itemLink
+                            -- whose itemContext maps to LFR, that's a
+                            -- bucket-assignment bug -- the source is in
+                            -- the wrong slot.
+                            --
+                            -- Caveats:
+                            --  - Only checked when info.itemLink was non-nil
+                            --    AND ParseItemContextFromLink yielded a
+                            --    recognized context. Items with no link
+                            --    or context=0 (UNKNOWN) get skipped silently
+                            --    -- not actionable, just unverifiable.
+                            --  - Some items legitimately have ambiguous
+                            --    itemContexts (very old raids may use modID
+                            --    instead). Those skip silently rather than
+                            --    flag false positives.
+                            if RR.ParseItemContextFromLink and RR.ITEM_CONTEXT_TO_DIFFICULTY then
+                                for _, diffID in ipairs(DIFFS) do
+                                    local b = perBucket[diffID]
+                                    if b and b.itemLink then
+                                        local ctx = RR.ParseItemContextFromLink(b.itemLink)
+                                        local apiDiff = RR.ITEM_CONTEXT_TO_DIFFICULTY[ctx]
+                                        if apiDiff and apiDiff ~= diffID then
+                                            table.insert(findings, ("[ERR] %s src=%d: itemContext=%d says difficulty=%s, but lives in %s slot"):format(
+                                                DIFF_NAME[diffID], b.src, ctx,
+                                                DIFF_NAME[apiDiff] or tostring(apiDiff),
+                                                DIFF_NAME[diffID]))
+                                            T.bucket_mismatch = (T.bucket_mismatch or 0) + 1
+                                        end
+                                    end
                                 end
                             end
 
@@ -2333,6 +2397,7 @@ SlashCmdList["RETRORUNS"] = function(input)
                 add("Findings:")
                 add(("  [ERR] API-nil buckets:         %d"):format(T.fatal_nil))
                 add(("  [ERR] itemID mismatches:       %d"):format(T.item_mismatch))
+                add(("  [ERR] bucket-slot mismatches:  %d"):format(T.bucket_mismatch))
                 add(("  [ERR] special kind mismatches: %d"):format(T.special_kind_mismatch))
                 add(("  [WRN] shape outliers (3+1):    %d"):format(T.shape_outlier))
                 add(("  [WRN] shape mixed (2+2/2+1+1): %d"):format(T.shape_mixed))
@@ -2534,9 +2599,11 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("  /rr  record [start|stop|dump|reset|status|break|tp <dest>|note <text>]")
             RR:Print("  /rr  harvest [dump | boss <name>]")
             RR:Print("  /rr  tiersets                    (dump C_TransmogSets labels)")
+            RR:Print("  /rr  raidcapture                 (consolidated tier discovery + harvest)")
             RR:Print("  /rr  weaponharvest               (harvest CN weapon-token pools)")
             RR:Print("  /rr  vendorscan                  (scan open merchant frame for items+costs)")
             RR:Print("  /rr  tmogtest <itemID>           (transmog diagnostic)")
+            RR:Print("  /rr  ejprobe [itemID]            (dump EJ loot for selected encounter)")
             RR:Print("  /rr  srctest <sourceID>          (transmog source diagnostic)")
             RR:Print("  /rr  specialtest <itemID>        (special-loot API probe)")
             RR:Print("  /rr  dragontest <itemID>         (dragonriding manuscript API probe)")
