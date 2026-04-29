@@ -1,6 +1,6 @@
 # RetroRuns — Roadmap & Feature Tracker
 
-## Current Version: 0.7.0 (Beta — v1.0 release candidate)
+## Current Version: 1.0.0
 
 ---
 
@@ -55,10 +55,9 @@
   resets appearance/positioning settings, not transient toggles)
 - Weapon-token collection indicator (3-state: none / some / all
   collected) for bosses that drop weapon tokens, rendered in the
-  transmog popup below the per-difficulty armor rows. Does NOT
-  claim a denominator — see HANDOFF 2026-04-22 session summary
-  for the covenant-partitioning investigation that ruled out
-  ratio-based display.
+  transmog popup below the per-difficulty armor rows. Shows whether
+  you have none, some, or all of the slot appearances from that
+  boss's weapon token pool.
 - Covenant-aware vendor hint beneath the weapon-token indicator,
   naming the player's covenant and sanctum zone in covenant theme
   color (Kyrian blue, Venthyr red, Night Fae purple, Necrolord
@@ -94,27 +93,12 @@
 
 ### Additional Raid Support
 - Each new raid gets its own `Data/<RaidName>.lua` file
-- Setup workflow:
-  1. Recorder: walk routes → `/rr record dump` → paste
-  2. Tier discovery: `/rr tiersets` → paste
-  3. Loot harvest: `/rr harvest` → paste
-  (Order between tiersets and harvest is immaterial; both run against the
-  skeleton data file.)
 - Target raids (rough priority order):
   - Shadowlands: Sanctum of Domination — **DONE.** Full skeleton +
-    98 items + 6 collectibles + 10/10 routes shipped. `tierSets`
-    intentionally empty (9.1 predates proper class tier sets). Open
-    follow-ups in HANDOFF (Sylvanas mapID unverified, Tarragrue
-    travel-note nit, optional re-harvest validation).
+    98 items + 6 collectibles + 10/10 routes shipped.
   - Castle Nathria — **DONE.** Skeleton + 10 bosses + armor-shape
     loot + 10 routes + achievements + specialLoot detection +
     weapon-token 3-state indicator + covenant-aware vendor hint.
-    Weapon-token data modeling intentionally scoped to 3-state
-    (none/some/all collected) rather than X/N ratio after vendor-
-    scan investigation revealed the pool is covenant-partitioned
-    in a way our harvested TTT-derived data doesn't capture. See
-    HANDOFF's 2026-04-22 session summary for the full investigation
-    trail and why per-covenant data is deferred indefinitely.
     Shipped in v0.4.9.
   - Dragonflight: Vault of the Incarnates — **DONE.** Full skeleton
     + 8 bosses + 55 non-tier loot + 65 class tier pieces + 20 tier-
@@ -127,6 +111,18 @@
     segment-completion architecture (HandleLocationChange's
     successor-mapID rule + ENCOUNTER_END safety net) that's now the
     foundation for any future raid with similar topology.
+  - Dragonflight: Aberrus, the Shadowed Crucible — **DONE.** 9
+    bosses, 133 loot items, 65 tier rows, 20 tier tokens, 16 routing
+    segments, achievement callouts, soloTips on Echo of Neltharion
+    and Sarkareth, Drakewatcher Manuscript tracking, Void-Touched
+    Curio footnote, and Nasz'uro the Unbound Legacy (Evoker legendary).
+    Shipped in v0.7.0 / v1.0.0.
+  - Dragonflight: Amirdrassil, the Dream's Hope — **DONE.** 9
+    bosses, full routing with priority branching (Volcoross and
+    Council of Dreams in either order), POI markers, encounter-
+    freeze travel pane, Drakewatcher Manuscript tracking, Flame-
+    Warped Curio footnote, Fyr'alath the Dreamrender (legendary).
+    Shipped in v1.0.0.
   - BFA: Ny'alotha, The Waking City
   - BFA: Eternal Palace
   - Legion: Antorus, the Burning Throne

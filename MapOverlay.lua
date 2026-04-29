@@ -108,6 +108,33 @@ function overlay:DrawSegmentsForMap(mapID)
         local pts = seg.points
         if pts and #pts > 0 then
 
+            -- Point-of-interest segment: a single marker showing the
+            -- player approximately where to find an interactable.
+            -- Used when the start position is unpredictable (e.g. after
+            -- a boss kill where the kill location varies) but the
+            -- target location is fixed. Renders only the end-icon
+            -- (red X) at the segment's last point. No start dot, no
+            -- lines -- the segment isn't a path, it's a "go here" pin.
+            if seg.kind == "poi" then
+                local mark    = seg.navPoint or pts[#pts]
+                local poiIcon = self.icons[iconIdx]
+                if poiIcon then
+                    PlaceAt(poiIcon, self, mark[1], mark[2])
+                    -- POI uses a distinctive bold marker so it reads
+                    -- as a search-area indicator at parent-zoom-out
+                    -- map scale, distinct from the standard end-of-
+                    -- path red X. Star raid-target icon is
+                    -- semantically familiar to players ("look here")
+                    -- and sized large enough to read clearly when
+                    -- the world map is zoomed to a parent map view.
+                    poiIcon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_1")
+                    poiIcon:SetVertexColor(1.0, 1.0, 1.0, 1.0)
+                    poiIcon:SetSize(78, 78)
+                    poiIcon:Show()
+                    iconIdx = iconIdx + 1
+                end
+            else
+
             -- Start dot: always show so the player knows where the segment begins
             local startIcon = self.icons[iconIdx]
             if startIcon then
@@ -143,6 +170,8 @@ function overlay:DrawSegmentsForMap(mapID)
                 endIcon:Show()
                 iconIdx = iconIdx + 1
             end
+
+            end -- end "if seg.kind == poi else"
         end
     end
 end

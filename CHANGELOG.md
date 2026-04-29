@@ -2,6 +2,32 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [1.0.0] - 2026-04-29
+
+### Added
+
+- **Amirdrassil, the Dream's Hope** is now fully supported — walk-along routes for all 9 bosses, encounter notes, achievement callouts, and Drakewatcher Manuscript tracking for Fyrakk's Highland Drake: Embodiment of the Blazing. The raid introduces two new routing patterns: branching priority routes (Volcoross and Council of Dreams can be cleared in either order after Igira) and POI markers (a map pin marks the fire portal on Fyrakk's platform).
+- **Nasz'uro, the Unbound Legacy** now appears in Sarkareth's transmog browser, and **Kharnalex, The First Light** on Broodkeeper Diurna gets the same treatment. Both are Evoker-only legendaries that drop to the per-difficulty `[ X ]` shape with an "(Evoker only)" tag — the word "Evoker" is shown in the standard Evoker class color — and are visible to all classes so non-Evoker collectors can still see the appearances exist. Sarkareth additionally surfaces the Cracked Titan Gem mechanic (which starts the long quest chain that ultimately rewards Nasz'uro) as a separate footnote with its own item link, alongside the existing Void-Touched Curio note.
+- **Legendary orange in the transmog browser.** Legendary-quality items now render their names in the same orange Blizzard uses for legendary text. Applies automatically to any legendary in any raid's loot table — no per-item tagging needed.
+- **Tmog browser button on the main panel.** A dedicated "Tmog" button sits in the panel header and opens the transmog browser for the current raid at any time, regardless of whether you're actively in a boss encounter.
+- **Collapsible expansion sections in the supported-raids list.** Each expansion header on the idle panel now has a `[+]` / `[-]` toggle that expands or collapses the raids beneath it. All expansions start collapsed at login or reload, so the panel boots compact and you expand only what you want to see. Clicking the toggle resizes the panel automatically.
+- **Encounter notes disclaimer.** Hovering over the Boss Encounter section now surfaces a tooltip noting that encounter notes assume Mythic difficulty. Mechanics that no longer apply (or apply differently) on lower difficulties won't be flagged separately.
+
+### Changed
+
+- **Yellow `[!]` marker on bosses with custom encounter notes.** When a boss has a hand-written solo tip, the "view special note" affordance under the Boss Encounter line is now prefixed with a yellow `[!]` so it's easier to spot at a glance. Bosses with the default Mythic note (most of them) continue to read "Standard" with no marker.
+- **Supported raid list now sorted newest-first by patch.** When the panel is idle, raids appear in descending patch order (10.2 → 10.1 → 10.0 → 9.2 → 9.1 → 9.0) with the patch number shown next to each name.
+- **Transmog browser dropdowns sorted newest-first to match the idle panel.** The expansion dropdown now leads with the most recent expansion, and within each expansion the raids appear newest-patch-first. Boss order within a raid is unchanged (still encounter order).
+- **Per-row counts removed from the browser dropdowns.** The expansion, raid, and boss dropdowns no longer show `(collected/total)` suffixes after each entry — those numbers had a tendency to misread as "missing/total" or otherwise confuse, and the per-difficulty dot rows already convey the same information more clearly when you actually look at a boss.
+- **Boss encounter section starts collapsed each session.** The section resets to collapsed on each login or reload, keeping the panel tidy. Your toggle during a run still works as before — it just won't carry over to the next session.
+- **Travel pane stays stable during boss fights.** Route directions no longer update mid-encounter when the game transitions between sub-zones (relevant to multi-platform encounters like Tindral Sageswift). The pre-fight directions hold until the kill, then snap to the next step.
+
+### Fixed
+
+- **Tier resolver now correctly attributes class-restricted tier tokens.** The harvester previously used the first available source for each tier token regardless of class restriction. It now matches each token to the correct class by reading the in-game tooltip, preventing silent misattribution when a boss's tier pieces span multiple armor types.
+- **Legendary item orange no longer requires two reloads to appear.** Item appearances for legendary drops (Rae'shalare, Nasz'uro, Fyr'alath) are now pre-fetched when you zone into a raid. The first render after zoning in shows the orange correctly without a second reload.
+- **Browser items resolve correctly on first open.** The transmog browser previously needed a second open to render some items in their correct color and name (a side effect of the game's asynchronous item-info cache). The browser now warms the cache when you open it and refreshes itself as items resolve, so the first view is the correct one.
+
 ## [0.7.0] - 2026-04-27
 
 ### Added

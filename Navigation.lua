@@ -328,9 +328,17 @@ function RR:GetRelevantSegmentsForMap(step, mapID)
     local stepIndex = step.step or step.priority or 0
     local matches   = {}
     for segIndex, seg in ipairs(step.segments) do
+        -- Note: don't gate on seg.points here. Note-only segments
+        -- (no points, just a note) should still match for travel-pane
+        -- text purposes -- they're authored when no path-line is
+        -- needed (e.g. "the platform is small enough that Blizzard's
+        -- own boss icon is sufficient guidance, but the player still
+        -- benefits from seeing the next-step note"). The map renderer
+        -- already gates on #points > 0 at its draw sites
+        -- (DrawSegmentsForMap, DrawAllSegmentsForMap), so note-only
+        -- segments are correctly skipped there.
         if not self:IsSegmentCompleted(stepIndex, segIndex)
-            and seg.mapID == mapID
-            and seg.points and #seg.points > 0 then
+            and seg.mapID == mapID then
             table.insert(matches, { segIndex = segIndex, seg = seg })
         end
     end
@@ -356,13 +364,23 @@ function RR:GetRelevantSegmentsForMap(step, mapID)
         table.insert(results, matches[1].seg)
         return results
     end
+    -- Closest-point heuristic for picking among multiple same-mapID
+    -- segments. Skip note-only segments here -- they have no
+    -- waypoint to measure distance against. If all candidates are
+    -- note-only, fall back to the earliest one.
     local bestSeg, bestDist
     for _, m in ipairs(matches) do
-        local pt = m.seg.points[1]
-        local d  = (px - pt[1])^2 + (py - pt[2])^2
-        if not bestDist or d < bestDist then bestSeg, bestDist = m.seg, d end
+        local pt = m.seg.points and m.seg.points[1]
+        if pt then
+            local d = (px - pt[1])^2 + (py - pt[2])^2
+            if not bestDist or d < bestDist then bestSeg, bestDist = m.seg, d end
+        end
     end
-    if bestSeg then table.insert(results, bestSeg) end
+    if bestSeg then
+        table.insert(results, bestSeg)
+    else
+        table.insert(results, matches[1].seg)
+    end
     return results
 end
 

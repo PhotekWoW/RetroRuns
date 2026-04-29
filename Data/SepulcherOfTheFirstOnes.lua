@@ -66,10 +66,7 @@ RetroRuns_Data[2481] = {
             index              = 1,
             name               = "Vigilant Guardian",
             journalEncounterID = 2458,
-            mapID              = 2047,
-            coord              = { 0.503, 0.516 },
             aliases            = {},
-            soloTip            = "Kill trash to fill the energy bar. Three Unstable Cores will spawn. Carry all 3 (one at a time) to the boss and throw them to spawn the boss. On Mythic, boss spawns immediately for a quicker kill.",
             achievements = {
                 { id = 15381, name = "Power ON", meta = true },
             },
@@ -84,13 +81,12 @@ RetroRuns_Data[2481] = {
                 { id = 189779, slot = "Weapon", name = "Key to the Immortal Hearth", sources = { [17]=167760, [14]=167758, [15]=167761, [16]=167759 } },
                 { id = 189777, slot = "Wrist", name = "Unstable Giant's Cuffs", sources = { [17]=167751, [14]=167750, [15]=167752, [16]=167753 } },
             },
+            soloTip = "Kill trash to fill the energy bar. Three Unstable Cores will spawn. Carry all 3 (one at a time) to the boss and throw them to spawn the boss. On Mythic, boss spawns immediately for a quicker kill.",
         },
         {
             index              = 2,
             name               = "Skolex, the Insatiable Ravener",
             journalEncounterID = 2465,
-            mapID              = 2061,
-            coord              = { 0.126, 0.620 },
             aliases            = { "Skolex" },
             achievements = {
                 { id = 15401, name = "Wisdom Comes From the Desert", meta = true },
@@ -112,8 +108,6 @@ RetroRuns_Data[2481] = {
             index              = 3,
             name               = "Artificer Xy'mox",
             journalEncounterID = 2470,
-            mapID              = 2061,
-            coord              = { 0.406, 0.365 },
             aliases            = { "Artificer Xymox" },
             achievements = {
                 { id = 15398, name = "Xy Never, Ever Marks the Spot.", meta = true },
@@ -134,8 +128,6 @@ RetroRuns_Data[2481] = {
             index              = 4,
             name               = "Dausegne, the Fallen Oracle",
             journalEncounterID = 2459,
-            mapID              = 2048,
-            coord              = { 0.542, 0.467 },
             aliases            = { "Dausegne" },
             achievements = {
                 { id = 15397, name = "Four Ring Circus", meta = true },
@@ -158,10 +150,7 @@ RetroRuns_Data[2481] = {
             index              = 5,
             name               = "Prototype Pantheon",
             journalEncounterID = 2460,
-            mapID              = 2049,
-            coord              = { 0.304, 0.740 },
             aliases            = { "Pantheon of Death" },
-            soloTip            = "Clear surrounding trash to activate the bosses. Depending on difficulty, bosses will either spawn in pairs of 2, or all 4 together. Either way, the goal is to kill them around the same time.",
             achievements = {
                 { id = 15400, name = "Where the Wild Corgis Are", meta = true },
             },
@@ -176,13 +165,12 @@ RetroRuns_Data[2481] = {
                 { id = 189789, slot = "Two-Hand", name = "Pursuit of Victory", sources = { [17]=167796, [14]=167794, [15]=167797, [16]=167795 } },
                 { id = 189797, slot = "Wrist", name = "Wristwraps of Night's Renewal", sources = { [17]=167820, [14]=167819, [15]=167821, [16]=167822 } },
             },
+            soloTip = "Clear surrounding trash to activate the bosses. Depending on difficulty, bosses will either spawn in pairs of 2, or all 4 together. Either way, the goal is to kill them around the same time.",
         },
         {
             index              = 6,
             name               = "Lihuvim, Principal Architect",
             journalEncounterID = 2461,
-            mapID              = 2049,
-            coord              = { 0.617, 0.260 },
             aliases            = { "Lihuvim" },
             achievements = {
                 { id = 15419, name = "The Protoform Matrix", meta = true },
@@ -213,8 +201,6 @@ RetroRuns_Data[2481] = {
             index              = 7,
             name               = "Halondrus the Reclaimer",
             journalEncounterID = 2463,
-            mapID              = 2050,
-            coord              = { 0.377, 0.520 },
             aliases            = { "Halondrus" },
             achievements = {
                 { id = 15386, name = "Shimmering Secrets", meta = true },
@@ -244,8 +230,6 @@ RetroRuns_Data[2481] = {
             index              = 8,
             name               = "Anduin Wrynn",
             journalEncounterID = 2469,
-            mapID              = 2050,
-            coord              = { 0.433, 0.522 },
             aliases            = { "Anduin" },
             achievements = {
                 { id = 15399, name = "Coming to Terms", meta = false },
@@ -274,8 +258,6 @@ RetroRuns_Data[2481] = {
             index              = 9,
             name               = "Lords of Dread",
             journalEncounterID = 2457,
-            mapID              = 2052,
-            coord              = { 0.608, 0.439 },
             aliases            = {},
             achievements = {
                 { id = 15315, name = "Amidst Ourselves", meta = true },
@@ -306,8 +288,6 @@ RetroRuns_Data[2481] = {
             index              = 10,
             name               = "Rygelon",
             journalEncounterID = 2467,
-            mapID              = 2052,
-            coord              = { 0.362, 0.459 },
             aliases            = {},
             achievements = {
                 { id = 15396, name = "We Are All Made of Stars", meta = true },
@@ -339,10 +319,7 @@ RetroRuns_Data[2481] = {
             index              = 11,
             name               = "The Jailer",
             journalEncounterID = 2464,
-            mapID              = 2051,
-            coord              = { 0.500, 0.830 },
             aliases            = {},
-            soloTip            = "When he casts Relentless Domination (mind control), use a nearby pillar to line-of-sight, then resume nuke.",
             achievements = {
                 { id = 15494, name = "Damnation Aviation", meta = true },
             },
@@ -359,6 +336,7 @@ RetroRuns_Data[2481] = {
             specialLoot = {
                 { id = 190768, kind = "mount", name = "Fractal Cypher of the Zereth Overseer" },
             },
+            soloTip = "When he casts Relentless Domination (mind control), use a nearby pillar to line-of-sight, then resume nuke.",
         },
     },  -- bosses
 

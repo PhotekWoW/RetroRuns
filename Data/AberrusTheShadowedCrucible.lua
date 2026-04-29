@@ -4,23 +4,18 @@
 -------------------------------------------------------------------------------
 -- Aberrus is the second Dragonflight raid (10.1, Embers of Neltharion). 9
 -- bosses set in Neltharion's hidden experimentation laboratory beneath the
--- Forbidden Reach. Phase 0 stub authored 2026-04-26 from /rr ej output;
--- loot/routing/maps/tier/achievements/specialLoot are placeholders to be
--- filled in subsequent sessions.
+-- Forbidden Reach. One structural note worth understanding when reading
+-- this file:
 --
--- Top-level IDs (verified via /rr ej while zoned in + EJ open on Aberrus,
--- 2026-04-26):
---   instanceID         = 2569  (live GetInstanceInfo)
---   journalInstanceID  = 1208  (consistent across all 9 EJ encounters)
---   uiMapID            = 2569  (EJ_GetInstanceInfo, via fallback path --
---                               see Harvester.lua /rr ej comment block)
---
--- Note: uiMapID and instanceID coincide here (both 2569). Unusual --
--- Vault had distinct values (instanceID 2522 vs uiMapID 2125). Aberrus
--- may use the raid-instance map as its parent map; or DF S2 changed
--- the schema. Not a blocker for stub work; will surface during routing
--- pass when the maps[] table is populated and we see how sub-zone
--- mapIDs relate to the parent.
+-- The lockout has a branching shape: after Kazzara, two pairs unlock in
+-- parallel (Amalgamation Chamber + Forgotten Experiments on one side,
+-- Assault of the Zaqali + Rashok on the other). Both pairs must complete
+-- before Zskarn's wing opens. From there it's a linear chain (Zskarn ->
+-- Magmorax -> Echo of Neltharion -> Sarkareth). routing[] flattens this
+-- into a single recommended order chosen for shortest in-zone walking
+-- distance; players who diverge will see "next step still locked"
+-- guidance from the addon even though their lockout would permit the
+-- kill. Same trade-off Vault's branching wings made.
 -------------------------------------------------------------------------------
 
 RetroRuns_Data = RetroRuns_Data or {}
@@ -32,12 +27,10 @@ RetroRuns_Data[2569] = {
     expansion         = "Dragonflight",
     patch             = "10.1",
 
-    -- Sub-zone names: populate from in-game world-map dropdown ONLY (or
-    -- /rr status return values). NO Wowhead, NO pattern-matching.
-    -- Provenance rule per HANDOFF Section 9.
+    -- Sub-zone mapIDs for Aberrus's five wings. Names match the in-game
+    -- world-map dropdown verbatim. Used by the routing renderer to label
+    -- the active region in the panel header.
     maps = {
-        -- Append entries as routing dumps surface new mapIDs. Names come
-        -- from the in-game world-map dropdown only.
         [2166] = "Molten Crucible",
         [2167] = "Onyx Laboratory",
         [2168] = "Defiant Ramparts",
@@ -45,18 +38,15 @@ RetroRuns_Data[2569] = {
         [2170] = "Edge of Oblivion",
     },
 
-    -- Dragonflight Season 2 tier set: "Aberrus, the Shadowed Crucible" token
-    -- family. Vault (S1) encoded the slot as a gem name (Jade/Amethyst/Garnet/
-    -- Lapis/Topaz). Aberrus shifted to verb-form scientific words paired with
-    -- "Fluid": Melting=Head, Corrupting=Shoulder, Ventilation=Chest,
-    -- Mixing=Hands, Cooling=Legs. The TOKEN_SLOT_KEYWORDS table in
-    -- Harvester.lua has been extended with these verbs so /rr tiersets
-    -- discovers them.
+    -- Dragonflight Season 2 tier set: "Aberrus, the Shadowed Crucible"
+    -- token family. Marketing names follow a verb-form scientific
+    -- convention paired with "Fluid": Melting=Head, Corrupting=Shoulder,
+    -- Ventilation=Chest, Mixing=Hands, Cooling=Legs.
     --
     -- Sarkareth additionally drops Void-Touched Curio, an omnitoken that
-    -- exchanges for any tier slot of choice. It does not fit the per-slot
-    -- `tokenSources` schema (which assumes a fixed itemID -> bossIndex
-    -- mapping); intentionally not tracked here.
+    -- exchanges for any tier slot of choice. It's surfaced as a footnote
+    -- on Sarkareth's transmog browser view rather than as a tracked
+    -- token (since it can become any of the five tier slots).
     tierSets = {
         labels = {
             "Aberrus, the Shadowed Crucible",  -- setID=2858
@@ -316,14 +306,15 @@ RetroRuns_Data[2569] = {
             },
             specialLoot = {
                 -- Highland Drake: Embodiment of the Hellforged
-                -- (Drakewatcher Manuscript). Mythic-only customization,
-                -- itemID 205876. Note: a separate, lesser customization
-                -- (item 206955) drops on LFR/Normal/Heroic and shares the
-                -- same questID. We track only the Mythic version here --
-                -- it's the named drop everyone associates with Sarkareth,
-                -- and the questID below covers either grant path so a
-                -- player who got the lower-difficulty version still
-                -- registers as "unlocked."
+                -- (Drakewatcher Manuscript). Item is consumed on use;
+                -- the "use" spell (410775 "Deciphering") completes
+                -- hidden quest 75967 as its only effect. Tracking the
+                -- unlock therefore comes down to
+                -- IsQuestFlaggedCompleted(75967), which persists per-
+                -- character even after the item is gone. The Mythic-
+                -- only Hellforged customization is the named drop;
+                -- a separate lesser variant drops on LFR/Normal/Heroic
+                -- and shares the same questID.
                 {
                     id      = 205876,
                     kind    = "manuscript",
@@ -332,9 +323,6 @@ RetroRuns_Data[2569] = {
                 },
             },
             loot = {
-                -- Voice of the Silent Star (204465): /rr harvest's Mythic
-                -- source was duplicated from Heroic; corrected to 185606
-                -- below via /rr srctest probe (2026-04-26).
                 { id=204465, slot="Back",     name="Voice of the Silent Star",         sources={ [17]=186700, [14]=186698, [15]=186699, [16]=185606 } },
                 { id=202599, slot="Chest",    name="Sarkareth's Abyssal Embrace",      sources={ [17]=186685, [14]=184572, [15]=186683, [16]=186684 } },
                 { id=204424, slot="Feet",     name="Crechebound Soldier's Boots",      sources={ [17]=186558, [14]=185582, [15]=186556, [16]=186557 } },
@@ -345,25 +333,31 @@ RetroRuns_Data[2569] = {
                 { id=204399, slot="Waist",    name="Oblivion's Immortal Coil",         sources={ [17]=186625, [14]=185562, [15]=186623, [16]=186624 } },
                 { id=202564, slot="Weapon",   name="Fang of the Sundered Flame",       sources={ [17]=185497, [14]=184538, [15]=185498, [16]=185499 } },
                 { id=204390, slot="Wrist",    name="Bonds of Desperate Ascension",     sources={ [17]=186667, [14]=185555, [15]=186665, [16]=186666 } },
+                -- Nasz'uro, the Unbound Legacy (legendary Evoker fist weapon).
+                -- Sarkareth drops the Cracked Titan Gem (item 204255), which
+                -- starts a long quest chain that ultimately rewards Nasz'uro.
+                -- The gem can drop on any difficulty; like other legendaries,
+                -- Nasz'uro has a single shared appearance across all four
+                -- difficulties. Restricted to Evokers; the row renders for
+                -- all classes with an "(Evoker only)" suffix so the
+                -- appearance is visible to non-Evoker collectors as well.
+                { id=204177, slot="Weapon",   name="Nasz'uro, the Unbound Legacy",     sources={ [17]=185459, [14]=185459, [15]=185459, [16]=185459 }, restrictedToClass=13 },
             },
             soloTip = "Oblivion stacks don't matter anymore, but avoid swirly/portal-looking areas on the ground. Stay away from the edge.",
-            -- The tmogFootnote field appears as a small footer line at the
-            -- bottom of the boss's transmog browser view. Used to surface
-            -- collectible context that doesn't fit the existing schema --
-            -- here, Sarkareth's Void-Touched Curio is an omnitoken that
-            -- exchanges for any tier slot. It doesn't fit tierSets.tokenSources
-            -- (which assumes a fixed itemID -> bossIndex -> slot mapping) so
-            -- it's deliberately not tracked, but a player viewing Sarkareth in
-            -- the browser deserves to know it exists.
-            --
-            -- Schema: tmogFootnote can be either a plain string (rendered
-            -- as-is) or a table { text=..., itemID=N }. With itemID, the
-            -- {item} placeholder in `text` gets substituted with a live
-            -- WoW item link via GetItemInfo(itemID), making the item
-            -- name clickable (opens tooltip / shift-click chats it).
+            -- Two omnitoken-shaped extras Sarkareth drops alongside his
+            -- regular loot: the Void-Touched Curio (any-tier-slot exchange)
+            -- and the Cracked Titan Gem (starts the quest chain that
+            -- rewards Nasz'uro for Evokers). Each surfaces as its own
+            -- footnote block.
             tmogFootnote = {
-                text   = "Sarkareth additionally drops {item}, an omnitoken that exchanges for any tier slot. Not tracked here.",
-                itemID = 206046,
+                {
+                    text   = "Sarkareth additionally drops {item}, an omnitoken that exchanges for any tier slot. Not tracked here.",
+                    itemID = 206046,
+                },
+                {
+                    text   = "Sarkareth also drops {item}, which starts the quest chain that rewards Nasz'uro, the Unbound Legacy (Evoker only).",
+                    itemID = 204255,
+                },
             },
         },
     },
@@ -440,9 +434,7 @@ RetroRuns_Data[2569] = {
         -- north toward stairs leading back into the Molten Crucible
         -- map. Seg 2 picks up on mapID 2166 (Molten Crucible) for the
         -- final approach -- killing the slimes en route spawns the
-        -- boss. Note: seg 2's subZone string reads "Onyx Laboratory"
-        -- because GetSubZoneText() hadn't refreshed by the click time;
-        -- the mapID is authoritative.
+        -- boss.
         {
             step      = 3,
             priority  = 1,
@@ -524,11 +516,7 @@ RetroRuns_Data[2569] = {
         -- Defiant Ramparts (mapID 2168) toward a doorway labeled
         -- Molten Crucible. Seg 2 picks up on mapID 2166 (Molten
         -- Crucible) for the final approach -- killing the trash
-        -- engages the boss. Note: seg 2's subZone string reads
-        -- "Aberrus, the Shadowed Crucible" (the parent raid name)
-        -- because GetSubZoneText() returned empty at click time and
-        -- the engine fell back to the zone name; the mapID is
-        -- authoritative.
+        -- engages the boss.
         {
             step      = 5,
             priority  = 1,
@@ -621,9 +609,7 @@ RetroRuns_Data[2569] = {
         -- Molten Crucible (mapID 2166) to the labeled Neltharion's
         -- Sanctum exit, then a drop-down. Seg 2 picks up on mapID
         -- 2169 (Neltharion's Sanctum); clearing the trash inside
-        -- spawns the encounter. Note: seg 1's subZone reads "Aberrus,
-        -- the Shadowed Crucible" (parent zone fallback from
-        -- GetSubZoneText returning empty); the mapID is authoritative.
+        -- spawns the encounter.
         {
             step      = 8,
             priority  = 1,

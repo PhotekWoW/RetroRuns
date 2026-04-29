@@ -211,36 +211,30 @@ local function BuildClassToGroupMap(activeGroupPrefixes)
     return map
 end
 
--- Token names contain a slot keyword that maps to one of the five tier slots.
--- Order matters: more specific keywords (helm) go before less specific (head).
--- Token-name keywords used to infer a token's slot. Historically this was
--- just body-part words (helm, shoulder, etc.) matching Sepulcher-era
--- "{Family} {Slot} Module" naming. DF Season 1 Vault of the Incarnates
--- broke that convention and encoded the slot as a gem name instead:
--- "Dreadful Jade Forgestone" drops on Sennarth and redeems for a Legs
--- piece. The gem->slot mapping there is:
---   Jade=Legs, Amethyst=Chest, Garnet=Hands, Lapis=Shoulders, Topaz=Head.
--- DF Season 2 Aberrus shifted again to verb-form scientific words paired
--- with "Fluid" -- "Mystic Cooling Fluid" drops on Rashok and redeems for
--- a Legs piece. The verb->slot mapping for Aberrus is:
---   Melting=Head, Corrupting=Shoulder, Ventilation=Chest,
---   Mixing=Hands, Cooling=Legs.
--- Future DF+ raids may continue inventing new conventions; extend this
--- table as needed.
+-- Body-keyword vocabulary for resolving a tier token's slot from its
+-- tooltip text. Each season Blizzard invents a new naming convention
+-- for the token names themselves (Sepulcher used "{Family} {Slot}
+-- Module" with the body word, then Vault encoded slot as a gem name,
+-- Aberrus shifted to verb-form "Fluid" words, Amirdrassil to
+-- adjective-form "Dreamheart" names, and so on). Rather than chase
+-- the marketing-copy treadmill, we read the token's actual tooltip
+-- via C_TooltipInfo.GetItemByID -- whose body text describes which
+-- slot the token converts into using stable English words ("Head",
+-- "Shoulders", "Chest", "Hands", "Legs"). The keyword table below
+-- only needs the universal body words; it doesn't need extension
+-- when a new season ships a new token-name convention.
+--
+-- Order matters: more specific keywords (helm) come before less
+-- specific (head). The first match in the lowercased tooltip text
+-- wins. Aligned with TransmogTokenTooltips' ParseSlotFromTooltip
+-- vocabulary (canonical reference for token-slot resolution).
 local TOKEN_SLOT_KEYWORDS = {
-    { keywords = { "helm", "head", "crown", "cowl",    "topaz",
-                                                       "melting"     }, slot = "Head"     },
-    { keywords = { "shoulder", "mantle", "pauldron", "spaulder",
-                                                      "lapis",
-                                                      "corrupting"   }, slot = "Shoulder" },
+    { keywords = { "helm", "head", "crown", "cowl", "faceguard" }, slot = "Head"     },
+    { keywords = { "shoulder", "mantle", "pauldron", "spaulder" }, slot = "Shoulder" },
     { keywords = { "chest", "robe", "tunic", "breastplate",
-                                                      "amethyst",
-                                                      "ventilation"  }, slot = "Chest"    },
-    { keywords = { "hand", "glove", "gauntlet", "grip",
-                                                      "garnet",
-                                                      "mixing"       }, slot = "Hands"    },
-    { keywords = { "leg", "pant", "breech", "kilt",   "jade",
-                                                      "cooling"      }, slot = "Legs"     },
+                                              "hauberk", "vest" }, slot = "Chest"    },
+    { keywords = { "hand", "glove", "gauntlet", "grip"          }, slot = "Hands"    },
+    { keywords = { "leg", "pant", "breech", "kilt"              }, slot = "Legs"     },
 }
 
 -------------------------------------------------------------------------------
@@ -295,13 +289,36 @@ local function DetectManuscript(itemID)
     return false, nil
 end
 
--- Parse a token name like "Mystic Leg Module" -> ("MYSTIC", "Legs").
--- Returns nil, nil if the name doesn't match the expected pattern.
-local function ParseTokenName(name)
+-- Resolve a tier token's (group, slot) tuple.
+--
+-- `group` (DREADFUL/MYSTIC/VENERATED/ZENITH and historical variants) is
+-- always the first whole word of the token's name -- that convention has
+-- been stable since the modern tier system (9.2 Sepulcher onward).
+--
+-- `slot` is more interesting. Historically we read it from the token's
+-- name too, which forced the keyword table to grow each season as
+-- Blizzard invented new naming conventions (gem encoding for Vault,
+-- "Fluid" verbs for Aberrus, "Dreamheart" adjectives for Amirdrassil...).
+-- Now we read it from the token's TOOLTIP via C_TooltipInfo.GetItemByID,
+-- whose body text describes the conversion target with stable English
+-- words ("Head", "Shoulders", etc.) regardless of marketing-name
+-- conventions. Approach mirrors TransmogTokenTooltips' ParseSlotFromTooltip.
+--
+-- Falls back to name-based matching against the same keyword table when
+-- the tooltip lookup is unavailable (rare; Blizzard caches tooltips
+-- aggressively, but a freshly-uncached call from a cold harvest can
+-- briefly return nil). The fallback won't catch seasonal-adjective
+-- tokens, but on first invocation those resolve via tooltip; the
+-- fallback exists to handle race conditions, not as a real plan-B.
+--
+-- Returns (group, slot). Either or both may be nil if resolution fails.
+local function ParseTokenName(itemID, name)
     if not name then return nil, nil end
     local lower = name:lower()
 
-    -- Group prefix: first whole word that matches a known group.
+    -- Group prefix: first whole word that matches a known group. Class-
+    -- family words live in the token name itself across every tier
+    -- season, so this stays name-driven.
     local group
     for prefix in pairs(TIER_GROUPS) do
         if lower:find("^" .. prefix:lower() .. "[%s'%-]") then
@@ -310,16 +327,42 @@ local function ParseTokenName(name)
         end
     end
 
-    -- Slot: any matching keyword in the rest of the name.
+    -- Slot: scan the token's tooltip body for slot keywords first.
     local slot
-    for _, def in ipairs(TOKEN_SLOT_KEYWORDS) do
-        for _, kw in ipairs(def.keywords) do
-            if lower:find(kw, 1, true) then
-                slot = def.slot
-                break
+    if itemID and C_TooltipInfo and C_TooltipInfo.GetItemByID then
+        local td = C_TooltipInfo.GetItemByID(itemID)
+        if td and td.lines then
+            local buf = {}
+            for _, line in ipairs(td.lines) do
+                if line.leftText then buf[#buf+1] = line.leftText:lower() end
+                if line.rightText then buf[#buf+1] = line.rightText:lower() end
+            end
+            local tooltipText = table.concat(buf, " ")
+            for _, def in ipairs(TOKEN_SLOT_KEYWORDS) do
+                for _, kw in ipairs(def.keywords) do
+                    if tooltipText:find(kw, 1, true) then
+                        slot = def.slot
+                        break
+                    end
+                end
+                if slot then break end
             end
         end
-        if slot then break end
+    end
+
+    -- Fallback: scan the name itself. Only catches tokens whose names
+    -- happen to contain a body word (Sepulcher-era "{Family} {Slot}
+    -- Module" matches; DF-and-onward marketing-name conventions don't).
+    if not slot then
+        for _, def in ipairs(TOKEN_SLOT_KEYWORDS) do
+            for _, kw in ipairs(def.keywords) do
+                if lower:find(kw, 1, true) then
+                    slot = def.slot
+                    break
+                end
+            end
+            if slot then break end
+        end
     end
 
     return group, slot
@@ -704,6 +747,217 @@ function RR:EjProbe(needleItemID)
         body)
     self:Print(("ejprobe complete: %d total entries, %d for selected encounter. Window opened."):format(
         entriesTotal, entriesForEnc))
+end
+
+-------------------------------------------------------------------------------
+-- TierProbe: dump what C_TransmogSets returns for a given tier itemID.
+--
+-- Diagnostic for tmogverify ERR rows where the harvester wrote sourceIDs
+-- that don't match the row's itemID. Walks every set whose `setInfo.label`
+-- matches the current raid (or all sets if no raid loaded), pulls
+-- GetSourcesForSlot for every TIER_INVSLOT, and reports which of the
+-- returned sources actually have the queried itemID. Read-only --
+-- no data is written or modified.
+--
+-- Usage:
+--   /rr tierprobe <itemID>
+--
+-- Example: /rr tierprobe 207257   (Benevolent Embersage's Robe, the row
+-- whose sources came back wrong on Nymue Druid Chest in Amirdrassil)
+-------------------------------------------------------------------------------
+function RR:TierProbe(needleItemID)
+    needleItemID = tonumber(needleItemID)
+    if not needleItemID then
+        self:Print("Usage: /rr tierprobe <itemID>  (e.g. 207257)")
+        return
+    end
+
+    local out = {}
+    local function add(s) table.insert(out, s) end
+
+    add(("tierprobe: itemID=%d"):format(needleItemID))
+    add("")
+
+    if not C_TransmogSets or not C_TransmogSets.GetAllSets then
+        add("C_TransmogSets API not available on this client.")
+        self:ShowCopyWindow("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaa/rr tierprobe|r",
+            table.concat(out, "\n"))
+        return
+    end
+
+    -- Try to scope to the current raid's tierSets.labels. If no raid is
+    -- loaded, scan all sets (verbose but useful for cross-raid diagnosis).
+    local labelSet = {}
+    local currentRaid = self:GetSupportedRaid()
+    if currentRaid and currentRaid.tierSets and currentRaid.tierSets.labels then
+        for _, lab in ipairs(currentRaid.tierSets.labels) do
+            labelSet[lab] = true
+        end
+        add(("scoping to raid: %s  (labels: %d)"):format(
+            currentRaid.name or "?", #currentRaid.tierSets.labels))
+    else
+        add("no raid loaded -- scanning ALL sets (output may be large)")
+    end
+    add("")
+
+    local TIER_SLOTS = {
+        { invslot = 1,  name = "Head"     },
+        { invslot = 3,  name = "Shoulder" },
+        { invslot = 5,  name = "Chest"    },
+        { invslot = 7,  name = "Legs"     },
+        { invslot = 10, name = "Hands"    },
+    }
+
+    local allSets = C_TransmogSets.GetAllSets() or {}
+    local hits = 0
+    local setsExamined = 0
+
+    for _, setInfo in ipairs(allSets) do
+        local inScope = (next(labelSet) == nil) or (setInfo.label and labelSet[setInfo.label])
+        if inScope and setInfo.classMask and setInfo.classMask > 0 then
+            setsExamined = setsExamined + 1
+            -- Decode classMask -> classID
+            local m = setInfo.classMask
+            local bitpos = 0
+            while m > 1 do m = bit.rshift(m, 1); bitpos = bitpos + 1 end
+            local classID = bitpos + 1
+
+            for _, slotDef in ipairs(TIER_SLOTS) do
+                local sources = C_TransmogSets.GetSourcesForSlot(setInfo.setID, slotDef.invslot)
+                if sources and #sources > 0 then
+                    -- Look for our needle in this slot's source list
+                    local needleIdx
+                    for i, src in ipairs(sources) do
+                        if src.itemID == needleItemID then
+                            needleIdx = i
+                            break
+                        end
+                    end
+
+                    if needleIdx then
+                        hits = hits + 1
+                        add(("--- HIT: setID=%d  classID=%d  slot=%s  desc=%q"):format(
+                            setInfo.setID, classID, slotDef.name,
+                            setInfo.description or ""))
+                        add(("  setLabel: %q"):format(setInfo.label or ""))
+
+                        add(("  GetSourcesForSlot returned %d source(s):"):format(#sources))
+                        for i, src in ipairs(sources) do
+                            local marker = (i == needleIdx) and "  <-- needle" or ""
+                            local pickedByHarvester = (i == 1) and "  [harvester picks this]" or ""
+
+                            -- Tiebreaker probe: count how many OTHER tier sets
+                            -- at the same difficulty (same description) return
+                            -- this same sourceID for the same slot. Hypothesis:
+                            -- the real tier source appears in exactly one set
+                            -- (its own); doppelganger appears in multiple.
+                            local crossClassCount = 0
+                            local crossClassSetIDs = {}
+                            for _, otherSetInfo in ipairs(allSets) do
+                                if otherSetInfo.setID ~= setInfo.setID
+                                   and otherSetInfo.label
+                                   and labelSet[otherSetInfo.label]
+                                   and otherSetInfo.description == setInfo.description
+                                   and otherSetInfo.classMask
+                                   and otherSetInfo.classMask > 0 then
+                                    local otherSources = C_TransmogSets.GetSourcesForSlot(
+                                        otherSetInfo.setID, slotDef.invslot)
+                                    if otherSources then
+                                        for _, otherSrc in ipairs(otherSources) do
+                                            if otherSrc.sourceID == src.sourceID then
+                                                crossClassCount = crossClassCount + 1
+                                                table.insert(crossClassSetIDs, otherSetInfo.setID)
+                                                break
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                            local crossMarker = (" crossClass=%d"):format(crossClassCount)
+                            if crossClassCount > 0 then
+                                crossMarker = crossMarker .. " {" ..
+                                    table.concat(crossClassSetIDs, ",") .. "}"
+                            end
+
+                            -- useError: present when the appearance is class-
+                            -- restricted away from the player. nil for non-
+                            -- class-restricted items (doppelgangers) and for
+                            -- items the player's class CAN wear.
+                            local useErrorMarker = ""
+                            if C_TransmogCollection and C_TransmogCollection.GetSourceInfo and src.sourceID then
+                                local info = C_TransmogCollection.GetSourceInfo(src.sourceID)
+                                if info then
+                                    if info.useError then
+                                        useErrorMarker = " useError=set"
+                                    else
+                                        useErrorMarker = " useError=nil"
+                                    end
+                                end
+                            end
+
+                            -- Tooltip class-restriction scan: read the item's
+                            -- tooltip body and look for "Classes:" or
+                            -- "Requires <Class>" lines. The actual tier piece
+                            -- is class-restricted; the doppelganger isn't.
+                            local classRestrictionMarker = " classRestriction=?"
+                            if C_TooltipInfo and C_TooltipInfo.GetItemByID and src.itemID then
+                                local td = C_TooltipInfo.GetItemByID(src.itemID)
+                                if td and td.lines then
+                                    local found
+                                    for _, line in ipairs(td.lines) do
+                                        local lt = line.leftText
+                                        if lt then
+                                            -- Match "Classes: Warrior" or
+                                            -- "Classes: Death Knight, Warrior" etc.
+                                            local cap = lt:match("^Classes:%s*(.+)$")
+                                            if cap then
+                                                found = cap
+                                                break
+                                            end
+                                        end
+                                    end
+                                    if found then
+                                        classRestrictionMarker = (' classRestriction="%s"'):format(found)
+                                    else
+                                        classRestrictionMarker = " classRestriction=none"
+                                    end
+                                else
+                                    classRestrictionMarker = " classRestriction=tooltip-not-loaded"
+                                end
+                            end
+
+                            add(("    [%d]  sourceID=%d  itemID=%d  name=%q%s%s%s%s%s"):format(
+                                i,
+                                src.sourceID or -1,
+                                src.itemID or -1,
+                                src.name or "?",
+                                useErrorMarker,
+                                crossMarker,
+                                classRestrictionMarker,
+                                pickedByHarvester,
+                                marker))
+                        end
+                        add("")
+                    end
+                end
+            end
+        end
+    end
+
+    add(("--- Summary: examined %d sets, found %d hit(s) for itemID=%d ---"):format(
+        setsExamined, hits, needleItemID))
+    if hits == 0 then
+        add("")
+        add("No tier set in scope contains a source with this itemID.")
+        add("Verify the itemID is a real tier piece, or scope to a different raid.")
+    end
+
+    local body = table.concat(out, "\n")
+    self:SetSetting("lastTierProbe", body)
+    self:ShowCopyWindow(
+        "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaa/rr tierprobe|r",
+        body)
+    self:Print(("tierprobe complete: %d hit(s). Window opened."):format(hits))
 end
 
 -------------------------------------------------------------------------------
@@ -1572,6 +1826,98 @@ SET_DESCRIPTION_TO_DIFFICULTY[PLAYER_DIFFICULTY1 or "Normal"]      = 14  -- Norm
 SET_DESCRIPTION_TO_DIFFICULTY[PLAYER_DIFFICULTY2 or "Heroic"]      = 15  -- Heroic
 SET_DESCRIPTION_TO_DIFFICULTY[PLAYER_DIFFICULTY3 or "Mythic"]      = 16  -- Mythic
 
+-------------------------------------------------------------------------------
+-- Localized class name -> classID map. Built at addon-load time from the
+-- client's LOCALIZED_CLASS_NAMES_{MALE,FEMALE} globals so locale-specific
+-- tooltip lines like "Classes: Warlock" / "Classes : Démoniste" / etc. can
+-- be resolved to a Blizzard classID (1..13).
+--
+-- Used by ParseItemClassRestriction to disambiguate tier-set sources when
+-- C_TransmogSets.GetSourcesForSlot returns multiple candidates for the same
+-- (set, slot, difficulty) -- the actual tier piece is class-locked to the
+-- set's classID; the doppelganger has no class restriction.
+--
+-- Both male and female forms are inserted because some locales gender class
+-- names. Both keys map to the same classID, so any tooltip line lookup
+-- works regardless of which form Blizzard chose.
+-------------------------------------------------------------------------------
+local CLASSNAME_TO_CLASSID = {}
+do
+    local CLASS_FILES = {
+        WARRIOR     = 1,
+        PALADIN     = 2,
+        HUNTER      = 3,
+        ROGUE       = 4,
+        PRIEST      = 5,
+        DEATHKNIGHT = 6,
+        SHAMAN      = 7,
+        MAGE        = 8,
+        WARLOCK     = 9,
+        MONK        = 10,
+        DRUID       = 11,
+        DEMONHUNTER = 12,
+        EVOKER      = 13,
+    }
+    for cf, cid in pairs(CLASS_FILES) do
+        local male   = LOCALIZED_CLASS_NAMES_MALE   and LOCALIZED_CLASS_NAMES_MALE[cf]
+        local female = LOCALIZED_CLASS_NAMES_FEMALE and LOCALIZED_CLASS_NAMES_FEMALE[cf]
+        if male   then CLASSNAME_TO_CLASSID[male]   = cid end
+        if female then CLASSNAME_TO_CLASSID[female] = cid end
+    end
+end
+
+-------------------------------------------------------------------------------
+-- ParseItemClassRestriction(itemID) -> { [classID] = true, ... } or nil
+--
+-- Reads the item's tooltip body via C_TooltipInfo.GetItemByID, looks for
+-- the locale-aware ITEM_CLASSES_ALLOWED line ("Classes: <list>" in en-US),
+-- splits the comma-separated class-name list, and returns a set of classIDs.
+-- Returns nil if the item has no class restriction line, or if the tooltip
+-- API isn't available.
+--
+-- Used by the tier resolver to pick the correct source when GetSourcesForSlot
+-- returns multiple candidates per (set, slot, difficulty). The class-locked
+-- source is the actual tier piece; an unrestricted source is the doppelganger
+-- non-tier drop that shares the visual.
+-------------------------------------------------------------------------------
+local function ParseItemClassRestriction(itemID)
+    if not itemID or not C_TooltipInfo or not C_TooltipInfo.GetItemByID then
+        return nil
+    end
+    local td = C_TooltipInfo.GetItemByID(itemID)
+    if not td or not td.lines then return nil end
+
+    -- ITEM_CLASSES_ALLOWED is the format string for the "Classes:" tooltip
+    -- line (e.g. "Classes: %s" in en-US, "Classes : %s" in French). We
+    -- strip the "%s" placeholder to get the literal prefix to match against.
+    local prefix
+    if ITEM_CLASSES_ALLOWED then
+        prefix = ITEM_CLASSES_ALLOWED:gsub("%%s.*$", "")
+    end
+    -- Defensive fallback for unusual locales where the global is missing.
+    if not prefix or prefix == "" then prefix = "Classes:" end
+
+    local classes
+    for _, line in ipairs(td.lines) do
+        local lt = line.leftText
+        if lt and lt:sub(1, #prefix) == prefix then
+            local list = lt:sub(#prefix + 1):gsub("^%s+", "")
+            -- Split on ", " (single locales may use "、" or others; this
+            -- covers the common cases and falls through to single-class).
+            classes = {}
+            for name in list:gmatch("([^,]+)") do
+                local trimmed = name:gsub("^%s+", ""):gsub("%s+$", "")
+                local cid = CLASSNAME_TO_CLASSID[trimmed]
+                if cid then classes[cid] = true end
+            end
+            break
+        end
+    end
+
+    if classes and next(classes) then return classes end
+    return nil
+end
+
 -- Forward-declared; body below.
 local CollectTierSets_Build
 
@@ -1605,8 +1951,25 @@ local function CollectTierSets(tierSets, onDone)
             for _, slotDef in ipairs(TIER_INVSLOTS) do
                 local sources =
                     C_TransmogSets.GetSourcesForSlot(setInfo.setID, slotDef.id)
-                if sources and sources[1] and sources[1].itemID then
-                    GetItemInfo(sources[1].itemID)   -- queue async load
+                if sources then
+                    -- Warm the GetItemInfo cache for every candidate source,
+                    -- not just sources[1]. The class-restriction-aware
+                    -- selector below may pick any element of the list, so all
+                    -- of them need their names cached for the row builder
+                    -- to produce a populated itemName.
+                    --
+                    -- Also touch C_TooltipInfo.GetItemByID for each candidate
+                    -- to prime the tooltip cache. ParseItemClassRestriction
+                    -- reads tooltip body lines for the "Classes:" line, and
+                    -- the first call returns nil while the data fetches.
+                    for _, src in ipairs(sources) do
+                        if src.itemID then
+                            GetItemInfo(src.itemID)
+                            if C_TooltipInfo and C_TooltipInfo.GetItemByID then
+                                C_TooltipInfo.GetItemByID(src.itemID)
+                            end
+                        end
+                    end
                 end
             end
         end
@@ -1650,7 +2013,7 @@ function CollectTierSets_Build(tierSets)
         -- tokenSources via /rr tiersets if names are stale.
         local tokenName = (GetItemInfo(tokenID))
         if tokenName then
-            local group, slot = ParseTokenName(tokenName)
+            local group, slot = ParseTokenName(tokenID, tokenName)
             if group and slot then
                 -- `bossIdxVal` is either a scalar bossIndex (Sepulcher
                 -- schema shape) or a list of bossIndexes (Castle Nathria
@@ -1715,10 +2078,37 @@ function CollectTierSets_Build(tierSets)
                     local sources =
                         C_TransmogSets.GetSourcesForSlot(setInfo.setID, slotDef.id)
                     if sources and #sources > 0 then
-                        -- All sources from one setID belong to the same
-                        -- difficulty (the setID's difficulty). First source
-                        -- wins; extras are shared-look variants we don't track.
-                        local primary = sources[1]
+                        -- C_TransmogSets.GetSourcesForSlot can return multiple
+                        -- sources per (set, slot) -- the canonical class-locked
+                        -- tier piece plus zero or more shared-visual non-tier
+                        -- doppelgangers. Order is unstable across difficulties,
+                        -- so blindly picking sources[1] sometimes returns the
+                        -- doppelganger instead of the tier piece, producing
+                        -- rows with the wrong itemID + sourceID combination.
+                        --
+                        -- Disambiguate by class restriction: the tier piece is
+                        -- class-locked to this set's classID; a doppelganger
+                        -- has no class restriction. Pick the first source
+                        -- whose itemID is class-restricted to `classID`.
+                        --
+                        -- If no source has a matching class restriction (item
+                        -- might be cache-cold, or the API surface might change
+                        -- in a future patch), fall back to sources[1] so we
+                        -- never produce a row with no source. The fallback
+                        -- preserves prior behavior for pre-DF tier sets that
+                        -- don't exhibit the doppelganger pattern.
+                        local primary
+                        for _, src in ipairs(sources) do
+                            if src.itemID then
+                                local restrictions = ParseItemClassRestriction(src.itemID)
+                                if restrictions and restrictions[classID] then
+                                    primary = src
+                                    break
+                                end
+                            end
+                        end
+                        if not primary then primary = sources[1] end
+
                         if primary and primary.sourceID and primary.itemID then
                             local key = classID .. ":" .. slotDef.slot
                             local row = rows[key]
@@ -2172,7 +2562,7 @@ local function CollectEncounterTokens(journalInstanceID, journalEncounterID,
                     if not accept and nameStr and C_TransmogCollection then
                         local appearanceID = C_TransmogCollection.GetItemInfo(info.itemID)
                         if appearanceID == nil then
-                            local g, s = ParseTokenName(nameStr)
+                            local g, s = ParseTokenName(info.itemID, nameStr)
                             if g and s then accept = true end
                         end
                     end
@@ -2281,7 +2671,7 @@ function RR:DumpTransmogSets()
         local allTierTokens     = {}    -- flat: { { itemID, name, bossIdx, group, slot }, ... }
         for bIdx, list in pairs(tokensByBoss) do
             for _, tok in ipairs(list) do
-                local group, slot = ParseTokenName(tok.name)
+                local group, slot = ParseTokenName(tok.itemID, tok.name)
                 if group and slot then
                     tierTokensByBoss[bIdx] = tierTokensByBoss[bIdx] or {}
                     table.insert(tierTokensByBoss[bIdx], tok)
@@ -2378,20 +2768,22 @@ function RR:DumpTransmogSets()
         table.insert(out, ("-- Bosses scanned: %d  Tier tokens: %d  Non-tier no-appearance items: %d"):format(
             #bosses, tokenCount, nonTierTokenCount))
 
-        -- WARNING when tokens=0 but a raid label DID match. With the new
-        -- token detection (equipLoc=="" + ParseTokenName, both
-        -- collection-state-independent), this should be rare -- it would
-        -- indicate the raid uses a non-standard tier token naming convention
-        -- that ParseTokenName doesn't recognize, OR the raid genuinely
-        -- doesn't have tier tokens despite having matching set labels.
+        -- WARNING when tokens=0 but a raid label DID match. With tooltip-
+        -- based slot resolution this should be very rare -- the body
+        -- words ("Head", "Shoulders", etc.) appear in every standard
+        -- tier-token tooltip. Triggers indicate either a tooltip-API
+        -- failure on every token (improbable; tooltips are aggressively
+        -- cached client-side) or a raid that has matching set labels
+        -- but no actual tier tokens (e.g. seasonal sets sharing the
+        -- raid's name).
         --
         -- In either case, the READY-TO-PASTE block below will be empty.
         -- Don't paste an empty tokenSources over a working one.
         if tokenCount == 0 and next(matchedLabels) ~= nil then
             table.insert(out, "")
             table.insert(out, "-- !! WARNING !! Tier-set labels matched but ZERO tier tokens were")
-            table.insert(out, "-- detected. Possible causes: this raid uses a non-standard tier")
-            table.insert(out, "-- token naming convention that ParseTokenName doesn't recognize,")
+            table.insert(out, "-- detected. Possible causes: tooltip lookup failed for every")
+            table.insert(out, "-- token (try /reload and re-run -- caches refresh on UI reload),")
             table.insert(out, "-- or the raid has set labels but no actual tokens (e.g. some")
             table.insert(out, "-- non-tier seasonal sets share labels with the raid name).")
             table.insert(out, "-- The READY-TO-PASTE block below will be EMPTY -- do NOT paste it")
@@ -2453,7 +2845,7 @@ function RR:DumpTransmogSets()
                 sawAnyTier = true
                 table.insert(out, ("Boss %d: %s"):format(b.index, b.name))
                 for _, tok in ipairs(list) do
-                    local g, s = ParseTokenName(tok.name)
+                    local g, s = ParseTokenName(tok.itemID, tok.name)
                     table.insert(out, ("    [%d] %s   -- group=%s slot=%s"):format(
                         tok.itemID, tok.name, tostring(g), tostring(s)))
                 end
@@ -2617,7 +3009,7 @@ function RR:DiscoverTierSets(onDone)
         local allTierTokens = {}
         for bIdx, list in pairs(tokensByBoss) do
             for _, tok in ipairs(list) do
-                local group, slot = ParseTokenName(tok.name)
+                local group, slot = ParseTokenName(tok.itemID, tok.name)
                 if group and slot then
                     table.insert(allTierTokens, {
                         itemID  = tok.itemID,
@@ -2768,27 +3160,28 @@ function RR:DiscoverTierSets(onDone)
 end
 
 -------------------------------------------------------------------------------
--- RaidCapture: consolidated single-command flow for new-raid bring-up.
+-- RaidCapture: single-command flow for new-raid bring-up.
 --
--- Replaces the manual three-step workflow:
---   1. /rr harvest   (no tier rows -- tierSets.labels not yet known)
---   2. /rr tiersets  (discover labels + tokenSources, hand-paste into data file)
---   3. /rr harvest   (now produces tier rows because labels are configured)
+-- Runs tier-set discovery, validates the result, and harvests using the
+-- just-discovered tierCfg in-memory (no data-file edit required mid-flow).
+-- The bundled output includes both the tierSets paste-block and the per-
+-- boss loot blocks, so one paste covers everything.
 --
--- ...with a single /rr raidcapture call that runs discovery, validates the
--- result, and harvests using the just-discovered tierCfg in-memory (no data-
--- file edit required mid-flow). The bundled output includes both the tierSets
--- paste-block and the per-boss loot blocks, so one paste covers everything.
+-- The discovery (DiscoverTierSets) and harvest (RunHarvest) phases were
+-- originally exposed as separate /rr tiersets and /rr harvest commands;
+-- those were collapsed into this consolidated flow as of v0.7.0 and are
+-- no longer user-facing. The implementation functions remain (RaidCapture
+-- calls them internally) but are not invocable from chat.
 --
 -- DATA-QUALITY SAFEGUARD: if discovery returns labels-with-zero-tokens, abort
--- loudly. That case indicates a token-naming convention TOKEN_SLOT_KEYWORDS
--- doesn't recognize -- proceeding would silently produce a tier-row-less
--- harvest that LOOKS complete. The user should extend the keyword table or
--- fall back to the manual /rr harvest + /rr tiersets workflow to investigate.
+-- loudly. With tooltip-based slot resolution this is very rare -- it would
+-- indicate either a transient tooltip-cache miss across every token (try
+-- /reload and re-run; tooltips refresh on UI reload) or a raid that has
+-- matching set labels but no actual tier tokens (e.g. seasonal sets that
+-- share the raid's name). Proceeding past this case would silently produce
+-- a tier-row-less harvest that LOOKS complete.
 -- (Zero labels AND zero tokens is a different case: the raid genuinely has
 -- no tier set, like Sanctum -- proceed with a one-line warning.)
---
--- Existing /rr harvest and /rr tiersets remain untouched as fallbacks.
 -------------------------------------------------------------------------------
 function RR:RaidCapture()
     if not RR.currentRaid then
@@ -2808,10 +3201,10 @@ function RR:RaidCapture()
 
         if info.labelCount > 0 and info.tokenCount == 0 then
             self:Print("|cffff5555raidcapture aborted:|r tier-set labels matched but ZERO tier")
-            self:Print("tokens were detected. Likely cause: this raid uses a token-naming")
-            self:Print("convention that TOKEN_SLOT_KEYWORDS (Harvester.lua) doesn't recognize.")
-            self:Print("Extend the keyword table or use the manual /rr harvest + /rr tiersets")
-            self:Print("workflow to investigate.")
+            self:Print("tokens were detected. Most likely cause: a transient tooltip-cache")
+            self:Print("miss. Try /reload and re-run -- tooltip data refreshes on UI reload.")
+            self:Print("If the issue persists, the raid may have matching set labels but no")
+            self:Print("actual tier tokens (a seasonal set sharing the raid's name).")
             return
         end
 

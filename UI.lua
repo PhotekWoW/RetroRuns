@@ -162,6 +162,18 @@ panel.mapBtn:SetPoint("TOPRIGHT", -36, -36)
 panel.mapBtn:SetText("Map")
 panel.mapBtn:SetScript("OnClick", function() RR:ShowCurrentMapForStep() end)
 
+-- Tmog button
+-- Anchored to the left of the Map button. Always enabled regardless of
+-- panel state (in-raid, idle, or run-complete) because the transmog
+-- browser preserves its last-browsed selection across openings, so it
+-- has something useful to show even when no raid is loaded. Mirrors
+-- `/rr tmog` slash command behavior.
+panel.tmogBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+panel.tmogBtn:SetSize(60, 20)
+panel.tmogBtn:SetPoint("RIGHT", panel.mapBtn, "LEFT", -4, 0)
+panel.tmogBtn:SetText("Tmog")
+panel.tmogBtn:SetScript("OnClick", function() UI.ToggleTransmogBrowser() end)
+
 -- -- Body fields --------------------------------------------------------------
 
 local function AddField(anchor, anchorPoint, relPoint, offsetY, width, template)
@@ -200,7 +212,10 @@ panel.travel    = AddField(panel.next,     "TOPLEFT", "BOTTOMLEFT", -12, BODY_WI
 -- bosses with custom notes (player clicks to view); for bosses with
 -- no custom note ("Standard Nuke" or empty), the line reads "Standard"
 -- and isn't clickable. Single global expand/collapse state stored in
--- RetroRunsDB.encounterExpanded -- one click affects all bosses.
+-- RetroRunsDB.encounterExpanded; one click affects all bosses for the
+-- rest of the session, but the value is reset to false on each
+-- PLAYER_LOGIN (Core.lua) so every session begins collapsed regardless
+-- of prior expand history.
 panel.encounter = CreateFrame("Button", nil, panel)
 panel.encounter:SetPoint("TOPLEFT", panel.travel, "BOTTOMLEFT", 0, -8)
 panel.encounter:SetSize(BODY_WIDTH, 14)
@@ -239,10 +254,25 @@ end)
 panel.encounter:SetScript("OnEnter", function(self)
     if self.clickable then
         self.label:SetTextColor(1.0, 0.85, 0.0, 1.0)
+        -- Surface the difficulty disclaimer at the moment the player
+        -- engages with the soloTip. Notes are authored against Mythic
+        -- mechanics by convention; lower-difficulty raids may streamline
+        -- or omit some of the described abilities.
+        --
+        -- Cursor-anchored rather than panel-anchored because the main
+        -- panel typically sits flush with the right edge of the screen,
+        -- where a panel-right-anchored tooltip would render offscreen.
+        GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
+        GameTooltip:AddLine("Boss Encounter Notes", 1.0, 1.0, 1.0)
+        GameTooltip:AddLine(
+            "Notes assume Mythic difficulty. Some notes may not apply on lower difficulties.",
+            1.0, 0.82, 0.0, true)
+        GameTooltip:Show()
     end
 end)
 panel.encounter:SetScript("OnLeave", function(self)
     self.label:SetTextColor(1.0, 1.0, 1.0, 1.0)
+    GameTooltip:Hide()
 end)
 panel.encounter:RegisterForClicks("LeftButtonUp")
 panel.encounter:SetScript("OnClick", function(self)
@@ -369,6 +399,71 @@ panel.list:SetPoint("TOPLEFT", panel.listHeader, "BOTTOMLEFT", 0, -8)
 panel.list:SetWidth(BODY_WIDTH)
 panel.list:SetJustifyH("LEFT")
 panel.list:SetJustifyV("TOP")
+
+-- Pool of invisible Button overlays for the [+] / [-] toggles in the
+-- idle-state supported-raids list and run-complete state's "Where to
+-- next" list. Each Button is positioned over the toggle marker on a
+-- specific line of panel.list, scaled to cover the [+]/[-] glyph plus
+-- a small hit-zone padding. Created lazily on demand and parked on
+-- the side when not needed (Hide()'d, but kept in the pool for reuse
+-- on the next refresh so we're not creating frames in a tight loop).
+--
+-- Why a separate Button pool instead of FontString hyperlinks: the
+-- panel's draggable LeftButton + invisible overlay buttons in the
+-- middle of the layout (panel.encounter, panel.transmog) compete
+-- with hyperlink hit detection in WoW's mouse dispatch. Hyperlinks
+-- on the topmost line specifically end up needing two clicks to
+-- register because the first click is consumed by another hit
+-- target. Using dedicated Button frames sidesteps the issue
+-- entirely -- Button click handling is the most reliable path
+-- through WoW's mouse system.
+panel.expansionToggleButtons = {}
+panel.expansionToggleButtonPool = {}
+
+-- Borrow a Button from the pool, creating one if the pool is empty.
+-- Returned Buttons are blank/Hide()n; callers configure and Show().
+local function AcquireExpansionToggleButton()
+    local btn = table.remove(panel.expansionToggleButtonPool)
+    if btn then return btn end
+    btn = CreateFrame("Button", nil, panel)
+    -- Width covers the "[+]" / "[-]" glyph plus a small buffer so
+    -- the click target stays forgiving. Height is set per-call to
+    -- match the measured rendered line height.
+    btn:SetSize(22, 14)
+    btn:RegisterForClicks("LeftButtonUp")
+    -- Bump frame level so toggle buttons sit above any other panel
+    -- children at the same screen position.
+    btn:SetFrameLevel((panel:GetFrameLevel() or 0) + 10)
+    return btn
+end
+
+-- Return all currently-active toggle Buttons to the pool. Called
+-- before each idle-state refresh so the next refresh can reposition
+-- a fresh set without leaking widgets.
+local function ReleaseExpansionToggleButtons()
+    for _, btn in ipairs(panel.expansionToggleButtons) do
+        btn:Hide()
+        btn:SetScript("OnClick", nil)
+        btn:SetScript("OnEnter", nil)
+        btn:ClearAllPoints()
+        table.insert(panel.expansionToggleButtonPool, btn)
+    end
+    wipe(panel.expansionToggleButtons)
+end
+
+-- Position Button N from the active set over line `lineIndex` of
+-- panel.list, where line 1 is the topmost rendered line. lineHeight
+-- comes from RR's font-size setting (matches AutoSize's formula so
+-- the click region exactly matches the visible glyph row).
+local function PositionExpansionToggleButton(btn, lineIndex, lineHeight)
+    btn:ClearAllPoints()
+    -- Anchor to panel.list's TOPLEFT, offset down by (lineIndex - 1)
+    -- line heights. WoW's coordinate system is screen-up, so a
+    -- negative Y offset moves the anchor downward visually (which
+    -- is what we want for line 2, line 3, ...).
+    btn:SetPoint("TOPLEFT", panel.list, "TOPLEFT", 0, -(lineIndex - 1) * lineHeight)
+    btn:SetHeight(lineHeight)
+end
 
 -- Footer (two rows):
 --   Bottom row: "Created by Photek" on the left, version on the right,
@@ -960,20 +1055,28 @@ local function GetBestMapForStep(step)
     if not step then return nil end
     local playerMapID = C_Map and C_Map.GetBestMapForUnit and
                         C_Map.GetBestMapForUnit("player")
-    local worldMapID  = WorldMapFrame and WorldMapFrame:GetMapID()
-    for _, mapID in ipairs({ playerMapID, worldMapID }) do
-        if mapID then
-            if step.segments then
-                for _, seg in ipairs(step.segments) do
-                    if seg.mapID == mapID then return mapID end
-                end
-            elseif step.mapID == mapID then
-                return mapID
+    -- Only consider playerMapID for travel-pane segment matching. The
+    -- world map's currently-displayed mapID can be stale (the player
+    -- may have last viewed a different sub-zone), so using it can
+    -- surface a wrong-step-segment note. Map RENDERING does use
+    -- worldMapID -- that's the right input for "draw segments on
+    -- whichever map is visible" -- but text matching needs to follow
+    -- the player's physical location.
+    if playerMapID then
+        if step.segments then
+            for _, seg in ipairs(step.segments) do
+                if seg.mapID == playerMapID then return playerMapID end
             end
+        elseif step.mapID == playerMapID then
+            return playerMapID
         end
     end
-    return playerMapID or worldMapID
+    return playerMapID
 end
+-- Exposed on the UI namespace so out-of-file callers (e.g. the
+-- /rr traveldebug slash dispatch in Core.lua) can use the same map-
+-- resolution logic the renderer uses, rather than reimplementing it.
+UI.GetBestMapForStep = GetBestMapForStep
 
 -- Per-difficulty pill row text. Renders as a bracketed pipe-separated
 -- strip matching the tmog dot row's visual style (BuildPerDiffRow at
@@ -1022,42 +1125,73 @@ local function BuildPillsText()
         .. "|cff777777 ]|r"
 end
 
+-- Last-rendered travel text, cached so the pane can freeze for the
+-- duration of a boss fight. Set on every non-frozen render below;
+-- returned verbatim while RR.state.inEncounter is true. Cleared on
+-- ENCOUNTER_END (Core.lua) which triggers a re-render with the next
+-- step's pre-pull text. Rationale: mid-fight platform changes report
+-- different mapIDs (Tindral phase 2 Northern Boughs, etc.) that
+-- don't match the pre-pull segment, leading to stale "(Open map for
+-- directions)" fallbacks during the fight. Freezing avoids surfacing
+-- these mid-encounter regressions.
+local lastTravelText = nil
+
 local function BuildTravelText(step)
     local prefix = ("|cff%sTraveling:|r "):format(C_LABEL)
     if not step then return prefix .. "N/A" end
-    local mapID = GetBestMapForStep(step)
-    if step.segments and mapID then
-        local relevant = RR:GetRelevantSegmentsForMap(step, mapID)
-        for _, seg in ipairs(relevant) do
-            if seg.note then return prefix .. HighlightNames(seg.note) end
-        end
-        for _, seg in ipairs(step.segments) do
-            if seg.mapID == mapID and seg.note then
-                return prefix .. HighlightNames(seg.note)
+
+    -- Encounter-freeze: while a boss fight is active, return the last
+    -- text we rendered before the fight started. Avoids mid-fight
+    -- mapID-driven flicker / stale text.
+    if RR.state and RR.state.inEncounter and lastTravelText then
+        return lastTravelText
+    end
+
+    -- Compute the current text. Single internal helper so every return
+    -- path funnels through one cache-update at the bottom of this
+    -- function.
+    local function compute()
+        local mapID = GetBestMapForStep(step)
+        if step.segments and mapID then
+            local relevant = RR:GetRelevantSegmentsForMap(step, mapID)
+            for _, seg in ipairs(relevant) do
+                if seg.note then return prefix .. HighlightNames(seg.note) end
+            end
+            for _, seg in ipairs(step.segments) do
+                if seg.mapID == mapID and seg.note then
+                    return prefix .. HighlightNames(seg.note)
+                end
+            end
+            -- Player IS on a mapID this step covers, but the relevant
+            -- segment(s) carry no note (intentionally -- e.g. Sennarth's
+            -- during-fight ascent segment on mapID 2123). Don't fall
+            -- through to the "first segment note" fallback below, which
+            -- would surface seg 1's "After killing Terros, go back..."
+            -- text -- stale and misleading mid-fight. Show neutral text
+            -- instead; the soloTip line is doing the useful work here.
+            if #relevant > 0 then
+                return prefix .. "|cff888888(No directions for this section)|r"
             end
         end
-        -- Player IS on a mapID this step covers, but the relevant
-        -- segment(s) carry no note (intentionally -- e.g. Sennarth's
-        -- during-fight ascent segment on mapID 2123). Don't fall
-        -- through to the "first segment note" fallback below, which
-        -- would surface seg 1's "After killing Terros, go back..."
-        -- text -- stale and misleading mid-fight. Show neutral text
-        -- instead; the soloTip line is doing the useful work here.
-        if #relevant > 0 then
-            return prefix .. "|cff888888(No directions for this section)|r"
+        if step.travelText then
+            return prefix .. HighlightNames(step.travelText)
         end
+        -- No segment matches the current map. This commonly fires
+        -- after a boss kill: the player is still standing on the
+        -- previous boss's platform (which has its own mapID), the
+        -- active step has just advanced to the next boss, and that
+        -- next step's segments are all on different mapIDs. Show the
+        -- first segment's note so the player gets clear next-step
+        -- direction without having to open the map.
+        if step.segments and step.segments[1] and step.segments[1].note then
+            return prefix .. HighlightNames(step.segments[1].note)
+        end
+        return prefix .. "|cff888888Open the map and select a section to see directions.|r"
     end
-    if step.travelText then
-        return prefix .. HighlightNames(step.travelText)
-    end
-    -- No segment matches the current map (e.g. player is at the instance entrance
-    -- after resuming a run). Fall back to the first segment note so there is always
-    -- some useful direction shown rather than N/A.
-    if step.segments and step.segments[1] and step.segments[1].note then
-        return prefix .. "|cff888888(Open map for directions)|r  "
-            .. HighlightNames(step.segments[1].note)
-    end
-    return prefix .. "|cff888888Open the map and select a section to see directions.|r"
+
+    local text = compute()
+    lastTravelText = text
+    return text
 end
 
 -- Detects whether a boss has a "custom" encounter note worth surfacing
@@ -1184,7 +1318,13 @@ local function BuildEncounterText(step)
         headerLine = prefix .. "|cffaaaaaaStandard|r"
         clickable  = false
     elseif not RR:GetSetting("encounterExpanded") then
-        headerLine = prefix .. "|cffaaaaaaview special note|r"
+        -- Yellow [!] prefix to draw the eye to bosses that have a
+        -- custom soloTip. The "view special note" link itself stays
+        -- in subdued grey so the [!] does the attention-grabbing
+        -- work without the whole line shouting. When the user
+        -- expands the note, the marker drops away (the expanded
+        -- text speaks for itself).
+        headerLine = prefix .. "|cffffff00[!]|r |cffaaaaaaview special note|r"
         clickable  = true
     else
         local tip = (boss and boss.soloTip) or step.soloTip or ""
@@ -2488,14 +2628,71 @@ BuildTransmogDetail = function(stepOrCtx)
                 nameText = ("|cffffffff%s|r"):format(item.name)
             end
         else
-            nameText = ("|cffffffff%s|r"):format(item.name)
+            -- Non-tier rows render in white by default, in legendary
+            -- orange when the item's GetItemInfo quality reports as
+            -- legendary (quality enum 5). Matches Blizzard's own
+            -- legendary text color so the row reads as legendary at
+            -- a glance, not as a plain drop.
+            local nameColor = "ffffffff"
+            if item.id and GetItemInfo then
+                local quality = select(3, GetItemInfo(item.id))
+                if quality == 5 then
+                    nameColor = "ffff8000"
+                end
+            end
+            nameText = ("|c%s%s|r"):format(nameColor, item.name)
+
+            -- Class-restricted non-tier items (e.g. Nasz'uro, the Unbound
+            -- Legacy on Sarkareth) get a "(<Class> only)" suffix appended
+            -- in default text color, with the class name itself colored
+            -- in that class's standard WoW color. Distinct from the
+            -- `item.classes` tier path above: tier rows are filtered out
+            -- of the popup for non-matching classes (only visible when
+            -- "Show all class tier" is on), whereas restrictedToClass
+            -- items always render for everyone -- the suffix exists to
+            -- communicate the restriction in-line rather than hide the
+            -- row entirely. Used for legendaries with hard class gates
+            -- where players want to see the appearance exists even on
+            -- characters who can't equip it.
+            if item.restrictedToClass then
+                local rcID    = item.restrictedToClass
+                local rcName  = (rcID == playerClassID and playerClassName)
+                                or ClassNameForID(rcID)
+                local rcToken = (rcID == playerClassID and playerClassToken)
+                                or CLASS_ID_TO_TOKEN[rcID]
+                if rcName then
+                    local rcHex = "ffff8000"  -- fallback: orange
+                    if rcToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[rcToken] then
+                        local c = RAID_CLASS_COLORS[rcToken]
+                        if c.colorStr then rcHex = c.colorStr end
+                    end
+                    -- "(|cAARRGGBB<ClassName>|r only)" -- only the class
+                    -- name itself is colored; parens and "only" stay in
+                    -- the default text color so the suffix reads as a
+                    -- normal-toned tag rather than a louder label.
+                    nameText = ("%s |cffffffff(|r|c%s%s|r|cffffffff only)|r"):format(
+                        nameText, rcHex, rcName)
+                end
+            end
         end
         return ("%s  %s"):format(BuildDotRow(item), nameText)
+    end
+
+    -- Renders the acquisitionNote sub-line below an item row, if the
+    -- item has one. Used for items with unusual acquisition mechanics
+    -- (e.g. legendaries gated behind a quest-starter, items unlocked
+    -- via a separate vendor exchange). Indented under the row it
+    -- annotates and rendered in dim gray so it reads as commentary
+    -- without competing with the row's main name.
+    local function MaybeAppendAcquisitionNote(item)
+        if not item.acquisitionNote then return end
+        table.insert(lines, ("        |cff888888%s|r"):format(item.acquisitionNote))
     end
 
     -- Emit binary-shape group first.
     for _, item in ipairs(binaryItems) do
         table.insert(lines, FormatItemRow(item))
+        MaybeAppendAcquisitionNote(item)
     end
 
     -- Blank-line separator between groups, but only if both groups have
@@ -2507,6 +2704,7 @@ BuildTransmogDetail = function(stepOrCtx)
     -- Emit per-difficulty group.
     for _, item in ipairs(perDiffItems) do
         table.insert(lines, FormatItemRow(item))
+        MaybeAppendAcquisitionNote(item)
     end
 
     -- Weapon-token section. This is the "intelligence layer" for Castle
@@ -2705,8 +2903,8 @@ BuildTransmogDetail = function(stepOrCtx)
         end
     end
 
-    -- Optional per-boss footnote. Used to surface collectible context that
-    -- doesn't fit the existing schema -- e.g., Sarkareth's Void-Touched
+    -- Optional per-boss footnote(s). Used to surface collectible context
+    -- that doesn't fit the existing schema -- e.g., Sarkareth's Void-Touched
     -- Curio omnitoken, which exchanges for any tier slot and so doesn't
     -- fit the fixed-slot tokenSources mapping. The footnote tells the
     -- player "yes there's more here, just not in the format the dots/
@@ -2714,7 +2912,7 @@ BuildTransmogDetail = function(stepOrCtx)
     -- (close enough to the loot list to read as commentary on it; the
     -- legend stays at the very bottom as the visual anchor).
     --
-    -- The schema accepts two forms:
+    -- The schema accepts three forms:
     --   string                   -- rendered as-is, embedded WoW markup OK
     --   { text=..., itemID=N }   -- {item} placeholder substituted with
     --                               GetItemInfo(itemID)'s real WoW item
@@ -2722,13 +2920,25 @@ BuildTransmogDetail = function(stepOrCtx)
     --                               clickable into chat). Cold-cache fallback
     --                               to a colored static name if GetItemInfo
     --                               returns nil before the cache warms.
+    --   { {text=...,itemID=N}, {text=...,itemID=M}, ... }
+    --                            -- list of footnote entries, each rendered
+    --                               as its own paragraph block separated by
+    --                               a blank line. Useful for bosses with
+    --                               multiple unrelated extra-loot mechanics
+    --                               (e.g. Sarkareth's Curio + Cracked Titan
+    --                               Gem). Each entry follows the same
+    --                               text/itemID rules as the single-entry form.
     if boss.tmogFootnote then
-        local footnoteText
-        if type(boss.tmogFootnote) == "table" then
-            local f = boss.tmogFootnote
+        -- Renders a single footnote entry to grey text. Returns the formatted
+        -- string, or nil if the entry produces no usable text.
+        local function RenderFootnoteEntry(entry)
+            if type(entry) == "string" then
+                return entry
+            end
+            if type(entry) ~= "table" then return nil end
             local sub
-            if f.itemID then
-                local _, itemLink = GetItemInfo(f.itemID)
+            if entry.itemID then
+                local _, itemLink = GetItemInfo(entry.itemID)
                 sub = itemLink   -- nil on cold cache; fallback below
             end
             if not sub then
@@ -2737,17 +2947,33 @@ BuildTransmogDetail = function(stepOrCtx)
                 -- one render, but text won't be empty/broken. Subsequent
                 -- renders (after the client warms the item-info cache)
                 -- will produce a real link.
-                local fallbackName = (f.itemID and GetItemInfo(f.itemID))
+                local fallbackName = (entry.itemID and GetItemInfo(entry.itemID))
                                      or "(item)"
                 sub = ("|cffa335ee[%s]|r"):format(fallbackName)
             end
-            footnoteText = (f.text or ""):gsub("{item}", sub)
-        else
-            footnoteText = boss.tmogFootnote
+            return (entry.text or ""):gsub("{item}", sub)
         end
-        if footnoteText and footnoteText ~= "" then
-            table.insert(lines, "")
-            table.insert(lines, ("|cff9d9d9d%s|r"):format(footnoteText))
+
+        -- Detect single-entry vs list. A single entry is either a string or
+        -- a table with a `text` field. A list is a table with numeric
+        -- indices and no `text` field at the top level.
+        local entries
+        if type(boss.tmogFootnote) == "string" then
+            entries = { boss.tmogFootnote }
+        elseif type(boss.tmogFootnote) == "table"
+               and boss.tmogFootnote.text == nil
+               and boss.tmogFootnote[1] then
+            entries = boss.tmogFootnote
+        else
+            entries = { boss.tmogFootnote }
+        end
+
+        for _, entry in ipairs(entries) do
+            local footnoteText = RenderFootnoteEntry(entry)
+            if footnoteText and footnoteText ~= "" then
+                table.insert(lines, "")
+                table.insert(lines, ("|cff9d9d9d%s|r"):format(footnoteText))
+            end
         end
     end
 
@@ -2777,21 +3003,59 @@ end
 -- early handlers on panel.transmog can close over it. See the declaration
 -- of `browserState` up there.
 
--- Expansion ordering used by the transmog browser's dropdown. Ascending
--- (oldest first) so Classic, BC, Wrath... appear in the order players
--- would progress through them chronologically. Compare with
--- EXPANSION_ORDER_NEWEST_FIRST below, used by the idle-state supported-
--- raids list (which benefits from newest-first since that's what most
--- players care about at a glance).
-local EXPANSION_ORDER_ASCENDING = {
-    "Classic", "Burning Crusade", "Wrath of the Lich King",
-    "Cataclysm", "Mists of Pandaria", "Warlords of Draenor",
-    "Legion", "Battle for Azeroth", "Shadowlands", "Dragonflight",
-    "The War Within", "Midnight",
+-- Expansion ordering used by the transmog browser's dropdown. Newest
+-- first so the most recent expansion (and its raids) appear at the top
+-- of the dropdown -- matches the idle-state supported-raids list and
+-- Blizzard's own EJ ordering. Within each expansion, raids are sorted
+-- by patch number descending (newest patch first) via patchDescending
+-- below.
+local EXPANSION_ORDER_NEWEST_FIRST = {
+    "Midnight",
+    "The War Within",
+    "Dragonflight",
+    "Shadowlands",
+    "Battle for Azeroth",
+    "Legion",
+    "Warlords of Draenor",
+    "Mists of Pandaria",
+    "Cataclysm",
+    "Wrath of the Lich King",
+    "Burning Crusade",
+    "Classic",
 }
+
+-- Shared raid-ordering comparator. Parses a raid's `patch` field
+-- (e.g. "10.2", "9.2.5") into a list of integers, then compares
+-- lexicographically with the larger value winning -- so 10.2 > 10.1.0,
+-- 9.2.5 > 9.2, etc. Raids missing a patch field sort last (the
+-- patchKey returns { -1 } as a sentinel). Ties break alphabetically
+-- by name so output is deterministic across reloads.
+local function patchKey(raid)
+    local p = raid.patch
+    if not p then return { -1 } end
+    local parts = {}
+    for n in p:gmatch("(%d+)") do
+        table.insert(parts, tonumber(n) or 0)
+    end
+    if #parts == 0 then return { -1 } end
+    return parts
+end
+local function patchDescending(a, b)
+    local ka, kb = patchKey(a), patchKey(b)
+    local n = math.max(#ka, #kb)
+    for i = 1, n do
+        local ai = ka[i] or 0
+        local bi = kb[i] or 0
+        if ai ~= bi then return ai > bi end
+    end
+    return (a.name or "") < (b.name or "")
+end
 
 -- Gather all loaded raids grouped by expansion. Called fresh each time a
 -- dropdown opens so newly-added raid data files appear without a reload.
+-- Returns (byExpansion, expansions) where:
+--   byExpansion[expName] = { raid, raid, ... } -- raids sorted newest patch first
+--   expansions          = { expName, ... }     -- ordered newest expansion first
 local function EnumerateRaids()
     local byExpansion = {}
     for _, raid in pairs(RetroRuns_Data or {}) do
@@ -2800,16 +3064,18 @@ local function EnumerateRaids()
         table.insert(byExpansion[exp], raid)
     end
     for _, raids in pairs(byExpansion) do
-        table.sort(raids, function(a, b) return (a.name or "") < (b.name or "") end)
+        table.sort(raids, patchDescending)
     end
     local expansions = {}
     local seen = {}
-    for _, e in ipairs(EXPANSION_ORDER_ASCENDING) do
+    for _, e in ipairs(EXPANSION_ORDER_NEWEST_FIRST) do
         if byExpansion[e] then
             table.insert(expansions, e)
             seen[e] = true
         end
     end
+    -- Anything left over (unknown/new expansion not yet in the order
+    -- table) goes at the end so the dropdown still shows it.
     for e in pairs(byExpansion) do
         if not seen[e] then table.insert(expansions, e) end
     end
@@ -2838,11 +3104,12 @@ local function CountExpansionLoot(expansion, byExpansion)
     return n, s, t
 end
 
--- Display helper: "(7/9)" with have = total - needed.
-local function FormatCountSuffix(needed, _, total)
-    if not total or total == 0 then return "" end
-    local have = total - needed
-    return (" (%d/%d)"):format(have, total)
+-- Dropdown label suffix. Currently a no-op — the three browser dropdowns
+-- (expansion, raid, boss) render their entries without a per-entry count.
+-- Counters retained at call sites so totals can be re-surfaced later
+-- (e.g. via a settings toggle) without touching dispatch.
+local function FormatCountSuffix(_, _, _)
+    return ""
 end
 
 local function GetBrowserSelection()
@@ -2907,6 +3174,82 @@ local function EnsureBrowserDefaults()
             browserState.bossIndex = 1
         end
     end
+end
+
+-- Cache-warm pass for the Tmog browser. Walks every loot and specialLoot
+-- item in the currently-selected raid (across all bosses) and calls
+-- GetItemInfo to prime WoW's async item cache. Mirrors the zone-in
+-- warm pass in Core.lua but covers the case where the player opens
+-- the browser outside a raid (or browses to a different raid than
+-- they're zoned into).
+--
+-- GetItemInfo's first-call behavior on a cold cache is to return nil
+-- and fire GET_ITEM_INFO_RECEIVED later when the data is fetched.
+-- Without this pre-warm, items that haven't been fetched recently
+-- render as plain-text fallback names with no legendary orange and
+-- no clickable item link the first time the popup opens.
+--
+-- Cheap to call repeatedly: GetItemInfo on a warm cache is a hash
+-- lookup. We call it on every RefreshAll (i.e. every dropdown change)
+-- so the cache stays primed regardless of which raid the user
+-- navigates to.
+local function WarmBrowserItemCache()
+    if not GetItemInfo then return end
+    local raid = browserState.raidKey and RetroRuns_Data
+                 and RetroRuns_Data[browserState.raidKey]
+    if not raid or not raid.bosses then return end
+    for _, boss in ipairs(raid.bosses) do
+        if boss.loot then
+            for _, item in ipairs(boss.loot) do
+                if item.id then GetItemInfo(item.id) end
+            end
+        end
+        if boss.specialLoot then
+            for _, item in ipairs(boss.specialLoot) do
+                if item.id then GetItemInfo(item.id) end
+            end
+        end
+        -- Footnote items live outside loot/specialLoot but still
+        -- need their links resolved for the footnote rendering.
+        if boss.tmogFootnote then
+            local function WarmEntry(entry)
+                if type(entry) == "table" and entry.itemID then
+                    GetItemInfo(entry.itemID)
+                end
+            end
+            if type(boss.tmogFootnote) == "table"
+               and boss.tmogFootnote.text == nil
+               and boss.tmogFootnote[1] then
+                for _, entry in ipairs(boss.tmogFootnote) do
+                    WarmEntry(entry)
+                end
+            else
+                WarmEntry(boss.tmogFootnote)
+            end
+        end
+    end
+end
+
+-- Throttled re-render hook for GET_ITEM_INFO_RECEIVED. The event fires
+-- once per item as WoW resolves async GetItemInfo calls, which on a
+-- cold cache means many events in rapid succession after the first
+-- browser open. Coalesce them into one repaint per ~100ms window so
+-- we don't chain hundreds of redraws back-to-back.
+--
+-- Only repaints when the browser is actually visible -- no point
+-- redrawing a hidden frame, and the next visible RefreshAll will
+-- pick up whatever's in the cache anyway.
+local browserRefreshScheduled = false
+function UI.RequestBrowserRefresh()
+    if browserRefreshScheduled then return end
+    if not (tmogWindow and tmogWindow:IsShown()) then return end
+    browserRefreshScheduled = true
+    C_Timer.After(0.1, function()
+        browserRefreshScheduled = false
+        if tmogWindow and tmogWindow:IsShown() and tmogWindow.RefreshContent then
+            tmogWindow:RefreshContent()
+        end
+    end)
 end
 
 -------------------------------------------------------------------------------
@@ -3134,6 +3477,7 @@ GetOrCreateTmogWindow = function()
     end
 
     f.RefreshAll = function(self)
+        WarmBrowserItemCache()
         self:RefreshDropdowns()
         self:RefreshContent()
         SaveBrowserState()
@@ -3257,27 +3601,11 @@ end
 
 -- Idle-state list of supported raids, derived from RetroRuns_Data so
 -- new raid additions auto-appear (no manual list maintenance). Groups
--- by expansion, alphabetizes within each expansion. Falls back to a
--- single empty-list line if nothing is loaded yet.
+-- by expansion, sorts within each expansion by patch number descending
+-- (newest patch first), and appends the patch label to each raid name.
+-- Falls back to a single empty-list line if nothing is loaded yet.
 local IDLE_FOOTER =
     "|cff9d9d9dDesigned for max-level characters running legacy content.|r"
-
--- Expansion display order for the idle-state supported-raids list. Newest
--- first (matches Blizzard's EJ ordering on the expansion-selector). See
--- EXPANSION_ORDER_ASCENDING above for the browser dropdown's ordering.
-local EXPANSION_ORDER_NEWEST_FIRST = {
-    "The War Within",
-    "Dragonflight",
-    "Shadowlands",
-    "Battle for Azeroth",
-    "Legion",
-    "Warlords of Draenor",
-    "Mists of Pandaria",
-    "Cataclysm",
-    "Wrath of the Lich King",
-    "Burning Crusade",
-    "Classic",
-}
 
 -- Build the per-raid pill row for the idle-state list. Same shape as the
 -- in-raid pill row, but each pill is colored by its OWN lockout state
@@ -3333,6 +3661,13 @@ local function BuildIdleListPills(raid)
         .. "|cff777777 ]|r"
 end
 
+-- Returns (text, headers) where:
+--   text    = the full multi-line string for panel.list:SetText()
+--   headers = array of { exp = expansionName, line = lineIndex }
+--             one entry per rendered expansion header. Line numbers
+--             are 1-based and match the line position of the [+]/[-]
+--             marker in `text`. Used by the caller to position
+--             clickable toggle Buttons over the markers.
 local function BuildIdleListText()
     local byExpansion = {}
     for _, raid in pairs(RetroRuns_Data or {}) do
@@ -3341,10 +3676,28 @@ local function BuildIdleListText()
         table.insert(byExpansion[exp], raid)
     end
 
+    -- Session-scoped expand state. Default = collapsed (no entry in
+    -- the table means "use the default", which is collapsed). The
+    -- toggle Button click handlers flip entries in this table; on
+    -- a fresh /reload or login the addon's RR.state is empty, so all
+    -- expansions start collapsed each session.
+    local expanded = (RR.state and RR.state.expandedExpansions) or {}
+    local function isExpanded(exp)
+        return expanded[exp] == true
+    end
+
     local lines = {}
+    local headers = {}
     local function emitRaid(raid)
-        local name = raid.name or "??"
-        table.insert(lines, ("|cffffffff* %s|r"):format(name))
+        local name  = raid.name or "??"
+        local patch = raid.patch
+        local label
+        if type(patch) == "string" and patch ~= "" then
+            label = ("|cffffffff* %s (%s)|r"):format(name, patch)
+        else
+            label = ("|cffffffff* %s|r"):format(name)
+        end
+        table.insert(lines, label)
         local pills = BuildIdleListPills(raid)
         if pills ~= "" then
             -- Indent the pill row two spaces under the raid name so the
@@ -3354,24 +3707,37 @@ local function BuildIdleListText()
         end
     end
 
+    -- Render an expansion's header with a [+]/[-] toggle marker prefix.
+    -- The marker is just text -- a separate Button overlay (positioned
+    -- by the caller via the returned `headers` map) handles the click.
+    -- This keeps the rendering logic dumb and the click target reliable.
+    -- Toggle stays yellow (matches the [!] special-note marker for
+    -- visual consistency); expansion name renders cyan to differentiate
+    -- the headers from the white raid rows beneath them.
+    local function emitExpansion(exp, raids)
+        table.sort(raids, patchDescending)
+        local toggle = isExpanded(exp) and "[-]" or "[+]"
+        table.insert(lines, ("|cffffff00%s|r |cff00ffff%s|r"):format(toggle, exp))
+        -- Record the 1-based line number where this expansion's header
+        -- sits, so the caller can position a click-overlay Button on
+        -- exactly that row.
+        table.insert(headers, { exp = exp, line = #lines })
+        if isExpanded(exp) then
+            for _, raid in ipairs(raids) do emitRaid(raid) end
+        end
+        table.insert(lines, "")
+    end
+
     -- Emit known expansions in canonical order
     for _, exp in ipairs(EXPANSION_ORDER_NEWEST_FIRST) do
         if byExpansion[exp] then
-            table.sort(byExpansion[exp], function(a, b)
-                return (a.name or "") < (b.name or "")
-            end)
-            table.insert(lines, ("|cffffff00%s|r"):format(exp))
-            for _, raid in ipairs(byExpansion[exp]) do emitRaid(raid) end
-            table.insert(lines, "")
+            emitExpansion(exp, byExpansion[exp])
             byExpansion[exp] = nil
         end
     end
     -- Anything left over (unknown/new expansion) goes at the end
     for exp, raids in pairs(byExpansion) do
-        table.sort(raids, function(a, b) return (a.name or "") < (b.name or "") end)
-        table.insert(lines, ("|cffffff00%s|r"):format(exp))
-        for _, raid in ipairs(raids) do emitRaid(raid) end
-        table.insert(lines, "")
+        emitExpansion(exp, raids)
     end
 
     if #lines == 0 then
@@ -3380,7 +3746,66 @@ local function BuildIdleListText()
     end
 
     table.insert(lines, IDLE_FOOTER)
-    return table.concat(lines, "\n")
+    return table.concat(lines, "\n"), headers
+end
+
+-- Helper: rebuild and apply the idle-state list text + reposition the
+-- expansion-toggle Buttons over each header line. Shared between the
+-- idle and run-complete branches of UI.Update so both states get the
+-- same click behavior (both states render the supported-raids list,
+-- both need the toggles to work).
+local function RefreshIdleList()
+    local text, headers = BuildIdleListText()
+    panel.list:SetText(text)
+
+    -- Recycle previously-positioned toggle Buttons before this frame's
+    -- batch is created.
+    ReleaseExpansionToggleButtons()
+
+    -- Defer Button creation and positioning by one frame. Two reasons:
+    -- (1) panel.list:GetStringHeight() returns 0 / stale immediately
+    --     after SetText -- WoW's font system needs a frame to lay out
+    --     the new text before the height is correct.
+    -- (2) Measuring the actual rendered line height (stringH /
+    --     lineCount) gives the true per-line stride, avoiding the
+    --     drift that an arithmetic estimate (fontSize+4) accumulates
+    --     over many lines.
+    -- The visual delay is invisible (single frame, ~16ms at 60fps).
+    C_Timer.After(0, function()
+        local lineCount = 1
+        for _ in text:gmatch("\n") do lineCount = lineCount + 1 end
+        local stringH = panel.list:GetStringHeight() or 0
+        local lineHeight
+        if lineCount > 0 and stringH > 0 then
+            lineHeight = stringH / lineCount
+        else
+            -- Fallback: should be rare. If stringH is still 0 next
+            -- frame, fall back to the arithmetic formula and let the
+            -- next refresh fix it. Better to be slightly mispositioned
+            -- than have invisible toggles.
+            lineHeight = RR:GetSetting("fontSize", 12) + 4
+        end
+        for _, h in ipairs(headers) do
+            local btn = AcquireExpansionToggleButton()
+            PositionExpansionToggleButton(btn, h.line, lineHeight)
+            local expName = h.exp
+            btn:SetScript("OnClick", function()
+                RR.state = RR.state or {}
+                RR.state.expandedExpansions = RR.state.expandedExpansions or {}
+                -- Toggle: positive flag (default = collapsed for unset
+                -- entries). Set to nil rather than false on collapse so
+                -- the table stays compact.
+                if RR.state.expandedExpansions[expName] then
+                    RR.state.expandedExpansions[expName] = nil
+                else
+                    RR.state.expandedExpansions[expName] = true
+                end
+                if RR.UI and RR.UI.Update then RR.UI.Update() end
+            end)
+            btn:Show()
+            table.insert(panel.expansionToggleButtons, btn)
+        end
+    end)
 end
 
 -------------------------------------------------------------------------------
@@ -3420,6 +3845,14 @@ function UI.Update()
         if step then
             local boss = RR:GetBossByIndex(step.bossIndex)
             local num  = RR:GetDisplayBossNumber(step, boss)
+            -- Re-show the boss-encounter and transmog wrappers in case
+            -- they were Hide()'d by a previous idle/run-complete pass
+            -- (those states hide the wrappers to avoid layered hit-test
+            -- conflicts with the supported-raids list's clickable
+            -- expansion headers). panel.transmog gets a more specific
+            -- SetShown call below based on whether there's a summary
+            -- to display.
+            panel.encounter:Show()
             panel.next:SetText(("Boss #%d: %s"):format(
                 num, boss and boss.name or "Unknown"))
             panel.travel:SetText(BuildTravelText(step))
@@ -3452,6 +3885,11 @@ function UI.Update()
             panel.listHeader:SetPoint("TOPLEFT", panel.transmog, "BOTTOMLEFT", 0, -12)
             panel.listHeader:SetText("Boss Progress")
             panel.list:SetText(table.concat(RR:GetProgressLines(), "\n"))
+            -- In-progress list has no expansion-header rows -- it's a
+            -- per-boss kill checklist -- so release any toggle Buttons
+            -- left over from a prior idle/run-complete pass to avoid
+            -- floating click zones over the progress lines.
+            ReleaseExpansionToggleButtons()
         else
             -- Run-complete state. The user has cleared every boss in
             -- this lockout. Layout goal: tight, informative, points at
@@ -3474,6 +3912,7 @@ function UI.Update()
             panel.encounter:SetText("")
             panel.encounter.clickable = false
             panel.encounter:EnableMouse(false)
+            panel.encounter:Hide()
             panel.transmog:SetText("")
             panel.transmog:Hide()
 
@@ -3487,7 +3926,7 @@ function UI.Update()
             panel.listHeader:ClearAllPoints()
             panel.listHeader:SetPoint("TOPLEFT", panel.next, "BOTTOMLEFT", 0, -12)
             panel.listHeader:SetText("|cff9d9d9dWhere to next:|r")
-            panel.list:SetText(BuildIdleListText())
+            RefreshIdleList()
         end
     else
         -- Idle state. The "RetroRuns v..." line is intentionally blank --
@@ -3522,10 +3961,6 @@ function UI.Update()
         panel.encounter.clickable = false
         panel.encounter:EnableMouse(false)
         panel.transmog:SetText("")
-        -- Don't Hide() the transmog wrapper here -- panel.listHeader
-        -- normally anchors to its bottom-left, so hiding it would orphan
-        -- that anchor. Empty text + EnableMouse(false) keeps the layout
-        -- intact while making the invisible wrapper non-interactive.
         panel.transmog:EnableMouse(false)
         -- Re-anchor listHeader directly below "Travel to..." (panel.progress)
         -- so the supported-raids list sits tight against the prompt.
@@ -3535,7 +3970,24 @@ function UI.Update()
         panel.listHeader:ClearAllPoints()
         panel.listHeader:SetPoint("TOPLEFT", panel.progress, "BOTTOMLEFT", 0, -8)
         panel.listHeader:SetText("|cff9d9d9dCurrently supported:|r")
-        panel.list:SetText(BuildIdleListText())
+        RefreshIdleList()
+        -- Hide the intermediate Button widgets in idle state. With empty
+        -- text + EnableMouse(false), Button frames are functionally
+        -- invisible to clicks, but they still occupy layout space at
+        -- their original anchor positions (panel.next -> panel.travel
+        -- -> panel.encounter -> panel.transmog). panel.list is
+        -- re-anchored tight under panel.progress in idle state to skip
+        -- the empty intermediate gap, which means the toggle Button
+        -- overlays positioned over panel.list's lines can end up
+        -- vertically overlapping panel.encounter / panel.transmog's
+        -- bounding boxes. Even with mouse disabled, sibling Buttons
+        -- at the same Z-level can interfere with mouse dispatch.
+        -- Hide() removes them from the layout pass entirely so the
+        -- toggle Buttons get clean clicks regardless of their final
+        -- screen position. The listHeader anchor was re-pointed above
+        -- so hiding panel.transmog no longer orphans anything.
+        panel.encounter:Hide()
+        panel.transmog:Hide()
         panel.mapBtn:Disable()
         panel.mapBtn:SetAlpha(0.45)
     end

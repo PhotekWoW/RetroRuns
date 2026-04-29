@@ -41,8 +41,6 @@ RetroRuns_Data[2450] = {
             index              = 1,
             name               = "The Tarragrue",
             journalEncounterID = 2435,
-            mapID              = 1998,
-            coord              = { 0.522, 0.491 },
             aliases            = { "Tarragrue" },
             achievements       = {
                 { id = 14998, name = "Name A Better Duo, I'll Wait", meta = true },
@@ -64,8 +62,6 @@ RetroRuns_Data[2450] = {
             index              = 2,
             name               = "The Eye of the Jailer",
             journalEncounterID = 2442,
-            mapID              = 1999,
-            coord              = { 0.470, 0.892 },
             aliases            = { "Eye of the Jailer" },
             soloTip            = "Kill all trash on this platform and the boss will spawn. You will need to walk to the pile of chains and use the extra action item button to grapple across.",
             achievements       = {
@@ -91,8 +87,6 @@ RetroRuns_Data[2450] = {
             index              = 3,
             name               = "The Nine",
             journalEncounterID = 2439,
-            mapID              = 1999,
-            coord              = { 0.422, 0.233 },
             aliases            = { "Nine" },
             soloTip            = "After some dialog, the boss is a Standard Nuke.",
             achievements       = {
@@ -117,8 +111,6 @@ RetroRuns_Data[2450] = {
             index              = 4,
             name               = "Remnant of Ner'zhul",
             journalEncounterID = 2444,
-            mapID              = 2000,
-            coord              = { 0.858, 0.381 },
             aliases            = { "Ner'zhul", "Nerzhul" },
             soloTip            = "Kill trash to engage the boss.",
             achievements       = {
@@ -139,8 +131,6 @@ RetroRuns_Data[2450] = {
             index              = 5,
             name               = "Soulrender Dormazain",
             journalEncounterID = 2445,
-            mapID              = 2000,
-            coord              = { 0.558, 0.734 },
             aliases            = { "Dormazain", "Soulrender" },
             achievements       = {
                 { id = 15105, name = "Tormentor's Tango", meta = true },
@@ -166,8 +156,6 @@ RetroRuns_Data[2450] = {
             index              = 6,
             name               = "Painsmith Raznal",
             journalEncounterID = 2443,
-            mapID              = 2000,
-            coord              = { 0.672, 0.332 },
             aliases            = { "Painsmith", "Raznal" },
             achievements       = {
                 { id = 15131, name = "Whack-A-Soul", meta = true },
@@ -188,8 +176,6 @@ RetroRuns_Data[2450] = {
             index              = 7,
             name               = "Guardian of the First Ones",
             journalEncounterID = 2446,
-            mapID              = 2001,
-            coord              = { 0.631, 0.191 },
             aliases            = { "Guardian" },
             achievements       = {
                 { id = 15132, name = "Knowledge is Power", meta = true },
@@ -212,8 +198,6 @@ RetroRuns_Data[2450] = {
             index              = 8,
             name               = "Fatescribe Roh-Kalo",
             journalEncounterID = 2447,
-            mapID              = 2001,
-            coord              = { 0.547, 0.724 },
             aliases            = { "Fatescribe", "Roh-Kalo" },
             achievements       = {
                 { id = 15040, name = "Flawless Fate", meta = true },
@@ -234,8 +218,6 @@ RetroRuns_Data[2450] = {
             index              = 9,
             name               = "Kel'Thuzad",
             journalEncounterID = 2440,
-            mapID              = 2001,
-            coord              = { 0.322, 0.521 },
             aliases            = { "KT", "Kelthuzad" },
             soloTip            = "Bring boss health to 0 and it will trigger a new phase. Run to the boss, and an extra action button will appear. Use this button to enter the phylactery. Inside, kill the 1 enemy and you will appear back outside to kill the boss one more time.",
             achievements       = {
@@ -262,14 +244,6 @@ RetroRuns_Data[2450] = {
             index              = 10,
             name               = "Sylvanas Windrunner",
             journalEncounterID = 2441,
-            mapID              = 2002,
-            -- The Pinnacle of Domination (mapID 2002) is a display-only
-            -- arena map: C_Map.GetPlayerMapPosition returns nil for it,
-            -- meaning Blizzard treats the encounter as a single platform
-            -- with no positional coordinate space. The {0.5, 0.5} coord
-            -- is a permanent centered placeholder, not an approximation
-            -- to be refined.
-            coord              = { 0.500, 0.500 },
             aliases            = { "Sylvanas" },
             achievements       = {
                 { id = 15133, name = "This World is a Prism", meta = true },

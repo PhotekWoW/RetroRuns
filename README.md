@@ -4,13 +4,14 @@ A solo legacy raid navigator for World of Warcraft retail.
 
 Zone into an old raid and RetroRuns lays out a styled panel with the next boss, turn-by-turn routing to reach it, solo-focused encounter notes, and transmog collection status for every drop. Kill a boss and the guide advances automatically.
 
-Currently supports all three Shadowlands raids and the first two Dragonflight raids:
+Currently supports all three Shadowlands raids and all three Dragonflight raids:
 
 * Castle Nathria (9.0)
 * Sanctum of Domination (9.1)
 * Sepulcher of the First Ones (9.2)
 * Vault of the Incarnates (10.0)
 * Aberrus, the Shadowed Crucible (10.1)
+* Amirdrassil, the Dream's Hope (10.2)
 
 ## Installation
 
@@ -43,6 +44,7 @@ Click any boss name in the panel to open the transmog collection browser for tha
 * **Achievement callouts.** Per-boss list with completed state and clickable in-game links.
 * **Automatic kill detection.** Listens for `ENCOUNTER_END` and syncs with Blizzard's lockout API, so progression state is correct across reloads, disconnects, and character swaps within the same lockout.
 * **Configurable.** Font size, window scale, panel position — all persisted per character.
+* **Collapsible supported-raids list.** When the panel is idle, the list of supported raids groups by expansion with click-to-expand toggles, so the panel stays compact and you only open the expansion you're working through.
 
 ## Commands
 
@@ -60,9 +62,9 @@ Main commands — type in chat:
 
 ## Status
 
-Version **0.7.0** — release candidate for v1.0.
+Version **1.0.0**
 
-All three Shadowlands raids and the first two Dragonflight raids (Vault of the Incarnates, Aberrus, the Shadowed Crucible) are feature-complete with full routing, encounter notes, armor transmog tracking, weapon-token indicators, and achievement callouts. Data integrity has been verified via the addon's own `/rr tmogverify` command: zero errors across 546 items and 48 bosses.
+All three Shadowlands raids and all three Dragonflight raids are feature-complete with full routing, encounter notes, armor transmog tracking, weapon-token indicators, and achievement callouts.
 
 ## Reporting bugs / requesting features
 

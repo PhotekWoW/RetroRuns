@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "0.7.0"
+local VERSION    = "1.0.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -666,6 +666,33 @@ function RR:HandleLocationChange()
         self.state.currentDifficultyID   = info.difficultyID
         self.state.currentDifficultyName = info.difficultyName
 
+        -- Warm GetItemInfo cache for every loot item in this raid.
+        -- Cheap one-shot pass (~150 items per raid). Each call is
+        -- async: if the item isn't cached, GetItemInfo returns nil
+        -- but queues a fetch; the second call for the same itemID
+        -- returns the cached record. The tmog browser's legendary-
+        -- quality detection (UI.lua FormatItemRow) reads
+        -- GetItemInfo's quality field, which on first cold-cache
+        -- access returns nil -- causing legendary items to render
+        -- white the first time the popup opens. Warming here
+        -- ensures quality is populated by the time the user opens
+        -- the popup. Also primes other paths that read item info
+        -- (special-loot rendering, slash-command status output).
+        if GetItemInfo and supported.bosses then
+            for _, boss in ipairs(supported.bosses) do
+                if boss.loot then
+                    for _, item in ipairs(boss.loot) do
+                        if item.id then GetItemInfo(item.id) end
+                    end
+                end
+                if boss.specialLoot then
+                    for _, item in ipairs(boss.specialLoot) do
+                        if item.id then GetItemInfo(item.id) end
+                    end
+                end
+            end
+        end
+
         local key = self:GetRaidContextKey(supported, info)
         if self.state.lastSeenRaidKey ~= key then
             -- New raid context (different raid, or same raid but
@@ -941,6 +968,137 @@ function RR:PrintStatus()
 end
 
 -------------------------------------------------------------------------------
+-- TravelDebug: snapshot of the inputs the travel-pane renderer uses to
+-- pick which segment's note to display. Read-only diagnostic, opens a
+-- copy window with the result.
+--
+-- For each step (active step plus any candidate next-steps), prints:
+--   - playerMapID  (what C_Map.GetBestMapForUnit("player") returns)
+--   - worldMapID   (what WorldMapFrame:GetMapID() returns -- only when
+--                   the world map is open)
+--   - chosenMapID  (what UI.GetBestMapForStep returns -- the mapID the
+--                   renderer would compare segments against)
+--   - segments     (per-seg mapID, has-note, completed-flag)
+--
+-- Used for "why is the travel pane showing the wrong segment's note?"
+-- diagnosis. The renderer matches segments against chosenMapID; if no
+-- segment's mapID matches it, the renderer falls back to the seg[1]
+-- note prefixed with "(Open map for directions)". This dump exposes
+-- the inputs so the cause is obvious from one snapshot.
+-------------------------------------------------------------------------------
+function RR:TravelDebug()
+    local out = {}
+    local function add(s) table.insert(out, s or "") end
+
+    add("traveldebug: snapshot of travel-pane renderer state")
+    add("")
+
+    -- Raw inputs (independent of any specific step)
+    local playerMapID = C_Map and C_Map.GetBestMapForUnit
+                        and C_Map.GetBestMapForUnit("player")
+    local worldMapID
+    if WorldMapFrame and WorldMapFrame.GetMapID then
+        worldMapID = WorldMapFrame:GetMapID()
+    end
+    add(("Raw inputs:"))
+    add(("  C_Map.GetBestMapForUnit(\"player\")  = %s"):format(tostring(playerMapID)))
+    add(("  WorldMapFrame:GetMapID()             = %s  <-- this is what the map renderer uses"):format(
+        tostring(worldMapID)))
+    add("")
+
+    -- World map open / visible state
+    local mapOpen = WorldMapFrame and WorldMapFrame.IsShown and WorldMapFrame:IsShown()
+    add(("WorldMapFrame visible: %s"):format(tostring(mapOpen)))
+    add("")
+
+    if not self.currentRaid then
+        add("No raid loaded.")
+        self:ShowCopyWindow(
+            "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaa/rr traveldebug|r",
+            table.concat(out, "\n"))
+        return
+    end
+
+    add(("Raid: %s"):format(self.currentRaid.name or "?"))
+
+    -- Active step (what the renderer is currently displaying)
+    local active = self.state and self.state.activeStep
+    if not active then
+        add("activeStep: nil")
+    else
+        add(("activeStep: step=%s title=%q"):format(
+            tostring(active.step), active.title or ""))
+    end
+    add("")
+
+    -- Iterate every step in the raid's routing array. For each, dump
+    -- what mapID the renderer would pick if that step were active, and
+    -- the per-segment table. The active step is flagged with "*".
+    local routing = self.currentRaid.routing
+    if not routing or #routing == 0 then
+        add("No routing data for this raid.")
+    else
+        for _, step in ipairs(routing) do
+            local marker = (active and active.step == step.step) and "* " or "  "
+            local chosenMapID
+            if RR.UI and RR.UI.GetBestMapForStep then
+                chosenMapID = RR.UI.GetBestMapForStep(step)
+            end
+            add(("%sstep=%s priority=%s bossIndex=%s title=%q"):format(
+                marker,
+                tostring(step.step),
+                tostring(step.priority),
+                tostring(step.bossIndex),
+                step.title or "?"))
+            add(("    chosenMapID = %s  (used by travel-pane text)"):format(tostring(chosenMapID)))
+            -- The MAP RENDERER uses worldMapID, not chosenMapID. Show
+            -- which seg(s) would draw on the currently-open world map.
+            if worldMapID then
+                local relevant = self:GetRelevantSegmentsForMap(step, worldMapID)
+                if #relevant > 0 then
+                    local segIdxs = {}
+                    for i, seg in ipairs(step.segments) do
+                        for _, r in ipairs(relevant) do
+                            if r == seg then table.insert(segIdxs, tostring(i)) end
+                        end
+                    end
+                    add(("    map renderer would draw seg(s) [%s] on world map %s"):format(
+                        table.concat(segIdxs, ","), tostring(worldMapID)))
+                else
+                    add(("    map renderer: no segs match world map %s"):format(
+                        tostring(worldMapID)))
+                end
+            end
+            if step.segments then
+                for i, seg in ipairs(step.segments) do
+                    local completed = self:IsSegmentCompleted(step.step or 0, i)
+                    local matches = (chosenMapID == seg.mapID) and " <-- matches chosen" or ""
+                    add(("    seg %d: mapID=%s kind=%-9s note=%s completed=%-5s%s"):format(
+                        i,
+                        tostring(seg.mapID),
+                        tostring(seg.kind or "path"),
+                        seg.note and "yes" or "no ",
+                        tostring(completed),
+                        matches))
+                end
+            else
+                add("    (no segments)")
+            end
+            add("")
+        end
+    end
+
+    add("Legend: chosenMapID is what the renderer compares segment mapIDs against.")
+    add("If no segment's mapID matches, the renderer falls back to seg[1]'s note")
+    add("with an \"(Open map for directions)\" prefix.")
+
+    self:ShowCopyWindow(
+        "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaa/rr traveldebug|r",
+        table.concat(out, "\n"))
+    self:Print("traveldebug snapshot opened.")
+end
+
+-------------------------------------------------------------------------------
 -- Slash commands
 -------------------------------------------------------------------------------
 
@@ -1082,9 +1240,6 @@ SlashCmdList["RETRORUNS"] = function(input)
 
     elseif cmd == "ej" then
         RR:HarvestDiagnose()
-
-    elseif cmd == "tiersets" then
-        RR:DumpTransmogSets()
 
     elseif cmd == "raidcapture" then
         RR:RaidCapture()
@@ -1331,6 +1486,21 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- Optional needle itemID highlights a specific item and probes
         -- additional EJ paths if the iteration didn't find it.
         RR:EjProbe(args[2])
+
+    elseif cmd == "tierprobe" then
+        -- Dump what C_TransmogSets returns for a given tier itemID.
+        -- Read-only diagnostic. Used for "why is the harvester writing
+        -- the wrong sourceIDs in this tier row?" diagnosis.
+        RR:TierProbe(args[2])
+
+    elseif cmd == "traveldebug" then
+        -- Snapshot of the inputs the travel-pane renderer is using right
+        -- now: player mapID, world-map mapID, the mapID the renderer
+        -- would actually pick (GetBestMapForStep), and per-segment state
+        -- (mapID, has-note, completed). Used to diagnose "why is the
+        -- travel pane showing the wrong segment's note?" One-shot dump
+        -- rather than per-update, so chat doesn't get spammed.
+        RR:TravelDebug()
 
     elseif cmd == "specialtest" then
         -- Probe a single itemID against every special-loot detection API
@@ -2533,27 +2703,6 @@ SlashCmdList["RETRORUNS"] = function(input)
             Next()
         end
 
-    elseif cmd == "harvest" then
-        local sub = args[2] or ""
-        if sub == "dump" then
-            RR:HarvestShowWindow()
-        elseif sub == "boss" then
-            -- /rr harvest boss <substring>  -- single-boss diagnostic harvest
-            -- Case-insensitive substring match against boss name. E.g.
-            --   /rr harvest boss jailer
-            --   /rr harvest boss lihuvim
-            -- Useful for iterating on detection / sweep behavior without
-            -- sitting through a full-raid harvest.
-            local name = RR.Trim(rest:sub(5))   -- strip "boss"
-            if name == "" then
-                RR:Print("Usage: /rr harvest boss <name-substring>")
-            else
-                RR:HarvestAllBosses(name)
-            end
-        else
-            RR:HarvestAllBosses()
-        end
-
     elseif cmd == "record" then
         local sub = args[2] or ""
         if     sub == "start"  then RR:StartRecording()
@@ -2597,13 +2746,13 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("  /rr  resetsegments               (clear persisted segment state)")
             RR:Print("  /rr  kill <name> | unkill <name> (manual kill-state override)")
             RR:Print("  /rr  record [start|stop|dump|reset|status|break|tp <dest>|note <text>]")
-            RR:Print("  /rr  harvest [dump | boss <name>]")
-            RR:Print("  /rr  tiersets                    (dump C_TransmogSets labels)")
-            RR:Print("  /rr  raidcapture                 (consolidated tier discovery + harvest)")
+            RR:Print("  /rr  raidcapture                 (full new-raid tier + loot harvest)")
             RR:Print("  /rr  weaponharvest               (harvest CN weapon-token pools)")
             RR:Print("  /rr  vendorscan                  (scan open merchant frame for items+costs)")
             RR:Print("  /rr  tmogtest <itemID>           (transmog diagnostic)")
             RR:Print("  /rr  ejprobe [itemID]            (dump EJ loot for selected encounter)")
+            RR:Print("  /rr  tierprobe <itemID>          (dump C_TransmogSets sources for a tier itemID)")
+            RR:Print("  /rr  traveldebug                 (snapshot of travel-pane renderer state)")
             RR:Print("  /rr  srctest <sourceID>          (transmog source diagnostic)")
             RR:Print("  /rr  specialtest <itemID>        (special-loot API probe)")
             RR:Print("  /rr  dragontest <itemID>         (dragonriding manuscript API probe)")
@@ -2652,6 +2801,15 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
             RR:Print(("|cffaaaaaav%s loaded. Type |r|cffffffff/rr help|r|cffaaaaaa for commands.|r"):format(
                 VERSION))
         end)
+
+        -- Reset the encounter-note expand state to collapsed at session
+        -- start. The setting controls whether the "Boss Encounter:" line
+        -- shows the full soloTip text or the "view special note" link;
+        -- it's session-scoped because users expect collapsed-by-default
+        -- on each fresh login/reload, and the prior persistent behaviour
+        -- could surface long soloTip text unexpectedly when the user
+        -- arrived at a boss they hadn't intentionally expanded.
+        RR:SetSetting("encounterExpanded", false)
 
         -- Warm GetItemInfo cache for every tier-token itemID in every
         -- loaded raid. Queues an async fetch per itemID so subsequent
@@ -2723,6 +2881,13 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
                     tostring(RR.state.testMode),
                     tostring(RR.state.loadedRaidKey),
                     tostring(RR:GetRaidContextKey())))
+
+        -- Clear the encounter-active flag regardless of success so the
+        -- travel pane unfreezes whether the kill happened, the group
+        -- wiped, or the boss reset. Set in ENCOUNTER_START below; read
+        -- by BuildTravelText to freeze rendering during the fight.
+        RR.state.inEncounter = false
+
         if not RR.state.testMode
             and RR.currentRaid
             and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
@@ -2730,7 +2895,46 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
                 RR:MarkBossKilledByEncounterName(encounterName)
                 RR.UI.Update()
                 if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
+            else
+                -- Wipe / reset: still re-render so the travel pane
+                -- snaps back to the live (non-frozen) text.
+                RR.UI.Update()
             end
+        end
+
+    elseif event == "ENCOUNTER_START" then
+        -- Set encounter-active flag so the travel pane freezes its
+        -- text for the duration of the fight. The pre-pull text stays
+        -- visible (e.g. "Approach the boss to start the encounter")
+        -- through phase transitions and intermissions; ENCOUNTER_END
+        -- above clears the flag and triggers a re-render that picks
+        -- up the next step's seg[1] note (e.g. for Tindral->Fyrakk:
+        -- "After killing Tindral, mount up and fly into the fire
+        -- portal..."). This intentionally avoids surfacing stale
+        -- mid-fight directions when the engine reports a different
+        -- mapID for phase 2 platforms (Tindral Northern Boughs,
+        -- Smolderon's bridge, Fyrakk's transit).
+        RR.state.inEncounter = true
+        if RR.UI and RR.UI.Update then RR.UI.Update() end
+
+    elseif event == "GET_ITEM_INFO_RECEIVED" then
+        -- WoW resolved an asynchronous GetItemInfo request -- the
+        -- item's name, quality, link, and other fields are now live
+        -- in the cache. Repaint the Tmog browser if it's open so
+        -- newly-resolved items render correctly without the user
+        -- having to close and reopen the dropdown.
+        --
+        -- A full raid easily contains 100+ items. On a fresh login,
+        -- opening the browser kicks off many GetItemInfo calls, each
+        -- of which fires this event when its async fetch completes.
+        -- Refreshing immediately on every event would chain hundreds
+        -- of redraws back-to-back. Coalesce instead: when an event
+        -- arrives, schedule a single redraw 0.1s out and drop further
+        -- events that arrive in the meantime. The result is one
+        -- repaint per ~100ms burst of cache fills, which is fast
+        -- enough that the user sees items resolve smoothly.
+        if RR.UI and RR.UI.RequestBrowserRefresh then
+            RR.UI.RequestBrowserRefresh()
         end
 
     end
@@ -2744,6 +2948,8 @@ RR.frame:RegisterEvent("ZONE_CHANGED")
 RR.frame:RegisterEvent("ZONE_CHANGED_INDOORS")
 RR.frame:RegisterEvent("UPDATE_INSTANCE_INFO")
 RR.frame:RegisterEvent("ENCOUNTER_END")
+RR.frame:RegisterEvent("ENCOUNTER_START")
+RR.frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 
 -------------------------------------------------------------------------------
 -- Tickers

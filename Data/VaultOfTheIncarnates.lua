@@ -49,8 +49,7 @@ RetroRuns_Data[2522] = {
     -- family. Unlike Sepulcher-era tokens ("Mystic Leg Module" etc.) which
     -- encode their slot as a body-part word, Vault tokens encode the slot
     -- as a gem name: Jade=Legs, Amethyst=Chest, Garnet=Hands, Lapis=Shoulders,
-    -- Topaz=Head. The TOKEN_SLOT_KEYWORDS table in Harvester.lua has been
-    -- extended with those gem words so /rr tiersets can discover them.
+    -- Topaz=Head.
     tierSets = {
         labels = {
             "Vault of the Incarnates",  -- setID=2601
@@ -123,12 +122,11 @@ RetroRuns_Data[2522] = {
                 { id=195503, slot="Weapon",   name="Enduring Shard of Terros",          sources={ [17]=183265, [14]=181162, [15]=183263, [16]=183264 } },
             },
             specialLoot = {
-                -- Iskaara Trader's Ottuk mount (itemID=198871, mountID=1513).
-                -- Obtained by trading two neck pieces to Tattukiaka in
-                -- Iskaara (Azure Span, ~14, 50). The barter = { ... } block
-                -- tells the UI to render a nested "0/2 necks" progress
-                -- group beneath the mount row, checking bag counts live.
-                -- Same block appears on Dathea; renderer is idempotent.
+                -- Iskaara Trader's Ottuk mount. Obtained by trading two
+                -- neck pieces (Terros's Captive Core from Terros + Eye of
+                -- the Vengeful Hurricane from Dathea) to Tattukiaka in
+                -- Iskaara (Azure Span, ~14, 50). Both bosses surface the
+                -- same mount entry with a "necks collected" progress group.
                 {
                     id = 198871, kind = "mount", name = "Iskaara Trader's Ottuk",
                     barter = {
@@ -227,9 +225,9 @@ RetroRuns_Data[2522] = {
                 { id=200380, slot="Hands", name="Gauntlets of the Awakened",          sources={ [17]=182710, [14]=182707, [15]=182709, [16]=182708 }, classes={ 13 } },
             },
             specialLoot = {
-                -- Iskaara Trader's Ottuk mount (itemID=198871, mountID=1513).
-                -- See Terros (boss 2) for full context; same entry here
-                -- so the mount renders on either boss's loot page.
+                -- Iskaara Trader's Ottuk mount. See Terros for full
+                -- description; surfaced on both bosses since either's
+                -- neck token contributes to the barter.
                 {
                     id = 198871, kind = "mount", name = "Iskaara Trader's Ottuk",
                     barter = {
@@ -282,8 +280,7 @@ RetroRuns_Data[2522] = {
             aliases            = { "Broodkeeper", "Diurna" },
             -- Drops [Shard of the Greatstaff] x3 for the "Break a Few Eggs"
             -- skip quest (unlocks Raszageth direct-access teleport for
-            -- future runs). Worth mentioning in soloTip once that field
-            -- is filled in.
+            -- future runs).
             achievements = {
                 { id = 16442, name = "Incubation Extermination", meta = true },
             },
@@ -291,12 +288,12 @@ RetroRuns_Data[2522] = {
                 { id=195523, slot="Hands",    name="Eggtender's Safety Mitts",         sources={ [17]=181609, [14]=181182, [15]=181607, [16]=181608 } },
                 { id=195522, slot="Legs",     name="Tassets of the Tarasek Legion",    sources={ [17]=181645, [14]=181181, [15]=181643, [16]=181644 } },
                 { id=195520, slot="Off-hand", name="Broodsworn Legionnaire's Pavise",  sources={ [17]=183420, [14]=181179, [15]=183418, [16]=183419 } },
-                -- Kharnalex is Evoker-only (class-restricted), so it uses a
-                -- single unified appearance across all four difficulties
-                -- rather than the per-difficulty variants most items have.
-                -- Harvester flagged it as "collapsed" -- that's expected for
-                -- class items of this shape.
-                { id=195519, slot="Two-Hand", name="Kharnalex, The First Light",       sources={ [17]=181178, [14]=181178, [15]=181178, [16]=181178 } },
+                -- Kharnalex, The First Light is Evoker-only. Like other
+                -- class-locked legendaries it shares a single appearance
+                -- across all four difficulties; the row renders for all
+                -- classes with an "(Evoker only)" suffix so the
+                -- appearance is visible to non-Evoker collectors.
+                { id=195519, slot="Two-Hand", name="Kharnalex, The First Light",       sources={ [17]=181178, [14]=181178, [15]=181178, [16]=181178 }, restrictedToClass=13 },
                 { id=195524, slot="Waist",    name="Matriarch's Opulent Girdle",       sources={ [17]=181597, [14]=181183, [15]=181595, [16]=181596 } },
                 { id=195521, slot="Weapon",   name="Ornamental Drakonid Claw",         sources={ [17]=183423, [14]=181180, [15]=183421, [16]=183422 } },
                 { id=195525, slot="Wrist",    name="Loyal Flametender's Bracers",      sources={ [17]=181654, [14]=181184, [15]=181652, [16]=181653 } },
@@ -384,12 +381,9 @@ RetroRuns_Data[2522] = {
         -- Primal Bulwark, past the mini-boss Volcanius, and on to
         -- Eranog's pull spot. Volcanius is a routing-segment gate,
         -- not a boss (no entry in bosses[]) and not a registered
-        -- ENCOUNTER_START encounter (verified in-game 2026-04-25 by
-        -- pulling him with an event listener on a fresh lockout --
-        -- nothing fired). With CLEU registration also unavailable
-        -- (taint popup, see HANDOFF), there is no clean signal to
-        -- detect Volcanius's death or the wall opening, so this step
-        -- uses renderAllSegments=true: all three segments render
+        -- ENCOUNTER_START encounter. With no clean signal to detect
+        -- Volcanius's death or the wall opening, this step uses
+        -- renderAllSegments=true: all three segments render
         -- simultaneously with numbered waypoints, and the player
         -- self-paces through them. The consolidated travel note on
         -- seg 1 walks through the (1)/(2)/(3) sequence verbally to
@@ -400,14 +394,10 @@ RetroRuns_Data[2522] = {
             bossIndex = 1,
             title     = "Eranog",
             requires  = {},
-            -- Render all incomplete segments at once with numbered waypoints
-            -- on the world map. Used when a step has multiple segments on
-            -- the same mapID and no signal to advance between them (in
-            -- Eranog's case, Volcanius's death isn't observable -- not a
-            -- registered encounter, CLEU registration triggers a taint
-            -- popup). The player reads the numbered waypoints in order
-            -- and self-paces through them. See DrawAllSegmentsForMap in
-            -- MapOverlay.lua.
+            -- Eranog's segments include the path past Volcanius, a
+            -- mini-boss the player walks past and kills mid-route. There's
+            -- no kill-detection signal between him and Eranog, so all
+            -- waypoints render at once and the player self-paces.
             renderAllSegments = true,
             segments  = {
                 {
@@ -438,32 +428,19 @@ RetroRuns_Data[2522] = {
                         { 0.488, 0.339 },
                         { 0.548, 0.222 },
                     },
-                    -- Eranog's encounter portrait covers his pull spot
-                    -- {0.548, 0.222}, hiding the segment-end X icon and
-                    -- numbered label. navPoint shifts the X+label below
-                    -- the portrait into clear terrain while the polyline
-                    -- still terminates at the true pull spot.
                     navPoint = { 0.549, 0.27 },
                 },
             },
         },
 
         -- 2. Terros
-        -- Four segments across three mapIDs. Vault Approach (2122)
-        -- appears twice in the route: the player crosses Vault
-        -- Approach to reach Primal Convergence (2124), then crosses
-        -- back through Vault Approach (entering via the Quarry of
-        -- Infusion sub-zone, same mapID 2122) to reach Terros. The
-        -- mapID-change segment-completion logic in HandleLocationChange
-        -- handles the two-2122-segments case correctly: the first
-        -- 2122 segment is marked complete on the 2122->2124 crossing,
-        -- so when the player returns 2124->2122 the renderer's
-        -- earliest-incomplete-on-mapID picker correctly finds seg 4.
-        -- Seg 4's polyline traverses both Vault Approach and Quarry
-        -- of Infusion sub-zones as a single contiguous path; no
-        -- mid-walk redraw at the sub-zone threshold (matches the
-        -- single-polyline convention used by Sanctum, Sepulcher, and
-        -- Castle Nathria).
+        -- Four segments across three mapIDs. The player crosses Vault
+        -- Approach to reach Primal Convergence, kills Terros there,
+        -- then backtracks through Vault Approach (entering via the
+        -- Quarry of Infusion sub-zone) on the way to other bosses.
+        -- Segment 4's path traverses both Vault Approach and Quarry
+        -- of Infusion as a single contiguous walk, with no mid-route
+        -- redraw at the sub-zone boundary.
         {
             step      = 2,
             priority  = 2,
@@ -521,9 +498,7 @@ RetroRuns_Data[2522] = {
         -- Iceskitter Hollow doorway, where the encounter starts.
         -- Segment 4 fires DURING the fight: Sennarth ascends from
         -- 2122 into the actual Iceskitter Hollow sub-zone (2123)
-        -- and the player follows. Kurog seg 1 carries the post-kill
-        -- "click Gust of Wind" guidance, since the boss kill auto-
-        -- advances active step from Sennarth to Kurog.
+        -- and the player follows.
         {
             step      = 3,
             priority  = 3,
@@ -579,15 +554,10 @@ RetroRuns_Data[2522] = {
         },
 
         -- 4. Kurog Grimtotem
-        -- Three segments. Step opens at Sennarth's death spot on the
-        -- Iceskitter Hollow upper platform (mapID 2123) -- seg 1
-        -- instructs the player to use Gust of Wind to descend, since
-        -- the kill auto-advances the active step from Sennarth to
-        -- Kurog before the player has time to read Sennarth's exit
-        -- guidance. The Gust of Wind teleport is a 2123->2122 mapID
-        -- change, which marks seg 1 complete; seg 2 picks up at the
-        -- bottom of the room and walks back out to Primal Convergence
-        -- (2124). Seg 3 follows the newly-opened east path to Kurog.
+        -- Three segments. After Sennarth dies on the Iceskitter Hollow
+        -- upper platform, the player rides Gust of Wind down to the
+        -- bottom of the room, then walks back out to Primal Convergence
+        -- and follows the newly-opened east path to Kurog.
         {
             step      = 4,
             priority  = 4,
@@ -629,12 +599,11 @@ RetroRuns_Data[2522] = {
 
         -- 5. The Primal Council
         -- Four segments backtracking through earlier sub-zones to
-        -- reach the previously-unvisited Elemental Conclave (2120).
-        -- Vault Approach (2122) is traversed for the third time.
+        -- reach the previously-unvisited Elemental Conclave. Vault
+        -- Approach is traversed for the third time on this route.
         -- Segment 4 walks past Braekkas, a named mini-boss in the
-        -- direct path -- handled as a single kind="path" segment
-        -- since the player walks through him naturally; no separate
-        -- kill-gate detection.
+        -- direct path -- the player walks through him naturally on
+        -- the way to the Council pull spot.
         {
             step      = 5,
             priority  = 5,
@@ -689,13 +658,10 @@ RetroRuns_Data[2522] = {
 
         -- 6. Dathea, Ascended
         -- Two segments crossing two new sub-zones. Walk Elemental
-        -- Conclave (2120) past Thondrozus (mini-boss, walked through)
-        -- to the Upward Draft updraft. Clicking the updraft teleports
-        -- the player to Galewind Crag (2121); walk across to the
-        -- Downward Draft, which carries the player to the Dathea
-        -- encounter platform. The platform is geographically part of
-        -- Galewind Crag and shares mapID 2121, so no further mapID
-        -- transition occurs during the fight.
+        -- Conclave past Thondrozus (mini-boss, walked through) to the
+        -- Upward Draft updraft. Clicking the updraft teleports the
+        -- player to Galewind Crag; walk across to the Downward Draft,
+        -- which carries the player to the Dathea encounter platform.
         {
             step      = 6,
             priority  = 6,
@@ -731,13 +697,12 @@ RetroRuns_Data[2522] = {
         },
 
         -- 7. Broodkeeper Diurna
-        -- Four segments backtracking from Galewind Crag (2121) down
-        -- through Primal Bulwark (2119), through a third distinct
-        -- region of Vault Approach (2122, the southern stairs), and
-        -- finally into The Clutchwarren (2126). Segment 2's note
-        -- references the in-game sign labeled "The Clutchwarren"
-        -- even though the path actually transits Vault Approach
-        -- before arriving there.
+        -- Four segments backtracking from Galewind Crag through the
+        -- Primal Bulwark, then through a third distinct region of
+        -- Vault Approach (the southern stairs), and finally into The
+        -- Clutchwarren. Segment 2's note references the in-game sign
+        -- labeled "The Clutchwarren" even though the path actually
+        -- transits Vault Approach before arriving there.
         {
             step      = 7,
             priority  = 7,
@@ -789,10 +754,7 @@ RetroRuns_Data[2522] = {
         -- 8. Raszageth
         -- Two segments. After Diurna dies, the player clicks a nearby
         -- dragon (a scripted flight, not an instant teleport) which
-        -- carries them up to the parent raid map (2125, "Vault of
-        -- the Incarnates"). 2125 is unique in this raid -- it's the
-        -- parent map, not a sub-zone, used because Raszageth's
-        -- platform sits above the sub-zone hierarchy.
+        -- carries them up to the Raszageth platform.
         {
             step      = 8,
             priority  = 8,
