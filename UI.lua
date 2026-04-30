@@ -92,6 +92,18 @@ end)
 -- file (look for `tmogWindow =` and `browserState =` without `local`).
 local tmogWindow
 local browserState
+-- Forward-declared too. Skips window is opened by /rr skips and shows
+-- account-wide raid-skip unlock status across all supported raids. Same
+-- BackdropTemplate framed window pattern as tmogWindow, but without
+-- dropdowns / hyperlinks / hover-hide -- it's a pure read-only display.
+local skipsWindow
+
+-- Forward-declared so UI.ApplySettings (defined below, but before the
+-- assignment site of RefreshIdleList) can call it after font/scale
+-- changes. Without this declaration, the reference in ApplySettings
+-- would resolve to a nil global and the toggle buttons would never
+-- resize when settings change.
+local RefreshIdleList
 
 panel:SetBackdrop({
     bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
@@ -155,24 +167,13 @@ panel.mode = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 panel.mode:SetPoint("TOPRIGHT", -34, -14)
 panel.mode:SetText("")
 
--- Map button
-panel.mapBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-panel.mapBtn:SetSize(60, 20)
-panel.mapBtn:SetPoint("TOPRIGHT", -36, -36)
-panel.mapBtn:SetText("Map")
-panel.mapBtn:SetScript("OnClick", function() RR:ShowCurrentMapForStep() end)
-
--- Tmog button
--- Anchored to the left of the Map button. Always enabled regardless of
--- panel state (in-raid, idle, or run-complete) because the transmog
--- browser preserves its last-browsed selection across openings, so it
--- has something useful to show even when no raid is loaded. Mirrors
--- `/rr tmog` slash command behavior.
-panel.tmogBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-panel.tmogBtn:SetSize(60, 20)
-panel.tmogBtn:SetPoint("RIGHT", panel.mapBtn, "LEFT", -4, 0)
-panel.tmogBtn:SetText("Tmog")
-panel.tmogBtn:SetScript("OnClick", function() UI.ToggleTransmogBrowser() end)
+-- Map / Tmog / Skips / Settings action buttons live in a row at the
+-- bottom of the panel; see the "Footer" block further down for their
+-- definitions. Keeping all four button creators in one place makes
+-- their layout easy to reason about (single anchor calculation, single
+-- frame for spacing) -- previously Tmog and Map sat in the header
+-- with their own anchor logic, which made adding a third or fourth
+-- button awkward.
 
 -- -- Body fields --------------------------------------------------------------
 
@@ -400,10 +401,10 @@ panel.list:SetWidth(BODY_WIDTH)
 panel.list:SetJustifyH("LEFT")
 panel.list:SetJustifyV("TOP")
 
--- Pool of invisible Button overlays for the [+] / [-] toggles in the
--- idle-state supported-raids list and run-complete state's "Where to
--- next" list. Each Button is positioned over the toggle marker on a
--- specific line of panel.list, scaled to cover the [+]/[-] glyph plus
+-- Pool of invisible Button overlays for the expand/collapse toggles in
+-- the idle-state supported-raids list and run-complete state's "Where
+-- to next" list. Each Button is positioned over the toggle marker on a
+-- specific line of panel.list, scaled to cover the texture glyph plus
 -- a small hit-zone padding. Created lazily on demand and parked on
 -- the side when not needed (Hide()'d, but kept in the pool for reuse
 -- on the next refresh so we're not creating frames in a tight loop).
@@ -422,19 +423,54 @@ panel.expansionToggleButtonPool = {}
 
 -- Borrow a Button from the pool, creating one if the pool is empty.
 -- Returned Buttons are blank/Hide()n; callers configure and Show().
+--
+-- The button OWNS its visible glyph (SetNormalTexture / SetPushedTexture /
+-- SetHighlightTexture). Previously the visible glyph was a |T...|t
+-- marker baked into panel.list's text, with this Button sitting as
+-- an invisible click-overlay above it. That two-piece design was the
+-- root cause of the "multi-click to expand" bug: if the click overlay
+-- drifted relative to the rendered text (uneven line heights when
+-- mixing textures with text glyphs, accumulated stride drift on
+-- deeper lines, etc.), the user clicked where they SAW a glyph but
+-- the click landed on empty space.
+--
+-- One-piece design: the button IS the glyph. They cannot desync
+-- because they're the same widget. Per Photek's suggestion -- "anchor
+-- the + button to the left of the raid name so it doesn't matter how
+-- big it is or where it ends up" -- which is exactly this.
 local function AcquireExpansionToggleButton()
     local btn = table.remove(panel.expansionToggleButtonPool)
     if btn then return btn end
     btn = CreateFrame("Button", nil, panel)
-    -- Width covers the "[+]" / "[-]" glyph plus a small buffer so
-    -- the click target stays forgiving. Height is set per-call to
-    -- match the measured rendered line height.
-    btn:SetSize(22, 14)
+    -- Width / height set per-call from current font size in
+    -- PositionExpansionToggleButton, so the glyph scales with the
+    -- user's font setting.
     btn:RegisterForClicks("LeftButtonUp")
     -- Bump frame level so toggle buttons sit above any other panel
     -- children at the same screen position.
     btn:SetFrameLevel((panel:GetFrameLevel() or 0) + 10)
     return btn
+end
+
+-- Apply the expanded/collapsed texture set to a button. Called from
+-- PositionExpansionToggleButton; separate so a click handler could
+-- swap textures without re-positioning if we ever wanted that.
+--
+-- Pushed texture uses the Down variant for visual feedback when
+-- clicking. Highlight texture is the same Highlight variant Blizzard
+-- uses for native plus/minus buttons.
+local function SetToggleButtonTextures(btn, expanded)
+    local upTex, downTex
+    if expanded then
+        upTex   = "Interface\\Buttons\\UI-MinusButton-Up"
+        downTex = "Interface\\Buttons\\UI-MinusButton-Down"
+    else
+        upTex   = "Interface\\Buttons\\UI-PlusButton-Up"
+        downTex = "Interface\\Buttons\\UI-PlusButton-Down"
+    end
+    btn:SetNormalTexture(upTex)
+    btn:SetPushedTexture(downTex)
+    btn:SetHighlightTexture("Interface\\Buttons\\UI-PlusButton-Hilight", "ADD")
 end
 
 -- Return all currently-active toggle Buttons to the pool. Called
@@ -451,28 +487,99 @@ local function ReleaseExpansionToggleButtons()
     wipe(panel.expansionToggleButtons)
 end
 
--- Position Button N from the active set over line `lineIndex` of
--- panel.list, where line 1 is the topmost rendered line. lineHeight
--- comes from RR's font-size setting (matches AutoSize's formula so
--- the click region exactly matches the visible glyph row).
-local function PositionExpansionToggleButton(btn, lineIndex, lineHeight)
+-- Position a toggle Button alongside its expansion-header FontString.
+-- The button anchors to the LEFT of the FontString, sized to match the
+-- current font height. When the FontString moves (because lines above
+-- it changed), the button moves with it -- no measurement, no drift.
+--
+-- This replaced an earlier line-index + measured-line-height design
+-- that had the button anchored to panel.list's TOPLEFT with a
+-- computed y-offset. That design relied on the rendered line stride
+-- matching the arithmetic estimate; it didn't always, especially for
+-- short lists where small per-line errors didn't average out. Symptom:
+-- the second expansion's button drifted further from its text label
+-- than the first. Anchoring to the actual rendered widget eliminates
+-- the entire bug class.
+local function PositionExpansionToggleButton(btn, parentFS, expanded)
+    local fontSize = RR:GetSetting("fontSize", 12)
+    -- Square button at font-size dimensions so the glyph scales with
+    -- the user's text size setting and stays visually proportional to
+    -- the expansion name beside it.
+    btn:SetSize(fontSize, fontSize)
+    SetToggleButtonTextures(btn, expanded)
     btn:ClearAllPoints()
-    -- Anchor to panel.list's TOPLEFT, offset down by (lineIndex - 1)
-    -- line heights. WoW's coordinate system is screen-up, so a
-    -- negative Y offset moves the anchor downward visually (which
-    -- is what we want for line 2, line 3, ...).
-    btn:SetPoint("TOPLEFT", panel.list, "TOPLEFT", 0, -(lineIndex - 1) * lineHeight)
-    btn:SetHeight(lineHeight)
+    -- Anchor to the LEFT of the expansion-header FontString. The
+    -- header text starts with leading-space padding (see emitExpansion
+    -- in BuildIdleListRows) so the button has visual room without
+    -- overlapping the text. Vertical alignment is automatic -- the
+    -- CENTER-of-button to LEFT-of-text anchor pair stays in sync no
+    -- matter where the FontString ends up vertically.
+    btn:SetPoint("LEFT", parentFS, "LEFT", 0, 0)
 end
 
--- Footer (two rows):
+-- ---------------------------------------------------------------------------
+-- Per-line FontString pool for the idle/run-complete supported-raids list
+-- ---------------------------------------------------------------------------
+--
+-- The supported-raids list used to render as one big multi-line string
+-- inside panel.list. That worked for plain content but made it
+-- impossible to position toggle Buttons reliably -- the buttons had
+-- to anchor to panel.list's TOPLEFT and walk down by computed line
+-- offsets, and any error in the line-height arithmetic accumulated
+-- across rows. Result: the second/third expansion's toggle button
+-- drifted further and further from its text label.
+--
+-- The pool below replaces that with per-line FontStrings. Each rendered
+-- line is its own widget, anchored BOTTOMLEFT-of-previous so they stack
+-- top-down naturally. Toggle Buttons anchor to their expansion-header
+-- FontString's LEFT, so the two move together no matter what.
+--
+-- Pool semantics: `panel.idleListLines` is the active list (in render
+-- order, used to drive AutoSize bottom-of-list calculations).
+-- `panel.idleListLinePool` is the recycle bin; FontStrings are pushed
+-- there on Release and popped on Acquire.
+panel.idleListLines    = {}
+panel.idleListLinePool = {}
+
+-- Acquire a FontString for the next line. Caller is responsible for
+-- ClearAllPoints() + SetText() + SetPoint() + Show().
+local function AcquireIdleListLine()
+    local fs = table.remove(panel.idleListLinePool)
+    if fs then return fs end
+    fs = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    fs:SetJustifyH("LEFT")
+    fs:SetWidth(BODY_WIDTH)
+    return fs
+end
+
+-- Return all currently-active line FontStrings to the pool. Hides them
+-- and clears their anchors so a fresh layout pass starts cleanly.
+local function ReleaseIdleListLines()
+    for _, fs in ipairs(panel.idleListLines) do
+        fs:Hide()
+        fs:ClearAllPoints()
+        fs:SetText("")
+        table.insert(panel.idleListLinePool, fs)
+    end
+    wipe(panel.idleListLines)
+end
+
+-- Footer (two rows, bottom-up):
 --   Bottom row: "Created by Photek" on the left, version on the right,
 --               anchored 8px up from the panel's bottom edge.
---   Top row:    "/rr - Toggle  |  /rr settings  |  /rr reset  |  /rr tmog"
---               anchored above the credit row with a 4px gap. Because it
---               anchors relative to the credit row rather than an absolute
---               offset from the panel bottom, the two rows never overlap
---               regardless of font size.
+--   Action row: Map / Tmog / Skips / Settings buttons, anchored above
+--               the credit row with a small gap. Standard Blizzard
+--               UIPanelButtonTemplate buttons; centered horizontally.
+--
+-- The previous design used two TEXT rows here (a slash-command bar like
+-- "/rr - Toggle | /rr settings | /rr reset | /rr tmog" plus a tagline
+-- "Designed for max-level characters running legacy content."). Both
+-- were promoted to actual buttons (the slash commands) and dropped
+-- entirely (tagline -- redundant once the panel feels action-y rather
+-- than informational). The action-button row is more discoverable than
+-- a slash-command reference and matches modern WoW addon conventions.
+--
+-- AutoSize reserves vertical space for both rows via PANEL_FOOTER_RESERVE.
 panel.credit = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 panel.credit:SetPoint("BOTTOMLEFT", PAD_LEFT, 8)
 panel.credit:SetText("Created by |cff4DCCFFPhotek|r")
@@ -481,11 +588,65 @@ panel.version = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 panel.version:SetPoint("BOTTOMRIGHT", -PAD_RIGHT, 8)
 panel.version:SetText("v" .. RetroRuns.VERSION)
 
-panel.footer = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-panel.footer:SetPoint("BOTTOMLEFT",  panel.credit,  "TOPLEFT",  0, 4)
-panel.footer:SetPoint("BOTTOMRIGHT", panel.version, "TOPRIGHT", 0, 4)
-panel.footer:SetJustifyH("LEFT")
-panel.footer:SetText("/rr - Toggle  |  /rr settings  |  /rr reset  |  /rr tmog")
+-- Action button row. Four UIPanelButtonTemplate buttons, evenly
+-- horizontally distributed across the panel width with a small gap
+-- between each. Anchored above the credit/version row with enough
+-- vertical breathing room to read as a separate band rather than
+-- crowding the byline.
+--
+-- Order (left to right): Map, Tmog, Skips, Settings. Reads roughly by
+-- frequency-of-use: Map is the primary in-raid action; Tmog and Skips
+-- are reference views; Settings is config.
+--
+-- panel.mapBtn keeps the same name as the previous header-button
+-- version so existing Enable/Disable state-handling code (the in-raid
+-- vs out-of-raid logic in UI.Update) continues to work without
+-- modification. Same for panel.tmogBtn -- no rename means no caller
+-- updates needed.
+local BUTTON_W   = 70
+local BUTTON_H   = 22
+local BUTTON_GAP = 6
+local TOTAL_W    = BUTTON_W * 4 + BUTTON_GAP * 3
+local START_X    = math.floor((PANEL_W - TOTAL_W) / 2)
+local BUTTON_Y   = 28   -- pixels up from the panel's bottom edge
+
+local function MakeActionButton(name, label, x, onClick)
+    local btn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    btn:SetSize(BUTTON_W, BUTTON_H)
+    btn:SetPoint("BOTTOMLEFT", x, BUTTON_Y)
+    btn:SetText(label)
+    btn:SetScript("OnClick", onClick)
+    return btn
+end
+
+panel.mapBtn = MakeActionButton("Map", "Map",
+    START_X,
+    function() RR:ShowCurrentMapForStep() end)
+
+panel.tmogBtn = MakeActionButton("Tmog", "Tmog",
+    START_X + (BUTTON_W + BUTTON_GAP) * 1,
+    function()
+        -- When in a supported raid, default the browser to that raid +
+        -- current boss before opening (so the user sees their actual
+        -- context rather than the last-browsed selection). Out of a
+        -- raid, fall through to the preserved last-browsed state.
+        if RR.currentRaid then
+            browserState.expansion = RR.currentRaid.expansion
+            browserState.raidKey   = RR.currentRaid.instanceID
+            if RR.state and RR.state.activeStep then
+                browserState.bossIndex = RR.state.activeStep.bossIndex
+            end
+        end
+        UI.ToggleTransmogBrowser()
+    end)
+
+panel.skipsBtn = MakeActionButton("Skips", "Skips",
+    START_X + (BUTTON_W + BUTTON_GAP) * 2,
+    function() UI.ToggleSkipsWindow() end)
+
+panel.settingsBtn = MakeActionButton("Settings", "Settings",
+    START_X + (BUTTON_W + BUTTON_GAP) * 3,
+    function() UI.ToggleSettings() end)
 
 -------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
@@ -503,9 +664,10 @@ panel.footer:SetText("/rr - Toggle  |  /rr settings  |  /rr reset  |  /rr tmog")
 -------------------------------------------------------------------------------
 
 -- Extra breathing room reserved below the last top-down widget. The main
--- panel needs room for the footer stack (slash commands ~y=22, credit/version
--- ~y=8, each ~12px tall) plus a visual gap between the list and the footer.
-local PANEL_FOOTER_RESERVE   = 56   -- pixels
+-- panel needs room for the bottom stack (button row ~y=28-50, credit/
+-- version ~y=8) plus a visual gap above the buttons separating them
+-- from the dynamic content above. ~60px covers the layout with margin.
+local PANEL_FOOTER_RESERVE   = 64   -- pixels
 local POPUP_CONTENT_CEILING  = 600  -- transmog popup max height
 local POPUP_CONTENT_MIN      = 240  -- transmog popup min height
 
@@ -557,13 +719,36 @@ function UI.ApplySettings()
         { panel.transmog.label, 12, ""    },
         { panel.listHeader, 12, "OUTLINE" },
         { panel.list,       12, ""        },
-        { panel.footer,     10, ""        },
         { panel.credit,     10, ""        },
         { panel.version,    10, ""        },
     }
+    -- ForceFontRelayout is needed for FontStrings whose `GetStringHeight`
+    -- gets read by AutoSize (so the panel re-fits around the bumped font
+    -- on the same frame). It works by calling fs:SetWidth(fs:GetWidth())
+    -- to poke the layout system, which is fine when the FontString already
+    -- has an explicit width or two horizontal anchors -- in those cases
+    -- the width returned by GetWidth IS the constraint width.
+    --
+    -- It is HARMFUL for FontStrings that size to their content (single
+    -- horizontal anchor, no SetWidth). Those return their natural rendered
+    -- width from GetWidth(), and pinning that width via SetWidth pre-bump
+    -- locks the FontString to the OLD font's render extent. When the font
+    -- is then bumped larger, the text wraps (left-anchored case) or
+    -- truncates with an ellipsis (right-anchored case).
+    --
+    -- The footer text strings (credit, version) are content-sized and
+    -- not used for AutoSize height measurement (panel uses the
+    -- PANEL_FOOTER_RESERVE constant instead). Skip the relayout for
+    -- both to avoid the stale-width-pin bug.
+    local skipRelayout = {
+        [panel.credit]  = true,
+        [panel.version] = true,
+    }
     for _, t in ipairs(targets) do
         SafeSetFont(t[1], BODY_FONT, math.max(8, t[2] + bump), t[3])
-        ForceFontRelayout(t[1])
+        if not skipRelayout[t[1]] then
+            ForceFontRelayout(t[1])
+        end
     end
 
     -- Ancillary frames: popup and settings panel aren't parented to panel,
@@ -587,6 +772,19 @@ function UI.ApplySettings()
             tmogWindow.contentText:SetFont(STANDARD_TEXT_FONT, fontSize - 1, "")
         end
     end
+
+    -- Skips window: same scale treatment as tmog. Unlike tmog, the skips
+    -- window's content is per-row widgets at fixed y-offsets, so changing
+    -- font size requires re-running RefreshContent to recompute the
+    -- y-cursor and reposition rows. Only do this if the window is
+    -- currently shown -- if it's hidden, the next OpenSkipsWindow will
+    -- pick up the new size on its own.
+    if skipsWindow then
+        skipsWindow:SetScale(scale)
+        if skipsWindow:IsShown() and skipsWindow.RefreshContent then
+            skipsWindow.RefreshContent()
+        end
+    end
     -- (intentionally no scale applied to settingsFrame)
 
     -- Re-fit the panel + auxiliary frames now that fonts and scale changed.
@@ -594,25 +792,73 @@ function UI.ApplySettings()
     -- single synchronous pass is sufficient -- no deferred re-measure pass
     -- needed, which eliminates the visible pop-in flicker.
     UI.AutoSize()
+
+    -- Re-run the idle list refresh so its expansion-toggle Buttons resize
+    -- to the new font setting. Toggle pixel dimensions are a function of
+    -- fontSize (applied in PositionExpansionToggleButton during refresh),
+    -- so without this, the +/- glyphs stay at their previous size until
+    -- some other event triggers a refresh -- visible as the toggles not
+    -- scaling when the user moves the font slider.
+    --
+    -- Only fires when there's already an idle list rendered; we don't
+    -- want to force-render the idle list when the panel might be in
+    -- in-raid or run-complete state. RefreshIdleList itself is a local
+    -- function in this file (defined later); it's safe to call here
+    -- because Lua resolves upvalues at call-time, not definition-time.
+    --
+    -- Avoid calling UI.Update here -- UI.Update itself calls
+    -- ApplySettings, which would create an infinite recursion.
+    if RefreshIdleList and panel.list and panel.list:GetText() then
+        RefreshIdleList()
+    end
 end
 
 -- Resizes the main panel (and ancillary frames) to fit their current
 -- content. Safe to call at any time; idempotent.
 function UI.AutoSize()
     -- MAIN PANEL -----------------------------------------------------------
-    -- The top-down layout ends at panel.list. Rather than asking WoW for
-    -- the rendered height (which is lazy and causes a pop-in flicker), we
-    -- compute it deterministically from text line count + font size, plus
-    -- each fixed-height widget above the list.
-    if panel.list and panel.list:GetText() then
-        local fontSize   = RR:GetSetting("fontSize", 12)
-        local lineHeight = fontSize + 4
+    -- The top-down layout ends at either:
+    --   (a) panel.list (in-raid boss-progress checklist) -- when the
+    --       in-raid view is active, panel.list holds a multi-line
+    --       text and panel.idleListLines is empty, OR
+    --   (b) the bottom of the per-line FontStrings in panel.idleListLines
+    --       (idle / run-complete supported-raids list) -- panel.list is
+    --       empty, panel.idleListLines holds the rendered rows.
+    --
+    -- Pick whichever has content and compute the bottom-of-list height
+    -- from there. AutoSize uses arithmetic (not GetStringHeight) so the
+    -- pass is synchronous -- no deferred re-measure needed.
+    local fontSize   = RR:GetSetting("fontSize", 12)
+    local lineHeight = fontSize + 4
 
-        local listText = panel.list:GetText() or ""
+    local listH = 0
+    local hasContent = false
+
+    -- Path (a): in-raid panel.list text
+    if panel.list and panel.list:GetText() and panel.list:GetText() ~= "" then
+        local listText = panel.list:GetText()
         local lines = 1
         for _ in listText:gmatch("\n") do lines = lines + 1 end
-        local listH = lines * lineHeight
+        listH = lines * lineHeight
+        hasContent = true
+    end
 
+    -- Path (b): per-line FontStrings in idle/run-complete list. Each
+    -- FontString contributes one line of height plus its inter-row gap.
+    -- Spacers are tracked via the _nextGap field on the prior FontString
+    -- (see RefreshIdleList) -- adding fontSize per FontString plus a
+    -- conservative 2px gap is close enough for AutoSize budgeting.
+    if #panel.idleListLines > 0 then
+        local rowH    = lineHeight
+        local gap     = 2
+        local idleH   = #panel.idleListLines * rowH
+                      + (math.max(0, #panel.idleListLines - 1)) * gap
+                      + 8  -- top spacing under listHeader
+        listH = math.max(listH, idleH)
+        hasContent = true
+    end
+
+    if hasContent then
         -- Footer reserve is now dynamic -- it must fit two footer rows
         -- (slash commands + credit line) both at the current font size.
         -- Footer uses a 10pt font (GameFontDisableSmall + bump), which is
@@ -628,30 +874,12 @@ function UI.AutoSize()
         if parentTop and listHeaderBot then
             -- COORDINATE-SYSTEM NOTE (corrected 2026-04-21, third time
             -- through this code; getting it right is harder than it
-            -- looks):
-            --
-            -- Per Wowpedia "UI scaling": GetTop/GetBottom/GetHeight all
-            -- return values in the FRAME's own scaled coordinate system,
-            -- which is also what SetHeight expects. So `parentTop`,
-            -- `listHeaderBot`, `listH` (built from fontSize, which lives
-            -- in panel's coord system), and `footerReserve` are all in
-            -- the SAME coordinate system. `desired = sum of those` is
-            -- directly usable as `panel:SetHeight(desired)`. NO division
-            -- by scale.
-            --
-            -- The only place a scale conversion IS needed is for `maxH`:
-            -- screenH comes from UIParent (a different frame, different
-            -- effective scale), so converting it to panel's coord system
-            -- requires dividing by panel:GetScale(). That conversion was
-            -- correct in the original code and remains correct here.
-            --
-            -- HISTORY: v0.3.5 attempted a fix that moved the `/scale`
-            -- from `desired` onto `topToListTop` -- this was less wrong
-            -- than the original but still wrong. v0.3.x (this fix)
-            -- removes the spurious `/scale` from `desired` entirely.
-            -- At scale 1.3, the original code undersized the panel by
-            -- ~24%; the v0.3.5 attempt undersized by ~5%; this version
-            -- sizes correctly.
+            -- looks): per Wowpedia "UI scaling", GetTop/GetBottom/
+            -- GetHeight all return values in the FRAME's own scaled
+            -- coordinate system, which is also what SetHeight expects.
+            -- No division by scale needed for `desired`. The only
+            -- scale conversion is for `maxH` since UIParent has a
+            -- different effective scale than panel.
             local scale          = panel:GetScale() or 1
             local topToListTop   = (parentTop - listHeaderBot) + 4
             local desired        = topToListTop + listH + footerReserve
@@ -2982,15 +3210,20 @@ BuildTransmogDetail = function(stepOrCtx)
     -- as the per-difficulty dots, and "white = needed now" only applies
     -- to the per-difficulty strip (binary rows don't track current
     -- difficulty since the appearance doesn't vary).
-    if activeName then
-        table.insert(lines, "")
-        table.insert(lines,
-            ("|c%sgreen|r|cff888888 = collected      |r|c%sgold|r|cff888888 = via another item|r"):format(
-                DOT_COLLECTED, DOT_SHARED))
-        table.insert(lines,
-            ("|c%swhite|r|cff888888 = needed (current difficulty)  |r|c%sgray|r|cff888888 = not collected|r"):format(
-                DOT_ACTIVE, DOT_INACTIVE))
-    end
+    --
+    -- Renders unconditionally -- the dots have the same meaning whether
+    -- the player is browsing from inside a supported raid or from
+    -- elsewhere in the world. The "Current difficulty:" header above is
+    -- correctly gated on activeName (no current difficulty to display
+    -- when not zoned in), but the legend is just a key for the visual
+    -- vocabulary and applies always.
+    table.insert(lines, "")
+    table.insert(lines,
+        ("|c%sgreen|r|cff888888 = collected      |r|c%sgold|r|cff888888 = via another item|r"):format(
+            DOT_COLLECTED, DOT_SHARED))
+    table.insert(lines,
+        ("|c%swhite|r|cff888888 = needed (current difficulty)  |r|c%sgray|r|cff888888 = not collected|r"):format(
+            DOT_ACTIVE, DOT_INACTIVE))
 
     return table.concat(lines, "\n")
 end
@@ -3597,15 +3830,407 @@ function UI.ToggleTransmogBrowser()
     end
 end
 
+-- ----------------------------------------------------------------------------
+-- Shared raid-skip presentation pieces
+--
+-- Used by both the idle-state list (where the marker appears next to
+-- raid names with the skip unlocked) and the skips window (where the
+-- marker headlines each unlocked raid). Defined here so both consumers
+-- pick up the same glyph rules.
+-- ----------------------------------------------------------------------------
+
+-- Skip-unlocked marker. Inline texture markup using the standard yellow
+-- raid-target star -- same texture used for Fyrakk's portal POI on the
+-- world map (see MapOverlay.lua). Re-using the glyph keeps "yellow star
+-- = noteworthy point of interest" consistent across the addon's surfaces.
+-- 9x9 pixel render fits cleanly alongside GameFontHighlightSmall text
+-- without dominating the raid name; legend text uses the same size for
+-- a consistent reading.
+local SKIP_MARKER = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:9:9|t"
+
+-- Footer line shown only when at least one raid in the rendered list
+-- has its skip unlocked on this account. Explains the star marker.
+-- (The "Designed for max-level..." tagline that used to live here was
+-- promoted to panel.tagline -- a static footer row -- and then dropped
+-- entirely when the action-button row replaced both the tagline and the
+-- slash-command bar at the bottom of the panel.)
+local IDLE_SKIP_LEGEND =
+    "|cff9d9d9d" .. SKIP_MARKER .. " = raid skip unlocked on this account|r"
+
+-- ----------------------------------------------------------------------------
+-- Skips window
+--
+-- Account-wide raid skip status display. Lazy-built framed window that
+-- mirrors the Tmog browser's structural pattern (BackdropTemplate frame,
+-- title bar, close button, draggable, content area with AutoSize) but
+-- without the Tmog-specific bits (dropdowns, hyperlinks, hover-hide
+-- timer). It's a pure read-only display: re-renders content from the
+-- live API every time it's shown, no caching.
+--
+-- Cascade-aware: each raid line shows the cascade ceiling derived via
+-- GetRaidSkipUnlockedCeiling, and the available difficulties listed
+-- under it follow the cascade-down rule (Mythic completion -> Mythic +
+-- Heroic + Normal listed; Heroic completion -> Heroic + Normal; etc.)
+--
+-- Why a framed window instead of the copy window: this is a USER-FACING
+-- feature, not a diagnostic. Per Section 0, the copy window is for
+-- diagnostic dumps where the user copies text out; permanent UI surfaces
+-- belong in proper framed windows. Format/alignment problems also go
+-- away because we control the layout per-row instead of dumping plain
+-- text into a proportional-font editbox.
+-- ----------------------------------------------------------------------------
+
+-- Sizing constants for the skips window. Independent of POPUP_CONTENT_*
+-- (Tmog) because the skips window has different chrome and content
+-- shape -- a few raids in a small table + disclaimer is a more
+-- predictable height range than transmog content.
+local SKIPS_WINDOW_WIDTH        = 400
+local SKIPS_WINDOW_MIN_HEIGHT   = 200
+local SKIPS_WINDOW_MAX_HEIGHT   = 600
+
+-- Column x-offsets (px from frame left) for the difficulty cells. The
+-- name column starts at frame-left + content padding and runs up to
+-- the first cell; the three cell columns are right-aligned around their
+-- center x-positions so a glyph and the header letter both sit
+-- visually centered. Offsets chosen empirically for SKIPS_WINDOW_WIDTH=400.
+--
+-- Difficulty order: Mythic / Heroic / Normal (left to right). Hardest
+-- first matches a player's typical mental model when checking "do I have
+-- skips for this raid" -- they look at Mythic first, eye left to right
+-- as the answer cascades down through difficulties. Cascade-down means
+-- a partial unlock visually stacks ✓s on the right side of the row.
+local SKIPS_COL_NAME_X     = 14
+local SKIPS_COL_MYTHIC_X   = 240
+local SKIPS_COL_HEROIC_X   = 300
+local SKIPS_COL_NORMAL_X   = 360
+
+-- Per-row vertical spacing. Driven by font size at refresh time; this
+-- is the multiplier (rendered line-height = fontSize * SKIPS_LINE_GAP).
+local SKIPS_LINE_GAP       = 1.7
+
+-- Glyphs for difficulty cells. Reuse the existing visual vocabulary
+-- (ReadyCheck-Ready / plain X) so the meaning is consistent with how
+-- collected/uncollected appearances are rendered elsewhere in the
+-- addon.
+local SKIPS_CELL_UNLOCKED = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
+local SKIPS_CELL_LOCKED   = "|cff666666X|r"
+
+local GetOrCreateSkipsWindow
+
+-- Build a structured row list for the skips window. Each row is one of:
+--   { kind = "expansionHeader", text = "Dragonflight" }
+--   { kind = "raidRow", name = "Aberrus...", mythic = bool, heroic = bool, normal = bool }
+--   { kind = "noSkipRow", name = "Castle Nathria" }       -- raids without skipQuests configured
+--   { kind = "spacer" }
+--
+-- The rendering pass turns rows into FontStrings/textures. Keeping the
+-- structure separate from rendering makes the layout code a simple loop
+-- and lets us add new row kinds (totals, footnotes, etc.) without
+-- restructuring.
+local function BuildSkipsRows()
+    local rows = {}
+    local function add(row) table.insert(rows, row) end
+
+    -- API gate: if the OnAccount variant isn't available, return a
+    -- single explanatory row.
+    local fn = C_QuestLog and C_QuestLog.IsQuestFlaggedCompletedOnAccount
+    if not fn then
+        add({ kind = "message", text =
+            "|cffff5555Account-wide skip detection unavailable on this client.|r\n"
+            .. "|cff9d9d9dRequires Patch 11.0.5 or later.|r" })
+        return rows
+    end
+
+    -- Group raids by expansion, ordered newest-first. Within each
+    -- expansion, sort by patch descending (matches the idle list).
+    local byExp = {}
+    local expOrder = {}
+    for _, raid in pairs(RetroRuns_Data or {}) do
+        local exp = raid.expansion or "Unknown"
+        if not byExp[exp] then
+            byExp[exp] = {}
+            table.insert(expOrder, exp)
+        end
+        table.insert(byExp[exp], raid)
+    end
+
+    -- Use the same EXPANSION_ORDER_NEWEST_FIRST that the idle list uses
+    -- if it's exposed on RR; else fall back to alpha sort.
+    if RR.EXPANSION_ORDER_NEWEST_FIRST then
+        local seen, ordered = {}, {}
+        for _, exp in ipairs(RR.EXPANSION_ORDER_NEWEST_FIRST) do
+            if byExp[exp] then
+                table.insert(ordered, exp); seen[exp] = true
+            end
+        end
+        for _, exp in ipairs(expOrder) do
+            if not seen[exp] then table.insert(ordered, exp) end
+        end
+        expOrder = ordered
+    else
+        table.sort(expOrder)
+    end
+
+    for _, exp in ipairs(expOrder) do
+        local raids = byExp[exp]
+        table.sort(raids, function(a, b)
+            return (a.patch or "") > (b.patch or "")
+        end)
+        add({ kind = "expansionHeader", text = exp })
+        for _, raid in ipairs(raids) do
+            local sk = raid.skipQuests
+            if not sk then
+                add({ kind = "noSkipRow", name = raid.name or "?" })
+            else
+                local ceiling = RR:GetRaidSkipUnlockedCeiling(raid)
+                -- Cascade-down: ceiling N means difficulties <= N are
+                -- unlocked. nil ceiling means none unlocked.
+                add({
+                    kind   = "raidRow",
+                    name   = raid.name or "?",
+                    mythic = ceiling and ceiling >= 16 or false,
+                    heroic = ceiling and ceiling >= 15 or false,
+                    normal = ceiling and ceiling >= 14 or false,
+                })
+            end
+        end
+        add({ kind = "spacer" })
+    end
+
+    -- Drop trailing spacer.
+    if rows[#rows] and rows[#rows].kind == "spacer" then
+        rows[#rows] = nil
+    end
+
+    return rows
+end
+
+-- Per-row widget pool. Each pool entry is a "row group" containing the
+-- name FontString plus three cell FontStrings (mythic / heroic / normal)
+-- plus a left-side expansion-header FontString. We hide all four on a
+-- given row and only show the ones that match the row's kind, so a
+-- single pool slot serves any row type. Slots are created on demand and
+-- reused across refreshes.
+local skipsRowPool = {}
+
+local function GetSkipsRowSlot(parent, idx)
+    if skipsRowPool[idx] then return skipsRowPool[idx] end
+    local slot = {}
+
+    slot.expHeader = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    slot.expHeader:SetJustifyH("LEFT")
+
+    slot.name = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    slot.name:SetJustifyH("LEFT")
+
+    slot.cellM = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    slot.cellM:SetJustifyH("CENTER")
+    slot.cellH = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    slot.cellH:SetJustifyH("CENTER")
+    slot.cellN = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    slot.cellN:SetJustifyH("CENTER")
+
+    -- "message" or "noSkipRow" use the name FontString in a wider mode.
+    skipsRowPool[idx] = slot
+    return slot
+end
+
+local function HideAllSkipsSlots()
+    for _, slot in ipairs(skipsRowPool) do
+        slot.expHeader:Hide()
+        slot.name:Hide()
+        slot.cellM:Hide()
+        slot.cellH:Hide()
+        slot.cellN:Hide()
+    end
+end
+
+-- Rebuild the skips window content as a table. Walks BuildSkipsRows,
+-- positions per-row widgets at the appropriate y offset, and resizes
+-- the frame to fit.
+local function RefreshSkipsContent()
+    local w = skipsWindow
+    if not w then return end
+
+    HideAllSkipsSlots()
+
+    local rows = BuildSkipsRows()
+    local fontSize = RR:GetSetting("fontSize", 12)
+    local lineHeight = math.floor(fontSize * SKIPS_LINE_GAP + 0.5)
+
+    -- y-cursor starts below the chrome (title bar + column headers).
+    -- Title bar is at y=-10, takes ~20px. Column headers row sits at
+    -- y=-32. First content row starts at y=-32 - lineHeight.
+    local topMargin = 32 + lineHeight
+    local y = -topMargin
+
+    -- Update the persistent column header strings to match font size.
+    if w.colHeaderM then
+        w.colHeaderM:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+        w.colHeaderH:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+        w.colHeaderN:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+    end
+
+    for i, row in ipairs(rows) do
+        local slot = GetSkipsRowSlot(w, i)
+
+        if row.kind == "expansionHeader" then
+            slot.expHeader:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+            slot.expHeader:SetText("|cff00ffff" .. row.text .. "|r")
+            slot.expHeader:ClearAllPoints()
+            slot.expHeader:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y)
+            slot.expHeader:Show()
+            y = y - lineHeight
+
+        elseif row.kind == "raidRow" then
+            slot.name:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+            slot.name:SetText("|cffffffff  " .. row.name .. "|r")
+            slot.name:ClearAllPoints()
+            slot.name:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y)
+            slot.name:SetWidth(SKIPS_COL_MYTHIC_X - SKIPS_COL_NAME_X - 8)
+            slot.name:Show()
+
+            slot.cellM:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+            slot.cellM:SetText(row.mythic and SKIPS_CELL_UNLOCKED or SKIPS_CELL_LOCKED)
+            slot.cellM:ClearAllPoints()
+            slot.cellM:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_MYTHIC_X, y)
+            slot.cellM:Show()
+
+            slot.cellH:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+            slot.cellH:SetText(row.heroic and SKIPS_CELL_UNLOCKED or SKIPS_CELL_LOCKED)
+            slot.cellH:ClearAllPoints()
+            slot.cellH:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_HEROIC_X, y)
+            slot.cellH:Show()
+
+            slot.cellN:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+            slot.cellN:SetText(row.normal and SKIPS_CELL_UNLOCKED or SKIPS_CELL_LOCKED)
+            slot.cellN:ClearAllPoints()
+            slot.cellN:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_NORMAL_X, y)
+            slot.cellN:Show()
+
+            y = y - lineHeight
+
+        elseif row.kind == "noSkipRow" then
+            slot.name:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+            slot.name:SetText("|cff666666  " .. row.name .. "  (no skip data)|r")
+            slot.name:ClearAllPoints()
+            slot.name:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y)
+            slot.name:SetWidth(SKIPS_WINDOW_WIDTH - SKIPS_COL_NAME_X - 14)
+            slot.name:Show()
+            y = y - lineHeight
+
+        elseif row.kind == "spacer" then
+            y = y - math.floor(lineHeight / 2)
+
+        elseif row.kind == "message" then
+            slot.name:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+            slot.name:SetText(row.text)
+            slot.name:ClearAllPoints()
+            slot.name:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y)
+            slot.name:SetWidth(SKIPS_WINDOW_WIDTH - SKIPS_COL_NAME_X - 14)
+            slot.name:Show()
+            y = y - (lineHeight * 3)
+        end
+    end
+
+    -- Position the disclaimer below the last row, with a small gap.
+    if w.disclaimer then
+        w.disclaimer:SetFont(STANDARD_TEXT_FONT, fontSize - 1, "")
+        w.disclaimer:ClearAllPoints()
+        w.disclaimer:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y - 8)
+        w.disclaimer:SetPoint("TOPRIGHT", w, "TOPRIGHT", -14, y - 8)
+    end
+
+    -- Compute total height: |y| (negative offset to last row) + disclaimer
+    -- height + bottom margin.
+    local lastY = math.abs(y)
+    local disclaimerH = w.disclaimer and w.disclaimer:GetStringHeight() or 0
+    local desired = lastY + 14 + disclaimerH + 14
+    local clamped = math.max(SKIPS_WINDOW_MIN_HEIGHT,
+                             math.min(SKIPS_WINDOW_MAX_HEIGHT, desired))
+    w:SetHeight(clamped)
+end
+
+GetOrCreateSkipsWindow = function()
+    if skipsWindow then return skipsWindow end
+
+    local f = CreateFrame("Frame", "RetroRunsSkipsWindow", UIParent, "BackdropTemplate")
+    -- Initial height matches MIN; RefreshSkipsContent grows it on first show.
+    f:SetSize(SKIPS_WINDOW_WIDTH, SKIPS_WINDOW_MIN_HEIGHT)
+    f:SetBackdrop({
+        bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
+        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    f:SetBackdropColor(0.03, 0.03, 0.03, 0.95)
+    -- Anchor to the right of the main panel, same as Tmog.
+    f:SetPoint("TOPLEFT", panel, "TOPRIGHT", 6, 0)
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop",  f.StopMovingOrSizing)
+    f:SetClampedToScreen(true)
+    f:SetFrameStrata("HIGH")
+    f:Hide()
+
+    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetPoint("TOPLEFT", 14, -10)
+    title:SetText("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  Raid Skips")
+
+    local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", -4, -4)
+    closeBtn:SetScript("OnClick", function() f:Hide() end)
+
+    -- Static column headers. Sit at y=-32, just below the title bar.
+    -- These are persistent (not pool-managed) since they never change.
+    local function MakeColHeader(x, text)
+        local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        fs:SetPoint("TOP", f, "TOPLEFT", x, -32)
+        fs:SetJustifyH("CENTER")
+        fs:SetText("|cffaaaaaa" .. text .. "|r")
+        return fs
+    end
+    f.colHeaderM = MakeColHeader(SKIPS_COL_MYTHIC_X, "Mythic")
+    f.colHeaderH = MakeColHeader(SKIPS_COL_HEROIC_X, "Heroic")
+    f.colHeaderN = MakeColHeader(SKIPS_COL_NORMAL_X, "Normal")
+
+    -- Disclaimer at the bottom. Anchored dynamically by RefreshSkipsContent
+    -- after the last row, so no fixed position here.
+    local disclaimer = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    disclaimer:SetJustifyH("LEFT")
+    disclaimer:SetWordWrap(true)
+    disclaimer:SetText("|cffffd200Disclaimer:|r |cff9d9d9dThis is purely informational. "
+                    .. "Skip-aware routing is not built yet.|r")
+    f.disclaimer = disclaimer
+
+    f.RefreshContent = RefreshSkipsContent
+
+    skipsWindow = f
+    return f
+end
+
+function UI.OpenSkipsWindow()
+    local w = GetOrCreateSkipsWindow()
+    -- Apply current settings (scale + font) before refreshing so the
+    -- first visible state already matches the user's settings rather
+    -- than rendering at default and then snapping to settings.
+    local scale = RR:GetSetting("windowScale", 1.0)
+    w:SetScale(scale)
+    RefreshSkipsContent()
+    w:Show()
+end
+
+function UI.ToggleSkipsWindow()
+    if skipsWindow and skipsWindow:IsShown() then
+        skipsWindow:Hide()
+    else
+        UI.OpenSkipsWindow()
+    end
+end
 
 
--- Idle-state list of supported raids, derived from RetroRuns_Data so
--- new raid additions auto-appear (no manual list maintenance). Groups
--- by expansion, sorts within each expansion by patch number descending
--- (newest patch first), and appends the patch label to each raid name.
--- Falls back to a single empty-list line if nothing is loaded yet.
-local IDLE_FOOTER =
-    "|cff9d9d9dDesigned for max-level characters running legacy content.|r"
 
 -- Build the per-raid pill row for the idle-state list. Same shape as the
 -- in-raid pill row, but each pill is colored by its OWN lockout state
@@ -3615,9 +4240,25 @@ local IDLE_FOOTER =
 --   gray   = no kills / fresh lockout / never entered
 --   dim "-" = difficulty doesn't apply to this raid (rare; some legacy
 --             raids predate certain difficulties)
+--
+-- Skip-unlock decoration: each Normal/Heroic/Mythic pill whose
+-- difficulty is at or below the raid's cascade ceiling gets a SKIP_MARKER
+-- (yellow star) appended after the difficulty letter -- e.g. "N* 0/9".
+-- LFR is never decorated since the in-game raid-skip system doesn't
+-- apply to LFR. The star next to a difficulty letter means "skip works
+-- at this difficulty (and all easier ones)". When ALL THREE applicable
+-- difficulties (N/H/M) are unlocked, the star moves UP to the raid name
+-- line instead -- see emitRaid -- to avoid three identical stars cluttering
+-- the pill row.
 local function BuildIdleListPills(raid)
     local counts = RR:GetPerDifficultyKillCountsForRaid(raid)
     if not counts then return "" end
+
+    -- Cascade ceiling: 16 (Mythic) / 15 (Heroic) / 14 (Normal) / nil.
+    -- Skip the marker insertion entirely when ceiling is Mythic since
+    -- the raid-name line carries the indicator in that case.
+    local ceiling = RR:GetRaidSkipUnlockedCeiling(raid)
+    local decorate = ceiling and ceiling < 16
 
     local PILLS = {
         { id = 17, label = "LFR" },
@@ -3638,6 +4279,20 @@ local function BuildIdleListPills(raid)
     local parts = {}
     for _, p in ipairs(PILLS) do
         local c = counts[p.id]
+
+        -- Build the difficulty-letter label with optional trailing
+        -- skip-marker. Note: the marker is inserted INTO the label
+        -- before applying the lockout-state color, so it sits inside
+        -- the pill's color block. This is fine -- |T...|t texture
+        -- markup ignores the surrounding color and renders at native
+        -- colors regardless.
+        local label = p.label
+        if decorate
+           and (p.id == 14 or p.id == 15 or p.id == 16)
+           and p.id <= ceiling then
+            label = label .. SKIP_MARKER
+        end
+
         if c and c.total > 0 then
             local hex
             if c.complete >= c.total then
@@ -3648,9 +4303,9 @@ local function BuildIdleListPills(raid)
                 hex = FRESH
             end
             table.insert(parts, ("|cff%s%s %d/%d|r"):format(
-                hex, p.label, c.complete, c.total))
+                hex, label, c.complete, c.total))
         else
-            table.insert(parts, ("|cff%s%s -|r"):format(INACTIVE, p.label))
+            table.insert(parts, ("|cff%s%s -|r"):format(INACTIVE, label))
         end
     end
     if #parts == 0 then return "" end
@@ -3661,14 +4316,20 @@ local function BuildIdleListPills(raid)
         .. "|cff777777 ]|r"
 end
 
--- Returns (text, headers) where:
---   text    = the full multi-line string for panel.list:SetText()
---   headers = array of { exp = expansionName, line = lineIndex }
---             one entry per rendered expansion header. Line numbers
---             are 1-based and match the line position of the [+]/[-]
---             marker in `text`. Used by the caller to position
---             clickable toggle Buttons over the markers.
-local function BuildIdleListText()
+-- Returns a list of structured rows for RefreshIdleList to render as
+-- per-line FontStrings. Each row is one of:
+--   { kind = "expansionHeader", exp = name, expanded = bool }
+--   { kind = "raidName",        text = colored-and-formatted string }
+--   { kind = "pillRow",         text = colored pill string }
+--   { kind = "spacer" }
+--   { kind = "skipLegend" }
+--   { kind = "emptyMessage",    text = "(no raid data loaded)" }
+--
+-- Splitting the row data from the rendering pass means RefreshIdleList
+-- can anchor toggle Buttons directly to their expansion-header
+-- FontString instances (no line-index math, no measurement drift)
+-- while keeping data construction and rendering as separate concerns.
+local function BuildIdleListRows()
     local byExpansion = {}
     for _, raid in pairs(RetroRuns_Data or {}) do
         local exp = raid.expansion or "Unknown"
@@ -3686,8 +4347,9 @@ local function BuildIdleListText()
         return expanded[exp] == true
     end
 
-    local lines = {}
-    local headers = {}
+    local rows = {}
+    local anySkipShown = false
+
     local function emitRaid(raid)
         local name  = raid.name or "??"
         local patch = raid.patch
@@ -3697,35 +4359,44 @@ local function BuildIdleListText()
         else
             label = ("|cffffffff* %s|r"):format(name)
         end
-        table.insert(lines, label)
+        -- Skip-marker placement depends on the cascade ceiling:
+        --   Mythic ceiling (all 3 difficulties unlocked) -> star at the
+        --     raid name. Cleaner than three identical stars on the pills.
+        --   Heroic / Normal ceiling -> star moves DOWN onto the affected
+        --     pill(s); BuildIdleListPills handles that.
+        --   No unlock -> no star anywhere.
+        local ceiling = RR:GetRaidSkipUnlockedCeiling(raid)
+        if ceiling == 16 then
+            label = label .. " " .. SKIP_MARKER
+        end
+        if ceiling then
+            anySkipShown = true
+        end
+        table.insert(rows, { kind = "raidName", text = label })
         local pills = BuildIdleListPills(raid)
         if pills ~= "" then
             -- Indent the pill row two spaces under the raid name so the
             -- visual hierarchy is clear: name on the bullet line,
             -- lockout summary on the sub-line.
-            table.insert(lines, "  " .. pills)
+            table.insert(rows, { kind = "pillRow", text = "  " .. pills })
         end
     end
 
-    -- Render an expansion's header with a [+]/[-] toggle marker prefix.
-    -- The marker is just text -- a separate Button overlay (positioned
-    -- by the caller via the returned `headers` map) handles the click.
-    -- This keeps the rendering logic dumb and the click target reliable.
-    -- Toggle stays yellow (matches the [!] special-note marker for
-    -- visual consistency); expansion name renders cyan to differentiate
-    -- the headers from the white raid rows beneath them.
+    -- Render an expansion's header. The toggle button (acquired and
+    -- positioned by RefreshIdleList) anchors to the row's FontString;
+    -- the row's text starts with leading-space padding so the button
+    -- has visual room without overlapping the text.
     local function emitExpansion(exp, raids)
         table.sort(raids, patchDescending)
-        local toggle = isExpanded(exp) and "[-]" or "[+]"
-        table.insert(lines, ("|cffffff00%s|r |cff00ffff%s|r"):format(toggle, exp))
-        -- Record the 1-based line number where this expansion's header
-        -- sits, so the caller can position a click-overlay Button on
-        -- exactly that row.
-        table.insert(headers, { exp = exp, line = #lines })
+        table.insert(rows, {
+            kind     = "expansionHeader",
+            exp      = exp,
+            expanded = isExpanded(exp),
+        })
         if isExpanded(exp) then
             for _, raid in ipairs(raids) do emitRaid(raid) end
         end
-        table.insert(lines, "")
+        table.insert(rows, { kind = "spacer" })
     end
 
     -- Emit known expansions in canonical order
@@ -3740,72 +4411,123 @@ local function BuildIdleListText()
         emitExpansion(exp, raids)
     end
 
-    if #lines == 0 then
-        table.insert(lines, "|cff9d9d9d(no raid data loaded)|r")
-        table.insert(lines, "")
+    if #rows == 0 then
+        table.insert(rows, { kind = "emptyMessage", text = "|cff9d9d9d(no raid data loaded)|r" })
     end
 
-    table.insert(lines, IDLE_FOOTER)
-    return table.concat(lines, "\n"), headers
+    -- Skip legend appears only when at least one currently-visible raid
+    -- shows the star marker. If all expansions are collapsed (or no
+    -- raids in the expanded sections have the skip), the legend stays
+    -- hidden so we're not explaining a glyph the user can't see.
+    if anySkipShown then
+        table.insert(rows, { kind = "skipLegend" })
+    end
+
+    return rows
 end
 
--- Helper: rebuild and apply the idle-state list text + reposition the
--- expansion-toggle Buttons over each header line. Shared between the
--- idle and run-complete branches of UI.Update so both states get the
--- same click behavior (both states render the supported-raids list,
--- both need the toggles to work).
-local function RefreshIdleList()
-    local text, headers = BuildIdleListText()
-    panel.list:SetText(text)
+-- Helper: rebuild and apply the idle-state list. Each visible row is
+-- rendered as its own FontString from the panel.idleListLines pool,
+-- anchored top-down via BOTTOMLEFT-of-previous chains. Expansion-header
+-- toggle buttons anchor LEFT-of-FontString so they move with their
+-- header text -- no measurement, no per-line drift.
+--
+-- Shared between the idle and run-complete branches of UI.Update so
+-- both states get the same click behavior (both states render the
+-- supported-raids list, both need the toggles to work).
+RefreshIdleList = function()
+    -- panel.list is the multi-line FontString used by the in-raid
+    -- boss-progress checklist. It also used to hold the supported-raids
+    -- list, but that's now per-line FontStrings -- clear panel.list to
+    -- avoid stale text peeking through.
+    if panel.list then panel.list:SetText("") end
 
-    -- Recycle previously-positioned toggle Buttons before this frame's
-    -- batch is created.
+    -- Recycle previously-active line FontStrings and toggle Buttons
+    -- before this frame's batch is created.
+    ReleaseIdleListLines()
     ReleaseExpansionToggleButtons()
 
-    -- Defer Button creation and positioning by one frame. Two reasons:
-    -- (1) panel.list:GetStringHeight() returns 0 / stale immediately
-    --     after SetText -- WoW's font system needs a frame to lay out
-    --     the new text before the height is correct.
-    -- (2) Measuring the actual rendered line height (stringH /
-    --     lineCount) gives the true per-line stride, avoiding the
-    --     drift that an arithmetic estimate (fontSize+4) accumulates
-    --     over many lines.
-    -- The visual delay is invisible (single frame, ~16ms at 60fps).
-    C_Timer.After(0, function()
-        local lineCount = 1
-        for _ in text:gmatch("\n") do lineCount = lineCount + 1 end
-        local stringH = panel.list:GetStringHeight() or 0
-        local lineHeight
-        if lineCount > 0 and stringH > 0 then
-            lineHeight = stringH / lineCount
+    local rows = BuildIdleListRows()
+    local fontSize = RR:GetSetting("fontSize", 12)
+
+    -- Vertical gap between rows. Conservative -- gives breathing room
+    -- without making the list feel sparse.
+    local ROW_GAP    = 2
+    -- Spacer rows are smaller than a full-line gap; just enough to
+    -- visually separate expansion sections.
+    local SPACER_GAP = math.max(4, math.floor(fontSize * 0.5))
+
+    local prev = nil  -- previous FontString, for anchor chaining
+    for _, row in ipairs(rows) do
+        if row.kind == "spacer" then
+            -- No FontString needed -- next row anchors below the prior
+            -- one with an extra gap. Track this via a sentinel so the
+            -- next iteration knows to use SPACER_GAP instead of ROW_GAP.
+            if prev then
+                prev._nextGap = SPACER_GAP
+            end
         else
-            -- Fallback: should be rare. If stringH is still 0 next
-            -- frame, fall back to the arithmetic formula and let the
-            -- next refresh fix it. Better to be slightly mispositioned
-            -- than have invisible toggles.
-            lineHeight = RR:GetSetting("fontSize", 12) + 4
+            local fs = AcquireIdleListLine()
+            -- Apply the current font setting. Per-line FontStrings
+            -- aren't in the bumped-font targets table that ApplySettings
+            -- walks (the old single panel.list was), so we apply the
+            -- font directly here on every refresh. RefreshIdleList runs
+            -- on font-slider change (wired via ApplySettings), so this
+            -- keeps the list text in sync with the slider.
+            SafeSetFont(fs, BODY_FONT, fontSize, "")
+
+            -- Set text. Different row kinds use different formats; the
+            -- text is already pre-colored in BuildIdleListRows.
+            if row.kind == "expansionHeader" then
+                -- Indent with leading spaces to leave room for the
+                -- toggle button glyph anchored at LEFT.
+                fs:SetText(("    |cff00ffff%s|r"):format(row.exp))
+            elseif row.kind == "skipLegend" then
+                fs:SetText(IDLE_SKIP_LEGEND)
+            else
+                -- raidName / pillRow / emptyMessage all carry pre-built
+                -- text strings.
+                fs:SetText(row.text or "")
+            end
+
+            -- Anchor: top of the list for the first row, BOTTOMLEFT of
+            -- the previous row otherwise. The previous row may have set
+            -- _nextGap (if a spacer preceded this row); use that gap
+            -- instead of the default ROW_GAP.
+            fs:ClearAllPoints()
+            if prev then
+                local gap = prev._nextGap or ROW_GAP
+                prev._nextGap = nil
+                fs:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -gap)
+            else
+                fs:SetPoint("TOPLEFT", panel.listHeader, "BOTTOMLEFT", 0, -8)
+            end
+            fs:Show()
+
+            -- Position the toggle button against this FontString if it's
+            -- an expansion header.
+            if row.kind == "expansionHeader" then
+                local btn = AcquireExpansionToggleButton()
+                PositionExpansionToggleButton(btn, fs, row.expanded)
+                local expName = row.exp
+                btn:SetScript("OnClick", function()
+                    RR.state = RR.state or {}
+                    RR.state.expandedExpansions = RR.state.expandedExpansions or {}
+                    if RR.state.expandedExpansions[expName] then
+                        RR.state.expandedExpansions[expName] = nil
+                    else
+                        RR.state.expandedExpansions[expName] = true
+                    end
+                    if RR.UI and RR.UI.Update then RR.UI.Update() end
+                end)
+                btn:Show()
+                table.insert(panel.expansionToggleButtons, btn)
+            end
+
+            table.insert(panel.idleListLines, fs)
+            prev = fs
         end
-        for _, h in ipairs(headers) do
-            local btn = AcquireExpansionToggleButton()
-            PositionExpansionToggleButton(btn, h.line, lineHeight)
-            local expName = h.exp
-            btn:SetScript("OnClick", function()
-                RR.state = RR.state or {}
-                RR.state.expandedExpansions = RR.state.expandedExpansions or {}
-                -- Toggle: positive flag (default = collapsed for unset
-                -- entries). Set to nil rather than false on collapse so
-                -- the table stays compact.
-                if RR.state.expandedExpansions[expName] then
-                    RR.state.expandedExpansions[expName] = nil
-                else
-                    RR.state.expandedExpansions[expName] = true
-                end
-                if RR.UI and RR.UI.Update then RR.UI.Update() end
-            end)
-            btn:Show()
-            table.insert(panel.expansionToggleButtons, btn)
-        end
-    end)
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -3830,7 +4552,18 @@ function UI.Update()
     if raid and loaded then
         -- Pills row now carries per-difficulty kill state, so the raid
         -- name line shows just the raid name (no trailing "(Heroic)").
-        panel.raid:SetText("Raid: " .. raid.name)
+        -- A trailing yellow-star marker appears when the player's
+        -- current difficulty is at or below the account's cascade
+        -- ceiling -- meaning the in-game skip NPC will actually let
+        -- them use it. Showing the star purely on "any unlock exists"
+        -- would mislead a Mythic player whose ceiling is only Heroic;
+        -- they'd see the star and walk to the skip NPC for nothing.
+        local raidLabel = "Raid: " .. raid.name
+        local currentDiff = RR.state and RR.state.currentDifficultyID
+        if currentDiff and RR:IsRaidSkipAvailableAtDifficulty(raid, currentDiff) then
+            raidLabel = raidLabel .. " " .. SKIP_MARKER
+        end
+        panel.raid:SetText(raidLabel)
         panel.pills:SetText(BuildPillsText())
         -- Progress line was "Progress: X/Y" -- the player's current-
         -- difficulty kill count -- but the pills row now displays the
@@ -3887,9 +4620,11 @@ function UI.Update()
             panel.list:SetText(table.concat(RR:GetProgressLines(), "\n"))
             -- In-progress list has no expansion-header rows -- it's a
             -- per-boss kill checklist -- so release any toggle Buttons
-            -- left over from a prior idle/run-complete pass to avoid
-            -- floating click zones over the progress lines.
+            -- and per-line FontStrings left over from a prior
+            -- idle/run-complete pass to avoid floating widgets over the
+            -- progress lines.
             ReleaseExpansionToggleButtons()
+            ReleaseIdleListLines()
         else
             -- Run-complete state. The user has cleared every boss in
             -- this lockout. Layout goal: tight, informative, points at

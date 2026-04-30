@@ -80,6 +80,22 @@ RetroRuns_Data[2569] = {
         },
     },
 
+    -- Raid skip quests. Account-wide unlock per Patch 11.0.5; check via
+    -- C_QuestLog.IsQuestFlaggedCompletedOnAccount. Per-character
+    -- IsQuestFlaggedCompleted does NOT reflect the unlock for alts that
+    -- did not personally complete the quest.
+    --
+    -- Only the questID for the difficulty actually completed returns
+    -- true; the in-game cascade that lets you use the skip on lower
+    -- difficulties happens at the skip NPC, NOT by backfilling the
+    -- per-difficulty quest flags. To detect "skip is available at any
+    -- difficulty", OR across all three IDs.
+    skipQuests = {
+        normal = 76083,
+        heroic = 76085,
+        mythic = 76086,
+    },
+
     bosses = {
         {
             index              = 1,
@@ -138,19 +154,19 @@ RetroRuns_Data[2569] = {
                 { id=202566, slot="Weapon",           name="Rionthus's Bladed Visage",        sources={ [17]=185517, [14]=184540, [15]=185518, [16]=185519 } },
                 { id=202582, slot="Wrist",            name="Manacles of Cruel Progress",      sources={ [17]=186670, [14]=184555, [15]=186668, [16]=186669 } },
                 -- Tier Hands (13 classes, from Mixing Fluid tokens)
-                { id=202444, slot="Hands", name="Handguards of the Onyx Crucible",   sources={ [17]=186317, [14]=184418, [15]=186316, [16]=186318 }, classes={ 1 } },
-                { id=202453, slot="Hands", name="Heartfire Sentinel's Protectors",   sources={ [17]=186004, [14]=184427, [15]=186003, [16]=186005 }, classes={ 2 } },
-                { id=202480, slot="Hands", name="Ashen Predator's Skinners",         sources={ [17]=186091, [14]=184454, [15]=186090, [16]=186092 }, classes={ 3 } },
-                { id=202498, slot="Hands", name="Lurking Specter's Handgrips",       sources={ [17]=186124, [14]=184472, [15]=186123, [16]=186125 }, classes={ 4 } },
-                { id=202543, slot="Hands", name="Grasp of the Furnace Seraph",       sources={ [17]=186254, [14]=184517, [15]=186253, [16]=186255 }, classes={ 5 } },
-                { id=202462, slot="Hands", name="Lingering Phantom's Gauntlets",     sources={ [17]=186275, [14]=184436, [15]=186274, [16]=186276 }, classes={ 6 } },
-                { id=202471, slot="Hands", name="Knuckles of the Cinderwolf",        sources={ [17]=186052, [14]=184445, [15]=186051, [16]=186053 }, classes={ 7 } },
-                { id=202552, slot="Hands", name="Underlight Conjurer's Gloves",      sources={ [17]=186356, [14]=184526, [15]=186355, [16]=186357 }, classes={ 8 } },
-                { id=202534, slot="Hands", name="Grips of the Sinister Savant",      sources={ [17]=186214, [14]=184508, [15]=186213, [16]=186215 }, classes={ 9 } },
-                { id=202507, slot="Hands", name="Fists of the Vermillion Forge",     sources={ [17]=185782, [14]=184481, [15]=185781, [16]=185780 }, classes={ 10 } },
-                { id=202516, slot="Hands", name="Handguards of the Autumn Blaze",    sources={ [17]=186169, [14]=184490, [15]=186168, [16]=186170 }, classes={ 11 } },
-                { id=202525, slot="Hands", name="Kinslayer's Bloodstained Grips",    sources={ [17]=186437, [14]=184499, [15]=186436, [16]=186438 }, classes={ 12 } },
-                { id=202489, slot="Hands", name="Claws of Obsidian Secrets",         sources={ [17]=186398, [14]=184463, [15]=186397, [16]=186399 }, classes={ 13 } },
+                { id=202444, slot="Hands", name="Handguards of the Onyx Crucible",   sources={ [17]=186318, [14]=184418, [15]=186316, [16]=186317 }, classes={ 1 } },
+                { id=202453, slot="Hands", name="Heartfire Sentinel's Protectors",   sources={ [17]=186005, [14]=184427, [15]=186003, [16]=186004 }, classes={ 2 } },
+                { id=202480, slot="Hands", name="Ashen Predator's Skinners",         sources={ [17]=186092, [14]=184454, [15]=186090, [16]=186091 }, classes={ 3 } },
+                { id=202498, slot="Hands", name="Lurking Specter's Handgrips",       sources={ [17]=186125, [14]=184472, [15]=186123, [16]=186124 }, classes={ 4 } },
+                { id=202543, slot="Hands", name="Grasp of the Furnace Seraph",       sources={ [17]=186255, [14]=184517, [15]=186253, [16]=186254 }, classes={ 5 } },
+                { id=202462, slot="Hands", name="Lingering Phantom's Gauntlets",     sources={ [17]=186276, [14]=184436, [15]=186274, [16]=186275 }, classes={ 6 } },
+                { id=202471, slot="Hands", name="Knuckles of the Cinderwolf",        sources={ [17]=186053, [14]=184445, [15]=186051, [16]=186052 }, classes={ 7 } },
+                { id=202552, slot="Hands", name="Underlight Conjurer's Gloves",      sources={ [17]=186357, [14]=184526, [15]=186355, [16]=186356 }, classes={ 8 } },
+                { id=202534, slot="Hands", name="Grips of the Sinister Savant",      sources={ [17]=186215, [14]=184508, [15]=186213, [16]=186214 }, classes={ 9 } },
+                { id=202507, slot="Hands", name="Fists of the Vermillion Forge",     sources={ [17]=185780, [14]=184481, [15]=185781, [16]=185782 }, classes={ 10 } },
+                { id=202516, slot="Hands", name="Handguards of the Autumn Blaze",    sources={ [17]=186170, [14]=184490, [15]=186168, [16]=186169 }, classes={ 11 } },
+                { id=202525, slot="Hands", name="Kinslayer's Bloodstained Grips",    sources={ [17]=186438, [14]=184499, [15]=186436, [16]=186437 }, classes={ 12 } },
+                { id=202489, slot="Hands", name="Claws of Obsidian Secrets",         sources={ [17]=186399, [14]=184463, [15]=186397, [16]=186398 }, classes={ 13 } },
             },
         },
         {
@@ -190,19 +206,19 @@ RetroRuns_Data[2569] = {
                 { id=204319, slot="Weapon",   name="Bloodfire Extraction Conduit",     sources={ [17]=185527, [14]=185528, [15]=185529, [16]=185530 } },
                 { id=202659, slot="Wrist",    name="Shackles of the Shadowed Bastille", sources={ [17]=186552, [14]=184591, [15]=186550, [16]=186551 } },
                 -- Tier Legs (13 classes, from Cooling Fluid tokens)
-                { id=202442, slot="Legs", name="Legplates of the Onyx Crucible",     sources={ [17]=186308, [14]=184416, [15]=186307, [16]=186309 }, classes={ 1 } },
-                { id=202451, slot="Legs", name="Heartfire Sentinel's Faulds",        sources={ [17]=185992, [14]=184425, [15]=185991, [16]=185993 }, classes={ 2 } },
-                { id=202478, slot="Legs", name="Ashen Predator's Poleyns",           sources={ [17]=186079, [14]=184452, [15]=186078, [16]=186080 }, classes={ 3 } },
-                { id=202496, slot="Legs", name="Lurking Specter's Tights",           sources={ [17]=186118, [14]=184470, [15]=186117, [16]=186119 }, classes={ 4 } },
-                { id=202541, slot="Legs", name="Breeches of the Furnace Seraph",     sources={ [17]=186242, [14]=184515, [15]=186241, [16]=186243 }, classes={ 5 } },
-                { id=202460, slot="Legs", name="Lingering Phantom's Schynbalds",     sources={ [17]=186281, [14]=184434, [15]=186280, [16]=186282 }, classes={ 6 } },
-                { id=202469, slot="Legs", name="Braies of the Cinderwolf",           sources={ [17]=186040, [14]=184443, [15]=186039, [16]=186041 }, classes={ 7 } },
-                { id=202550, slot="Legs", name="Underlight Conjurer's Trousers",     sources={ [17]=186350, [14]=184524, [15]=186349, [16]=186351 }, classes={ 8 } },
-                { id=202532, slot="Legs", name="Leggings of the Sinister Savant",    sources={ [17]=186202, [14]=184506, [15]=186201, [16]=186203 }, classes={ 9 } },
-                { id=202505, slot="Legs", name="Pantaloons of the Vermillion Forge", sources={ [17]=185776, [14]=184479, [15]=185775, [16]=185774 }, classes={ 10 } },
-                { id=202514, slot="Legs", name="Pants of the Autumn Blaze",          sources={ [17]=186157, [14]=184488, [15]=186156, [16]=186158 }, classes={ 11 } },
-                { id=202523, slot="Legs", name="Kinslayer's Legguards",              sources={ [17]=186425, [14]=184497, [15]=186424, [16]=186426 }, classes={ 12 } },
-                { id=202487, slot="Legs", name="Chausses of Obsidian Secrets",       sources={ [17]=186386, [14]=184461, [15]=186385, [16]=186387 }, classes={ 13 } },
+                { id=202442, slot="Legs", name="Legplates of the Onyx Crucible",     sources={ [17]=186309, [14]=184416, [15]=186307, [16]=186308 }, classes={ 1 } },
+                { id=202451, slot="Legs", name="Heartfire Sentinel's Faulds",        sources={ [17]=185993, [14]=184425, [15]=185991, [16]=185992 }, classes={ 2 } },
+                { id=202478, slot="Legs", name="Ashen Predator's Poleyns",           sources={ [17]=186080, [14]=184452, [15]=186078, [16]=186079 }, classes={ 3 } },
+                { id=202496, slot="Legs", name="Lurking Specter's Tights",           sources={ [17]=186119, [14]=184470, [15]=186117, [16]=186118 }, classes={ 4 } },
+                { id=202541, slot="Legs", name="Breeches of the Furnace Seraph",     sources={ [17]=186243, [14]=184515, [15]=186241, [16]=186242 }, classes={ 5 } },
+                { id=202460, slot="Legs", name="Lingering Phantom's Schynbalds",     sources={ [17]=186282, [14]=184434, [15]=186280, [16]=186281 }, classes={ 6 } },
+                { id=202469, slot="Legs", name="Braies of the Cinderwolf",           sources={ [17]=186041, [14]=184443, [15]=186039, [16]=186040 }, classes={ 7 } },
+                { id=202550, slot="Legs", name="Underlight Conjurer's Trousers",     sources={ [17]=186351, [14]=184524, [15]=186349, [16]=186350 }, classes={ 8 } },
+                { id=202532, slot="Legs", name="Leggings of the Sinister Savant",    sources={ [17]=186203, [14]=184506, [15]=186201, [16]=186202 }, classes={ 9 } },
+                { id=202505, slot="Legs", name="Pantaloons of the Vermillion Forge", sources={ [17]=185774, [14]=184479, [15]=185775, [16]=185776 }, classes={ 10 } },
+                { id=202514, slot="Legs", name="Pants of the Autumn Blaze",          sources={ [17]=186158, [14]=184488, [15]=186156, [16]=186157 }, classes={ 11 } },
+                { id=202523, slot="Legs", name="Kinslayer's Legguards",              sources={ [17]=186426, [14]=184497, [15]=186424, [16]=186425 }, classes={ 12 } },
+                { id=202487, slot="Legs", name="Chausses of Obsidian Secrets",       sources={ [17]=186387, [14]=184461, [15]=186385, [16]=186386 }, classes={ 13 } },
             },
         },
         {
@@ -222,19 +238,19 @@ RetroRuns_Data[2569] = {
                 { id=202555, slot="Weapon", name="Zskarn's Autopsy Scalpel",           sources={ [17]=185500, [14]=184529, [15]=185501, [16]=185502 } },
                 { id=204393, slot="Wrist",  name="Clasps of the Diligent Steward",     sources={ [17]=186474, [14]=185558, [15]=186472, [16]=186473 } },
                 -- Tier Chest (13 classes, from Ventilation Fluid tokens)
-                { id=202446, slot="Chest", name="Battlechest of the Onyx Crucible",     sources={ [17]=186323, [14]=184420, [15]=186322, [16]=186324 }, classes={ 1 } },
-                { id=202455, slot="Chest", name="Heartfire Sentinel's Brigandine",     sources={ [17]=186010, [14]=184429, [15]=186009, [16]=186011 }, classes={ 2 } },
-                { id=202482, slot="Chest", name="Ashen Predator's Sling Vest",         sources={ [17]=186097, [14]=184456, [15]=186096, [16]=186098 }, classes={ 3 } },
-                { id=202500, slot="Chest", name="Lurking Specter's Brigandine",        sources={ [17]=186130, [14]=184474, [15]=186129, [16]=186131 }, classes={ 4 } },
-                { id=202545, slot="Chest", name="Command of the Furnace Seraph",       sources={ [17]=186232, [14]=184519, [15]=186231, [16]=186233 }, classes={ 5 } },
-                { id=202464, slot="Chest", name="Lingering Phantom's Plackart",        sources={ [17]=186266, [14]=184438, [15]=186265, [16]=186267 }, classes={ 6 } },
-                { id=202473, slot="Chest", name="Adornments of the Cinderwolf",        sources={ [17]=186058, [14]=184447, [15]=186057, [16]=186059 }, classes={ 7 } },
-                { id=202554, slot="Chest", name="Underlight Conjurer's Vestment",     sources={ [17]=186362, [14]=184528, [15]=186361, [16]=186363 }, classes={ 8 } },
-                { id=202536, slot="Chest", name="Cursed Robes of the Sinister Savant", sources={ [17]=186199, [14]=184510, [15]=186198, [16]=186200 }, classes={ 9 } },
-                { id=202509, slot="Chest", name="Cuirass of the Vermillion Forge",    sources={ [17]=185788, [14]=184483, [15]=185787, [16]=185786 }, classes={ 10 } },
-                { id=202518, slot="Chest", name="Chestroots of the Autumn Blaze",     sources={ [17]=186175, [14]=184492, [15]=186174, [16]=186176 }, classes={ 11 } },
-                { id=202527, slot="Chest", name="Kinslayer's Vest",                   sources={ [17]=186443, [14]=184501, [15]=186442, [16]=186444 }, classes={ 12 } },
-                { id=202491, slot="Chest", name="Hauberk of Obsidian Secrets",        sources={ [17]=186404, [14]=184465, [15]=186403, [16]=186405 }, classes={ 13 } },
+                { id=202446, slot="Chest", name="Battlechest of the Onyx Crucible",     sources={ [17]=186324, [14]=184420, [15]=186322, [16]=186323 }, classes={ 1 } },
+                { id=202455, slot="Chest", name="Heartfire Sentinel's Brigandine",     sources={ [17]=186011, [14]=184429, [15]=186009, [16]=186010 }, classes={ 2 } },
+                { id=202482, slot="Chest", name="Ashen Predator's Sling Vest",         sources={ [17]=186098, [14]=184456, [15]=186096, [16]=186097 }, classes={ 3 } },
+                { id=202500, slot="Chest", name="Lurking Specter's Brigandine",        sources={ [17]=186131, [14]=184474, [15]=186129, [16]=186130 }, classes={ 4 } },
+                { id=202545, slot="Chest", name="Command of the Furnace Seraph",       sources={ [17]=186233, [14]=184519, [15]=186231, [16]=186232 }, classes={ 5 } },
+                { id=202464, slot="Chest", name="Lingering Phantom's Plackart",        sources={ [17]=186267, [14]=184438, [15]=186265, [16]=186266 }, classes={ 6 } },
+                { id=202473, slot="Chest", name="Adornments of the Cinderwolf",        sources={ [17]=186059, [14]=184447, [15]=186057, [16]=186058 }, classes={ 7 } },
+                { id=202554, slot="Chest", name="Underlight Conjurer's Vestment",     sources={ [17]=186363, [14]=184528, [15]=186361, [16]=186362 }, classes={ 8 } },
+                { id=202536, slot="Chest", name="Cursed Robes of the Sinister Savant", sources={ [17]=186200, [14]=184510, [15]=186198, [16]=186199 }, classes={ 9 } },
+                { id=202509, slot="Chest", name="Cuirass of the Vermillion Forge",    sources={ [17]=185786, [14]=184483, [15]=185787, [16]=185788 }, classes={ 10 } },
+                { id=202518, slot="Chest", name="Chestroots of the Autumn Blaze",     sources={ [17]=186176, [14]=184492, [15]=186174, [16]=186175 }, classes={ 11 } },
+                { id=202527, slot="Chest", name="Kinslayer's Vest",                   sources={ [17]=186444, [14]=184501, [15]=186442, [16]=186443 }, classes={ 12 } },
+                { id=202491, slot="Chest", name="Hauberk of Obsidian Secrets",        sources={ [17]=186405, [14]=184465, [15]=186403, [16]=186404 }, classes={ 13 } },
             },
         },
         {
@@ -251,19 +267,19 @@ RetroRuns_Data[2569] = {
                 { id=202570, slot="Weapon", name="Lavaflow Control Rod",          sources={ [17]=185474, [14]=184544, [15]=185475, [16]=185476 } },
                 { id=204394, slot="Wrist",  name="Cuffs of the Savage Serpent",   sources={ [17]=186616, [14]=185559, [15]=186614, [16]=186615 } },
                 -- Tier Head (13 classes, from Melting Fluid tokens)
-                { id=202443, slot="Head", name="Thraexhelm of the Onyx Crucible",     sources={ [17]=185919, [14]=184417, [15]=185920, [16]=185918 }, classes={ 1 } },
-                { id=202452, slot="Head", name="Heartfire Sentinel's Forgehelm",      sources={ [17]=185996, [14]=184426, [15]=185995, [16]=185994 }, classes={ 2 } },
-                { id=202479, slot="Head", name="Ashen Predator's Faceguard",          sources={ [17]=186083, [14]=184453, [15]=186082, [16]=186081 }, classes={ 3 } },
-                { id=202497, slot="Head", name="Lurking Specter's Visage",            sources={ [17]=186121, [14]=184471, [15]=186120, [16]=186122 }, classes={ 4 } },
-                { id=202542, slot="Head", name="Mask of the Furnace Seraph",          sources={ [17]=186246, [14]=184516, [15]=186245, [16]=186244 }, classes={ 5 } },
-                { id=202461, slot="Head", name="Lingering Phantom's Dreadhorns",      sources={ [17]=186278, [14]=184435, [15]=186277, [16]=186279 }, classes={ 6 } },
-                { id=202470, slot="Head", name="Spangenhelm of the Cinderwolf",       sources={ [17]=186044, [14]=184444, [15]=186043, [16]=186042 }, classes={ 7 } },
-                { id=202551, slot="Head", name="Underlight Conjurer's Arcanocowl",   sources={ [17]=186353, [14]=184525, [15]=186352, [16]=186354 }, classes={ 8 } },
-                { id=202533, slot="Head", name="Grimhorns of the Sinister Savant",    sources={ [17]=186206, [14]=184507, [15]=186205, [16]=186204 }, classes={ 9 } },
-                { id=202506, slot="Head", name="Cover of the Vermillion Forge",       sources={ [17]=185779, [14]=184480, [15]=185778, [16]=185777 }, classes={ 10 } },
-                { id=202515, slot="Head", name="Bough of the Autumn Blaze",           sources={ [17]=186161, [14]=184489, [15]=186160, [16]=186159 }, classes={ 11 } },
-                { id=202524, slot="Head", name="Kinslayer's Hood",                    sources={ [17]=186429, [14]=184498, [15]=186428, [16]=186427 }, classes={ 12 } },
-                { id=202488, slot="Head", name="Crown of Obsidian Secrets",           sources={ [17]=186390, [14]=184462, [15]=186389, [16]=186388 }, classes={ 13 } },
+                { id=202443, slot="Head", name="Thraexhelm of the Onyx Crucible",     sources={ [17]=185918, [14]=184417, [15]=185920, [16]=185919 }, classes={ 1 } },
+                { id=202452, slot="Head", name="Heartfire Sentinel's Forgehelm",      sources={ [17]=185994, [14]=184426, [15]=185995, [16]=185996 }, classes={ 2 } },
+                { id=202479, slot="Head", name="Ashen Predator's Faceguard",          sources={ [17]=186081, [14]=184453, [15]=186082, [16]=186083 }, classes={ 3 } },
+                { id=202497, slot="Head", name="Lurking Specter's Visage",            sources={ [17]=186122, [14]=184471, [15]=186120, [16]=186121 }, classes={ 4 } },
+                { id=202542, slot="Head", name="Mask of the Furnace Seraph",          sources={ [17]=186244, [14]=184516, [15]=186245, [16]=186246 }, classes={ 5 } },
+                { id=202461, slot="Head", name="Lingering Phantom's Dreadhorns",      sources={ [17]=186279, [14]=184435, [15]=186277, [16]=186278 }, classes={ 6 } },
+                { id=202470, slot="Head", name="Spangenhelm of the Cinderwolf",       sources={ [17]=186042, [14]=184444, [15]=186043, [16]=186044 }, classes={ 7 } },
+                { id=202551, slot="Head", name="Underlight Conjurer's Arcanocowl",   sources={ [17]=186354, [14]=184525, [15]=186352, [16]=186353 }, classes={ 8 } },
+                { id=202533, slot="Head", name="Grimhorns of the Sinister Savant",    sources={ [17]=186204, [14]=184507, [15]=186205, [16]=186206 }, classes={ 9 } },
+                { id=202506, slot="Head", name="Cover of the Vermillion Forge",       sources={ [17]=185777, [14]=184480, [15]=185778, [16]=185779 }, classes={ 10 } },
+                { id=202515, slot="Head", name="Bough of the Autumn Blaze",           sources={ [17]=186159, [14]=184489, [15]=186160, [16]=186161 }, classes={ 11 } },
+                { id=202524, slot="Head", name="Kinslayer's Hood",                    sources={ [17]=186427, [14]=184498, [15]=186428, [16]=186429 }, classes={ 12 } },
+                { id=202488, slot="Head", name="Crown of Obsidian Secrets",           sources={ [17]=186388, [14]=184462, [15]=186389, [16]=186390 }, classes={ 13 } },
             },
         },
         {
@@ -280,19 +296,19 @@ RetroRuns_Data[2569] = {
                 { id=202558, slot="Off-hand",         name="Calamity's Herald",             sources={ [17]=185549, [14]=184532, [15]=185550, [16]=185551 } },
                 { id=202606, slot="Two-Hand",         name="Ashkandur, Fall of the Brotherhood", sources={ [17]=185542, [14]=184579, [15]=185543, [16]=185544 } },
                 -- Tier Shoulder (13 classes, from Corrupting Fluid tokens)
-                { id=202441, slot="Shoulder", name="Pauldrons of the Onyx Crucible",      sources={ [17]=186300, [14]=184415, [15]=186299, [16]=186298 }, classes={ 1 } },
-                { id=202450, slot="Shoulder", name="Heartfire Sentinel's Steelwings",    sources={ [17]=185984, [14]=184424, [15]=185983, [16]=185982 }, classes={ 2 } },
-                { id=202477, slot="Shoulder", name="Ashen Predator's Trophy",            sources={ [17]=186071, [14]=184451, [15]=186070, [16]=186069 }, classes={ 3 } },
-                { id=202495, slot="Shoulder", name="Lurking Specter's Shoulderblades",   sources={ [17]=186110, [14]=184469, [15]=186109, [16]=186108 }, classes={ 4 } },
-                { id=202540, slot="Shoulder", name="Devotion of the Furnace Seraph",     sources={ [17]=186230, [14]=184514, [15]=186229, [16]=186228 }, classes={ 5 } },
-                { id=202459, slot="Shoulder", name="Lingering Phantom's Shoulderplates", sources={ [17]=186284, [14]=184433, [15]=186283, [16]=186285 }, classes={ 6 } },
-                { id=202468, slot="Shoulder", name="Thunderpads of the Cinderwolf",      sources={ [17]=186032, [14]=184442, [15]=186031, [16]=186030 }, classes={ 7 } },
-                { id=202549, slot="Shoulder", name="Underlight Conjurer's Aurora",       sources={ [17]=186342, [14]=184523, [15]=186341, [16]=186340 }, classes={ 8 } },
-                { id=202531, slot="Shoulder", name="Amice of the Sinister Savant",       sources={ [17]=186191, [14]=184505, [15]=186190, [16]=186189 }, classes={ 9 } },
-                { id=202504, slot="Shoulder", name="Spines of the Vermillion Forge",     sources={ [17]=185773, [14]=184478, [15]=185772, [16]=185771 }, classes={ 10 } },
-                { id=202513, slot="Shoulder", name="Mantle of the Autumn Blaze",         sources={ [17]=186149, [14]=184487, [15]=186148, [16]=186147 }, classes={ 11 } },
-                { id=202522, slot="Shoulder", name="Kinslayer's Tainted Spaulders",      sources={ [17]=186417, [14]=184496, [15]=186416, [16]=186415 }, classes={ 12 } },
-                { id=202486, slot="Shoulder", name="Wingspan of Obsidian Secrets",       sources={ [17]=186378, [14]=184460, [15]=186377, [16]=186376 }, classes={ 13 } },
+                { id=202441, slot="Shoulder", name="Pauldrons of the Onyx Crucible",      sources={ [17]=186298, [14]=184415, [15]=186299, [16]=186300 }, classes={ 1 } },
+                { id=202450, slot="Shoulder", name="Heartfire Sentinel's Steelwings",    sources={ [17]=185982, [14]=184424, [15]=185983, [16]=185984 }, classes={ 2 } },
+                { id=202477, slot="Shoulder", name="Ashen Predator's Trophy",            sources={ [17]=186069, [14]=184451, [15]=186070, [16]=186071 }, classes={ 3 } },
+                { id=202495, slot="Shoulder", name="Lurking Specter's Shoulderblades",   sources={ [17]=186108, [14]=184469, [15]=186109, [16]=186110 }, classes={ 4 } },
+                { id=202540, slot="Shoulder", name="Devotion of the Furnace Seraph",     sources={ [17]=186228, [14]=184514, [15]=186229, [16]=186230 }, classes={ 5 } },
+                { id=202459, slot="Shoulder", name="Lingering Phantom's Shoulderplates", sources={ [17]=186285, [14]=184433, [15]=186283, [16]=186284 }, classes={ 6 } },
+                { id=202468, slot="Shoulder", name="Thunderpads of the Cinderwolf",      sources={ [17]=186030, [14]=184442, [15]=186031, [16]=186032 }, classes={ 7 } },
+                { id=202549, slot="Shoulder", name="Underlight Conjurer's Aurora",       sources={ [17]=186340, [14]=184523, [15]=186341, [16]=186342 }, classes={ 8 } },
+                { id=202531, slot="Shoulder", name="Amice of the Sinister Savant",       sources={ [17]=186189, [14]=184505, [15]=186190, [16]=186191 }, classes={ 9 } },
+                { id=202504, slot="Shoulder", name="Spines of the Vermillion Forge",     sources={ [17]=185771, [14]=184478, [15]=185772, [16]=185773 }, classes={ 10 } },
+                { id=202513, slot="Shoulder", name="Mantle of the Autumn Blaze",         sources={ [17]=186147, [14]=184487, [15]=186148, [16]=186149 }, classes={ 11 } },
+                { id=202522, slot="Shoulder", name="Kinslayer's Tainted Spaulders",      sources={ [17]=186415, [14]=184496, [15]=186416, [16]=186417 }, classes={ 12 } },
+                { id=202486, slot="Shoulder", name="Wingspan of Obsidian Secrets",       sources={ [17]=186376, [14]=184460, [15]=186377, [16]=186378 }, classes={ 13 } },
             },
             soloTip = "When the boss shields, you must kill the adds to break his shield. Use Neltharion's various abilities (Rushing Darkness, Calamitous Strike) to break walls and reach the adds. You can attack the shielded adds once you have Corruption cast on you.",
         },
@@ -306,15 +322,13 @@ RetroRuns_Data[2569] = {
             },
             specialLoot = {
                 -- Highland Drake: Embodiment of the Hellforged
-                -- (Drakewatcher Manuscript). Item is consumed on use;
-                -- the "use" spell (410775 "Deciphering") completes
-                -- hidden quest 75967 as its only effect. Tracking the
-                -- unlock therefore comes down to
-                -- IsQuestFlaggedCompleted(75967), which persists per-
-                -- character even after the item is gone. The Mythic-
-                -- only Hellforged customization is the named drop;
-                -- a separate lesser variant drops on LFR/Normal/Heroic
-                -- and shares the same questID.
+                -- (Drakewatcher Manuscript). Once you've used the
+                -- manuscript on a character, the customization is
+                -- permanently unlocked for that character even though
+                -- the item itself is consumed. The Hellforged variant
+                -- is the Mythic-only drop; a separate lesser variant
+                -- drops on LFR/Normal/Heroic and grants the same
+                -- customization unlock.
                 {
                     id      = 205876,
                     kind    = "manuscript",

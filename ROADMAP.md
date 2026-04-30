@@ -1,6 +1,6 @@
 # RetroRuns — Roadmap & Feature Tracker
 
-## Current Version: 1.0.0
+## Current Version: 1.0.1
 
 ---
 
@@ -134,6 +134,16 @@
 ## 🔲 Planned — Future Milestones
 
 ### Settings Expansion
+- Panel opacity slider. Backdrop alpha only (content stays full-opacity
+  so labels remain readable). Range 0.2 → 1.0, default 1.0,
+  per-character. Single setting applies to both main panel and
+  transmog browser popup. Implementation: ~30 lines across `UI.lua`
+  (slider widget + `UI.ApplyOpacity()` reading `panel:GetBackdropColor`
+  RGB and substituting alpha) and `Core.lua` (default value in
+  settings init). Possible v1.2 follow-ups if there's demand:
+  mouseover-boost (snap to 1.0 on hover, optionally with a fade
+  animation), and a separate slider for map-overlay polyline/marker
+  alpha (different code path in `MapOverlay.lua`).
 - Toggle for load-raid popup (option to always auto-load)
 - Keybind support for panel toggle
 - Colour theme options
@@ -143,31 +153,117 @@
 - Collapsible sections in the main panel (travel / encounter / achievements / transmog)
 - Estimated run time per boss / full raid (based on recorded data)
 
-### Boss Skip Paths (Architecture)
+### Boss Skip Paths
 
-Several raids have alternate routing: "complete quest X and you can
-skip bosses Y-Z via portal/teleporter." Current `routing[]` schema
-supports this via multiple entries per bossIndex with different
-`requires` and `priority` values, but we haven't exercised it yet.
+Modern raids ship with skip quests that, once completed on a character,
+unlock teleporters or shortcuts inside the raid that fast-travel past
+some bosses. Each is per-character, persists across resets, and is
+gated on a quest flag (`IsQuestFlaggedCompleted(<questID>)`).
 
-Known skips to model:
+This breaks into three staged scopes that should ship independently
+rather than as one big feature, both because the value-vs-cost ratio
+drops sharply between them and because each scope unblocks the next.
+
+**Scope A — Surface existence of skips (cheapest, highest ratio).**
+A new boss-level `skipUnlock` field describes the skip in player-facing
+terms: which quest unlocks it, what it unlocks, where it drops you.
+Renders as a footnote-style block on the relevant boss's view (anchored
+to the boss the teleporter exits at, or the boss that drops the gating
+item). No quest-flag detection yet, just "this raid has a skip; here's
+how to get it." Schema sketch:
+
+    skipUnlock = {
+        questID    = 76183,
+        questName  = "Forbidden Knowledge",
+        unlocks    = "Spark of Dreams teleporter past four bosses",
+        from       = "Forgotten Experiments",
+        to         = "Sarkareth",
+    },
+
+Authoring cost: per-raid Wowhead research to identify quest IDs and
+skip mechanics. Engine cost: small renderer addition that surfaces a
+footnote when `skipUnlock` is present.
+
+**Scope B — Per-character skip status indicator.** Adds a quest-flag
+check at render time and shows ✓ Unlocked / ✗ Not yet on the skip
+footnote. Cheap (`IsQuestFlaggedCompleted` is a fresh-query API, no
+event hooks needed) and turns the footnote from informational into
+functional progress info. Could pair with a yellow `[*]` marker next
+to the boss name in the Boss Progress list (same pattern as the `[!]`
+marker for special notes), so the player sees skip status at a glance
+without opening the boss view.
+
+**Scope C — Re-route around skipped bosses (heavyweight).**
+The route engine becomes skip-aware: when a player has the skip quest
+completed, the recommended next-boss target shifts and the travel pane
+points at the teleporter device instead of walking through the bypassed
+bosses. Schema sketch:
+
+    {
+        title = "Sarkareth",
+        segments = { ... },                    -- existing no-skip route
+        skipRoute = {
+            requiresQuest = 76183,
+            segments = { ... },                -- entrance → teleporter → pull
+        },
+    },
+
+The route picker checks `IsQuestFlaggedCompleted(skipRoute.requiresQuest)`
+and uses `skipRoute.segments` instead of `segments` when truthy.
+
+Knock-on design questions Scope C surfaces:
+- Skipped-boss display state: "Skipped" vs "Not killed" — needs a
+  visual third state in the Boss Progress list.
+- Loot tracking implications: skipped boss is also missed loot.
+  Transmog browser still shows it; Boss Progress should communicate
+  "you walked past this; come back for loot if you want it."
+- Route recovery: if the player teleports past a boss but doubles back,
+  does the engine resume the no-skip path mid-way? Probably yes, but
+  it interacts with the segment-completion model.
+- Authoring cost is real: each skip-affected raid needs the alternate-
+  route segments captured via recorder pass through the teleport-active
+  path, not just metadata.
+
+A simpler intermediate option that punts on Scope C entirely: add a
+`recommendsSkipFor` annotation on relevant boss encounter notes
+("You've unlocked the skip; consider teleporting from <X> instead of
+walking"). Player gets the prompt at the right moment without changing
+the route data structure or engine.
+
+**Recommendation:** ship Scope A+B together as a v1.1 (or v1.2)
+feature. Defer Scope C to v1.5 / v2 unless there's clear signal that
+walking past skippable bosses is real friction. RetroRuns is a legacy-
+raid navigator at level cap; the teleport saves maybe 60 seconds of
+walking. The information about "you have this unlocked" is more
+valuable than the actual reroute in most cases.
+
+**Known skips to model (research pass needed for quest IDs):**
+
+Modern raids:
+- **Aberrus, the Shadowed Crucible**: "We're Doomed" quest chain
+  unlocks the Spark of Dreams device that teleports past most of the
+  raid.
+- **Amirdrassil, the Dream's Hope**: quest chain ending with "Stoking
+  the Flames" unlocks a portal in the entrance area to skip past
+  Smolderon.
+- **Vault of the Incarnates**: "Break a Few Eggs" requires Shard of
+  the Greatstaff x3 from Broodkeeper (already noted in Vault's
+  Broodkeeper data) and unlocks a teleport to Raszageth.
+- **Sepulcher of the First Ones**: skip quest exists with different
+  quest IDs for Normal / Heroic / Mythic difficulty. Needs investigation
+  to identify quest IDs and which bosses are skippable. Originally
+  flagged 2026-04-20.
+
+Older raids:
 - **Castle Nathria**: "Getting A Head" — 4 Sludgefist kills on any
   difficulty unlocks a skip that goes directly to Sludgefist via
   General Draven at the raid entrance. Sub-quests for each difficulty
-  tier may exist; needs in-game investigation. Flagged by Photek on
+  tier may exist; needs in-game investigation. Originally flagged
   2026-04-21 during CN Phase 3 route recording.
-- **Sepulcher of the First Ones**: skip quest exists with different
-  quest IDs for Normal / Heroic / Mythic difficulty. Needs investigation
-  to identify quest IDs and which bosses are skippable. Flagged by
-  Photek on 2026-04-20.
 - **Sanctum of Domination**: post-Tarragrue Ebon Blade Acolyte portal
   jumps the left wing (bosses 2-6) and goes directly to the Kel'Thuzad
-  wing. Modeled by adding `requires = { 1 }` entries for bosses 7/8/9
-  with lower priority than the linear path.
-
-Unblocks when: routing-skip user story lands as a concrete request
-(e.g. Photek wants to skip bosses on a specific run and asks "why is
-it still sending me to boss 3?"). Not blocking for Sanctum alpha.
+  wing. Modelable in Scope C via `requires = { 1 }` entries for
+  bosses 7/8/9 with lower priority than the linear path.
 
 ### Loot Rendering Redesign (Architecture)
 

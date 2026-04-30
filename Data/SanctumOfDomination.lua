@@ -36,6 +36,22 @@ RetroRuns_Data[2450] = {
         tokenSources = {},
     },
 
+    -- Raid skip quests. Account-wide unlock per Patch 11.0.5; check via
+    -- C_QuestLog.IsQuestFlaggedCompletedOnAccount. Per-character
+    -- IsQuestFlaggedCompleted does NOT reflect the unlock for alts that
+    -- did not personally complete the quest.
+    --
+    -- Only the questID for the difficulty actually completed returns
+    -- true; the in-game cascade that lets you use the skip on lower
+    -- difficulties happens at the skip NPC, NOT by backfilling the
+    -- per-difficulty quest flags. To detect "skip is available at any
+    -- difficulty", OR across all three IDs.
+    skipQuests = {
+        normal = 64597,
+        heroic = 64598,
+        mythic = 64599,
+    },
+
     bosses = {
         {
             index              = 1,

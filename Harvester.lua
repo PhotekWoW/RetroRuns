@@ -1810,21 +1810,151 @@ end
 -- setInfo.description (localized) -> difficulty ID. Each tier setID is
 -- per-(class, difficulty); the description string identifies which difficulty.
 --
--- Built at addon-load time from the client's localized PLAYER_DIFFICULTY
--- globals, which Blizzard sets per-locale. This makes the map work on any
--- client locale without code changes -- as long as setInfo.description
--- matches the same string Blizzard uses for the difficulty selector
--- (true on all locales we've checked).
+-- Built lazily, on first call to BuildSetDescriptionMap (which the tier
+-- harvester invokes at the top of its run). Walks GetDifficultyInfo for
+-- the four raid difficulty IDs and uses whatever string the live API
+-- returns -- locale-correct on every client because GetDifficultyInfo IS
+-- the canonical source of those names.
 --
--- The English fallback values are kept in case the globals aren't loaded
--- yet (defensive -- shouldn't happen in practice since this file loads
--- after the standard UI globals).
+-- Lazy build (rather than addon-load build) is important: at fresh login,
+-- before the player has zoned anywhere, GetDifficultyInfo for some
+-- difficulty IDs (notably 17 / Raid Finder) returns nil, leaving the map
+-- partially populated. By the time the user actually runs /rr raidcapture,
+-- they're typically already in a raid and the API is fully warm. If for
+-- any reason it isn't, BuildSetDescriptionMap returns false and the
+-- harvester refuses to proceed -- because shipping incorrect localized
+-- fallbacks (e.g. defaulting to enUS strings as keys when the live API
+-- returns localized strings) would silently mis-bucket or drop tier rows
+-- on non-enUS clients.
+--
+-- HISTORICAL NOTE: this map went through several wrong shapes:
+-- 1. PLAYER_DIFFICULTY1/2/3/6 globals with hardcoded English fallbacks.
+--    Those globals DON'T mean what their names suggest: in the live
+--    client, PLAYER_DIFFICULTY3 is "Raid Finder" (not Mythic) and
+--    PLAYER_DIFFICULTY6 is "Mythic" (not Raid Finder). The map silently
+--    keyed Mythic to bucket 17 (LFR) and LFR to bucket 16 (Mythic),
+--    causing every tier row in every harvested raid (Sepulcher, Vault,
+--    Aberrus, Amirdrassil) to ship with LFR and Mythic sourceIDs swapped.
+--    tmogverify did not catch this because the data was internally
+--    consistent (correct sourceIDs in valid buckets); only the labels
+--    were wrong.
+-- 2. GetDifficultyInfo at addon-load time. Fixed the swap but introduced a
+--    new bug: at fresh login, GetDifficultyInfo(17) returned nil, so the
+--    LFR bucket was unmappable and tier rows came out with only 3/4
+--    buckets populated. The first re-harvest of Aberrus produced rows
+--    like `sources={ [14]=..., [15]=..., [16]=... }` with no [17] entry.
+-- 3. GetDifficultyInfo at addon-load time WITH a hardcoded enUS fallback
+--    per diffID. Resolved the missing-bucket symptom on enUS but would
+--    silently break non-enUS clients: hardcoded enUS keys would never
+--    match the localized strings that setInfo.description returns,
+--    silently mis-bucketing or dropping tier rows depending on which
+--    diffID failed.
+-- 4. Lazy GetDifficultyInfo-only build with refuse-on-incomplete. Sounded
+--    right but assumed `GetDifficultyInfo(diffID).name` matches the string
+--    `setInfo.description` returns for that difficulty. False on enUS for
+--    LFR: GetDifficultyInfo(17) returns "Looking for Raid" while
+--    setInfo.description returns "Raid Finder". The map ended up
+--    `{Normal=14, Heroic=15, Mythic=16, "Looking for Raid"=17}`; the
+--    sanity check passed (4 entries) but `setInfo.description = "Raid
+--    Finder"` looked up to nil, silently dropping every LFR tier row.
+-- Current shape (see BuildSetDescriptionMap below): GetDifficultyInfo
+-- supplies the names for non-LFR difficulties (where name and
+-- setInfo.description agree on every locale we've checked), and the LFR
+-- string is discovered by elimination from the actual setInfo.description
+-- values present in the set list. This needs zero hardcoded English
+-- strings and is robust to any locale where the two APIs use different
+-- LFR phrasings.
 -------------------------------------------------------------------------------
-local SET_DESCRIPTION_TO_DIFFICULTY = {}
-SET_DESCRIPTION_TO_DIFFICULTY[PLAYER_DIFFICULTY6 or "Raid Finder"] = 17  -- LFR
-SET_DESCRIPTION_TO_DIFFICULTY[PLAYER_DIFFICULTY1 or "Normal"]      = 14  -- Normal
-SET_DESCRIPTION_TO_DIFFICULTY[PLAYER_DIFFICULTY2 or "Heroic"]      = 15  -- Heroic
-SET_DESCRIPTION_TO_DIFFICULTY[PLAYER_DIFFICULTY3 or "Mythic"]      = 16  -- Mythic
+local SET_DESCRIPTION_TO_DIFFICULTY = nil
+
+-- Builds the description-to-diffID map. Takes the list of `setInfo` records
+-- the harvester is about to walk (so we can read their actual `description`
+-- strings -- the same strings we'll then look up at harvest-time). Returns
+-- (true, nil) on full build, (false, errStr) if anything's missing.
+--
+-- Strategy:
+--   1. Walk diffIDs 14/15/16 through GetDifficultyInfo. The names returned
+--      match setInfo.description on every client we've tested for these
+--      three (Normal/Heroic/Mythic don't have alternate phrasings in any
+--      known locale). Map each to its diffID.
+--   2. For LFR (diffID 17), GetDifficultyInfo's name string ("Looking for
+--      Raid" on enUS) does NOT match what setInfo.description returns
+--      ("Raid Finder" on enUS). So instead, walk the supplied setInfo
+--      list, collect all unique `description` strings, and the one that
+--      didn't get matched in step 1 is by definition the LFR string. Map
+--      it to diffID 17.
+--   3. Sanity-check that we ended up with exactly 4 entries.
+--
+-- This requires zero hardcoded English strings -- both the matched names
+-- (steps 1) and the LFR-via-elimination string (step 2) come from the live
+-- localized API, so the map auto-builds correctly on any locale.
+local function BuildSetDescriptionMap(allSets, labelSet)
+    if SET_DESCRIPTION_TO_DIFFICULTY then
+        local n = 0
+        for _ in pairs(SET_DESCRIPTION_TO_DIFFICULTY) do n = n + 1 end
+        if n == 4 then return true end
+        -- Otherwise, partial build from a prior attempt: try again below.
+    end
+
+    local map = {}
+    local matched = {}     -- description string -> true, for elimination
+
+    -- Step 1: Normal / Heroic / Mythic via GetDifficultyInfo.
+    for _, diffID in ipairs({ 14, 15, 16 }) do
+        local name = GetDifficultyInfo and GetDifficultyInfo(diffID)
+        if name and name ~= "" then
+            map[name] = diffID
+            matched[name] = true
+        end
+    end
+
+    -- Step 2: collect unique descriptions from the actual sets in scope, find
+    -- the one that wasn't matched. With 4 difficulties and 3 already mapped,
+    -- exactly one description should remain unmatched -- that's LFR.
+    local unmatchedDescs = {}
+    for _, setInfo in ipairs(allSets or {}) do
+        if setInfo.label and labelSet and labelSet[setInfo.label]
+           and setInfo.description and setInfo.description ~= ""
+           and not matched[setInfo.description] then
+            unmatchedDescs[setInfo.description] = true
+        end
+    end
+
+    local unmatchedList = {}
+    for desc in pairs(unmatchedDescs) do
+        table.insert(unmatchedList, desc)
+    end
+
+    if #unmatchedList == 1 then
+        -- Exactly one leftover description: must be LFR.
+        map[unmatchedList[1]] = 17
+    elseif #unmatchedList == 0 then
+        -- Either GetDifficultyInfo's three names cover all difficulties in
+        -- scope (e.g. raid has no LFR variant -- not currently expected for
+        -- post-MoP raids), or no sets in scope have descriptions yet.
+        -- Either way, refuse to proceed -- if we miss the LFR description
+        -- and the raid actually has LFR sets, every LFR tier row gets
+        -- silently dropped.
+        SET_DESCRIPTION_TO_DIFFICULTY = map
+        return false, "no leftover setInfo.description strings to identify as LFR"
+    else
+        -- Multiple leftover descriptions: GetDifficultyInfo failed for one
+        -- or more of Normal/Heroic/Mythic too. We can't tell which leftover
+        -- is which without more context. Refuse rather than guess.
+        SET_DESCRIPTION_TO_DIFFICULTY = map
+        return false, ("ambiguous: multiple unmatched descriptions: %s"):format(
+            table.concat(unmatchedList, ", "))
+    end
+
+    -- Step 3: sanity check.
+    SET_DESCRIPTION_TO_DIFFICULTY = map
+    local n = 0
+    for _ in pairs(map) do n = n + 1 end
+    if n ~= 4 then
+        return false, ("expected 4 entries, got %d"):format(n)
+    end
+    return true
+end
 
 -------------------------------------------------------------------------------
 -- Localized class name -> classID map. Built at addon-load time from the
@@ -2001,6 +2131,31 @@ function CollectTierSets_Build(tierSets)
     local labelSet = {}
     for _, lab in ipairs(labels) do labelSet[lab] = true end
 
+    -- Pull the set list once, up front. Used by the description-map builder
+    -- below (to discover the localized LFR description string by elimination)
+    -- and again by the main per-set walk further down.
+    local allSets = C_TransmogSets.GetAllSets()
+    if not allSets then return result end
+
+    -- Build the description-to-difficulty map at harvest time, scoped to the
+    -- labels we actually care about (so its LFR-by-elimination logic only
+    -- looks at descriptions from this raid's sets, not unrelated ones). If
+    -- the build fails, refuse to proceed and tell the user. Producing tier
+    -- rows with mis-bucketed sourceIDs (the v1.0.1 LFR/Mythic-swap bug, and
+    -- the follow-on LFR-bucket-dropped bug) was discovered to be much worse
+    -- than producing no tier rows at all -- both look correct on inspection
+    -- but ship wrong data to every user.
+    local ok, err = BuildSetDescriptionMap(allSets, labelSet)
+    if not ok then
+        if RR and RR.Print then
+            RR:Print(("|cffff5555tier harvest aborted|r: could not build "
+                  .. "difficulty-description map (%s). Try again from inside "
+                  .. "a raid, or after the API has had a moment to warm up."
+                  ):format(tostring(err or "unknown")))
+        end
+        return result
+    end
+
     -- Build (group, slot) -> bossIndex by parsing each token's name.
     -- Also record which groups are "active" (mentioned by any token) so the
     -- classID -> group mapping later doesn't span multiple expansions.
@@ -2042,9 +2197,6 @@ function CollectTierSets_Build(tierSets)
 
     local classToGroup = BuildClassToGroupMap(activeGroups)
 
-    local allSets = C_TransmogSets.GetAllSets()
-    if not allSets then return result end
-
     -- (class, slot) -> {
     --   classID, slot, setLabel,
     --   sources    = { [diff] = sourceID },
@@ -2063,9 +2215,8 @@ function CollectTierSets_Build(tierSets)
             while m > 1 do m = bit.rshift(m, 1); bitpos = bitpos + 1 end
             local classID = bitpos + 1
             -- Each setID is per-(class, difficulty); the description tells us
-            -- which difficulty (locale-independent via runtime-built
-            -- SET_DESCRIPTION_TO_DIFFICULTY map keyed on PLAYER_DIFFICULTY
-            -- globals).
+            -- which difficulty (locale-correct via the SET_DESCRIPTION_TO_DIFFICULTY
+            -- map built at the top of this function from GetDifficultyInfo).
             local setDiffID = setInfo.description and SET_DESCRIPTION_TO_DIFFICULTY[setInfo.description]
             -- Sanity: skip if mask isn't a clean single bit (would mean a
             -- multi-class set, which legacy tier shouldn't produce). Also
@@ -2523,61 +2674,106 @@ local function CollectEncounterTokens(journalInstanceID, journalEncounterID,
         EJ_SetDifficulty(difficultyID)
 
         WaitForEJLootSettled(1000, 10000, function(numLoot)
-            local tokens = {}
-            local seen   = {}
-
+            -- Cache-warming pass. The EJ_LOOT_DATA_RECIEVED quiescent-wait
+            -- above proves that EJ_GetLootInfoByIndex returns settled data
+            -- -- but the item-info caches that downstream code reads
+            -- (GetItemInfo, C_TransmogCollection.GetItemInfo,
+            -- C_TooltipInfo.GetItemByID) are SEPARATE caches with their
+            -- own async-fetch lifecycles. The first call to each returns
+            -- nil and queues a server fetch; subsequent calls (after the
+            -- fetch completes) return real data.
+            --
+            -- Without this warm pass, the parse loop below hits cold
+            -- caches: GetItemInfo returns nil for every item, equipLoc
+            -- defaults to "", BUT itemName is also nil so the
+            -- ParseTokenName fallback path can't decide either way --
+            -- and the appearance check via C_TransmogCollection also
+            -- returns nil. Net effect: every accept-decision falls
+            -- through to false and zero tokens are detected. Discovery
+            -- aborts with "labels matched but ZERO tier tokens".
+            --
+            -- Symptom in the wild (seen on Vault and Amirdrassil during
+            -- v1.0.1 work): /rr raidcapture aborts on first run, asks
+            -- the user to /reload and retry. The reload partially warms
+            -- the caches via UI repaint, so the second run usually
+            -- works. Sometimes takes two reloads.
+            --
+            -- Fix: walk every itemID we just read from the EJ, fire all
+            -- three cache-priming calls, then defer the parse pass by
+            -- 1s to give the async fetches time to populate. The 1s
+            -- wait is empirical -- shorter (0.5s) is sometimes enough
+            -- but not reliably; longer (2s) wastes time. 1s is the
+            -- knee of the curve.
             for i = 1, numLoot do
                 local info = C_EncounterJournal.GetLootInfoByIndex(i)
-                if info and info.itemID and not seen[info.itemID]
-                    and info.encounterID == targetID
-                then
-                    -- Token-candidate detection: collection-state-independent
-                    -- AND modern-token-aware.
-                    --
-                    -- We accept an item if EITHER:
-                    --   (a) equipLoc == "" -- classic token-style item
-                    --       (no equip slot, gets exchanged for gear)
-                    --   (b) appearanceID == nil AND name matches a tier
-                    --       pattern -- modern tokens may have a real equipLoc
-                    --       (post-Vault changes) but they still register no
-                    --       transmog appearance (until exchanged).
-                    --
-                    -- Combined, this catches:
-                    --   - Classic SL-era tokens (equipLoc empty)
-                    --   - Modern DF+ tokens (equipLoc set, no appearance)
-                    --   - Tokens whose appearance the player has collected
-                    --     (caught by case (a) since equipLoc is still empty)
-                    --
-                    -- And rejects:
-                    --   - Real gear with appearances (both checks fail)
-                    --   - Class-restricted gear like shields for Warlocks
-                    --     (case (a) fails: real equipLoc; case (b) fails:
-                    --     name doesn't match tier pattern)
-                    local itemName, _, _, _, _, _, _, _, equipLoc =
-                        GetItemInfo(info.itemID)
-                    local equipLocStr = equipLoc or ""
-                    local nameStr = itemName or info.name
-
-                    local accept = (equipLocStr == "")
-                    if not accept and nameStr and C_TransmogCollection then
-                        local appearanceID = C_TransmogCollection.GetItemInfo(info.itemID)
-                        if appearanceID == nil then
-                            local g, s = ParseTokenName(info.itemID, nameStr)
-                            if g and s then accept = true end
-                        end
+                if info and info.itemID then
+                    GetItemInfo(info.itemID)
+                    if C_TooltipInfo and C_TooltipInfo.GetItemByID then
+                        C_TooltipInfo.GetItemByID(info.itemID)
                     end
-
-                    if accept then
-                        seen[info.itemID] = true
-                        table.insert(tokens, {
-                            itemID = info.itemID,
-                            name   = nameStr or ("Unknown_%d"):format(info.itemID),
-                        })
+                    if C_TransmogCollection and C_TransmogCollection.GetItemInfo then
+                        C_TransmogCollection.GetItemInfo(info.itemID)
                     end
                 end
             end
 
-            callback(tokens)
+            C_Timer.After(1.0, function()
+                local tokens = {}
+                local seen   = {}
+
+                for i = 1, numLoot do
+                    local info = C_EncounterJournal.GetLootInfoByIndex(i)
+                    if info and info.itemID and not seen[info.itemID]
+                        and info.encounterID == targetID
+                    then
+                        -- Token-candidate detection: collection-state-independent
+                        -- AND modern-token-aware.
+                        --
+                        -- We accept an item if EITHER:
+                        --   (a) equipLoc == "" -- classic token-style item
+                        --       (no equip slot, gets exchanged for gear)
+                        --   (b) appearanceID == nil AND name matches a tier
+                        --       pattern -- modern tokens may have a real equipLoc
+                        --       (post-Vault changes) but they still register no
+                        --       transmog appearance (until exchanged).
+                        --
+                        -- Combined, this catches:
+                        --   - Classic SL-era tokens (equipLoc empty)
+                        --   - Modern DF+ tokens (equipLoc set, no appearance)
+                        --   - Tokens whose appearance the player has collected
+                        --     (caught by case (a) since equipLoc is still empty)
+                        --
+                        -- And rejects:
+                        --   - Real gear with appearances (both checks fail)
+                        --   - Class-restricted gear like shields for Warlocks
+                        --     (case (a) fails: real equipLoc; case (b) fails:
+                        --     name doesn't match tier pattern)
+                        local itemName, _, _, _, _, _, _, _, equipLoc =
+                            GetItemInfo(info.itemID)
+                        local equipLocStr = equipLoc or ""
+                        local nameStr = itemName or info.name
+
+                        local accept = (equipLocStr == "")
+                        if not accept and nameStr and C_TransmogCollection then
+                            local appearanceID = C_TransmogCollection.GetItemInfo(info.itemID)
+                            if appearanceID == nil then
+                                local g, s = ParseTokenName(info.itemID, nameStr)
+                                if g and s then accept = true end
+                            end
+                        end
+
+                        if accept then
+                            seen[info.itemID] = true
+                            table.insert(tokens, {
+                                itemID = info.itemID,
+                                name   = nameStr or ("Unknown_%d"):format(info.itemID),
+                            })
+                        end
+                    end
+                end
+
+                callback(tokens)
+            end)
         end)
     end)
 end

@@ -83,6 +83,22 @@ RetroRuns_Data[2522] = {
         },
     },
 
+    -- Raid skip quests. Account-wide unlock per Patch 11.0.5; check via
+    -- C_QuestLog.IsQuestFlaggedCompletedOnAccount. Per-character
+    -- IsQuestFlaggedCompleted does NOT reflect the unlock for alts that
+    -- did not personally complete the quest.
+    --
+    -- Only the questID for the difficulty actually completed returns
+    -- true; the in-game cascade that lets you use the skip on lower
+    -- difficulties happens at the skip NPC, NOT by backfilling the
+    -- per-difficulty quest flags. To detect "skip is available at any
+    -- difficulty", OR across all three IDs.
+    skipQuests = {
+        normal = 71018,
+        heroic = 71019,
+        mythic = 71020,
+    },
+
     bosses = {
         {
             index              = 1,
@@ -175,19 +191,19 @@ RetroRuns_Data[2522] = {
                 { id=195510, slot="Weapon", name="Frostbreath Thumper",        sources={ [17]=183256, [14]=181169, [15]=183254, [16]=183255 } },
                 { id=195508, slot="Wrist",  name="Chilled Silken Restraints",  sources={ [17]=181615, [14]=181167, [15]=181613, [16]=181614 } },
                 -- Tier Legs (13 classes, from Jade Forgestone tokens)
-                { id=200427, slot="Legs", name="Poleyns of the Walking Mountain",   sources={ [17]=182898, [14]=182895, [15]=182897, [16]=182896 }, classes={ 1 } },
-                { id=200418, slot="Legs", name="Virtuous Silver Cuisses",           sources={ [17]=182862, [14]=182859, [15]=182861, [16]=182860 }, classes={ 2 } },
-                { id=200391, slot="Legs", name="Stormwing Harrier's Greaves",       sources={ [17]=182754, [14]=182751, [15]=182753, [16]=182752 }, classes={ 3 } },
-                { id=200373, slot="Legs", name="Vault Delver's Pantaloons",         sources={ [17]=182682, [14]=182679, [15]=182681, [16]=182680 }, classes={ 4 } },
-                { id=200328, slot="Legs", name="Draconic Hierophant's Britches",    sources={ [17]=182502, [14]=182499, [15]=182501, [16]=182500 }, classes={ 5 } },
-                { id=200409, slot="Legs", name="Greaves of the Haunted Frostbrood", sources={ [17]=182826, [14]=182823, [15]=182825, [16]=182824 }, classes={ 6 } },
-                { id=200400, slot="Legs", name="Leggings of Infused Earth",         sources={ [17]=182790, [14]=182787, [15]=182789, [16]=182788 }, classes={ 7 } },
-                { id=200319, slot="Legs", name="Crystal Scholar's Britches",        sources={ [17]=182466, [14]=182463, [15]=182465, [16]=182464 }, classes={ 8 } },
-                { id=200337, slot="Legs", name="Scalesworn Cultist's Culottes",     sources={ [17]=182538, [14]=182535, [15]=182537, [16]=182536 }, classes={ 9 } },
-                { id=200364, slot="Legs", name="Legguards of the Waking Fist",      sources={ [17]=182646, [14]=182643, [15]=182645, [16]=182644 }, classes={ 10 } },
-                { id=200355, slot="Legs", name="Lost Landcaller's Leggings",        sources={ [17]=182610, [14]=182607, [15]=182609, [16]=182608 }, classes={ 11 } },
-                { id=200346, slot="Legs", name="Skybound Avenger's Legguards",      sources={ [17]=182574, [14]=182571, [15]=182573, [16]=182572 }, classes={ 12 } },
-                { id=200382, slot="Legs", name="Legguards of the Awakened",         sources={ [17]=182718, [14]=182715, [15]=182717, [16]=182716 }, classes={ 13 } },
+                { id=200427, slot="Legs", name="Poleyns of the Walking Mountain",   sources={ [17]=182896, [14]=182895, [15]=182897, [16]=182898 }, classes={ 1 } },
+                { id=200418, slot="Legs", name="Virtuous Silver Cuisses",           sources={ [17]=182860, [14]=182859, [15]=182861, [16]=182862 }, classes={ 2 } },
+                { id=200391, slot="Legs", name="Stormwing Harrier's Greaves",       sources={ [17]=182752, [14]=182751, [15]=182753, [16]=182754 }, classes={ 3 } },
+                { id=200373, slot="Legs", name="Vault Delver's Pantaloons",         sources={ [17]=182680, [14]=182679, [15]=182681, [16]=182682 }, classes={ 4 } },
+                { id=200328, slot="Legs", name="Draconic Hierophant's Britches",    sources={ [17]=182500, [14]=182499, [15]=182501, [16]=182502 }, classes={ 5 } },
+                { id=200409, slot="Legs", name="Greaves of the Haunted Frostbrood", sources={ [17]=182824, [14]=182823, [15]=182825, [16]=182826 }, classes={ 6 } },
+                { id=200400, slot="Legs", name="Leggings of Infused Earth",         sources={ [17]=182788, [14]=182787, [15]=182789, [16]=182790 }, classes={ 7 } },
+                { id=200319, slot="Legs", name="Crystal Scholar's Britches",        sources={ [17]=182464, [14]=182463, [15]=182465, [16]=182466 }, classes={ 8 } },
+                { id=200337, slot="Legs", name="Scalesworn Cultist's Culottes",     sources={ [17]=182536, [14]=182535, [15]=182537, [16]=182538 }, classes={ 9 } },
+                { id=200364, slot="Legs", name="Legguards of the Waking Fist",      sources={ [17]=182644, [14]=182643, [15]=182645, [16]=182646 }, classes={ 10 } },
+                { id=200355, slot="Legs", name="Lost Landcaller's Leggings",        sources={ [17]=182608, [14]=182607, [15]=182609, [16]=182610 }, classes={ 11 } },
+                { id=200346, slot="Legs", name="Skybound Avenger's Legguards",      sources={ [17]=182572, [14]=182571, [15]=182573, [16]=182574 }, classes={ 12 } },
+                { id=200382, slot="Legs", name="Legguards of the Awakened",         sources={ [17]=182716, [14]=182715, [15]=182717, [16]=182718 }, classes={ 13 } },
             },
         },
         {
@@ -210,19 +226,19 @@ RetroRuns_Data[2522] = {
                 { id=195491, slot="Weapon",   name="Infused Stormglaives",          sources={ [17]=183158, [14]=181150, [15]=183156, [16]=183157 } },
                 { id=195481, slot="Weapon",   name="Scepter of Drastic Measures",   sources={ [17]=183259, [14]=181140, [15]=183257, [16]=183258 } },
                 -- Tier Hands (13 classes, from Garnet Forgestone tokens)
-                { id=200425, slot="Hands", name="Gauntlets of the Walking Mountain",  sources={ [17]=182890, [14]=182887, [15]=182889, [16]=182888 }, classes={ 1 } },
-                { id=200416, slot="Hands", name="Virtuous Silver Gauntlets",          sources={ [17]=182854, [14]=182851, [15]=182853, [16]=182852 }, classes={ 2 } },
-                { id=200389, slot="Hands", name="Stormwing Harrier's Handguards",     sources={ [17]=182746, [14]=182743, [15]=182745, [16]=182744 }, classes={ 3 } },
-                { id=200371, slot="Hands", name="Vault Delver's Lockbreakers",        sources={ [17]=182674, [14]=182671, [15]=182673, [16]=182672 }, classes={ 4 } },
-                { id=200326, slot="Hands", name="Draconic Hierophant's Grips",        sources={ [17]=182494, [14]=182491, [15]=182493, [16]=182492 }, classes={ 5 } },
-                { id=200407, slot="Hands", name="Grasps of the Haunted Frostbrood",   sources={ [17]=182818, [14]=182815, [15]=182817, [16]=182816 }, classes={ 6 } },
-                { id=200398, slot="Hands", name="Gauntlets of Infused Earth",         sources={ [17]=182782, [14]=182779, [15]=182781, [16]=182780 }, classes={ 7 } },
-                { id=200317, slot="Hands", name="Crystal Scholar's Pageturners",      sources={ [17]=182458, [14]=182455, [15]=182457, [16]=182456 }, classes={ 8 } },
-                { id=200335, slot="Hands", name="Scalesworn Cultist's Gloves",        sources={ [17]=182530, [14]=182527, [15]=182529, [16]=182528 }, classes={ 9 } },
-                { id=200362, slot="Hands", name="Palms of the Waking Fist",           sources={ [17]=182638, [14]=182635, [15]=182637, [16]=182636 }, classes={ 10 } },
-                { id=200353, slot="Hands", name="Lost Landcaller's Claws",            sources={ [17]=182602, [14]=182599, [15]=182601, [16]=182600 }, classes={ 11 } },
-                { id=200344, slot="Hands", name="Skybound Avenger's Grips",           sources={ [17]=182566, [14]=182563, [15]=182565, [16]=182564 }, classes={ 12 } },
-                { id=200380, slot="Hands", name="Gauntlets of the Awakened",          sources={ [17]=182710, [14]=182707, [15]=182709, [16]=182708 }, classes={ 13 } },
+                { id=200425, slot="Hands", name="Gauntlets of the Walking Mountain",  sources={ [17]=182888, [14]=182887, [15]=182889, [16]=182890 }, classes={ 1 } },
+                { id=200416, slot="Hands", name="Virtuous Silver Gauntlets",          sources={ [17]=182852, [14]=182851, [15]=182853, [16]=182854 }, classes={ 2 } },
+                { id=200389, slot="Hands", name="Stormwing Harrier's Handguards",     sources={ [17]=182744, [14]=182743, [15]=182745, [16]=182746 }, classes={ 3 } },
+                { id=200371, slot="Hands", name="Vault Delver's Lockbreakers",        sources={ [17]=182672, [14]=182671, [15]=182673, [16]=182674 }, classes={ 4 } },
+                { id=200326, slot="Hands", name="Draconic Hierophant's Grips",        sources={ [17]=182492, [14]=182491, [15]=182493, [16]=182494 }, classes={ 5 } },
+                { id=200407, slot="Hands", name="Grasps of the Haunted Frostbrood",   sources={ [17]=182816, [14]=182815, [15]=182817, [16]=182818 }, classes={ 6 } },
+                { id=200398, slot="Hands", name="Gauntlets of Infused Earth",         sources={ [17]=182780, [14]=182779, [15]=182781, [16]=182782 }, classes={ 7 } },
+                { id=200317, slot="Hands", name="Crystal Scholar's Pageturners",      sources={ [17]=182456, [14]=182455, [15]=182457, [16]=182458 }, classes={ 8 } },
+                { id=200335, slot="Hands", name="Scalesworn Cultist's Gloves",        sources={ [17]=182528, [14]=182527, [15]=182529, [16]=182530 }, classes={ 9 } },
+                { id=200362, slot="Hands", name="Palms of the Waking Fist",           sources={ [17]=182636, [14]=182635, [15]=182637, [16]=182638 }, classes={ 10 } },
+                { id=200353, slot="Hands", name="Lost Landcaller's Claws",            sources={ [17]=182600, [14]=182599, [15]=182601, [16]=182602 }, classes={ 11 } },
+                { id=200344, slot="Hands", name="Skybound Avenger's Grips",           sources={ [17]=182564, [14]=182563, [15]=182565, [16]=182566 }, classes={ 12 } },
+                { id=200380, slot="Hands", name="Gauntlets of the Awakened",          sources={ [17]=182708, [14]=182707, [15]=182709, [16]=182710 }, classes={ 13 } },
             },
             specialLoot = {
                 -- Iskaara Trader's Ottuk mount. See Terros for full
@@ -258,19 +274,19 @@ RetroRuns_Data[2522] = {
                 { id=195512, slot="Weapon",           name="Fist of the Grand Summoner",        sources={ [17]=183411, [14]=181171, [15]=183409, [16]=183410 } },
                 { id=195516, slot="Wrist",            name="Surging-Song Conductors",           sources={ [17]=181633, [14]=181175, [15]=181631, [16]=181632 } },
                 -- Tier Chest (13 classes, from Amethyst Forgestone tokens)
-                { id=200423, slot="Chest", name="Husk of the Walking Mountain",           sources={ [17]=182882, [14]=182879, [15]=182881, [16]=182880 }, classes={ 1 } },
-                { id=200414, slot="Chest", name="Virtuous Silver Breastplate",            sources={ [17]=182846, [14]=182843, [15]=182845, [16]=182844 }, classes={ 2 } },
-                { id=200387, slot="Chest", name="Stormwing Harrier's Cuirass",            sources={ [17]=182738, [14]=182735, [15]=182737, [16]=182736 }, classes={ 3 } },
-                { id=200369, slot="Chest", name="Vault Delver's Brigandine",              sources={ [17]=182666, [14]=182663, [15]=182665, [16]=182664 }, classes={ 4 } },
-                { id=200324, slot="Chest", name="Draconic Hierophant's Vestment",         sources={ [17]=182486, [14]=182483, [15]=182485, [16]=182484 }, classes={ 5 } },
-                { id=200405, slot="Chest", name="Breastplate of the Haunted Frostbrood",  sources={ [17]=182810, [14]=182807, [15]=182809, [16]=182808 }, classes={ 6 } },
-                { id=200396, slot="Chest", name="Robe of Infused Earth",                  sources={ [17]=182774, [14]=182771, [15]=182773, [16]=182772 }, classes={ 7 } },
-                { id=200315, slot="Chest", name="Crystal Scholar's Tunic",                sources={ [17]=182450, [14]=182447, [15]=182449, [16]=182448 }, classes={ 8 } },
-                { id=200333, slot="Chest", name="Scalesworn Cultist's Frock",             sources={ [17]=182522, [14]=182519, [15]=182521, [16]=182520 }, classes={ 9 } },
-                { id=200360, slot="Chest", name="Chestwrap of the Waking Fist",           sources={ [17]=182630, [14]=182627, [15]=182629, [16]=182628 }, classes={ 10 } },
-                { id=200351, slot="Chest", name="Lost Landcaller's Robes",                sources={ [17]=182594, [14]=182591, [15]=182593, [16]=182592 }, classes={ 11 } },
-                { id=200342, slot="Chest", name="Skybound Avenger's Harness",             sources={ [17]=182558, [14]=182555, [15]=182557, [16]=182556 }, classes={ 12 } },
-                { id=200378, slot="Chest", name="Hauberk of the Awakened",                sources={ [17]=182702, [14]=182699, [15]=182701, [16]=182700 }, classes={ 13 } },
+                { id=200423, slot="Chest", name="Husk of the Walking Mountain",           sources={ [17]=182880, [14]=182879, [15]=182881, [16]=182882 }, classes={ 1 } },
+                { id=200414, slot="Chest", name="Virtuous Silver Breastplate",            sources={ [17]=182844, [14]=182843, [15]=182845, [16]=182846 }, classes={ 2 } },
+                { id=200387, slot="Chest", name="Stormwing Harrier's Cuirass",            sources={ [17]=182736, [14]=182735, [15]=182737, [16]=182738 }, classes={ 3 } },
+                { id=200369, slot="Chest", name="Vault Delver's Brigandine",              sources={ [17]=182664, [14]=182663, [15]=182665, [16]=182666 }, classes={ 4 } },
+                { id=200324, slot="Chest", name="Draconic Hierophant's Vestment",         sources={ [17]=182484, [14]=182483, [15]=182485, [16]=182486 }, classes={ 5 } },
+                { id=200405, slot="Chest", name="Breastplate of the Haunted Frostbrood",  sources={ [17]=182808, [14]=182807, [15]=182809, [16]=182810 }, classes={ 6 } },
+                { id=200396, slot="Chest", name="Robe of Infused Earth",                  sources={ [17]=182772, [14]=182771, [15]=182773, [16]=182774 }, classes={ 7 } },
+                { id=200315, slot="Chest", name="Crystal Scholar's Tunic",                sources={ [17]=182448, [14]=182447, [15]=182449, [16]=182450 }, classes={ 8 } },
+                { id=200333, slot="Chest", name="Scalesworn Cultist's Frock",             sources={ [17]=182520, [14]=182519, [15]=182521, [16]=182522 }, classes={ 9 } },
+                { id=200360, slot="Chest", name="Chestwrap of the Waking Fist",           sources={ [17]=182628, [14]=182627, [15]=182629, [16]=182630 }, classes={ 10 } },
+                { id=200351, slot="Chest", name="Lost Landcaller's Robes",                sources={ [17]=182592, [14]=182591, [15]=182593, [16]=182594 }, classes={ 11 } },
+                { id=200342, slot="Chest", name="Skybound Avenger's Harness",             sources={ [17]=182556, [14]=182555, [15]=182557, [16]=182558 }, classes={ 12 } },
+                { id=200378, slot="Chest", name="Hauberk of the Awakened",                sources={ [17]=182700, [14]=182699, [15]=182701, [16]=182702 }, classes={ 13 } },
             },
         },
         {
@@ -298,19 +314,19 @@ RetroRuns_Data[2522] = {
                 { id=195521, slot="Weapon",   name="Ornamental Drakonid Claw",         sources={ [17]=183423, [14]=181180, [15]=183421, [16]=183422 } },
                 { id=195525, slot="Wrist",    name="Loyal Flametender's Bracers",      sources={ [17]=181654, [14]=181184, [15]=181652, [16]=181653 } },
                 -- Tier Shoulder (13 classes, from Lapis Forgestone tokens)
-                { id=200428, slot="Shoulder", name="Peaks of the Walking Mountain",        sources={ [17]=182902, [14]=182899, [15]=182901, [16]=182900 }, classes={ 1 } },
-                { id=200419, slot="Shoulder", name="Virtuous Silver Pauldrons",            sources={ [17]=182866, [14]=182863, [15]=182865, [16]=182864 }, classes={ 2 } },
-                { id=200392, slot="Shoulder", name="Stormwing Harrier's Pinions",          sources={ [17]=182758, [14]=182755, [15]=182757, [16]=182756 }, classes={ 3 } },
-                { id=200374, slot="Shoulder", name="Vault Delver's Epaulets",              sources={ [17]=182686, [14]=182683, [15]=182685, [16]=182684 }, classes={ 4 } },
-                { id=200329, slot="Shoulder", name="Draconic Hierophant's Wisdom",         sources={ [17]=182506, [14]=182503, [15]=182505, [16]=182504 }, classes={ 5 } },
-                { id=200410, slot="Shoulder", name="Jaws of the Haunted Frostbrood",       sources={ [17]=182830, [14]=182827, [15]=182829, [16]=182828 }, classes={ 6 } },
-                { id=200401, slot="Shoulder", name="Calderas of Infused Earth",            sources={ [17]=182794, [14]=182791, [15]=182793, [16]=182792 }, classes={ 7 } },
-                { id=200320, slot="Shoulder", name="Crystal Scholar's Beacons",            sources={ [17]=182470, [14]=182467, [15]=182469, [16]=182468 }, classes={ 8 } },
-                { id=200338, slot="Shoulder", name="Scalesworn Cultist's Effigy",          sources={ [17]=182542, [14]=182539, [15]=182541, [16]=182540 }, classes={ 9 } },
-                { id=200365, slot="Shoulder", name="Mantle of the Waking Fist",            sources={ [17]=182650, [14]=182647, [15]=182649, [16]=182648 }, classes={ 10 } },
-                { id=200356, slot="Shoulder", name="Lost Landcaller's Mantle",             sources={ [17]=182614, [14]=182611, [15]=182613, [16]=182612 }, classes={ 11 } },
-                { id=200347, slot="Shoulder", name="Skybound Avenger's Ailerons",          sources={ [17]=182578, [14]=182575, [15]=182577, [16]=182576 }, classes={ 12 } },
-                { id=200383, slot="Shoulder", name="Talons of the Awakened",               sources={ [17]=182722, [14]=182719, [15]=182721, [16]=182720 }, classes={ 13 } },
+                { id=200428, slot="Shoulder", name="Peaks of the Walking Mountain",        sources={ [17]=182900, [14]=182899, [15]=182901, [16]=182902 }, classes={ 1 } },
+                { id=200419, slot="Shoulder", name="Virtuous Silver Pauldrons",            sources={ [17]=182864, [14]=182863, [15]=182865, [16]=182866 }, classes={ 2 } },
+                { id=200392, slot="Shoulder", name="Stormwing Harrier's Pinions",          sources={ [17]=182756, [14]=182755, [15]=182757, [16]=182758 }, classes={ 3 } },
+                { id=200374, slot="Shoulder", name="Vault Delver's Epaulets",              sources={ [17]=182684, [14]=182683, [15]=182685, [16]=182686 }, classes={ 4 } },
+                { id=200329, slot="Shoulder", name="Draconic Hierophant's Wisdom",         sources={ [17]=182504, [14]=182503, [15]=182505, [16]=182506 }, classes={ 5 } },
+                { id=200410, slot="Shoulder", name="Jaws of the Haunted Frostbrood",       sources={ [17]=182828, [14]=182827, [15]=182829, [16]=182830 }, classes={ 6 } },
+                { id=200401, slot="Shoulder", name="Calderas of Infused Earth",            sources={ [17]=182792, [14]=182791, [15]=182793, [16]=182794 }, classes={ 7 } },
+                { id=200320, slot="Shoulder", name="Crystal Scholar's Beacons",            sources={ [17]=182468, [14]=182467, [15]=182469, [16]=182470 }, classes={ 8 } },
+                { id=200338, slot="Shoulder", name="Scalesworn Cultist's Effigy",          sources={ [17]=182540, [14]=182539, [15]=182541, [16]=182542 }, classes={ 9 } },
+                { id=200365, slot="Shoulder", name="Mantle of the Waking Fist",            sources={ [17]=182648, [14]=182647, [15]=182649, [16]=182650 }, classes={ 10 } },
+                { id=200356, slot="Shoulder", name="Lost Landcaller's Mantle",             sources={ [17]=182612, [14]=182611, [15]=182613, [16]=182614 }, classes={ 11 } },
+                { id=200347, slot="Shoulder", name="Skybound Avenger's Ailerons",          sources={ [17]=182576, [14]=182575, [15]=182577, [16]=182578 }, classes={ 12 } },
+                { id=200383, slot="Shoulder", name="Talons of the Awakened",               sources={ [17]=182720, [14]=182719, [15]=182721, [16]=182722 }, classes={ 13 } },
             },
         },
         {
@@ -323,12 +339,11 @@ RetroRuns_Data[2522] = {
             },
             specialLoot = {
                 -- Renewed Proto-Drake: Embodiment of the Storm-Eater
-                -- (Drakewatcher Manuscript). Item is consumed on use; the
-                -- "use" spell (394780 "Deciphering") completes hidden quest
-                -- 72367 as its only effect. Tracking the unlock therefore
-                -- comes down to IsQuestFlaggedCompleted(72367), which
-                -- persists per-character even after the item is gone.
-                -- Drops on all difficulties (LFR through Mythic).
+                -- (Drakewatcher Manuscript). Once you've used the
+                -- manuscript on a character, the customization is
+                -- permanently unlocked for that character even though
+                -- the item itself is consumed. Drops on all difficulties
+                -- (LFR through Mythic).
                 {
                     id      = 201790,
                     kind    = "manuscript",
@@ -345,19 +360,19 @@ RetroRuns_Data[2522] = {
                 { id=195529, slot="Weapon",   name="Stormlash's Last Resort",         sources={ [17]=183432, [14]=181188, [15]=183430, [16]=183431 } },
                 { id=195533, slot="Wrist",    name="Shackles of Titanic Failure",     sources={ [17]=181600, [14]=181192, [15]=181598, [16]=181599 } },
                 -- Tier Head (13 classes, from Topaz Forgestone tokens)
-                { id=200426, slot="Head", name="Casque of the Walking Mountain",   sources={ [17]=182894, [14]=182891, [15]=182893, [16]=182892 }, classes={ 1 } },
-                { id=200417, slot="Head", name="Virtuous Silver Heaume",           sources={ [17]=182858, [14]=182855, [15]=182857, [16]=182856 }, classes={ 2 } },
-                { id=200390, slot="Head", name="Stormwing Harrier's Skullmask",    sources={ [17]=182750, [14]=182747, [15]=182749, [16]=182748 }, classes={ 3 } },
-                { id=200372, slot="Head", name="Vault Delver's Vizard",            sources={ [17]=182678, [14]=182675, [15]=182677, [16]=182676 }, classes={ 4 } },
-                { id=200327, slot="Head", name="Draconic Hierophant's Archcowl",   sources={ [17]=182498, [14]=182495, [15]=182497, [16]=182496 }, classes={ 5 } },
-                { id=200408, slot="Head", name="Maw of the Haunted Frostbrood",    sources={ [17]=182822, [14]=182819, [15]=182821, [16]=182820 }, classes={ 6 } },
-                { id=200399, slot="Head", name="Faceguard of Infused Earth",       sources={ [17]=182786, [14]=182783, [15]=182785, [16]=182784 }, classes={ 7 } },
-                { id=200318, slot="Head", name="Crystal Scholar's Cowl",           sources={ [17]=182462, [14]=182459, [15]=182461, [16]=182460 }, classes={ 8 } },
-                { id=200336, slot="Head", name="Scalesworn Cultist's Scorn",       sources={ [17]=182534, [14]=182531, [15]=182533, [16]=182532 }, classes={ 9 } },
-                { id=200363, slot="Head", name="Gaze of the Waking Fist",          sources={ [17]=182642, [14]=182639, [15]=182641, [16]=182640 }, classes={ 10 } },
-                { id=200354, slot="Head", name="Lost Landcaller's Antlers",        sources={ [17]=182606, [14]=182603, [15]=182605, [16]=182604 }, classes={ 11 } },
-                { id=200345, slot="Head", name="Skybound Avenger's Visor",         sources={ [17]=182570, [14]=182567, [15]=182569, [16]=182568 }, classes={ 12 } },
-                { id=200381, slot="Head", name="Crown of the Awakened",            sources={ [17]=182714, [14]=182711, [15]=182713, [16]=182712 }, classes={ 13 } },
+                { id=200426, slot="Head", name="Casque of the Walking Mountain",   sources={ [17]=182892, [14]=182891, [15]=182893, [16]=182894 }, classes={ 1 } },
+                { id=200417, slot="Head", name="Virtuous Silver Heaume",           sources={ [17]=182856, [14]=182855, [15]=182857, [16]=182858 }, classes={ 2 } },
+                { id=200390, slot="Head", name="Stormwing Harrier's Skullmask",    sources={ [17]=182748, [14]=182747, [15]=182749, [16]=182750 }, classes={ 3 } },
+                { id=200372, slot="Head", name="Vault Delver's Vizard",            sources={ [17]=182676, [14]=182675, [15]=182677, [16]=182678 }, classes={ 4 } },
+                { id=200327, slot="Head", name="Draconic Hierophant's Archcowl",   sources={ [17]=182496, [14]=182495, [15]=182497, [16]=182498 }, classes={ 5 } },
+                { id=200408, slot="Head", name="Maw of the Haunted Frostbrood",    sources={ [17]=182820, [14]=182819, [15]=182821, [16]=182822 }, classes={ 6 } },
+                { id=200399, slot="Head", name="Faceguard of Infused Earth",       sources={ [17]=182784, [14]=182783, [15]=182785, [16]=182786 }, classes={ 7 } },
+                { id=200318, slot="Head", name="Crystal Scholar's Cowl",           sources={ [17]=182460, [14]=182459, [15]=182461, [16]=182462 }, classes={ 8 } },
+                { id=200336, slot="Head", name="Scalesworn Cultist's Scorn",       sources={ [17]=182532, [14]=182531, [15]=182533, [16]=182534 }, classes={ 9 } },
+                { id=200363, slot="Head", name="Gaze of the Waking Fist",          sources={ [17]=182640, [14]=182639, [15]=182641, [16]=182642 }, classes={ 10 } },
+                { id=200354, slot="Head", name="Lost Landcaller's Antlers",        sources={ [17]=182604, [14]=182603, [15]=182605, [16]=182606 }, classes={ 11 } },
+                { id=200345, slot="Head", name="Skybound Avenger's Visor",         sources={ [17]=182568, [14]=182567, [15]=182569, [16]=182570 }, classes={ 12 } },
+                { id=200381, slot="Head", name="Crown of the Awakened",            sources={ [17]=182712, [14]=182711, [15]=182713, [16]=182714 }, classes={ 13 } },
             },
         },
     },

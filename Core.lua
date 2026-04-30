@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "1.0.0"
+local VERSION    = "1.0.1"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -419,6 +419,70 @@ function RR:GetPerDifficultyKillCounts()
     -- raid is the current raid), so this wrapper is now a thin
     -- convenience for callers that don't have a raid handle.
     return self:GetPerDifficultyKillCountsForRaid(self.currentRaid)
+end
+
+-- Raid-skip account-wide unlock detection.
+--
+-- Per Patch 11.0.5, raid-skip quest unlocks became account-wide -- but
+-- the per-character `IsQuestFlaggedCompleted(questID)` API does NOT
+-- reflect that account-wide state. Use
+-- `C_QuestLog.IsQuestFlaggedCompletedOnAccount(questID)` instead, which
+-- returns true if ANY character on the account has completed the quest.
+--
+-- Quest flags do NOT backfill: completing the Mythic skip quest on one
+-- character sets the Mythic flag true on the account but leaves the
+-- Heroic and Normal flags false. The cascade that lets you USE the skip
+-- on lower difficulties happens at the in-game skip NPC level. The
+-- cascade is downward-only -- completing X unlocks X and every easier
+-- difficulty, but never anything harder. So:
+--
+--   * Mythic completed   -> skip available at Normal, Heroic, Mythic
+--   * Heroic completed   -> skip available at Normal, Heroic
+--   * Normal completed   -> skip available at Normal only
+--   * Nothing completed  -> skip not available
+--
+-- Reading this off the API: the HIGHEST flag-true difficulty is the
+-- ceiling. We don't need to OR all three to answer "is the skip
+-- available?" -- if any flag is true, we know at minimum that
+-- difficulty is unlocked, and (by cascade) every difficulty below.
+-- The walk from highest to lowest gives us the ceiling directly.
+
+-- Returns the highest difficulty for which the skip is unlocked on the
+-- account, or nil if no flag is set or the raid has no skipQuests
+-- config. Returned values are WoW raid difficulty IDs:
+--   16 = Mythic, 15 = Heroic, 14 = Normal.
+-- LFR (17) is intentionally excluded -- LFR raids don't have skip quests.
+function RR:GetRaidSkipUnlockedCeiling(raid)
+    if not raid or not raid.skipQuests then return nil end
+    local fn = C_QuestLog and C_QuestLog.IsQuestFlaggedCompletedOnAccount
+    if not fn then return nil end
+    if raid.skipQuests.mythic and fn(raid.skipQuests.mythic) then return 16 end
+    if raid.skipQuests.heroic and fn(raid.skipQuests.heroic) then return 15 end
+    if raid.skipQuests.normal and fn(raid.skipQuests.normal) then return 14 end
+    return nil
+end
+
+-- Returns true if the skip is available at the given difficulty,
+-- accounting for the downward cascade rule (completing X unlocks
+-- everything <= X). difficultyID should be one of the raid difficulty
+-- IDs: 14 (Normal), 15 (Heroic), 16 (Mythic). For LFR or any other
+-- non-skip-eligible difficulty, returns false.
+function RR:IsRaidSkipAvailableAtDifficulty(raid, difficultyID)
+    if not difficultyID then return false end
+    -- Skip system is Normal/Heroic/Mythic only.
+    if difficultyID < 14 or difficultyID > 16 then return false end
+    local ceiling = self:GetRaidSkipUnlockedCeiling(raid)
+    if not ceiling then return false end
+    return difficultyID <= ceiling
+end
+
+-- Binary "is this raid's skip unlocked at any difficulty?" Convenience
+-- wrapper for callers that just want to know whether to surface the
+-- skip-marker affordance. Mostly equivalent to "does
+-- GetRaidSkipUnlockedCeiling return non-nil" but keeps the call site
+-- self-documenting.
+function RR:HasRaidSkipUnlocked(raid)
+    return self:GetRaidSkipUnlockedCeiling(raid) ~= nil
 end
 
 function RR:GetSupportedRaid()
@@ -1252,6 +1316,13 @@ SlashCmdList["RETRORUNS"] = function(input)
 
     elseif cmd == "tmog" then
         RR.UI.ToggleTransmogBrowser()
+
+    elseif cmd == "skips" then
+        -- Open the raid-skip status window. Read-only display of which
+        -- raid skips are unlocked on this account, with cascade-aware
+        -- per-raid available-difficulty annotations. See
+        -- UI.OpenSkipsWindow for the rendering.
+        RR.UI.ToggleSkipsWindow()
 
     elseif cmd == "tmogsrc" then
         RR:DebugTransmogSources()
@@ -2768,6 +2839,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("  /rr  show | hide     (show / hide main panel)")
             RR:Print("  /rr  status          (current raid, step, kill state)")
             RR:Print("  /rr  tmog            (open transmog browser)")
+            RR:Print("  /rr  skips           (account-wide raid skip status)")
             RR:Print("  /rr  settings        (open settings window)")
             RR:Print("  /rr  reset           (reset panel position & settings)")
             RR:Print("  /rr  refresh         (re-render the main panel)")
