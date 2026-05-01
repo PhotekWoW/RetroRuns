@@ -2,6 +2,20 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [1.1.0] - 2026-05-01
+
+### Added
+
+- **Ny'alotha, the Waking City** is now fully supported — walk-along routes for all 12 bosses across the three mid-raid wings (Halls of Devotion, Gift of Flesh, The Waking Dream), encounter notes (with multi-phase callouts on Carapace of N'Zoth and N'Zoth the Corruptor), achievement callouts including the Glory of the Ny'alotha Raider meta, and special loot tracking for the Ny'alotha Allseer mount and all five raid pets (Muar, Aqir Hivespawn, Ra'kim, Void-Scarred Anubisath, Eye of Corruption). Account-wide MOTHER's Guidance skip detection works the same way as the Shadowlands raids — once any character on your account has unlocked the per-difficulty skip, the skip indicators appear for all your alts.
+
+### Changed
+
+- **POI star icons now sized appropriately for older raids' smaller sub-zone maps.** The map markers used for things like Re-origination Anchor interaction points (Ny'alotha) and the fire portal on Fyrakk's platform (Amirdrassil) are now sized per-segment rather than a fixed value across the whole addon. Existing POIs in newer raids look the same as before; Ny'alotha's three Re-origination Anchor stars and the N'Zoth boss-location pin render at a smaller, more proportional size for the BfA-era map scale.
+
+### Fixed
+
+- **Travel pane no longer pops back to the wrong segment's directions during multi-segment route transitions.** When walking through a route step that spans multiple sub-zones (like Xanesh's three-segment approach in Ny'alotha), briefly crossing through an in-between map area no longer caused the pane to re-display the very first segment's stale text. The pane now tracks which segments you've completed and surfaces the next incomplete one. Affects any raid with multi-segment routing steps.
+
 ## [1.0.1] - 2026-04-30
 
 ### Added

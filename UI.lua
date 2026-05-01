@@ -1408,11 +1408,36 @@ local function BuildTravelText(step)
         -- after a boss kill: the player is still standing on the
         -- previous boss's platform (which has its own mapID), the
         -- active step has just advanced to the next boss, and that
-        -- next step's segments are all on different mapIDs. Show the
-        -- first segment's note so the player gets clear next-step
-        -- direction without having to open the map.
-        if step.segments and step.segments[1] and step.segments[1].note then
-            return prefix .. HighlightNames(step.segments[1].note)
+        -- next step's segments are all on different mapIDs. Show
+        -- the first INCOMPLETE segment's note so the player gets
+        -- clear next-step direction without having to open the map.
+        --
+        -- "First incomplete" rather than "first" matters for
+        -- multi-segment routes that cross between mapIDs with
+        -- transition zones in between. Example: Xanesh in Ny'alotha
+        -- has 3 segments on mapIDs 1581 -> 1582 -> 1592. After
+        -- completing seg 1 and seg 2, the player can briefly be on
+        -- a mapID that none of the route's segments cover (a
+        -- short transition zone). Falling through to seg 1's note
+        -- would re-surface "After killing Skitra, backtrack..."
+        -- which is now stale and confusing. Walking the list in
+        -- order and picking the first incomplete one shows the
+        -- next correct instruction instead.
+        if step.segments then
+            local stepIndex = step.step or step.priority or 0
+            for segIndex, seg in ipairs(step.segments) do
+                if seg.note and not RR:IsSegmentCompleted(stepIndex, segIndex) then
+                    return prefix .. HighlightNames(seg.note)
+                end
+            end
+            -- All segments completed but ENCOUNTER_END hasn't fired
+            -- yet (or this step has no terminal segment). Fall back
+            -- to seg 1's note so the player isn't shown a blank
+            -- pane. Same behavior as the prior implementation in
+            -- this corner case.
+            if step.segments[1] and step.segments[1].note then
+                return prefix .. HighlightNames(step.segments[1].note)
+            end
         end
         return prefix .. "|cff888888Open the map and select a section to see directions.|r"
     end

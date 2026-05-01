@@ -129,7 +129,11 @@ function overlay:DrawSegmentsForMap(mapID)
                     -- the world map is zoomed to a parent map view.
                     poiIcon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_1")
                     poiIcon:SetVertexColor(1.0, 1.0, 1.0, 1.0)
-                    poiIcon:SetSize(78, 78)
+                    -- Default 78 matches Fyrakk in Amirdrassil. Older raids
+                    -- on smaller sub-zone maps (Ny'alotha) can override via
+                    -- per-segment poiSize for proportional rendering.
+                    local size = seg.poiSize or 78
+                    poiIcon:SetSize(size, size)
                     poiIcon:Show()
                     iconIdx = iconIdx + 1
                 end

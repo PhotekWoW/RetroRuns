@@ -1,6 +1,6 @@
 # RetroRuns — Roadmap & Feature Tracker
 
-## Current Version: 1.0.1
+## Current Version: 1.1.0
 
 ---
 
@@ -123,7 +123,14 @@
     freeze travel pane, Drakewatcher Manuscript tracking, Flame-
     Warped Curio footnote, Fyr'alath the Dreamrender (legendary).
     Shipped in v1.0.0.
-  - BFA: Ny'alotha, The Waking City
+  - BFA: Ny'alotha, The Waking City — **DONE.** 12 bosses, 89 loot
+    items + 6 special-loot collectibles (Allseer mount + 5 raid pets),
+    full DAG routing across three parallel mid-raid wings, encounter
+    notes (multi-phase magenta-numbered cues on Carapace and N'Zoth),
+    achievement callouts including Glory of the Ny'alotha Raider meta,
+    account-wide MOTHER's Guidance skip detection. First raid to ship
+    with the per-segment `poiSize` field for proportional star sizing
+    on smaller sub-zone maps. Shipped in v1.1.0.
   - BFA: Eternal Palace
   - Legion: Antorus, the Burning Throne
   - Legion: Tomb of Sargeras
@@ -360,3 +367,4 @@ per-item list is secondary.
 | 0.5.0   | Third raid (Castle Nathria) + any broad UX/settings expansion |
 | 0.6.0   | Fourth raid (Vault of the Incarnates) + difficulty pills + collapsible Boss Encounter section + route-aware segment completion |
 | 1.0.0   | Polished, publicly releasable, 4+ raids with full data    |
+| 1.1.0   | Seventh raid (Ny'alotha, the Waking City -- first BfA-era raid) + per-segment POI sizing |

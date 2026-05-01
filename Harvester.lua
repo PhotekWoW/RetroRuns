@@ -3396,15 +3396,27 @@ function RR:RaidCapture()
         end
 
         if info.labelCount > 0 and info.tokenCount == 0 then
-            self:Print("|cffff5555raidcapture aborted:|r tier-set labels matched but ZERO tier")
-            self:Print("tokens were detected. Most likely cause: a transient tooltip-cache")
-            self:Print("miss. Try /reload and re-run -- tooltip data refreshes on UI reload.")
-            self:Print("If the issue persists, the raid may have matching set labels but no")
-            self:Print("actual tier tokens (a seasonal set sharing the raid's name).")
-            return
-        end
-
-        if info.labelCount == 0 then
+            -- Two scenarios produce labels>0 / tokens=0:
+            --   1. Tierless raid with appearance sets labeled after the raid
+            --      (e.g. Ny'alotha's four atmospheric sets in 8.3, which
+            --      predates the modern tier system). The label match is a
+            --      false positive; there are no tokens to find because the
+            --      raid genuinely has none.
+            --   2. Tier raid with a transient tooltip-cache miss on first
+            --      run. The CollectEncounterTokens warm-pass (~line 2707)
+            --      is supposed to prevent this, but a regression there
+            --      would manifest the same way.
+            -- Distinguishing 1 from 2 requires authoritative knowledge the
+            -- harvester doesn't have. We proceed with the harvest in both
+            -- cases (loud-failing on case 2 trapped Ny'alotha indefinitely;
+            -- proceeding in case 2 produces a tierless harvest the user
+            -- will spot when reviewing the output for an expected tier
+            -- block). The warning surfaces case 2 if it happens.
+            self:Print("|cffffaa00raidcapture warning:|r tier-set labels matched but ZERO tier")
+            self:Print("tokens were detected. Treating as a tierless raid and proceeding.")
+            self:Print("If you expected tier tokens for this raid, /reload and re-run --")
+            self:Print("the cause is most likely a transient tooltip-cache miss.")
+        elseif info.labelCount == 0 then
             self:Print("Discovery complete: 0 labels matched, 0 tokens. Harvest will run")
             self:Print("without tier rows. (Raid may genuinely have no tier sets.)")
         else
