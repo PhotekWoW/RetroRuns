@@ -2,6 +2,23 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [1.2.0] - 2026-05-03
+
+### Added
+
+- **The Eternal Palace** is now fully supported — walk-along routes for all 8 bosses across the underwater Nazjatar palace (Dais of Eternity, Halls of the Chosen, Darkest Depths, The Traverse, The Hatchery, The Queen's Court, Precipice of Dreams, The Last Prison), encounter notes, and achievement callouts. Special loot tracking for the four Storm's Wake pets dropped by Behemoth (Mindlost Bloodfrenzy), Ashvane (Lightless Ambusher), Za'qul (Nameless Octopode), and Azshara (Zanj'ir Poker). The two Font of Power orb gates between Behemoth and Ashvane are detected via First Arcanist Thalyssra's voicelines, so the route advances correctly after each orb click instead of stalling at the orb's coords. The Traverse — Orgozoa's teleport-pad room — uses a numbered-waypoint rendering instead of polylines, since the pads jump you between landing spots and a connecting line would misrepresent the movement.
+- **Panel opacity slider in Settings.** Drag the new "Panel Opacity" slider to dim the dark backdrop on every RetroRuns window — main panel, transmog browser, raid skips, and settings itself — anywhere from 100% (default, fully opaque) down to 20%. Text and icons stay fully readable; only the background tint changes. Useful if you want the panel less visually intrusive while you've got it parked over your raid frames or world map.
+
+### Changed
+
+- **Settings panel cleaned up.** The header now matches the styled "RETRORUNS" treatment used on the Tmog and Raid Skips windows. The Minimap button toggle moved from its old top-left spot to the bottom-right corner, alongside the (now shorter) "Defaults" reset button — gives the new opacity slider room to breathe and tightens the bottom row.
+- **Main panel no longer prefixes the next boss with a number.** The "Boss #2: Sun King's Salvation" line now just reads "Sun King's Salvation". The number was a leftover from earlier development and was misleading on raids where the recorded route doesn't follow the in-game encounter ordering.
+
+### Fixed
+
+- **Raid Skips window now lists expansions newest-first** (Dragonflight, Shadowlands, Battle for Azeroth, etc.) instead of alphabetically. Matches the ordering used in the supported-raids list on the main panel.
+- **Boss Progress checklist no longer flickers when adjusting Settings sliders mid-run.** Dragging the font, scale, or new opacity slider while the panel was showing your in-raid Boss Progress checklist would briefly flash idle-state expansion headers on top of the list every frame the mouse moved. Both views now stay put while you're tuning settings.
+
 ## [1.1.0] - 2026-05-01
 
 ### Added

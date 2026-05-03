@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "1.1.0"
+local VERSION    = "1.2.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -35,14 +35,15 @@ RetroRuns = {
 
     -- SavedVariable defaults; user values are preserved via MergeDefaults
     defaults = {
-        showPanel   = false,
-        debug       = false,
-        windowScale = 1.0,
-        fontSize    = 12,
-        panelX      = 0,
-        panelY      = 0,
-        settingsX   = 290,
-        settingsY   = 60,
+        showPanel    = false,
+        debug        = false,
+        windowScale  = 1.0,
+        fontSize     = 12,
+        panelOpacity = 1.0,
+        panelX       = 0,
+        panelY       = 0,
+        settingsX    = 290,
+        settingsY    = 60,
     },
 }
 
@@ -673,6 +674,30 @@ function RR:HandleLocationChange()
     self:ZoneLog(("HLC fired. prev=%s curr=%s | zone=%q subZone=%q minimap=%q")
         :format(mapName(previousMapID), mapName(currentMapID),
                 zoneText, subZoneText, minimapText))
+
+    -- Helper: does this seg's `requiresSubZone` (if any) match the
+    -- player's current sub-zone? Used by both the cross-mapID and the
+    -- deferred-within-mapID completion paths below.
+    --
+    -- Why this exists: WoW's GetSubZoneText() can return the parent
+    -- raid name ("The Eternal Palace") during transit through unnamed
+    -- portions of a sub-zone map -- e.g. swimming through the
+    -- underwater corridor between Sivara's Dais and the named "Halls
+    -- of the Chosen" interior, both of which live on mapID 1513. The
+    -- mapID transition (1512 -> 1513) fires the moment the player
+    -- crosses into the underwater portion, but the player isn't
+    -- semantically "in Halls of the Chosen" yet -- they're still
+    -- transiting. requiresSubZone defers seg-completion until the
+    -- sub-zone actually matches.
+    --
+    -- Opt-in only: segments without requiresSubZone behave exactly
+    -- as before (no sub-zone check). This keeps the change surgical
+    -- to the segments that need it.
+    local function subZoneRequirementMet(seg)
+        if not seg or not seg.requiresSubZone then return true end
+        return seg.requiresSubZone == subZoneText
+    end
+
     if currentMapID and previousMapID and currentMapID ~= previousMapID then
         local step = self.state.activeStep
         if step and step.segments then
@@ -699,6 +724,13 @@ function RR:HandleLocationChange()
             -- The LAST segment of any step never matches this rule
             -- (no successor to check against). It gets marked by
             -- ENCOUNTER_END for the boss instead.
+            --
+            -- Sub-zone gating (v1.2): if seg N+1 has requiresSubZone,
+            -- the player must already be in that sub-zone for the
+            -- completion to fire. If they're not (e.g. mid-transit
+            -- through a parent-zone-fallback portion), the completion
+            -- is deferred to the second loop below, which fires on
+            -- sub-zone-change events.
             for segIndex, seg in ipairs(step.segments) do
                 local completed = self:IsSegmentCompleted(stepIndex, segIndex)
                 local segSubZone = seg.subZone or "(none)"
@@ -708,15 +740,58 @@ function RR:HandleLocationChange()
                 if seg.mapID == previousMapID and not completed then
                     local nextSeg = step.segments[segIndex + 1]
                     if nextSeg and nextSeg.mapID == currentMapID then
-                        self:ZoneLog(("  -> marking seg %d complete (next seg's mapID matches)")
-                            :format(segIndex))
-                        self:MarkSegmentCompleted(stepIndex, segIndex)
-                        break
+                        if subZoneRequirementMet(nextSeg) then
+                            self:ZoneLog(("  -> marking seg %d complete (next seg's mapID matches)")
+                                :format(segIndex))
+                            self:MarkSegmentCompleted(stepIndex, segIndex)
+                            break
+                        else
+                            self:ZoneLog(("  -> deferring seg %d completion: next seg requiresSubZone=%q, current=%q")
+                                :format(segIndex, nextSeg.requiresSubZone, subZoneText))
+                        end
                     end
                 end
             end
         else
             self:ZoneLog("mapID changed but no active step or no segments")
+        end
+    end
+
+    -- Deferred-completion path: fires on sub-zone change WITHIN the
+    -- same mapID (mapID unchanged since last HLC, but ZONE_CHANGED or
+    -- ZONE_CHANGED_INDOORS fired due to the player crossing into a
+    -- newly-named sub-zone). Catches the case where the cross-mapID
+    -- loop above deferred a completion because of requiresSubZone --
+    -- once the sub-zone finally matches, fire the deferral.
+    --
+    -- Detection without persistent "deferred" state: walk segments
+    -- looking for pairs where seg N's mapID differs from currentMapID
+    -- AND seg N+1's mapID matches currentMapID AND seg N+1 has
+    -- requiresSubZone matching the current sub-zone AND seg N is
+    -- still incomplete. Implies the player is in the post-transition
+    -- mapID with the right sub-zone, and the prior seg is what should
+    -- have completed at the original mapID transition.
+    if currentMapID and previousMapID and currentMapID == previousMapID then
+        local step = self.state.activeStep
+        if step and step.segments then
+            local stepIndex = step.step or step.priority or 0
+            for segIndex, seg in ipairs(step.segments) do
+                local completed = self:IsSegmentCompleted(stepIndex, segIndex)
+                if not completed then
+                    local nextSeg = step.segments[segIndex + 1]
+                    if nextSeg
+                        and nextSeg.mapID == currentMapID
+                        and seg.mapID ~= currentMapID
+                        and nextSeg.requiresSubZone
+                        and nextSeg.requiresSubZone == subZoneText
+                    then
+                        self:ZoneLog(("  -> deferred-fire: marking seg %d complete (subZone=%q now matches)")
+                            :format(segIndex, subZoneText))
+                        self:MarkSegmentCompleted(stepIndex, segIndex)
+                        break
+                    end
+                end
+            end
         end
     end
 
@@ -1163,6 +1238,158 @@ function RR:TravelDebug()
 end
 
 -------------------------------------------------------------------------------
+-- Yell-debug diagnostic (dev-only; not user-facing)
+--
+-- One-shot capture tool for designing the v1.2 yell-trigger framework.
+-- Encounter scripts often emit chat-channel events (CHAT_MSG_MONSTER_YELL,
+-- CHAT_MSG_MONSTER_SAY, CHAT_MSG_RAID_BOSS_EMOTE) at gating moments --
+-- e.g. after the player clicks an Eternal Palace orb, an NPC yells a
+-- voiceline that's the only reliable signal the gate has been opened.
+-- This module captures every such event (across all three channels) into
+-- a dedicated buffer for later paste-back, with real-time chat
+-- confirmation so the player sees the capture happen the moment the
+-- yell fires (one-shot mechanics like the Ashvane orbs only emit their
+-- yell once per reset, so silent failure would mean re-clearing the raid).
+--
+-- Lifecycle: explicitly armed via /rr yelldebug start (zero perf cost
+-- otherwise -- events are only registered while armed). Disarmed via
+-- /rr yelldebug stop, which dumps to a copy window for paste-back.
+-------------------------------------------------------------------------------
+
+local yellDebug = {
+    active = false,
+    frame  = nil,        -- created lazily on first start
+    buffer = nil,        -- session-fresh table, never evicted while active
+}
+
+--- Format an event capture as a human-readable multi-line block. All
+--- chat-message events deliver up to 13 args (text, playerName, lang,
+--- channel, target, flags, ..., guid). We capture every non-nil arg
+--- so the postprocess step can pick which fields the framework needs.
+---
+--- Patch 12.0.0 (Midnight) introduced "secret values" -- chat payloads
+--- from inside active boss encounters can be secret-tainted, in which
+--- case tainted code (us) cannot perform comparisons (`v ~= ""`) or
+--- boolean tests on them without crashing. We use issecretvalue() to
+--- skip secret args entirely; they get a "(secret)" placeholder in
+--- the dump so the player still sees that something fired but knows
+--- the content was protected by the engagement-script taint system.
+local function FormatYellCapture(event, ...)
+    local lines = {}
+    table.insert(lines, ("[%s] %s"):format(date("%H:%M:%S"), tostring(event)))
+    local args = { ... }
+    for i = 1, select("#", ...) do
+        local v = args[i]
+        -- Secret-tainted values cannot be compared or boolean-tested
+        -- by tainted code (Patch 12.0.0). Check with issecretvalue()
+        -- BEFORE any comparison; if secret, render as a placeholder
+        -- and skip the empty-string check entirely. The global
+        -- `issecretvalue` exists from 12.0.0 onward; guard with a
+        -- nil check for back-compat with older client versions
+        -- (which don't have secret values, so the v ~= "" path is
+        -- still safe there).
+        if issecretvalue and issecretvalue(v) then
+            table.insert(lines, "  arg" .. i .. " = (secret -- protected by encounter-script taint)")
+        elseif v ~= nil and v ~= "" then
+            table.insert(lines, "  arg" .. i .. " = " .. tostring(v))
+        end
+    end
+    return table.concat(lines, "\n")
+end
+
+--- Brief one-line in-chat confirmation. Critical reliability signal:
+--- if this line doesn't appear in chat within ~1s of the orb click,
+--- the player knows the capture failed and can stop / restart before
+--- continuing the run. Without this, we'd only know at end-of-session
+--- via the dump -- by which point the one-shot mechanic is spent.
+---
+--- Built with concatenation rather than :format() because yell text
+--- (especially boss flavor lines and rendered spell names) can contain
+--- literal `%` characters that would be misinterpreted as format
+--- specifiers and crash. Concatenation with tostring() is bulletproof
+--- for arbitrary input.
+---
+--- Same secret-value handling as FormatYellCapture: if speaker or
+--- text is secret-tainted (mid-encounter chat from boss scripts), we
+--- substitute a "(secret)" placeholder so the line still surfaces in
+--- chat without doing forbidden comparison ops.
+local function PrintYellConfirmation(event, text, speaker)
+    local ev = tostring(event):gsub("^CHAT_MSG_", "")
+    local speakerStr = (issecretvalue and issecretvalue(speaker)) and "(secret)" or tostring(speaker or "?")
+    local textStr    = (issecretvalue and issecretvalue(text))    and "(secret)" or tostring(text    or "?")
+    RR:Print("|cff00ff88[YellDebug]|r " .. ev
+        .. " from |cffffff00" .. speakerStr .. "|r: "
+        .. textStr)
+end
+
+local function YellEventHandler(_, event, ...)
+    if not yellDebug.active then return end
+    if not yellDebug.buffer then return end  -- defensive; shouldn't happen
+    -- pcall wrap: chat-event payloads include arbitrary text from any
+    -- NPC in earshot, including special characters that historically
+    -- caused issues with formatters. A crash here would interrupt the
+    -- player's run with WoW's error frame, which is especially bad
+    -- during one-shot mechanics. Log any failure to ZoneLog for later
+    -- diagnosis, then move on. The buffer + chat-confirmation paths
+    -- below are the only places that touch arbitrary input; if they
+    -- fail, the whole capture for THIS yell is lost but YellDebug
+    -- stays armed and ready for the next one.
+    local args = { event, ... }
+    local ok, err = pcall(function()
+        table.insert(yellDebug.buffer, FormatYellCapture(unpack(args)))
+        -- arg1 = text, arg2 = sender name across all three CHAT_MSG_MONSTER_*
+        -- and CHAT_MSG_RAID_BOSS_EMOTE events (consistent API surface).
+        local text   = args[2]
+        local sender = args[3]
+        PrintYellConfirmation(event, text, sender)
+    end)
+    if not ok then
+        RR:ZoneLog("[YellDebug] handler crash: " .. tostring(err))
+    end
+end
+
+function RR:YellDebugStart()
+    if yellDebug.active then
+        self:Print("|cff00ff88[YellDebug]|r already armed. /rr yelldebug stop to disarm.")
+        return
+    end
+    if not yellDebug.frame then
+        yellDebug.frame = CreateFrame("Frame")
+        yellDebug.frame:SetScript("OnEvent", YellEventHandler)
+    end
+    yellDebug.buffer = {}
+    yellDebug.frame:RegisterEvent("CHAT_MSG_MONSTER_YELL")
+    yellDebug.frame:RegisterEvent("CHAT_MSG_MONSTER_SAY")
+    yellDebug.frame:RegisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
+    yellDebug.active = true
+    self:Print("|cff00ff88[YellDebug]|r ARMED. Capturing MONSTER_YELL, MONSTER_SAY, RAID_BOSS_EMOTE.")
+    self:Print("|cff00ff88[YellDebug]|r Each capture will print a confirmation line below. /rr yelldebug stop to dump.")
+end
+
+function RR:YellDebugStop()
+    if not yellDebug.active then
+        self:Print("|cff00ff88[YellDebug]|r not armed. /rr yelldebug start to begin capture.")
+        return
+    end
+    yellDebug.frame:UnregisterEvent("CHAT_MSG_MONSTER_YELL")
+    yellDebug.frame:UnregisterEvent("CHAT_MSG_MONSTER_SAY")
+    yellDebug.frame:UnregisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
+    yellDebug.active = false
+    local count = #yellDebug.buffer
+    self:Print(("|cff00ff88[YellDebug]|r DISARMED. Captured %d event(s). Opening dump window..."):format(count))
+    local dump
+    if count == 0 then
+        dump = "(no events captured during this session)"
+    else
+        dump = table.concat(yellDebug.buffer, "\n\n")
+    end
+    self:ShowCopyWindow("RetroRuns -- YellDebug capture", dump)
+    yellDebug.buffer = nil  -- free memory; new buffer on next start
+end
+
+
+
+-------------------------------------------------------------------------------
 -- Slash commands
 -------------------------------------------------------------------------------
 
@@ -1276,6 +1503,14 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- segment (or nothing at all if all segs on a mapID get marked
         -- complete). Scoped to the current raid; other raids' persisted
         -- segment state is preserved.
+        --
+        -- Also clears the in-memory zonelog ring buffer. Resetting
+        -- segments is almost always done as part of a diagnostic
+        -- session, where the next thing the user wants to see is a
+        -- clean zonelog showing only the events triggered by the
+        -- post-reset walk -- not the stale entries from before the
+        -- reset. Wiping the zonelog here removes the manual mental
+        -- timestamp-filtering step.
         if not RR.currentRaid then
             RR:Print("No raid loaded. Zone into a supported raid first.")
         else
@@ -1283,9 +1518,10 @@ SlashCmdList["RETRORUNS"] = function(input)
             if RetroRunsDB and RetroRunsDB.completedSegments then
                 RetroRunsDB.completedSegments[RR.currentRaid.instanceID] = nil
             end
+            wipe(RR.state.zoneLog)
             RR.UI.Update()
             if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
-            RR:Print(("Segment state cleared for %s."):format(RR.currentRaid.name))
+            RR:Print(("Segment state cleared for %s. (zonelog also wiped)"):format(RR.currentRaid.name))
         end
 
     elseif cmd == "kill" then
@@ -2800,6 +3036,14 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("Record: /rr record [start|stop|dump|reset|status|break|tp <dest>|note <text>]")
         end
 
+    elseif cmd == "yelldebug" then
+        local sub = args[2] or ""
+        if     sub == "start" then RR:YellDebugStart()
+        elseif sub == "stop"  then RR:YellDebugStop()
+        else
+            RR:Print("YellDebug: /rr yelldebug [start|stop]  (dev diagnostic for v1.2 yell-trigger framework)")
+        end
+
     elseif cmd == "status" then
         RR:PrintStatus()
 
@@ -2833,6 +3077,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("  /rr  ejdiff <encID> [itemID]     (EJ per-difficulty probe)")
             RR:Print("  /rr  tmogsrc | tmogtrace         (transmog internals)")
             RR:Print("  /rr  ej                          (open Blizzard Encounter Journal)")
+            RR:Print("  /rr  yelldebug [start|stop]      (capture chat-channel yells -- v1.2 framework prep)")
         else
             RR:Print("RetroRuns commands:")
             RR:Print("  /rr                  (toggle main panel)")
@@ -2859,6 +3104,7 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
             C_Timer.After(0, function()
                 RR:RestorePanelPosition()
                 RR:InitMinimapButton()
+                RR:InitYellTriggers()
                 RR:RefreshAll()
             end)
         end

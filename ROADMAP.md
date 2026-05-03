@@ -1,6 +1,6 @@
 # RetroRuns — Roadmap & Feature Tracker
 
-## Current Version: 1.1.0
+## Current Version: 1.2.0
 
 ---
 
@@ -19,12 +19,39 @@
   - `/rr record note <text>` — annotates current segment
   - `/rr record dump` — exports complete pasteable routing entry
 - Map-click point insertion (for precise teleporter endpoints)
+- Yell-trigger route advancement — segments can declare an `advanceOn`
+  block listening for an NPC voiceline (CHAT_MSG_MONSTER_YELL / SAY /
+  RAID_BOSS_EMOTE). Used for boss approaches gated on interactions
+  that don't fire any directly-observable event (e.g. Eternal Palace's
+  two Font of Power orbs that gate Radiance and Ashvane). Pre-
+  engagement yells only; mid-encounter chat payloads are skipped due
+  to secret-tainted-value handling on the WoW 12.0 client.
+- Sub-zone-aware route gating — segments can declare a
+  `requiresSubZone` field that defers seg-display until the player's
+  `GetSubZoneText()` matches. Handles parent-zone-fallback transit
+  areas (unnamed corridor/swim segments that share a mapID with a
+  named sub-zone interior) so the travel pane doesn't surface the
+  destination's instruction prematurely. Eternal Palace's underwater
+  corridor between Sivara/Radiance and Halls of the Chosen is the
+  canonical use case.
+- Numbered map waypoints — for steps using `renderAllSegments=true`,
+  the World Map overlay labels each rendered segment endpoint with
+  a numeral (1, 2, 3...) for player self-pacing through routes that
+  can't be auto-advanced (e.g. Vault of the Incarnates' Eranog mini-
+  boss walk-past, Eternal Palace's Orgozoa teleport-pad room). The
+  numbering reflects render-order on the current map, so it stays
+  contiguous from 1 even when the step contains instruction-only or
+  cross-map segments that don't render.
 - Test mode (`/rr test` / `/rr next` / `/rr real`)
 - Manual kill overrides (`/rr kill` / `/rr unkill`)
 - Data validation on load (debug mode)
 - Saved panel position (persists across sessions)
 - Font/scale settings panel (sliders display current values live:
   "Font Size: 14" / "Window Scale: 1.00x")
+- Panel opacity slider (Settings) — backdrop alpha 20%–100%, applies
+  uniformly to all four backdrop windows (main panel, transmog browser,
+  raid skips, settings). Per-character. Content stays full-opacity for
+  readability; only the dark backdrop fades.
 - Styled title font (04B_03) on main panel and load popup
 - Clickable minimap button (left-click toggle, right-click settings,
   drag to reposition around minimap edge)
@@ -131,7 +158,14 @@
     account-wide MOTHER's Guidance skip detection. First raid to ship
     with the per-segment `poiSize` field for proportional star sizing
     on smaller sub-zone maps. Shipped in v1.1.0.
-  - BFA: Eternal Palace
+  - BFA: The Eternal Palace — **DONE.** 8 bosses, 94 loot items + 4
+    Storm's Wake pets (Mindlost Bloodfrenzy, Lightless Ambusher,
+    Nameless Octopode, Zanj'ir Poker), full linear DAG routing, two
+    yell-gated boss approaches (Radiance and Ashvane via the Font of
+    Power orbs), numbered-waypoint rendering on Orgozoa's teleport-
+    pad room (The Traverse). First raid to ship with the yell-trigger
+    framework and the `requiresSubZone` field for parent-zone-fallback
+    transit handling. Shipped in v1.2.0.
   - Legion: Antorus, the Burning Throne
   - Legion: Tomb of Sargeras
   - + others as time allows
@@ -141,16 +175,14 @@
 ## 🔲 Planned — Future Milestones
 
 ### Settings Expansion
-- Panel opacity slider. Backdrop alpha only (content stays full-opacity
-  so labels remain readable). Range 0.2 → 1.0, default 1.0,
-  per-character. Single setting applies to both main panel and
-  transmog browser popup. Implementation: ~30 lines across `UI.lua`
-  (slider widget + `UI.ApplyOpacity()` reading `panel:GetBackdropColor`
-  RGB and substituting alpha) and `Core.lua` (default value in
-  settings init). Possible v1.2 follow-ups if there's demand:
-  mouseover-boost (snap to 1.0 on hover, optionally with a fade
-  animation), and a separate slider for map-overlay polyline/marker
-  alpha (different code path in `MapOverlay.lua`).
+- Mouseover-boost for the panel opacity slider — snap backdrop to
+  full opacity when the mouse enters any of the four backdrop windows,
+  optionally with a fade animation. Builds on the v1.2 opacity
+  slider; would let users set a low ambient opacity without losing
+  legibility when they actually look at the panel.
+- Separate opacity slider for map-overlay polyline/marker alpha
+  (different code path in `MapOverlay.lua`, doesn't share the
+  backdrop-color machinery the v1.2 slider uses).
 - Toggle for load-raid popup (option to always auto-load)
 - Keybind support for panel toggle
 - Colour theme options
@@ -159,6 +191,36 @@
 - Boss name clickable in progress list (sets as manual target)
 - Collapsible sections in the main panel (travel / encounter / achievements / transmog)
 - Estimated run time per boss / full raid (based on recorded data)
+
+### Achievement UI (target: v1.3)
+
+Today, achievements render as a flat list under the Boss Encounter
+section with collected/uncollected state and the achievement name.
+There's no per-achievement detail surface and no soloing-difficulty
+information. Many older raid achievements have known solo gotchas
+(can't be soloed at all, requires a specific difficulty, requires a
+specific class/spec, requires a non-obvious sequence) that the current
+flat list can't communicate.
+
+Planned shape:
+
+- **New standalone window**, similar style to the Tmog and Raid Skips
+  windows. Per-achievement detail panel with `soloAchievement` tip text
+  authored verbatim by the player who's actually soloed each one,
+  rendered alongside the achievement name + collected state.
+- **Per-achievement flags** in the data file: `cannotBeSoloed = true`
+  for achievements that genuinely require a group, `requiresDifficulty
+  = "Mythic"` (or LFR/Normal/Heroic) for achievements that only credit
+  on a specific difficulty.
+- **Main UI integration**: a yellow `[?]` clickable affordance next to
+  achievement names that have soloing notes, opening the relevant
+  detail in the new window. A 5th button in the panel's action-bar row
+  (currently Map / Tmog / Skips / Settings) opens the achievement
+  window directly.
+- **Tip text authoring**: same verbatim-only rule as soloTips. The
+  framework / window / data fields ship first; tip text is filled in
+  per-achievement as the project owner solos each one and dictates
+  notes.
 
 ### Boss Skip Paths
 
@@ -368,3 +430,4 @@ per-item list is secondary.
 | 0.6.0   | Fourth raid (Vault of the Incarnates) + difficulty pills + collapsible Boss Encounter section + route-aware segment completion |
 | 1.0.0   | Polished, publicly releasable, 4+ raids with full data    |
 | 1.1.0   | Seventh raid (Ny'alotha, the Waking City -- first BfA-era raid) + per-segment POI sizing |
+| 1.2.0   | Eighth raid (The Eternal Palace) + yell-trigger framework + sub-zone-aware route gating + panel opacity slider |

@@ -215,15 +215,28 @@ function overlay:DrawAllSegmentsForMap(mapID)
     local iconIdx = 1
     local labelIdx = 1
 
-    -- Per-segment color palette, cycled by segIndex. Three high-contrast
-    -- colors that read against the World Map's textured background.
-    -- Indexed mod 3 so a hypothetical 4-segment step would reuse seg 1's
-    -- color for seg 4, but adjacent segments are always different.
+    -- Per-segment color palette, cycled by render order on this map
+    -- (see renderNum below). Three high-contrast colors that read
+    -- against the World Map's textured background. Indexed mod 3 so a
+    -- hypothetical 4-segment render would reuse seg 1's color for
+    -- seg 4, but adjacent segments are always different.
     local SEG_COLORS = {
-        { 1.0, 0.95, 0.30 },  -- yellow   (seg 1, 4, 7...)
-        { 0.30, 0.85, 1.00 },  -- cyan    (seg 2, 5, 8...)
-        { 1.00, 0.40, 0.85 },  -- magenta (seg 3, 6, 9...)
+        { 1.0, 0.95, 0.30 },  -- yellow   (1st rendered, 4th, 7th...)
+        { 0.30, 0.85, 1.00 },  -- cyan    (2nd rendered, 5th, 8th...)
+        { 1.00, 0.40, 0.85 },  -- magenta (3rd rendered, 6th, 9th...)
     }
+
+    -- Label number reflects the seg's position among segs ACTUALLY
+    -- DRAWN ON THIS MAP, not its absolute segIndex within step.segments.
+    -- This way, instruction-only segs (no points), segs on a different
+    -- mapID, or already-completed segs don't consume a number. Result:
+    -- the on-map labels always start at 1 and count contiguously,
+    -- matching what the player sees. Eranog (3 segs all on map 2119,
+    -- all renderable) labels 1/2/3 -- unchanged from absolute-segIndex
+    -- behavior. Orgozoa step (5 segs across 3 mapIDs) labels its
+    -- three Traverse segs as 1/2/3 on map 1516 even though they sit
+    -- at absolute indices 2/3/4 in the segments array.
+    local renderNum = 0
 
     local stepIndex = step.step or step.priority or 0
     for segIndex, seg in ipairs(step.segments) do
@@ -231,15 +244,23 @@ function overlay:DrawAllSegmentsForMap(mapID)
             and seg.points and #seg.points > 0
             and not RR:IsSegmentCompleted(stepIndex, segIndex) then
             local pts = seg.points
-            local color = SEG_COLORS[((segIndex - 1) % #SEG_COLORS) + 1]
+            renderNum = renderNum + 1
+            local color = SEG_COLORS[((renderNum - 1) % #SEG_COLORS) + 1]
 
-            -- Start dot
-            local startIcon = self.icons[iconIdx]
-            if startIcon then
-                PlaceAt(startIcon, self, pts[1][1], pts[1][2])
-                ApplyIconStyle(startIcon, "start")
-                startIcon:Show()
-                iconIdx = iconIdx + 1
+            -- Start dot. Skipped for single-point segments: with no
+            -- path to "start," the start dot would just stack under
+            -- the end icon at the same coord, adding visual noise. A
+            -- single-point seg is conceptually a destination marker
+            -- (the end icon + numbered label communicate the "go here"
+            -- intent on their own).
+            if #pts > 1 then
+                local startIcon = self.icons[iconIdx]
+                if startIcon then
+                    PlaceAt(startIcon, self, pts[1][1], pts[1][2])
+                    ApplyIconStyle(startIcon, "start")
+                    startIcon:Show()
+                    iconIdx = iconIdx + 1
+                end
             end
 
             -- Polyline (color varies per segment so overlapping lines
@@ -275,7 +296,7 @@ function overlay:DrawAllSegmentsForMap(mapID)
             local label = self.labels[labelIdx]
             if label then
                 PlaceAt(label, self, dest[1], dest[2])
-                label:SetText(tostring(segIndex))
+                label:SetText(tostring(renderNum))
                 label:Show()
                 labelIdx = labelIdx + 1
             end

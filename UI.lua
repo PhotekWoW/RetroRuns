@@ -787,6 +787,23 @@ function UI.ApplySettings()
     end
     -- (intentionally no scale applied to settingsFrame)
 
+    -- Apply panel opacity. Reads the current backdrop RGB from each window
+    -- and substitutes the alpha channel only -- text and other content
+    -- stay full-opacity for legibility. The base RGB happens to be the
+    -- same dark grey across all four windows today (0.03/0.03/0.03), but
+    -- reading from the live backdrop instead of hardcoding keeps this
+    -- correct if a window's backdrop tint changes in the future.
+    local opacity = RR:GetSetting("panelOpacity", 1.0)
+    local function ApplyOpacity(frame)
+        if not frame then return end
+        local r, g, b = frame:GetBackdropColor()
+        if r then frame:SetBackdropColor(r, g, b, opacity) end
+    end
+    ApplyOpacity(panel)
+    ApplyOpacity(tmogWindow)
+    ApplyOpacity(skipsWindow)
+    ApplyOpacity(settingsFrame)
+
     -- Re-fit the panel + auxiliary frames now that fonts and scale changed.
     -- AutoSize computes heights from line counts (not GetStringHeight) so a
     -- single synchronous pass is sufficient -- no deferred re-measure pass
@@ -800,15 +817,24 @@ function UI.ApplySettings()
     -- some other event triggers a refresh -- visible as the toggles not
     -- scaling when the user moves the font slider.
     --
-    -- Only fires when there's already an idle list rendered; we don't
-    -- want to force-render the idle list when the panel might be in
-    -- in-raid or run-complete state. RefreshIdleList itself is a local
-    -- function in this file (defined later); it's safe to call here
-    -- because Lua resolves upvalues at call-time, not definition-time.
+    -- Only fires when the idle list is actually currently rendered. The
+    -- distinguishing signal is panel.idleListLines: the in-raid render
+    -- path calls ReleaseIdleListLines() which empties this array, while
+    -- the idle render path populates it with one FontString per row.
+    -- Earlier guards used `panel.list:GetText()` which is truthy in BOTH
+    -- states (the in-raid Boss Progress checklist also lives in
+    -- panel.list), so during continuous slider drag this incorrectly
+    -- triggered an idle-list rebuild on top of the in-raid view --
+    -- visible as the Boss Progress checklist briefly flipping to
+    -- expansion-header rows on every drag tick.
+    --
+    -- RefreshIdleList itself is a local function in this file (defined
+    -- later); it's safe to call here because Lua resolves upvalues at
+    -- call-time, not definition-time.
     --
     -- Avoid calling UI.Update here -- UI.Update itself calls
     -- ApplySettings, which would create an infinite recursion.
-    if RefreshIdleList and panel.list and panel.list:GetText() then
+    if RefreshIdleList and #panel.idleListLines > 0 then
         RefreshIdleList()
     end
 end
@@ -920,20 +946,25 @@ function UI.AutoSize()
     end
 
     -- SETTINGS PANEL -------------------------------------------------------
-    -- Frame height hugs the last control + margin. Only a handful of
-    -- widgets; measuring the lowest is sufficient.
+    -- Frame height hugs the last TOPLEFT-flowing control + bottom margin.
+    -- The bottom row (Reset button on the left, minimap checkbox on the
+    -- right) is BOTTOM-anchored, so it sizes itself relative to the
+    -- frame's bottom edge regardless of how tall AutoSize makes the frame
+    -- -- as long as the bottom margin is large enough to accommodate it.
+    -- The +24 margin currently does that for both the 22px reset button
+    -- (anchored at y=12, top edge at y=34) and the ~26px checkbox.
     if settingsFrame then
         local lowestBottom = 0
         for _, child in ipairs({ settingsFrame.fontSlider,
                                   settingsFrame.scaleSlider,
-                                  settingsFrame.minimapCheck }) do
+                                  settingsFrame.opacitySlider }) do
             if child then
                 local y = ContentBottomY(settingsFrame, child)
                 if y > lowestBottom then lowestBottom = y end
             end
         end
         if lowestBottom > 0 then
-            settingsFrame:SetHeight(lowestBottom + 24)
+            settingsFrame:SetHeight(lowestBottom + 50)
         end
     end
 end
@@ -998,7 +1029,7 @@ local function BuildSettingsPanel()
 
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.title:SetPoint("TOPLEFT", 14, -12)
-    f.title:SetText("RetroRuns Settings")
+    f.title:SetText("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  Settings")
 
     f.versionLabel = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     f.versionLabel:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -4)
@@ -1044,9 +1075,17 @@ local function BuildSettingsPanel()
     f.scaleSlider.Low:SetText("0.8")
     f.scaleSlider.High:SetText("1.3")
 
-    local function MakeCheckbox(label, anchorWidget, offsetY, getter, setter)
+    -- Opacity slider. Stored 20-100 (percent); displayed as "100%". The
+    -- internal value is divided by 100 at apply time and substituted into
+    -- the alpha channel of every backdrop window's existing RGB.
+    f.opacitySlider = MakeSlider("RetroRunsOpacitySlider", "Panel Opacity", 20, 100, 5, f.scaleSlider, -34,
+        function(v) return ("%d%%"):format(math.floor(v + 0.5)) end)
+    f.opacitySlider.Low:SetText("20%")
+    f.opacitySlider.High:SetText("100%")
+
+    local function MakeCheckbox(label, anchorPoint, anchorWidget, anchorRel, offsetX, offsetY, getter, setter)
         local cb = CreateFrame("CheckButton", nil, f, "InterfaceOptionsCheckButtonTemplate")
-        cb:SetPoint("TOPLEFT", anchorWidget, "BOTTOMLEFT", 0, offsetY)
+        cb:SetPoint(anchorPoint, anchorWidget, anchorRel, offsetX, offsetY)
         cb.Text:SetText(label)
         cb:SetScript("OnClick", function(self)
             setter(self:GetChecked())
@@ -1056,9 +1095,25 @@ local function BuildSettingsPanel()
         return cb
     end
 
+    f.resetButton = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    f.resetButton:SetSize(80, 22)
+    f.resetButton:SetPoint("BOTTOMLEFT", 14, 12)
+    f.resetButton:SetText("Defaults")
+    f.resetButton:SetScript("OnClick", function()
+        SlashCmdList["RETRORUNS"]("reset")
+    end)
+
+    -- Minimap toggle anchored to the bottom-right of the frame, vertically
+    -- aligned with the Reset button on the bottom-left. The
+    -- InterfaceOptionsCheckButtonTemplate places its label to the right
+    -- of the checkbox itself, so the visible compound (checkbox + label)
+    -- extends rightward from the anchor; the BOTTOMRIGHT offset reserves
+    -- enough horizontal room for the label to fit without clipping the
+    -- frame edge. The y offset matches the Reset button's so the row
+    -- reads as a single horizontal action band.
     f.minimapCheck = MakeCheckbox(
-        "Show minimap button",
-        f.scaleSlider, -28,
+        "Minimap button",
+        "BOTTOMRIGHT", f, "BOTTOMRIGHT", -120, 14,
         -- showMinimap default is true; only an explicit `false` hides.
         function() return RR:GetSetting("showMinimap") ~= false end,
         function(val)
@@ -1068,14 +1123,6 @@ local function BuildSettingsPanel()
                 else RR.minimapButton:Hide() end
             end
         end)
-
-    f.resetButton = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    f.resetButton:SetSize(120, 22)
-    f.resetButton:SetPoint("BOTTOMLEFT", 14, 12)
-    f.resetButton:SetText("Reset to Default")
-    f.resetButton:SetScript("OnClick", function()
-        SlashCmdList["RETRORUNS"]("reset")
-    end)
 
     f.fontSlider:SetScript("OnValueChanged", function(self, value)
         if not RetroRunsDB then return end
@@ -1087,6 +1134,13 @@ local function BuildSettingsPanel()
     f.scaleSlider:SetScript("OnValueChanged", function(self, value)
         if not RetroRunsDB then return end
         RR:SetSetting("windowScale", value / 100)
+        self:RefreshLabel()
+        UI.ApplySettings()
+    end)
+
+    f.opacitySlider:SetScript("OnValueChanged", function(self, value)
+        if not RetroRunsDB then return end
+        RR:SetSetting("panelOpacity", value / 100)
         self:RefreshLabel()
         UI.ApplySettings()
     end)
@@ -1103,11 +1157,14 @@ function UI.SyncSettingsControls()
     settingsFrame.fontSlider:SetValue(RR:GetSetting("fontSize", 12))
     settingsFrame.scaleSlider:SetValue(
         math.floor((RR:GetSetting("windowScale", 1.0) * 100) + 0.5))
+    settingsFrame.opacitySlider:SetValue(
+        math.floor((RR:GetSetting("panelOpacity", 1.0) * 100) + 0.5))
     -- SetValue only fires OnValueChanged if the value actually changes, so
     -- on first sync (slider at construction-time min, DB matches) the label
     -- wouldn't update. Force a refresh to cover that edge case.
     settingsFrame.fontSlider:RefreshLabel()
     settingsFrame.scaleSlider:RefreshLabel()
+    settingsFrame.opacitySlider:RefreshLabel()
     settingsFrame.minimapCheck:Sync()
 end
 
@@ -1385,8 +1442,16 @@ local function BuildTravelText(step)
             for _, seg in ipairs(relevant) do
                 if seg.note then return prefix .. HighlightNames(seg.note) end
             end
+            -- Secondary mapID-match loop: same requiresSubZone gating
+            -- and sequential-ordering rule as GetRelevantSegmentsForMap.
+            -- An incomplete seg with unmet requiresSubZone STOPS the
+            -- walk -- don't skip past it to consider later segs.
+            local currentSubZone = (GetSubZoneText and GetSubZoneText()) or ""
             for _, seg in ipairs(step.segments) do
                 if seg.mapID == mapID and seg.note then
+                    if seg.requiresSubZone and seg.requiresSubZone ~= currentSubZone then
+                        break
+                    end
                     return prefix .. HighlightNames(seg.note)
                 end
             end
@@ -1423,10 +1488,22 @@ local function BuildTravelText(step)
         -- which is now stale and confusing. Walking the list in
         -- order and picking the first incomplete one shows the
         -- next correct instruction instead.
+        --
+        -- requiresSubZone gating (v1.2): an incomplete seg with
+        -- unmet requiresSubZone STOPS the walk -- preserves
+        -- sequential ordering, so the picker doesn't jump past a
+        -- gated seg to a later one. When the walk stops, the
+        -- "all completed" fallback below surfaces seg 1's note
+        -- (the prior step's natural starting instruction), which
+        -- is the right behavior for transit-gap states.
         if step.segments then
             local stepIndex = step.step or step.priority or 0
+            local currentSubZone = (GetSubZoneText and GetSubZoneText()) or ""
             for segIndex, seg in ipairs(step.segments) do
                 if seg.note and not RR:IsSegmentCompleted(stepIndex, segIndex) then
+                    if seg.requiresSubZone and seg.requiresSubZone ~= currentSubZone then
+                        break
+                    end
                     return prefix .. HighlightNames(seg.note)
                 end
             end
@@ -1443,6 +1520,7 @@ local function BuildTravelText(step)
     end
 
     local text = compute()
+
     lastTravelText = text
     return text
 end
@@ -3281,6 +3359,12 @@ local EXPANSION_ORDER_NEWEST_FIRST = {
     "Burning Crusade",
     "Classic",
 }
+-- Also expose on RR so cross-window code (Skips) can reach it without
+-- duplicating the list. Originally only used by BuildIdleListText below;
+-- BuildSkipsRows added a guarded read on RR.EXPANSION_ORDER_NEWEST_FIRST
+-- but the hoist was never wired up, leaving Skips silently sorting raids
+-- alphabetically by expansion. Wired now.
+RR.EXPANSION_ORDER_NEWEST_FIRST = EXPANSION_ORDER_NEWEST_FIRST
 
 -- Shared raid-ordering comparator. Parses a raid's `patch` field
 -- (e.g. "10.2", "9.2.5") into a list of integers, then compares
@@ -3529,7 +3613,11 @@ GetOrCreateTmogWindow = function()
         tile = true, tileSize = 16, edgeSize = 16,
         insets = { left = 3, right = 3, top = 3, bottom = 3 },
     })
-    f:SetBackdropColor(0.03, 0.03, 0.03, 0.95)
+    -- Initial opacity reflects the user's saved setting so the first
+    -- frame painted matches subsequent ApplySettings passes. Lazy
+    -- windows construct after SavedVariables is loaded (user-action
+    -- triggered), so reading the saved value here is safe.
+    f:SetBackdropColor(0.03, 0.03, 0.03, RR:GetSetting("panelOpacity", 1.0))
     f:SetPoint("TOPLEFT", panel, "TOPRIGHT", 6, 0)
     f:SetMovable(true)
     f:EnableMouse(true)
@@ -4188,7 +4276,7 @@ GetOrCreateSkipsWindow = function()
         tile = true, tileSize = 16, edgeSize = 16,
         insets = { left = 3, right = 3, top = 3, bottom = 3 },
     })
-    f:SetBackdropColor(0.03, 0.03, 0.03, 0.95)
+    f:SetBackdropColor(0.03, 0.03, 0.03, RR:GetSetting("panelOpacity", 1.0))
     -- Anchor to the right of the main panel, same as Tmog.
     f:SetPoint("TOPLEFT", panel, "TOPRIGHT", 6, 0)
     f:SetMovable(true)
@@ -4602,7 +4690,6 @@ function UI.Update()
 
         if step then
             local boss = RR:GetBossByIndex(step.bossIndex)
-            local num  = RR:GetDisplayBossNumber(step, boss)
             -- Re-show the boss-encounter and transmog wrappers in case
             -- they were Hide()'d by a previous idle/run-complete pass
             -- (those states hide the wrappers to avoid layered hit-test
@@ -4611,8 +4698,7 @@ function UI.Update()
             -- SetShown call below based on whether there's a summary
             -- to display.
             panel.encounter:Show()
-            panel.next:SetText(("Boss #%d: %s"):format(
-                num, boss and boss.name or "Unknown"))
+            panel.next:SetText(boss and boss.name or "Unknown")
             panel.travel:SetText(BuildTravelText(step))
             local encText, encClickable = BuildEncounterText(step)
             panel.encounter:SetText(encText)

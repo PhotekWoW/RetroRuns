@@ -327,6 +327,9 @@ function RR:GetRelevantSegmentsForMap(step, mapID)
     if not step or not step.segments or not mapID then return results end
     local stepIndex = step.step or step.priority or 0
     local matches   = {}
+    -- Read current sub-zone for requiresSubZone gating (see below).
+    -- Cheap call, fine to do once per picker invocation.
+    local currentSubZone = (GetSubZoneText and GetSubZoneText()) or ""
     for segIndex, seg in ipairs(step.segments) do
         -- Note: don't gate on seg.points here. Note-only segments
         -- (no points, just a note) should still match for travel-pane
@@ -337,8 +340,40 @@ function RR:GetRelevantSegmentsForMap(step, mapID)
         -- already gates on #points > 0 at its draw sites
         -- (DrawSegmentsForMap, DrawAllSegmentsForMap), so note-only
         -- segments are correctly skipped there.
+        --
+        -- requiresSubZone gating (v1.2): if the seg has requiresSubZone
+        -- set, the player must already be in that named sub-zone for
+        -- this picker to surface it. WoW's mapID transitions can fire
+        -- the moment the player crosses into ANY part of a sub-zone
+        -- map (including unnamed transit portions that report the
+        -- parent-zone fallback name) -- without this guard, a seg
+        -- intended to render only in the named-sub-zone interior
+        -- would surface prematurely while the player is still in
+        -- transit. Eternal Palace's Behemoth seg 2 is the canonical
+        -- example: mapID 1513 includes both an underwater corridor
+        -- (sub-zone "The Eternal Palace" parent fallback) and the
+        -- named "Halls of the Chosen" interior; only the interior
+        -- arrival is the right moment to show seg 2's "After coming
+        -- out of the water" note.
+        --
+        -- Sequential ordering rule (v1.2): if an incomplete seg has
+        -- an UNMET requiresSubZone, STOP the walk -- don't skip past
+        -- it to consider later segs. The seg is still "next in line"
+        -- semantically; it's just not currently displayable. Without
+        -- this stop, the picker would jump past the gated seg and
+        -- pick a later seg whose mapID matches but whose narrative
+        -- order comes AFTER the gated one (e.g. Radiance seg 3
+        -- displaying while the player is still in the underwater
+        -- corridor with seg 2 not yet shown). The picker returning
+        -- no matches in this case is correct: the renderer's
+        -- fallback paths surface a sensible alternative (typically
+        -- the prior step's note) rather than jumping ahead.
         if not self:IsSegmentCompleted(stepIndex, segIndex)
-            and seg.mapID == mapID then
+            and seg.mapID == mapID
+        then
+            if seg.requiresSubZone and seg.requiresSubZone ~= currentSubZone then
+                break
+            end
             table.insert(matches, { segIndex = segIndex, seg = seg })
         end
     end
@@ -506,6 +541,138 @@ function RR:CheckKillAdvance()
             end
         end
     end
+end
+
+-------------------------------------------------------------------------------
+-- Yell-trigger advancement  (segment advanceOn = { kind="yell", ... })
+--
+-- Event-driven advancement triggered by NPC chat-channel yells. Used for
+-- routing gates where a player action (clicking an interactable, killing
+-- a triggering NPC, etc.) produces an in-game NPC voiceline that signals
+-- the gate has opened. Eternal Palace's two "Font of Power" orb-clicks
+-- are the canonical use case: player clicks orb -> First Arcanist
+-- Thalyssra yells -> the route reveals the next leg toward the boss.
+--
+-- Schema (placed on a segment that should become reachable AFTER the yell):
+--   { mapID = ..., kind = "path", points = {...},
+--     advanceOn = {
+--         kind  = "yell",
+--         npc   = "First Arcanist Thalyssra",  -- exact speaker name match
+--         match = "find the last font",        -- substring of yell text
+--     },
+--   }
+--
+-- When a CHAT_MSG_MONSTER_YELL / _SAY / _RAID_BOSS_EMOTE event fires, the
+-- handler walks the active step's segments looking for a not-yet-completed
+-- one with advanceOn.kind="yell" whose npc matches the speaker AND whose
+-- match-substring appears in the yell text. The PREVIOUS segment in the
+-- chain (typically the path TO the orb) is the one that gets marked
+-- complete -- the advanceOn-tagged segment is the one waiting to render.
+-- This matches the existing route-aware completion pattern in Core.lua's
+-- HLC handler.
+--
+-- SCOPE LIMITATION (must not be relaxed without re-evaluating taint):
+--   Only useful for navigation gates OUTSIDE active boss encounters
+--   (trash-clearing phases, transition zones, pre-engagement intros).
+--   Patch 12.0.0's "Secret Values" system makes mid-encounter chat
+--   payloads secret-tainted, which crashes any comparison/boolean test
+--   in tainted addon code. The framework guards every payload field
+--   with issecretvalue() and silently skips secret-tainted yells, but
+--   that means any trigger that fires only mid-encounter would never
+--   match. Don't try to use this framework for boss-mechanic listening
+--   -- that's DBM/BigWigs territory and competes with Blizzard's
+--   first-party encounter UI. RetroRuns is for navigation, full stop.
+--
+-- Localization caveat:
+--   match strings are English-substring matches. Non-English clients
+--   would need their own match strings (or fall back to NPC-only
+--   matching, which is fuzzier). RetroRuns has no localization layer
+--   today, so this is consistent with the rest of the addon.
+-------------------------------------------------------------------------------
+
+-- Lazy-created event frame; registered ONCE on first OnYellTriggerInit.
+-- Lives across raid load/unload cycles -- the per-segment matching
+-- logic handles "no active step" / "no advanceOn segments" gracefully.
+local yellTriggerFrame = nil
+
+local function YellTriggerHandler(_, event, ...)
+    -- pcall wrap: arbitrary chat payloads (especially mid-encounter
+    -- secret-tainted ones) can hit edge cases in our matching logic
+    -- that would otherwise crash and interrupt the player's run.
+    -- Same pattern as YellDebug. Silent failure is preferred over
+    -- visible error popup; route-advance is a nice-to-have, not
+    -- safety-critical.
+    local args = { event, ... }
+    local ok, err = pcall(function()
+        local text   = args[2]   -- arg1 = yell text
+        local sender = args[3]   -- arg2 = speaker name
+
+        -- Secret-tainted payloads (mid-encounter boss yells) cannot be
+        -- compared. Skip them entirely -- our triggers are designed
+        -- for pre-encounter / transition yells which are NOT tainted.
+        if issecretvalue and (issecretvalue(text) or issecretvalue(sender)) then
+            return
+        end
+        if not text or not sender then return end
+
+        local step = RR.state and RR.state.activeStep
+        if not step or not step.segments then return end
+        local stepIndex = step.step or step.priority or 0
+
+        -- Walk segments looking for one with advanceOn=yell that
+        -- matches this event. The matched seg is the one the player
+        -- is WAITING TO REACH after the yell -- so we mark the
+        -- PREVIOUS seg complete (the path TO the trigger), which
+        -- causes the advanceOn-tagged seg to render as the new
+        -- "current" instruction.
+        for segIndex, seg in ipairs(step.segments) do
+            if seg.advanceOn
+                and seg.advanceOn.kind == "yell"
+                and not RR:IsSegmentCompleted(stepIndex, segIndex)
+            then
+                local trig = seg.advanceOn
+                -- Speaker must match exactly (case-sensitive). Match
+                -- string is a plain substring search (Lua patterns
+                -- escaped via the second `true` arg to find).
+                if sender == trig.npc
+                    and trig.match
+                    and string.find(text, trig.match, 1, true)
+                then
+                    -- Mark the PREVIOUS seg complete (the path that
+                    -- ended at the trigger location). If this IS
+                    -- seg 1 of the step (no previous seg), mark
+                    -- seg 1 itself complete -- treats the seg as a
+                    -- self-completing trigger waypoint.
+                    local toMark = segIndex > 1 and (segIndex - 1) or segIndex
+                    if not RR:IsSegmentCompleted(stepIndex, toMark) then
+                        RR:ZoneLog(("YellTrigger: matched seg %d (npc=%q match=%q); marking seg %d complete")
+                            :format(segIndex, trig.npc, trig.match, toMark))
+                        RR:MarkSegmentCompleted(stepIndex, toMark)
+                        RR.UI.Update()
+                        if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
+                    end
+                    return
+                end
+            end
+        end
+    end)
+    if not ok then
+        RR:ZoneLog("[YellTrigger] handler crash: " .. tostring(err))
+    end
+end
+
+--- Initialize the yell-trigger event listener. Idempotent: safe to call
+--- multiple times (creates frame + registers events on first call only).
+--- Should be called once during addon initialization. Events stay
+--- registered for the entire session -- the handler self-gates on
+--- "is there an active step with advanceOn segments?" which is cheap.
+function RR:InitYellTriggers()
+    if yellTriggerFrame then return end
+    yellTriggerFrame = CreateFrame("Frame")
+    yellTriggerFrame:SetScript("OnEvent", YellTriggerHandler)
+    yellTriggerFrame:RegisterEvent("CHAT_MSG_MONSTER_YELL")
+    yellTriggerFrame:RegisterEvent("CHAT_MSG_MONSTER_SAY")
+    yellTriggerFrame:RegisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
 end
 
 function RR:IsPanelAllowed()

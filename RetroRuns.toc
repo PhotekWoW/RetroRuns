@@ -2,13 +2,14 @@
 ## Title: RetroRuns
 ## Notes: Solo legacy raid navigator — routing, tips, and achievement tracking
 ## Author: Photek
-## Version: 1.1.0
+## Version: 1.2.0
 ## X-License: MIT
 ## SavedVariables: RetroRunsDB, RetroRunsDebug
 ## IconTexture: Interface\AddOns\RetroRuns\Media\MinimapIcon
 
 # ── Data ──────────────────────────────────────────────────────────────────────
 Data\NyalothaTheWakingCity.lua
+Data\EternalPalace.lua
 Data\CastleNathria.lua
 Data\SanctumOfDomination.lua
 Data\SepulcherOfTheFirstOnes.lua
