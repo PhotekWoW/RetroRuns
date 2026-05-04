@@ -2,6 +2,21 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [1.3.0] - 2026-05-04
+
+### Added
+
+- **Crucible of Storms** is now fully supported — walk-along routes for both bosses (The Restless Cabal in the Shrine of Shadows, Uu'nat in the Tendril of Corruption), encounter notes, and per-boss feat achievement callouts. First raid to ship with a housing decor item in its loot table — Restless Cabal's Crucible Votive Rack appears in the Special Loot section with collection state, alongside the existing mount / pet / toy support.
+- **Uldir** is now fully supported — walk-along routes for all 8 bosses across the three wings (Halls of Containment, Crimson Descent, Heart of Corruption), encounter notes, and Glory of the Uldir Raider feat callouts. The parallel-three middle (Fetid Devourer / Vectis / Zek'voz can be killed in any order, all required to unlock Zul) routes geographically through the Ring of Containment hub. Brann Bronzebeard's and MOTHER's voicelines advance the travel pane through the Titan Console / kill-the-adds / proceed-to-MOTHER sequence so the on-screen instructions track the in-fight action without you needing to manually advance.
+
+### Changed
+
+- **Special Loot rows now show the item name in gray when you've collected it**, matching the visual treatment that completed achievements have always used. Uncollected rows keep their item-quality color. Affects every collected mount / pet / toy / decor across every supported raid.
+
+### Fixed
+
+- **Boss Progress list no longer crowds against the Map / Tmog / Skips / Settings button row.** The list now has visible breathing room above the action buttons.
+
 ## [1.2.0] - 2026-05-03
 
 ### Added

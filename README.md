@@ -4,8 +4,10 @@ A solo legacy raid navigator for World of Warcraft retail.
 
 Zone into an old raid and RetroRuns lays out a styled panel with the next boss, turn-by-turn routing to reach it, solo-focused encounter notes, and transmog collection status for every drop. Kill a boss and the guide advances automatically.
 
-Currently supports two Battle for Azeroth raids, all three Shadowlands raids, and all three Dragonflight raids:
+Currently supports four Battle for Azeroth raids, all three Shadowlands raids, and all three Dragonflight raids:
 
+* Uldir (8.0)
+* Crucible of Storms (8.1.5)
 * The Eternal Palace (8.2)
 * Ny'alotha, the Waking City (8.3)
 * Castle Nathria (9.0)
@@ -42,7 +44,7 @@ Click any boss name in the panel to open the transmog collection browser for tha
 * **Hand-written solo tips** focused on what matters for solo play — what mechanics to worry about, what to skip, Mythic-only gotchas. Not generic Encounter Journal text.
 * **Transmog collection tracker.** Per-item, per-difficulty state with cross-source awareness (detects appearances you own via sibling items).
 * **Weapon-token vendor hints.** For raids with token-based weapons (Castle Nathria's Anima Spherules), points you to your Covenant Sanctum vendor in your covenant's theme color.
-* **Special-loot detection.** Mount, pet, and toy drops are surfaced per boss with collection state and clickable links. Housing decor support is in place under the hood and will be populated for raids that drop decor as Blizzard expands the Midnight housing catalog.
+* **Special-loot detection.** Mount, pet, toy, and housing decor drops are surfaced per boss with collection state and clickable links.
 * **Achievement callouts.** Per-boss list with completed state and clickable in-game links.
 * **Automatic kill detection.** Listens for `ENCOUNTER_END` and syncs with Blizzard's lockout API, so progression state is correct across reloads, disconnects, and character swaps within the same lockout.
 * **Configurable.** Font size, window scale, panel position — all persisted per character.
@@ -64,9 +66,9 @@ Main commands — type in chat:
 
 ## Status
 
-Version **1.1.0**
+Version **1.3.0**
 
-Two Battle for Azeroth raids, all three Shadowlands raids, and all three Dragonflight raids are feature-complete with full routing, encounter notes, armor transmog tracking, weapon-token indicators (where applicable), and achievement callouts.
+Four Battle for Azeroth raids, all three Shadowlands raids, and all three Dragonflight raids are feature-complete with full routing, encounter notes, armor transmog tracking, weapon-token indicators (where applicable), and achievement callouts.
 
 ## Reporting bugs / requesting features
 

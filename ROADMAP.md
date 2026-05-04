@@ -1,6 +1,6 @@
 # RetroRuns — Roadmap & Feature Tracker
 
-## Current Version: 1.2.0
+## Current Version: 1.3.0
 
 ---
 
@@ -166,6 +166,28 @@
     pad room (The Traverse). First raid to ship with the yell-trigger
     framework and the `requiresSubZone` field for parent-zone-fallback
     transit handling. Shipped in v1.2.0.
+  - BFA: Crucible of Storms — **DONE.** 2 bosses (The Restless Cabal,
+    Uu'nat, Harbinger of the Void), 14 loot items, linear two-segment
+    routing, two per-boss feat achievements (Gotta Bounce, A Good
+    Eye-dea -- both standalone, no Glory meta exists for this raid).
+    First raid to ship a housing decor specialLoot item (Crucible
+    Votive Rack), exercising the `decorID` schema field and the
+    `C_HousingCatalog.GetCatalogEntryInfoByRecordID` collection-
+    state probe. Shipped in v1.3.0.
+  - BFA: Uldir — **DONE.** 8 bosses across three wings (Halls of
+    Containment: Taloc, MOTHER; Crimson Descent: Fetid Devourer,
+    Vectis, Zek'voz, parallel-three; Heart of Corruption: Zul,
+    Mythrax, G'huun), 74 loot items, 18 routing segments with
+    parallel-three middle gated on all three branches, eight per-boss
+    Glory of the Uldir Raider feat callouts (Elevator Music, Parental
+    Controls, Thrash Mouth - All Stars, What's in the Box?, Now We
+    Got Bad Blood, Edgelords, Existential Crisis, Double Dribble),
+    POI star marker on MOTHER's Titan Console for the Mythrax
+    approach. First raid to ship the yell-gated text-only segment
+    shape (`advanceOn` with empty `points = {}`), used on MOTHER's
+    kill-the-adds pause segment between Brann's "get these doors
+    open" voiceline and MOTHER's "decontamination chamber" voiceline.
+    Shipped in v1.3.0.
   - Legion: Antorus, the Burning Throne
   - Legion: Tomb of Sargeras
   - + others as time allows
@@ -431,3 +453,4 @@ per-item list is secondary.
 | 1.0.0   | Polished, publicly releasable, 4+ raids with full data    |
 | 1.1.0   | Seventh raid (Ny'alotha, the Waking City -- first BfA-era raid) + per-segment POI sizing |
 | 1.2.0   | Eighth raid (The Eternal Palace) + yell-trigger framework + sub-zone-aware route gating + panel opacity slider |
+| 1.3.0   | Two new raids — ninth (Crucible of Storms, BfA mini-raid) and tenth (Uldir, the BfA opener with the parallel-three middle) + first shipped housing decor item with collection state via `C_HousingCatalog.GetCatalogEntryInfoByRecordID` + `decorID` schema field on specialLoot rows + gray-on-collected rendering for specialLoot rows (matches achievement renderer's de-emphasis precedent) + footer reserve fix to give the Boss Progress list breathing room above the action button row + first use of yell-gated text-only segment shape (`advanceOn` with empty `points = {}`) for MOTHER's add-killing pause |

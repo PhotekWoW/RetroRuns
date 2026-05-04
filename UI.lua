@@ -885,15 +885,19 @@ function UI.AutoSize()
     end
 
     if hasContent then
-        -- Footer reserve is now dynamic -- it must fit two footer rows
-        -- (slash commands + credit line) both at the current font size.
-        -- Footer uses a 10pt font (GameFontDisableSmall + bump), which is
-        -- smaller than body lines but still grows with the user's setting.
-        local footerFontSize = math.max(8, 10 + (fontSize - 12))
-        local footerReserve  = (2 * (footerFontSize + 4))  -- two rows
-                             + 4                            -- gap between rows
-                             + 8                            -- bottom margin
-                             + 8                            -- gap above row 1
+        -- Footer reserve must accommodate two visual elements stacked from
+        -- the panel's bottom edge: the credit/version text row and the
+        -- action-button row above it. Earlier versions of this code sized
+        -- both as text rows (font height + leading), but the action row
+        -- was promoted from slash-command text to actual UIPanelButton-
+        -- Template buttons -- which are taller than text and anchored at
+        -- a fixed y-offset (BUTTON_Y = 28, height = BUTTON_H = 22). So
+        -- the buttons' top edge sits at 28+22 = 50 px from the panel
+        -- bottom, and the reserve must clear that PLUS leave breathing
+        -- room above so the list above doesn't crowd the buttons.
+        local buttonsTopFromBottom = BUTTON_Y + BUTTON_H  -- = 50 at defaults
+        local breathingRoom        = 24                    -- gap between list and buttons
+        local footerReserve        = buttonsTopFromBottom + breathingRoom
 
         local parentTop      = panel:GetTop()
         local listHeaderBot  = panel.listHeader and panel.listHeader:GetBottom()
@@ -2029,63 +2033,46 @@ local function SpecialCollectionStateForItem(item)
         -- return "missing" so the UI still renders but never claims
         -- collected -- safer than crashing or silently omitting the row.
         --
-        -- Two candidate function names surfaced during research:
-        -- `IsItemOwned(catalogEntryID)` (LobeHub skill snippet) and
-        -- `IsDecorCollected(...)` (Housing Decor Guide addon changelog).
-        -- The public wiki is incomplete. We try both defensively via
-        -- pcall and accept whichever responds with a boolean.
+        -- The canonical collection-state probe is
+        -- C_HousingCatalog.GetCatalogEntryInfoByRecordID(1, decorID, true)
+        -- where decorID is the decor's catalog record ID (NOT the itemID).
+        -- The first argument 1 is the catalog category for decor; the
+        -- third argument requests the full info struct. Pattern verified
+        -- against the HomeBound and DecorVendor addons, which both treat
+        -- this as the authoritative call.
+        --
+        -- The returned info table has these collection-state fields:
+        --   info.quantity              -- copies currently in the player's catalog
+        --   info.remainingRedeemable   -- account-bound copies awaiting redemption
+        --   info.numPlaced             -- copies currently placed in housing plots
+        --   info.firstAcquisitionBonus -- 0 once the first-acquisition bonus has
+        --                                 been claimed (= ever-collected indicator)
+        -- A decor counts as collected if ANY of quantity/remainingRedeemable/
+        -- numPlaced is positive, OR if firstAcquisitionBonus has been claimed
+        -- (== 0). The union covers both "have it now" and "had it at some point."
         if not C_HousingCatalog then return "missing" end
+        if not C_HousingCatalog.GetCatalogEntryInfoByRecordID then return "missing" end
 
-        -- Resolve the catalog entry for this itemID. The canonical call
-        -- per our research is GetCatalogEntryInfoByItem.
-        local entry
-        if C_HousingCatalog.GetCatalogEntryInfoByItem then
-            local ok, result = pcall(
-                C_HousingCatalog.GetCatalogEntryInfoByItem, item.id)
-            if ok then entry = result end
+        -- decorID is the lookup key. The schema accepts it as an explicit
+        -- field on the specialLoot row (preferred -- avoids a runtime
+        -- itemID -> decorID resolution); without it, we have no reliable
+        -- way to look up the catalog entry, since GetCatalogEntryInfoByItem
+        -- does not return a usable decorID field.
+        local decorID = item.decorID
+        if not decorID then return "missing" end
+
+        local ok, info = pcall(
+            C_HousingCatalog.GetCatalogEntryInfoByRecordID, 1, decorID, true)
+        if not ok or not info then return "missing" end
+
+        local quantity            = info.quantity or 0
+        local remainingRedeemable = info.remainingRedeemable or 0
+        local numPlaced           = info.numPlaced or 0
+        local bonusClaimed        = info.firstAcquisitionBonus == 0
+
+        if quantity > 0 or remainingRedeemable > 0 or numPlaced > 0 or bonusClaimed then
+            return "collected"
         end
-        if not entry then return "missing" end
-
-        -- Entry may be a struct (likely) or a scalar catalogID (possible
-        -- given the inconsistent docs). Handle both. If it's a struct,
-        -- prefer an explicit `isCollected`/`isOwned` field if present.
-        if type(entry) == "table" then
-            if entry.isCollected ~= nil then
-                return entry.isCollected and "collected" or "missing"
-            end
-            if entry.isOwned ~= nil then
-                return entry.isOwned and "collected" or "missing"
-            end
-            -- Fall back to probing by catalog ID, if we can extract one.
-            local catID = entry.catalogEntryID or entry.decorID or entry.id
-            if catID and C_HousingCatalog.IsItemOwned then
-                local ok, owned = pcall(C_HousingCatalog.IsItemOwned, catID)
-                if ok and owned ~= nil then
-                    return owned and "collected" or "missing"
-                end
-            end
-            if catID and C_HousingCatalog.IsDecorCollected then
-                local ok, owned = pcall(C_HousingCatalog.IsDecorCollected, catID)
-                if ok and owned ~= nil then
-                    return owned and "collected" or "missing"
-                end
-            end
-        elseif type(entry) == "number" then
-            -- Scalar catalog ID form. Probe both ownership-check names.
-            if C_HousingCatalog.IsItemOwned then
-                local ok, owned = pcall(C_HousingCatalog.IsItemOwned, entry)
-                if ok and owned ~= nil then
-                    return owned and "collected" or "missing"
-                end
-            end
-            if C_HousingCatalog.IsDecorCollected then
-                local ok, owned = pcall(C_HousingCatalog.IsDecorCollected, entry)
-                if ok and owned ~= nil then
-                    return owned and "collected" or "missing"
-                end
-            end
-        end
-
         return "missing"
     end
 
@@ -2263,14 +2250,37 @@ BuildSpecialLootSection = function(boss)
             -- inside. Collected = green check texture (Blizzard ReadyCheck
             -- icon); uncollected = gray letter "X". See the glyph constants
             -- above for why we don't use Unicode U+2713 / U+2717.
-            -- We CAN'T wrap the item name with a color because itemLinks
-            -- embed their own |cff<quality>...|r code for item rarity, and
-            -- WoW's color codes don't nest -- the inner code wins. Keeping
-            -- the state indicator as a separate prefix preserves the link's
-            -- native quality color.
+            --
+            -- Name color follows the achievement renderer's "done = gray"
+            -- precedent. For UNCOLLECTED items, render the itemLink with
+            -- its native quality color (rarity is informative -- "is this
+            -- worth grabbing?") and clickable tooltip. For COLLECTED items,
+            -- render the plain-text name wrapped in SPECIAL_UNCOLLECTED gray
+            -- to visually de-emphasize "stop looking here."
+            --
+            -- Why plain-text instead of stripping the itemLink's color: WoW
+            -- auto-colors item hyperlinks by underlying item quality at
+            -- render time, regardless of surrounding |cff...|r context.
+            -- Stripping the link's outer color wrapper alone (the trick
+            -- the achievement renderer uses) doesn't suppress that auto-
+            -- coloring -- the link still renders in its quality color.
+            -- Achievement hyperlinks don't have this auto-color behavior,
+            -- which is why the strip-and-rewrap trick works for them.
+            -- Tradeoff: collected items lose click-to-tooltip. Acceptable
+            -- because the player already owns the item -- the tooltip's
+            -- value (item stats / appearance preview) is much lower than
+            -- for an uncollected item being evaluated.
+            local nameRender
+            if isCollected then
+                local plainName = item.name or ("Item "..tostring(item.id))
+                nameRender = ("|c%s%s|r"):format(SPECIAL_UNCOLLECTED, plainName)
+            else
+                nameRender = display
+            end
+
             table.insert(lines,
                 ("|cff777777[ |r|c%s%s|r|cff777777 ]|r %s |c%s(%s)|r"):format(
-                    stateColor, stateGlyph, display, kindColor, kindInner))
+                    stateColor, stateGlyph, nameRender, kindColor, kindInner))
         end
     end
     return table.concat(lines, "\n")
@@ -3401,9 +3411,13 @@ end
 local function EnumerateRaids()
     local byExpansion = {}
     for _, raid in pairs(RetroRuns_Data or {}) do
-        local exp = raid.expansion or "Unknown"
-        byExpansion[exp] = byExpansion[exp] or {}
-        table.insert(byExpansion[exp], raid)
+        -- Skip dev-stub placeholder entries (instanceID = 0). See
+        -- BuildIdleListRows for the full rationale.
+        if raid.instanceID and raid.instanceID > 0 then
+            local exp = raid.expansion or "Unknown"
+            byExpansion[exp] = byExpansion[exp] or {}
+            table.insert(byExpansion[exp], raid)
+        end
     end
     for _, raids in pairs(byExpansion) do
         table.sort(raids, patchDescending)
@@ -4059,12 +4073,16 @@ local function BuildSkipsRows()
     local byExp = {}
     local expOrder = {}
     for _, raid in pairs(RetroRuns_Data or {}) do
-        local exp = raid.expansion or "Unknown"
-        if not byExp[exp] then
-            byExp[exp] = {}
-            table.insert(expOrder, exp)
+        -- Skip dev-stub placeholder entries (instanceID = 0). See
+        -- BuildIdleListRows for the full rationale.
+        if raid.instanceID and raid.instanceID > 0 then
+            local exp = raid.expansion or "Unknown"
+            if not byExp[exp] then
+                byExp[exp] = {}
+                table.insert(expOrder, exp)
+            end
+            table.insert(byExp[exp], raid)
         end
-        table.insert(byExp[exp], raid)
     end
 
     -- Use the same EXPANSION_ORDER_NEWEST_FIRST that the idle list uses
@@ -4445,9 +4463,18 @@ end
 local function BuildIdleListRows()
     local byExpansion = {}
     for _, raid in pairs(RetroRuns_Data or {}) do
-        local exp = raid.expansion or "Unknown"
-        byExpansion[exp] = byExpansion[exp] or {}
-        table.insert(byExpansion[exp], raid)
+        -- Skip dev-stub placeholder entries. New-raid bring-ups stub the
+        -- data file with instanceID = 0 (and journalInstanceID = 0) until
+        -- the in-raid /rr ej capture replaces the placeholders with real
+        -- IDs. Without this filter, the placeholder shows up in the idle
+        -- list as a raid with all-dash pills (because journalEncounterID = 0
+        -- doesn't resolve to any encounter, so total-bosses-detectable = 0
+        -- and the pill renderer takes the "doesn't apply" branch).
+        if raid.instanceID and raid.instanceID > 0 then
+            local exp = raid.expansion or "Unknown"
+            byExpansion[exp] = byExpansion[exp] or {}
+            table.insert(byExpansion[exp], raid)
+        end
     end
 
     -- Session-scoped expand state. Default = collapsed (no entry in
