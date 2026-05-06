@@ -99,13 +99,23 @@ RetroRuns_Data[2522] = {
         mythic = 71020,
     },
 
+    -- Glory meta-achievement for this raid. Completing all 8 per-boss
+    -- criteria below awards the Raging Magmammoth mount.
+    gloryMeta = {
+        id   = 16355,
+        name = "Glory of the Vault Raider",
+        rewardItemID       = 192806,
+        rewardMountSpellID = 374275,
+        rewardName         = "Raging Magmammoth",
+    },
+
     bosses = {
         {
             index              = 1,
             name               = "Eranog",
             journalEncounterID = 2480,
             achievements = {
-                { id = 16335, name = "What Frozen Things Do", meta = true },
+                { id = 16335, name = "What Frozen Things Do", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=195482, slot="Back",     name="Decorated Commander's Cindercloak", sources={ [17]=183391, [14]=181141, [15]=183392, [16]=183393 } },
@@ -126,7 +136,7 @@ RetroRuns_Data[2522] = {
             -- for Iskaara Trader's Ottuk. Combine with Eye of the Vengeful
             -- Hurricane (Dathea) at Tattukiaka in Iskaara.
             achievements = {
-                { id = 16365, name = "Little Friends", meta = true },
+                { id = 16365, name = "Little Friends", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=195500, slot="Chest",    name="Compressed Cultist's Frock",        sources={ [17]=181621, [14]=181159, [15]=181619, [16]=181620 } },
@@ -161,7 +171,7 @@ RetroRuns_Data[2522] = {
             journalEncounterID = 2486,
             -- Wing: The Primal Bulwark (with Dathea Ascended).
             achievements = {
-                { id = 16364, name = "The Lunker Below", meta = true },
+                { id = 16364, name = "The Lunker Below", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=195487, slot="Chest",            name="Embar's Ashen Hauberk",            sources={ [17]=181636, [14]=181146, [15]=181634, [16]=181635 } },
@@ -180,7 +190,7 @@ RetroRuns_Data[2522] = {
             aliases            = { "Sennarth" },
             -- Wing: Caverns of Infusion (with Terros, Kurog Grimtotem).
             achievements = {
-                { id = 16419, name = "I Was Saving That For Later", meta = true },
+                { id = 16419, name = "I Was Saving That For Later", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=195511, slot="Back",   name="Acid-Proof Webbing",         sources={ [17]=183408, [14]=181170, [15]=183406, [16]=183407 } },
@@ -216,7 +226,7 @@ RetroRuns_Data[2522] = {
             -- barter items for Iskaara Trader's Ottuk. Combine with
             -- Terros's Captive Core (Terros) at Tattukiaka in Iskaara.
             achievements = {
-                { id = 16458, name = "Nothing But Air", meta = true },
+                { id = 16458, name = "Nothing But Air", meta = true, soloable = "no" },
             },
             loot = {
                 { id=195494, slot="Chest",    name="Dathea's Cyclonic Cage",        sources={ [17]=181588, [14]=181153, [15]=181586, [16]=181587 } },
@@ -263,7 +273,7 @@ RetroRuns_Data[2522] = {
             aliases            = { "Kurog" },
             -- Wing: Caverns of Infusion (with Terros, Sennarth).
             achievements = {
-                { id = 16450, name = "The Power is MINE!", meta = true },
+                { id = 16450, name = "The Power is MINE!", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=195517, slot="Feet",             name="Kurog's Thunderhooves",             sources={ [17]=181594, [14]=181176, [15]=181592, [16]=181593 } },
@@ -298,7 +308,7 @@ RetroRuns_Data[2522] = {
             -- skip quest (unlocks Raszageth direct-access teleport for
             -- future runs).
             achievements = {
-                { id = 16442, name = "Incubation Extermination", meta = true },
+                { id = 16442, name = "Incubation Extermination", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=195523, slot="Hands",    name="Eggtender's Safety Mitts",         sources={ [17]=181609, [14]=181182, [15]=181607, [16]=181608 } },
@@ -335,7 +345,7 @@ RetroRuns_Data[2522] = {
             journalEncounterID = 2499,
             aliases            = { "Raszageth", "Storm-Eater" },
             achievements = {
-                { id = 16451, name = "The Ol Raszle Daszle", meta = true },
+                { id = 16451, name = "The Ol Raszle Daszle", meta = true, soloable = "no" },
             },
             specialLoot = {
                 -- Renewed Proto-Drake: Embodiment of the Storm-Eater
@@ -391,34 +401,34 @@ RetroRuns_Data[2522] = {
     routing = {
 
         -- 1. Eranog
-        -- Three segments on mapID 2119. The route runs from the
-        -- post-flyover platform (The Outer Seal sub-zone) into the
-        -- Primal Bulwark, past the mini-boss Volcanius, and on to
-        -- Eranog's pull spot. Volcanius is a routing-segment gate,
-        -- not a boss (no entry in bosses[]) and not a registered
-        -- ENCOUNTER_START encounter. With no clean signal to detect
-        -- Volcanius's death or the wall opening, this step uses
-        -- renderAllSegments=true: all three segments render
-        -- simultaneously with numbered waypoints, and the player
-        -- self-paces through them. The consolidated travel note on
-        -- seg 1 walks through the (1)/(2)/(3) sequence verbally to
-        -- match the on-map numbers.
         {
             step      = 1,
             priority  = 1,
             bossIndex = 1,
             title     = "Eranog",
             requires  = {},
-            -- Eranog's segments include the path past Volcanius, a
-            -- mini-boss the player walks past and kills mid-route. There's
-            -- no kill-detection signal between him and Eranog, so all
-            -- waypoints render at once and the player self-paces.
+            -- Eranog's approach has two phases divided by the dragon ride.
+            -- Pre-flight the player is on the dragon platform talking to
+            -- the five dragons and then to Khadgar. The route here is just
+            -- a short stub between the dragons -- one line on the map, one
+            -- instruction in the travel pane. Once the player picks a
+            -- dragon, the assault begins and Raszageth yells "The skies
+            -- are mine to control!" at the end of the flight just as the
+            -- player lands.
+            --
+            -- Post-landing the dragon stub disappears and two color-coded
+            -- numbered lines (1)/(2) appear for the walk to Volcanius and
+            -- onward to Eranog. Volcanius is a mini-boss along the path,
+            -- not a registered raid encounter, so there's no detectable
+            -- moment to swap between the two lines mid-walk -- they stay
+            -- on the map together and the player self-paces between the
+            -- two kills.
             renderAllSegments = true,
             segments  = {
                 {
                     mapID  = 2119,
                     kind   = "path",
-                    note   = "|cffF259C7(1)|r Upon zoning in, talk to all 5 dragons. Then talk to Khadgar to begin the assault. Choose any dragon; doesn't matter. |cffF259C7(2)|r After landing, follow the path to kill the mini-boss Volcanius. |cffF259C7(3)|r Next, follow the newly-opened path to Eranog and kill him.",
+                    note   = "Upon zoning in, talk to all 5 dragons. Then talk to Khadgar to begin the assault. Choose any dragon; doesn't matter.",
                     points = {
                         { 0.629, 0.920 },
                         { 0.615, 0.856 },
@@ -427,6 +437,16 @@ RetroRuns_Data[2522] = {
                 {
                     mapID  = 2119,
                     kind   = "path",
+                    -- Raszageth's yell at the end of the dragon ride is
+                    -- the cue to switch the panel from the pre-flight
+                    -- instruction to the post-landing approach.
+                    advanceOn = {
+                        kind  = "yell",
+                        npc   = "Raszageth",
+                        match = "skies are mine to control",
+                    },
+                    revealAfter = 1,
+                    note   = "After landing, follow the path to kill |cffF259C7(1)|r Volcanius, then |cffF259C7(2)|r Eranog.",
                     points = {
                         { 0.566, 0.530 },
                         { 0.511, 0.472 },
@@ -437,6 +457,7 @@ RetroRuns_Data[2522] = {
                 {
                     mapID  = 2119,
                     kind   = "path",
+                    revealAfter = 1,
                     points = {
                         { 0.561, 0.377 },
                         { 0.512, 0.425 },

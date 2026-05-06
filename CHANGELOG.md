@@ -2,6 +2,23 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [1.4.0] - 2026-05-06
+
+### Added
+
+- **Achievements window.** A new "Achieves" button in the action row opens a standalone achievements window with Expansion and Raid dropdowns and a row-table layout showing every achievement for the selected raid: status indicator (earned or not), achievement name with click-through to the in-game tooltip, the boss it drops from, and a `?` button that opens a copyable Wowhead URL for the achievement. Each raid that has a Glory meta-achievement shows the Glory header at top with its current completion count and the mount reward link. A blue highlight marks the boss the route is currently on so you can see at a glance which row matters right now. The window updates live as you progress: earning an achievement flips its status indicator within a fraction of a second, the Glory count ticks up per criterion, and the highlight follows the route as you kill bosses. Achievements you've already earned render in gray to de-emphasize them.
+- **Soloable indicators on each achievement.** A colored star next to each achievement name tells you whether it's soloable: green for "yes, any class can solo this", orange for "kinda — you'll need specific class abilities", red for "no, confirmed not soloable".
+
+### Changed
+
+- **Eranog (Vault of the Incarnates) routing reworked.** Pre-flight, the panel now shows just the dragon-platform instruction and a single map line, instead of three numbered legs all drawn at once with a dense combined instruction. Once the dragon ride ends and you land, the dragon stub disappears and two color-coded numbered lines for Volcanius and Eranog appear with a matching "kill (1) Volcanius, then (2) Eranog" instruction. Same coordinates and same kill detection — just a less crowded view at each phase of the encounter.
+- **Hover behavior removed from the in-panel boss encounter line.** Earlier the encounter widget would gold-tint its label and show a "Notes assume Mythic difficulty" tooltip when you hovered. The widget is now click-only — click to expand, click an achievement link to see its tooltip, no hover behavior.
+
+### Fixed
+
+- **Idle UI panel no longer "jumps" when you expand the Battle for Azeroth section.** The panel grows downward as content expands instead of growing upward and downward equally — so the `+` toggle button stays under your cursor when you click it.
+- **Panel position now stable when Window Scale is set to anything other than 1.00x.** Two related symptoms went away: dragging the panel no longer makes it snap to a wrong spot when you release the mouse, and clicking an expansion `+`/`-` toggle no longer drifts the panel toward the upper-left of the screen with each click. Affects the main panel and the Settings window's drag handler.
+
 ## [1.3.0] - 2026-05-04
 
 ### Added

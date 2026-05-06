@@ -96,6 +96,16 @@ RetroRuns_Data[2569] = {
         mythic = 76086,
     },
 
+    -- Glory meta-achievement for this raid. Completing all 9 per-boss
+    -- criteria below awards the Shadowflame Shalewing mount.
+    gloryMeta = {
+        id   = 18251,
+        name = "Glory of the Aberrus Raider",
+        rewardItemID       = 205205,
+        rewardMountSpellID = 408649,
+        rewardName         = "Shadowflame Shalewing",
+    },
+
     bosses = {
         {
             index              = 1,
@@ -103,7 +113,7 @@ RetroRuns_Data[2569] = {
             journalEncounterID = 2522,
             aliases            = { "Kazzara" },
             achievements = {
-                { id = 18229, name = "Cosplate", meta = true },
+                { id = 18229, name = "Cosplate", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=202573, slot="Back",     name="Etchings of the Captive Revenant", sources={ [17]=186778, [14]=184546, [15]=186776, [16]=186777 } },
@@ -124,7 +134,7 @@ RetroRuns_Data[2569] = {
             journalEncounterID = 2529,
             aliases            = { "Amalgamation Chamber" },
             achievements = {
-                { id = 18168, name = "I'll Make My Own Shadowflame", meta = true },
+                { id = 18168, name = "I'll Make My Own Shadowflame", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=202598, slot="Chest",    name="Cuirass of Meticulous Mixture",   sources={ [17]=186513, [14]=184571, [15]=186511, [16]=186512 } },
@@ -143,7 +153,7 @@ RetroRuns_Data[2569] = {
             journalEncounterID = 2530,
             aliases            = { "Forgotten Experiments" },
             achievements = {
-                { id = 18173, name = "Tabula Rasa", meta = true },
+                { id = 18173, name = "Tabula Rasa", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=202588, slot="Feet",             name="Exacting Augmenter's Sabatons",   sources={ [17]=186555, [14]=184561, [15]=186553, [16]=186554 } },
@@ -175,7 +185,7 @@ RetroRuns_Data[2569] = {
             journalEncounterID = 2524,
             aliases            = { "Zaqali" },
             achievements = {
-                { id = 18228, name = "Are You Even Trying?", meta = true },
+                { id = 18228, name = "Are You Even Trying?", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=202586, slot="Chest",    name="Warlord's Volcanic Vest",          sources={ [17]=186640, [14]=184559, [15]=186638, [16]=186639 } },
@@ -196,7 +206,7 @@ RetroRuns_Data[2569] = {
             journalEncounterID = 2525,
             aliases            = { "Rashok" },
             achievements = {
-                { id = 18230, name = "Whac-A-Swog", meta = true },
+                { id = 18230, name = "Whac-A-Swog", meta = true, soloable = "kinda" },
             },
             loot = {
                 { id=202603, slot="Feet",     name="Sandals of Ancient Fury",          sources={ [17]=186483, [14]=184576, [15]=186481, [16]=186482 } },
@@ -227,7 +237,7 @@ RetroRuns_Data[2569] = {
             journalEncounterID = 2532,
             aliases            = { "Vigilant Steward, Zskarn", "Zskarn" },
             achievements = {
-                { id = 18193, name = "Eggscellent Eggsecution", meta = true },
+                { id = 18193, name = "Eggscellent Eggsecution", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=204467, slot="Back",   name="Drape of the Dracthyr Trials",       sources={ [17]=186775, [14]=185607, [15]=186773, [16]=186774 } },
@@ -258,7 +268,7 @@ RetroRuns_Data[2569] = {
             name               = "Magmorax",
             journalEncounterID = 2527,
             achievements = {
-                { id = 18172, name = "Escar-Go-Go-Go", meta = true },
+                { id = 18172, name = "Escar-Go-Go-Go", meta = true, soloable = "kinda" },
             },
             loot = {
                 { id=204396, slot="Feet",   name="Spittle-Resistant Sollerets",   sources={ [17]=186658, [14]=185561, [15]=186656, [16]=186657 } },
@@ -287,7 +297,7 @@ RetroRuns_Data[2569] = {
             name               = "Echo of Neltharion",
             journalEncounterID = 2523,
             achievements = {
-                { id = 18149, name = "Objects in Transit May Shatter", meta = true },
+                { id = 18149, name = "Objects in Transit May Shatter", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=204392, slot="Feet",             name="Treads of Fractured Realities", sources={ [17]=186486, [14]=185557, [15]=186484, [16]=186485 } },
@@ -318,7 +328,7 @@ RetroRuns_Data[2569] = {
             journalEncounterID = 2520,
             aliases            = { "Sarkareth" },
             achievements = {
-                { id = 17877, name = "We'll Never See That Again, Surely", meta = true },
+                { id = 17877, name = "We'll Never See That Again, Surely", meta = true, soloable = "no" },
             },
             specialLoot = {
                 -- Highland Drake: Embodiment of the Hellforged

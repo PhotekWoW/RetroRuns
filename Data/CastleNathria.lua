@@ -39,6 +39,24 @@ RetroRuns_Data[2296] = {
     expansion         = "Shadowlands",
     patch             = "9.0",
 
+    -- Glory meta-achievement for this raid. Completing all 10 per-boss
+    -- criteria below awards the Rampart Screecher mount.
+    --
+    -- rewardMountSpellID is the summon spell (not the mount-journal index
+    -- and not the bag item). C_Spell.GetSpellLink on this ID produces a
+    -- clickable link whose tooltip shows the mount model preview, which
+    -- is functionally what the user wants from a "mount journal link"
+    -- without needing a C_MountJournal name->ID linear lookup at render
+    -- time. Item-link fallback (rewardItemID) is kept for cases where the
+    -- spell link cache hasn't populated yet on first refresh.
+    gloryMeta = {
+        id = 14355,
+        name = "Glory of the Nathria Raider",
+        rewardItemID      = 182596,
+        rewardMountSpellID = 332903,
+        rewardName        = "Rampart Screecher",
+    },
+
     maps = {
         -- Sub-zone names match the in-game world-map dropdown. Castle
         -- Nathria's API (C_Map.GetMapInfo) returns the parent raid name
@@ -389,7 +407,12 @@ RetroRuns_Data[2296] = {
             journalEncounterID = 2393,
             aliases            = {},
             achievements       = {
-                { id = 14293, name = "Blind as a Bat", meta = true },
+                {
+                    id       = 14293,
+                    name     = "Blind as a Bat",
+                    meta     = true,
+                    soloable = "yes",
+                },
             },
             loot = {
                 { id = 183034, slot = "Back",  name = "Cowled Batwing Cloak",           sources = { [17]=115841, [14]=114547, [15]=115842, [16]=115843 } },
@@ -406,7 +429,7 @@ RetroRuns_Data[2296] = {
             journalEncounterID = 2429,
             aliases            = { "Altimor" },
             achievements       = {
-                { id = 14523, name = "Taking Care of Business", meta = true },
+                { id = 14523, name = "Taking Care of Business", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 182988, slot = "Chest", name = "Master Huntsman's Bandolier", sources = { [17]=115197, [14]=114501, [15]=115198, [16]=115199 } },
@@ -423,7 +446,7 @@ RetroRuns_Data[2296] = {
             aliases            = { "Sun King", "Kael'thas" },
             soloTip            = "You have to heal Kael to win this fight. If you don't have an ability to heal others, you will need to bring bandages. Kill adds, and heal Kael when you get the chance.",
             achievements       = {
-                { id = 14608, name = "Burning Bright", meta = true },
+                { id = 14608, name = "Burning Bright", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 183033, slot = "Back",  name = "Mantle of Manifest Sins",    sources = { [17]=115847, [14]=114546, [15]=115848, [16]=115849 } },
@@ -440,7 +463,7 @@ RetroRuns_Data[2296] = {
             journalEncounterID = 2418,
             aliases            = { "Xy'mox" },
             achievements       = {
-                { id = 14617, name = "Private Stock", meta = true },
+                { id = 14617, name = "Private Stock", meta = true, soloable = "kinda" },
             },
             loot = {
                 { id = 182987, slot = "Chest", name = "Breastplate of Cautious Calculation", sources = { [17]=115233, [14]=114500, [15]=115234, [16]=115235 } },
@@ -456,7 +479,7 @@ RetroRuns_Data[2296] = {
             journalEncounterID = 2428,
             aliases            = { "Destroyer" },
             achievements       = {
-                { id = 14376, name = "Feed the Beast", meta = true },
+                { id = 14376, name = "Feed the Beast", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 183000, slot = "Chest",    name = "Consumptive Chainmail Carapace", sources = { [17]=115206, [14]=114513, [15]=115207, [16]=115208 } },
@@ -475,7 +498,7 @@ RetroRuns_Data[2296] = {
             journalEncounterID = 2420,
             aliases            = { "Inerva", "Darkvein" },
             achievements       = {
-                { id = 14524, name = "I Don't Know What I Expected", meta = true },
+                { id = 14524, name = "I Don't Know What I Expected", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 183026, slot = "Hands", name = "Gloves of Phantom Shadows", sources = { [17]=115176, [14]=114539, [15]=115177, [16]=115178 } },
@@ -492,7 +515,7 @@ RetroRuns_Data[2296] = {
             aliases            = { "Council of Blood", "Council" },
             soloTip            = "Nuke down the bosses. During dance phase, run to the spotlight and get ready. Just walk in the direction of the other dancers 4-5 times and the phase will end. If you kill the bosses fast enough, you can skip the dance phase.\nMythic only: while dancing, keep jumping! You must do this to clear a debuff or you will die.",
             achievements       = {
-                { id = 14619, name = "Pour Decision Making", meta = true },
+                { id = 14619, name = "Pour Decision Making", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 182989, slot = "Chest", name = "Corset of the Deft Duelist",      sources = { [17]=115149, [14]=114502, [15]=115150, [16]=115151 } },
@@ -510,7 +533,7 @@ RetroRuns_Data[2296] = {
             journalEncounterID = 2394,
             aliases            = {},
             achievements       = {
-                { id = 14294, name = "Dirtflap's Revenge", meta = true },
+                { id = 14294, name = "Dirtflap's Revenge", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 182999, slot = "Chest", name = "Rampaging Giant's Chestplate",      sources = { [17]=115245, [14]=114512, [15]=115246, [16]=115247 } },
@@ -530,7 +553,7 @@ RetroRuns_Data[2296] = {
             aliases            = { "Stone Legion", "SLG", "Generals" },
             soloTip            = "Kill the trash and approach the bosses to start the encounter. Walk over anima orbs to collect them, and bring them to Prince Renathal to free him (x2). When he's free, attack the bosses. If you kill the bosses fast enough, you can skip this mechanic.",
             achievements       = {
-                { id = 14525, name = "Feed Me, Seymour!", meta = true },
+                { id = 14525, name = "Feed Me, Seymour!", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 183032, slot = "Back",     name = "Crest of the Legionnaire General", sources = { [17]=115844, [14]=114545, [15]=115845, [16]=115846 } },
@@ -547,7 +570,7 @@ RetroRuns_Data[2296] = {
             journalEncounterID = 2424,
             aliases            = { "Denathrius", "Sire" },
             achievements       = {
-                { id = 14610, name = "Clear Conscience", meta = true },
+                { id = 14610, name = "Clear Conscience", meta = true, soloable = "yes" },
             },
             -- Sire Denathrius drops only 4 armor items via the Encounter
             -- Journal (plus 4 weapon-token spherules, a ring, 4 trinkets,
@@ -688,7 +711,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1744,
                     kind   = "path",
-                    note   = "After arriving in the room with Lady Inerva Darkvein, kill all the trash to engage the boss after some NPC dialog.",
+                    note   = "After arriving in the room with Lady Inerva Darkvein, kill all the trash to trigger some dialog, then kill the boss.",
                     points = {
                         { 0.465, 0.556 },
                         { 0.449, 0.445 },

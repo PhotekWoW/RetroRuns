@@ -63,6 +63,16 @@ RetroRuns_Data[2217] = {
         mythic = 58375,
     },
 
+    -- Glory meta-achievement for this raid. Completing all 12 per-boss
+    -- criteria below awards the Wriggling Parasite mount.
+    gloryMeta = {
+        id   = 14146,
+        name = "Glory of the Ny'alotha Raider",
+        rewardItemID       = 174861,
+        rewardMountSpellID = 316343,
+        rewardName         = "Wriggling Parasite",
+    },
+
     bosses = {
         {
             index              = 1,
@@ -70,7 +80,7 @@ RetroRuns_Data[2217] = {
             journalEncounterID = 2368,
             aliases            = { "Wrathion" },
             achievements       = {
-                { id = 14019, name = "Smoke Test", meta = true },
+                { id = 14019, name = "Smoke Test", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 174153, slot = "Hands",  name = "Ebony Scaled Gauntlets",   sources = { [17]=108204, [14]=108201, [15]=108202, [16]=108203 } },
@@ -88,7 +98,7 @@ RetroRuns_Data[2217] = {
             journalEncounterID = 2365,
             aliases            = {},
             achievements       = {
-                { id = 14008, name = "Mana Sponge", meta = true },
+                { id = 14008, name = "Mana Sponge", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 174141, slot = "Feet",     name = "Boots of Manifest Shadow",   sources = { [17]=108154, [14]=108153, [15]=108155, [16]=108156 } },
@@ -111,7 +121,7 @@ RetroRuns_Data[2217] = {
             journalEncounterID = 2369,
             aliases            = { "Skitra", "Prophet Skitra" },
             achievements       = {
-                { id = 14037, name = "Phase 3: Prophet", meta = true },
+                { id = 14037, name = "Phase 3: Prophet", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 174119, slot = "Chest",    name = "Robes of Unreality",            sources = { [17]=108068, [14]=108065, [15]=108066, [16]=108067 } },
@@ -131,7 +141,7 @@ RetroRuns_Data[2217] = {
             journalEncounterID = 2377,
             aliases            = { "Xanesh", "Dark Inquisitor" },
             achievements       = {
-                { id = 14024, name = "Buzzer Beater", meta = true },
+                { id = 14024, name = "Buzzer Beater", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 174169, slot = "Hands",            name = "Gauntlets of Foul Inquisition", sources = { [17]=108268, [14]=108265, [15]=108266, [16]=108267 } },
@@ -149,7 +159,7 @@ RetroRuns_Data[2217] = {
             journalEncounterID = 2372,
             aliases            = { "Hivemind" },
             achievements       = {
-                { id = 14023, name = "Realizing Your Potential", meta = true },
+                { id = 14023, name = "Realizing Your Potential", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 174137, slot = "Hands",    name = "Chitinspine Gloves",         sources = { [17]=108138, [14]=108137, [15]=108139, [16]=108140 } },
@@ -170,7 +180,7 @@ RetroRuns_Data[2217] = {
             journalEncounterID = 2367,
             aliases            = { "Shad'har", "Shadhar" },
             achievements       = {
-                { id = 13990, name = "You Can Pet the Dog, But...", meta = true },
+                { id = 13990, name = "You Can Pet the Dog, But...", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 174162, slot = "Hands",  name = "Ego-Annihilating Grips",       sources = { [17]=108240, [14]=108237, [15]=108238, [16]=108239 } },
@@ -187,7 +197,7 @@ RetroRuns_Data[2217] = {
             journalEncounterID = 2373,
             aliases            = { "Drestagath" },
             achievements       = {
-                { id = 14026, name = "Temper Tantrum", meta = true },
+                { id = 14026, name = "Temper Tantrum", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 174146, slot = "Hands",    name = "Gloves of Abyssal Authority", sources = { [17]=108174, [14]=108173, [15]=108175, [16]=108176 } },
@@ -204,7 +214,7 @@ RetroRuns_Data[2217] = {
             aliases            = { "Il'gynoth", "Ilgynoth" },
             soloTip            = "You will have to bring his health down to zero several times. In each intermission, you must kill an add called Organ of Corruption to continue the fight.",
             achievements       = {
-                { id = 14038, name = "Bloody Mess", meta = true },
+                { id = 14038, name = "Bloody Mess", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 174150, slot = "Chest",    name = "Scales of the Scheming Behemoth", sources = { [17]=108190, [14]=108189, [15]=108191, [16]=108192 } },
@@ -225,7 +235,7 @@ RetroRuns_Data[2217] = {
             journalEncounterID = 2370,
             aliases            = {},
             achievements       = {
-                { id = 14139, name = "Total Annihilation", meta = true },
+                { id = 14139, name = "Total Annihilation", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 174164, slot = "Chest",    name = "Breastplate of Twilight Decimation", sources = { [17]=108248, [14]=108245, [15]=108246, [16]=108247 } },
@@ -242,7 +252,7 @@ RetroRuns_Data[2217] = {
             journalEncounterID = 2364,
             aliases            = { "Ra-den", "Raden" },
             achievements       = {
-                { id = 13999, name = "How? Isn't it Obelisk?", meta = true },
+                { id = 13999, name = "How? Isn't it Obelisk?", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 174168, slot = "Chest",    name = "Carapace of Pulsing Vita",       sources = { [17]=108264, [14]=108261, [15]=108262, [16]=108263 } },
@@ -265,7 +275,7 @@ RetroRuns_Data[2217] = {
             aliases            = { "Carapace", "Carapace of NZoth" },
             soloTip            = "|cffF259C7(1)|r Hit the boss until he runs into the next room. |cffF259C7(2)|r In the next room, your goal is to kill the Synthesis Growths sticking to the walls on both sides of the room. Kill slimes on the floor to clear walking paths. Pickup glowing orbs along the way to keep sanity up. |cffF259C7(3)|r After the Synthesis Growths are all killed, follow the boss into the next room to finish the encounter.",
             achievements       = {
-                { id = 14147, name = "Cleansing Treatment", meta = true },
+                { id = 14147, name = "Cleansing Treatment", meta = true, soloable = "no" },
             },
             loot = {
                 { id = 174136, slot = "Chest",    name = "Tortured Fleshbeast Cuirass",    sources = { [17]=108134, [14]=108133, [15]=108135, [16]=108136 } },
@@ -288,7 +298,7 @@ RetroRuns_Data[2217] = {
             aliases            = { "N'Zoth", "NZoth" },
             soloTip            = "|cffF259C7(1)|r Kill adds until a blue swirly portal (Mindgate) appears on the ground. Click it to be sent into the Mind of N'Zoth. |cffF259C7(2)|r Note your location on the minimap, because your goal is to kill Psychus and return to your body as fast as possible and click it to return to the physical realm. |cffF259C7(3)|r Back outside, attack N'Zoth. This phase may need to be repeated depending on speed. |cffF259C7(4)|r A waygate will spawn. Enter it to kill an add and return to N'Zoth and finish the fight.",
             achievements       = {
-                { id = 14148, name = "It's Not A Cult", meta = true },
+                { id = 14148, name = "It's Not A Cult", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 174147, slot = "Chest",    name = "Last Vestige of Neltharion",        sources = { [17]=108178, [14]=108177, [15]=108179, [16]=108180 } },

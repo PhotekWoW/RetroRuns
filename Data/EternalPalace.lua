@@ -52,6 +52,16 @@ RetroRuns_Data[2164] = {
     -- so the skipQuests field is omitted (renderer treats absent
     -- skipQuests as "no skip system on this raid").
 
+    -- Glory meta-achievement for this raid. Completing all 8 per-boss
+    -- criteria below awards the Azshari Bloatray mount.
+    gloryMeta = {
+        id   = 13687,
+        name = "Glory of the Eternal Raider",
+        rewardItemID       = 167171,
+        rewardMountSpellID = 292419,
+        rewardName         = "Azshari Bloatray",
+    },
+
     bosses = {
         {
             index              = 1,
@@ -59,7 +69,7 @@ RetroRuns_Data[2164] = {
             journalEncounterID = 2352,
             aliases            = { "Sivara" },
             achievements       = {
-                { id = 13684, name = "You and What Army?", meta = true },
+                { id = 13684, name = "You and What Army?", meta = true, soloable = "kinda" },
             },
             loot = {
                 { id = 168361, slot = "Chest",            name = "Naga Centaur's Shellplate",     sources = { [17]=104469, [14]=104466, [15]=104467, [16]=104468 } },
@@ -87,7 +97,7 @@ RetroRuns_Data[2164] = {
             journalEncounterID = 2347,
             aliases            = { "Behemoth" },
             achievements       = {
-                { id = 13628, name = "Intro to Marine Biology", meta = true },
+                { id = 13628, name = "Intro to Marine Biology", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 168343, slot = "Chest",    name = "Blackwater Shimmerscale Vest",   sources = { [17]=104395, [14]=104394, [15]=104396, [16]=104397 } },
@@ -114,7 +124,7 @@ RetroRuns_Data[2164] = {
             journalEncounterID = 2353,
             aliases            = { "Radiance" },
             achievements       = {
-                { id = 13767, name = "Fun Run", meta = true },
+                { id = 13767, name = "Fun Run", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 168355, slot = "Chest",    name = "Servitor's Heartguard",         sources = { [17]=104443, [14]=104442, [15]=104444, [16]=104445 } },
@@ -139,7 +149,7 @@ RetroRuns_Data[2164] = {
             journalEncounterID = 2354,
             aliases            = { "Ashvane" },
             achievements       = {
-                { id = 13629, name = "Simple Geometry", meta = true },
+                { id = 13629, name = "Simple Geometry", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 168367, slot = "Chest",    name = "Barnacle-Crusted Breastplate",     sources = { [17]=104493, [14]=104490, [15]=104491, [16]=104492 } },
@@ -162,7 +172,7 @@ RetroRuns_Data[2164] = {
             journalEncounterID = 2351,
             aliases            = {},
             achievements       = {
-                { id = 13724, name = "A Smack of Jellyfish", meta = true },
+                { id = 13724, name = "A Smack of Jellyfish", meta = true, soloable = "kinda" },
             },
             loot = {
                 { id = 168604, slot = "Back",     name = "Drape of the Hatcher",          sources = { [17]=104596, [14]=104593, [15]=104594, [16]=104595 } },
@@ -186,7 +196,7 @@ RetroRuns_Data[2164] = {
             journalEncounterID = 2359,
             aliases            = { "Queen's Court", "Court" },
             achievements       = {
-                { id = 13633, name = "If It Pleases the Court", meta = true },
+                { id = 13633, name = "If It Pleases the Court", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 168350, slot = "Chest",            name = "Tunic of the Sycophant",        sources = { [17]=104423, [14]=104422, [15]=104424, [16]=104425 } },
@@ -207,7 +217,7 @@ RetroRuns_Data[2164] = {
             journalEncounterID = 2349,
             aliases            = { "Za'qul" },
             achievements       = {
-                { id = 13716, name = "Lactose Intolerant", meta = true },
+                { id = 13716, name = "Lactose Intolerant", meta = true, soloable = "kinda" },
             },
             loot = {
                 { id = 168391, slot = "Back",     name = "Cloak of Ill Tidings",            sources = { [17]=104577, [14]=104574, [15]=104575, [16]=104576 } },
@@ -230,7 +240,7 @@ RetroRuns_Data[2164] = {
             journalEncounterID = 2361,
             aliases            = { "Azshara" },
             achievements       = {
-                { id = 13768, name = "The Best of Us", meta = true },
+                { id = 13768, name = "The Best of Us", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 168880, slot = "Feet",     name = "Slippers of the Sorceress-Queen",    sources = { [17]=104727, [14]=104726, [15]=104728, [16]=104729 } },

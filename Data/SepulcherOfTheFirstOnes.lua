@@ -77,6 +77,16 @@ RetroRuns_Data[2481] = {
         mythic = 65762,
     },
 
+    -- Glory meta-achievement for this raid. Completing all 11 per-boss
+    -- criteria below awards the Shimmering Aurelid mount.
+    gloryMeta = {
+        id   = 15491,
+        name = "Glory of the Sepulcher Raider",
+        rewardItemID       = 187675,
+        rewardMountSpellID = 359379,
+        rewardName         = "Shimmering Aurelid",
+    },
+
     bosses = {
         {
             index              = 1,
@@ -84,7 +94,7 @@ RetroRuns_Data[2481] = {
             journalEncounterID = 2458,
             aliases            = {},
             achievements = {
-                { id = 15381, name = "Power ON", meta = true },
+                { id = 15381, name = "Power ON", meta = true, soloable = "kinda" },
             },
             loot = {
                 { id = 189774, slot = "Chest", name = "Fractured Colossus Core", sources = { [17]=167739, [14]=167738, [15]=167740, [16]=167741 } },
@@ -105,7 +115,7 @@ RetroRuns_Data[2481] = {
             journalEncounterID = 2465,
             aliases            = { "Skolex" },
             achievements = {
-                { id = 15401, name = "Wisdom Comes From the Desert", meta = true },
+                { id = 15401, name = "Wisdom Comes From the Desert", meta = true, soloable = "no" },
             },
             loot = {
                 { id = 189815, slot = "Back", name = "Lurking Predator's Camouflage", sources = { [17]=168835, [14]=168834, [15]=168836, [16]=168837 } },
@@ -126,7 +136,7 @@ RetroRuns_Data[2481] = {
             journalEncounterID = 2470,
             aliases            = { "Artificer Xymox" },
             achievements = {
-                { id = 15398, name = "Xy Never, Ever Marks the Spot.", meta = true },
+                { id = 15398, name = "Xy Never, Ever Marks the Spot.", meta = true, soloable = "kinda" },
             },
             loot = {
                 { id = 189823, slot = "Feet", name = "Stolen Nathrian Slippers", sources = { [17]=167909, [14]=167908, [15]=167910, [16]=167911 } },
@@ -146,7 +156,7 @@ RetroRuns_Data[2481] = {
             journalEncounterID = 2459,
             aliases            = { "Dausegne" },
             achievements = {
-                { id = 15397, name = "Four Ring Circus", meta = true },
+                { id = 15397, name = "Four Ring Circus", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 189791, slot = "Back", name = "Drape of Mournful Melodies", sources = { [17]=168831, [14]=168830, [15]=168832, [16]=168833 } },
@@ -168,7 +178,7 @@ RetroRuns_Data[2481] = {
             journalEncounterID = 2460,
             aliases            = { "Pantheon of Death" },
             achievements = {
-                { id = 15400, name = "Where the Wild Corgis Are", meta = true },
+                { id = 15400, name = "Where the Wild Corgis Are", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 189796, slot = "Chest", name = "Duty's Ascendant Breastplate", sources = { [17]=167816, [14]=167815, [15]=167817, [16]=167818 } },
@@ -189,7 +199,7 @@ RetroRuns_Data[2481] = {
             journalEncounterID = 2461,
             aliases            = { "Lihuvim" },
             achievements = {
-                { id = 15419, name = "The Protoform Matrix", meta = true },
+                { id = 15419, name = "The Protoform Matrix", meta = true, soloable = "kinda" },
             },
             loot = {
                 { id = 189801, slot = "Head", name = "Ephemera-Charged Thinking Cap", sources = { [17]=167836, [14]=167835, [15]=167837, [16]=167838 } },
@@ -219,7 +229,7 @@ RetroRuns_Data[2481] = {
             journalEncounterID = 2463,
             aliases            = { "Halondrus" },
             achievements = {
-                { id = 15386, name = "Shimmering Secrets", meta = true },
+                { id = 15386, name = "Shimmering Secrets", meta = true, soloable = "no" },
             },
             loot = {
                 { id = 189831, slot = "Feet", name = "Ephemera-Stained Sollerets", sources = { [17]=167937, [14]=167936, [15]=167938, [16]=167939 } },
@@ -248,7 +258,7 @@ RetroRuns_Data[2481] = {
             journalEncounterID = 2469,
             aliases            = { "Anduin" },
             achievements = {
-                { id = 15399, name = "Coming to Terms", meta = false },
+                { id = 15399, name = "Coming to Terms", meta = false, soloable = "no" },
             },
             loot = {
                 { id = 189835, slot = "Chest", name = "Anduin's Princely Vestments", sources = { [17]=167953, [14]=167952, [15]=167954, [16]=167955 } },
@@ -276,7 +286,7 @@ RetroRuns_Data[2481] = {
             journalEncounterID = 2457,
             aliases            = {},
             achievements = {
-                { id = 15315, name = "Amidst Ourselves", meta = true },
+                { id = 15315, name = "Amidst Ourselves", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 189847, slot = "Back", name = "Shroud of the Sire's Chosen", sources = { [17]=168827, [14]=168826, [15]=168828, [16]=168829 } },
@@ -306,7 +316,7 @@ RetroRuns_Data[2481] = {
             journalEncounterID = 2467,
             aliases            = {},
             achievements = {
-                { id = 15396, name = "We Are All Made of Stars", meta = true },
+                { id = 15396, name = "We Are All Made of Stars", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 189848, slot = "Feet", name = "Treads of Titanic Curiosity", sources = { [17]=167997, [14]=167996, [15]=167998, [16]=167999 } },
@@ -337,7 +347,7 @@ RetroRuns_Data[2481] = {
             journalEncounterID = 2464,
             aliases            = {},
             achievements = {
-                { id = 15494, name = "Damnation Aviation", meta = true },
+                { id = 15494, name = "Damnation Aviation", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 189855, slot = "Hands", name = "Bindings of the Banished One", sources = { [17]=168021, [14]=168020, [15]=168022, [16]=168023 } },

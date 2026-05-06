@@ -1,6 +1,6 @@
 # RetroRuns — Roadmap & Feature Tracker
 
-## Current Version: 1.3.0
+## Current Version: 1.4.0
 
 ---
 
@@ -34,14 +34,28 @@
   destination's instruction prematurely. Eternal Palace's underwater
   corridor between Sivara/Radiance and Halls of the Chosen is the
   canonical use case.
+- Predecessor-gated segment reveal — segments can declare a
+  `revealAfter = N` (or `revealAfter = { N1, N2, ... }`) field that
+  hides them from both the World Map renderer and the travel-pane
+  note picker until the listed predecessor segs are marked complete.
+  Pairs naturally with `advanceOn` (yell trigger): the yell marks
+  the predecessor seg complete, then the gated seg becomes visible.
+  First used on Vault of the Incarnates' Eranog approach to switch
+  between a pre-flight dragon-platform stub and the post-landing
+  Volcanius/Eranog walk on Raszageth's "skies are mine to control"
+  yell.
 - Numbered map waypoints — for steps using `renderAllSegments=true`,
   the World Map overlay labels each rendered segment endpoint with
   a numeral (1, 2, 3...) for player self-pacing through routes that
-  can't be auto-advanced (e.g. Vault of the Incarnates' Eranog mini-
-  boss walk-past, Eternal Palace's Orgozoa teleport-pad room). The
-  numbering reflects render-order on the current map, so it stays
-  contiguous from 1 even when the step contains instruction-only or
-  cross-map segments that don't render.
+  can't be auto-advanced. Eternal Palace's Orgozoa teleport-pad room
+  and Vault of the Incarnates' post-landing Volcanius/Eranog approach
+  both use the pattern. The numbering reflects render-order on the
+  current map, so it stays contiguous from 1 even when the step
+  contains instruction-only, cross-map, or `revealAfter`-gated
+  segments that aren't currently drawn. When only one segment is
+  visible (typically because `revealAfter` is gating the rest) the
+  numeric labels are suppressed entirely so a lone "(1)" doesn't
+  appear without context.
 - Test mode (`/rr test` / `/rr next` / `/rr real`)
 - Manual kill overrides (`/rr kill` / `/rr unkill`)
 - Data validation on load (debug mode)
@@ -97,6 +111,15 @@
   frame for offered items and their cost currencies, grouped by
   cost. Captures NPC name + player covenant for context. Useful
   for investigating token-system accessibility questions.
+- Achievements standalone window — standalone "Achieves" button opens
+  a per-raid table showing every Glory-meta achievement with status
+  indicator (earned or not), boss attribution, soloable difficulty
+  star (green = any class, orange = class-specific kit needed, red =
+  confirmed not soloable), and a Wowhead `?` copy button. Each raid
+  with a Glory meta shows a header with the current completion count
+  and mount reward link. Updates live as you earn achievements. A
+  blue highlight marks the boss the route is currently on. Mutex
+  with the Tmog, Skips, and Settings windows.
 
 ---
 
@@ -214,35 +237,9 @@
 - Collapsible sections in the main panel (travel / encounter / achievements / transmog)
 - Estimated run time per boss / full raid (based on recorded data)
 
-### Achievement UI (target: v1.3)
+### Achievement UI (shipped v1.4)
 
-Today, achievements render as a flat list under the Boss Encounter
-section with collected/uncollected state and the achievement name.
-There's no per-achievement detail surface and no soloing-difficulty
-information. Many older raid achievements have known solo gotchas
-(can't be soloed at all, requires a specific difficulty, requires a
-specific class/spec, requires a non-obvious sequence) that the current
-flat list can't communicate.
-
-Planned shape:
-
-- **New standalone window**, similar style to the Tmog and Raid Skips
-  windows. Per-achievement detail panel with `soloAchievement` tip text
-  authored verbatim by the player who's actually soloed each one,
-  rendered alongside the achievement name + collected state.
-- **Per-achievement flags** in the data file: `cannotBeSoloed = true`
-  for achievements that genuinely require a group, `requiresDifficulty
-  = "Mythic"` (or LFR/Normal/Heroic) for achievements that only credit
-  on a specific difficulty.
-- **Main UI integration**: a yellow `[?]` clickable affordance next to
-  achievement names that have soloing notes, opening the relevant
-  detail in the new window. A 5th button in the panel's action-bar row
-  (currently Map / Tmog / Skips / Settings) opens the achievement
-  window directly.
-- **Tip text authoring**: same verbatim-only rule as soloTips. The
-  framework / window / data fields ship first; tip text is filled in
-  per-achievement as the project owner solos each one and dictates
-  notes.
+Standalone achievements window with Glory meta headers, per-achievement soloable difficulty indicators, live status refresh, and current-boss highlight. See the Implemented section for details.
 
 ### Boss Skip Paths
 
@@ -454,3 +451,4 @@ per-item list is secondary.
 | 1.1.0   | Seventh raid (Ny'alotha, the Waking City -- first BfA-era raid) + per-segment POI sizing |
 | 1.2.0   | Eighth raid (The Eternal Palace) + yell-trigger framework + sub-zone-aware route gating + panel opacity slider |
 | 1.3.0   | Two new raids — ninth (Crucible of Storms, BfA mini-raid) and tenth (Uldir, the BfA opener with the parallel-three middle) + first shipped housing decor item with collection state via `C_HousingCatalog.GetCatalogEntryInfoByRecordID` + `decorID` schema field on specialLoot rows + gray-on-collected rendering for specialLoot rows (matches achievement renderer's de-emphasis precedent) + footer reserve fix to give the Boss Progress list breathing room above the action button row + first use of yell-gated text-only segment shape (`advanceOn` with empty `points = {}`) for MOTHER's add-killing pause |
+| 1.4.0   | Achievements standalone window with Glory meta headers, mount reward links, soloable difficulty indicators, live-refresh, current-boss highlight, and mutex auxiliary window behavior + new `revealAfter` per-segment gating field paired with the existing `advanceOn` (yell trigger) and `requiresSubZone` mechanisms + numbered-waypoint label suppression when only one seg renders + Eranog routing converted from three-way `renderAllSegments` numbered mode to a two-phase yell-gated route (pre-flight dragon stub alone, post-landing two numbered lines on Raszageth's "skies are mine to control" yell) + panel-position fix at non-default Window Scale (corrected `fscale`-vs-`pscale` divisor in `SetPoint("CENTER", ...)` offset math eliminates drag-jump-on-release and BfA-toggle leftward drift) + idle-panel BfA-expansion downward-growth fix |

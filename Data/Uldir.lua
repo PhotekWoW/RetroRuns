@@ -46,6 +46,16 @@ RetroRuns_Data[1861] = {
 
     -- No skip mechanic on this raid.
 
+    -- Glory meta-achievement for this raid. Completing all 8 per-boss
+    -- criteria below awards the Bloodgorged Crawg mount.
+    gloryMeta = {
+        id   = 12806,
+        name = "Glory of the Uldir Raider",
+        rewardItemID       = 163216,
+        rewardMountSpellID = 250735,
+        rewardName         = "Bloodgorged Crawg",
+    },
+
     bosses = {
         {
             index              = 1,
@@ -53,7 +63,7 @@ RetroRuns_Data[1861] = {
             journalEncounterID = 2168,
             aliases            = {},
             achievements       = {
-                { id = 12937, name = "Elevator Music", meta = true },
+                { id = 12937, name = "Elevator Music", meta = true, soloable = "kinda" },
             },
             loot = {
                 { id = 160714, slot = "Feet",     name = "Volatile Walkers",               sources = { [17]=98861, [14]=96691, [15]=98862, [16]=98863 } },
@@ -73,7 +83,7 @@ RetroRuns_Data[1861] = {
             journalEncounterID = 2167,
             aliases            = { "M.O.T.H.E.R." },
             achievements       = {
-                { id = 12938, name = "Parental Controls", meta = true },
+                { id = 12938, name = "Parental Controls", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 160626, slot = "Hands",            name = "Gloves of Involuntary Amputation",  sources = { [17]=98942, [14]=96571, [15]=96572, [16]=96573 } },
@@ -94,7 +104,7 @@ RetroRuns_Data[1861] = {
             journalEncounterID = 2146,
             aliases            = { "Fetid" },
             achievements       = {
-                { id = 12823, name = "Thrash Mouth - All Stars", meta = true },
+                { id = 12823, name = "Thrash Mouth - All Stars", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 160643, slot = "Back",     name = "Fetid Horror's Tanglecloak",         sources = { [17]=99202, [14]=96614, [15]=99203, [16]=99204 } },
@@ -112,7 +122,7 @@ RetroRuns_Data[1861] = {
             journalEncounterID = 2169,
             aliases            = { "Zek'voz" },
             achievements       = {
-                { id = 12828, name = "What's in the Box?", meta = true },
+                { id = 12828, name = "What's in the Box?", meta = true, soloable = "kinda" },
             },
             loot = {
                 { id = 160627, slot = "Chest",    name = "Chainvest of Assured Quality",     sources = { [17]=98943, [14]=96574, [15]=98944, [16]=98945 } },
@@ -133,7 +143,7 @@ RetroRuns_Data[1861] = {
             journalEncounterID = 2166,
             aliases            = {},
             achievements       = {
-                { id = 12772, name = "Now We Got Bad Blood", meta = true },
+                { id = 12772, name = "Now We Got Bad Blood", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 160644, slot = "Back",     name = "Plasma-Spattered Greatcloak",     sources = { [17]=99201, [14]=96615, [15]=99199, [16]=99200 } },
@@ -153,7 +163,7 @@ RetroRuns_Data[1861] = {
             journalEncounterID = 2195,
             aliases            = { "Zul" },
             achievements       = {
-                { id = 12830, name = "Edgelords", meta = true },
+                { id = 12830, name = "Edgelords", meta = true, soloable = "kinda" },
             },
             loot = {
                 { id = 160642, slot = "Back",     name = "Cloak of Rippling Whispers",             sources = { [17]=99205, [14]=96613, [15]=99206, [16]=99207 } },
@@ -174,7 +184,7 @@ RetroRuns_Data[1861] = {
             journalEncounterID = 2194,
             aliases            = { "Mythrax" },
             achievements       = {
-                { id = 12836, name = "Existential Crisis", meta = true },
+                { id = 12836, name = "Existential Crisis", meta = true, soloable = "kinda" },
             },
             loot = {
                 { id = 160725, slot = "Chest",            name = "C'thraxxi General's Hauberk",           sources = { [17]=98959, [14]=96720, [15]=98960, [16]=98961 } },
@@ -193,7 +203,7 @@ RetroRuns_Data[1861] = {
             journalEncounterID = 2147,
             aliases            = {},
             achievements       = {
-                { id = 12551, name = "Double Dribble", meta = true },
+                { id = 12551, name = "Double Dribble", meta = true, soloable = "yes" },
             },
             soloTip            = "The goal is to collect (2) orbs from opposite sides of the room and deposit them into slots on each side of the boss. Next, the boss will become available to kill.",
             loot = {

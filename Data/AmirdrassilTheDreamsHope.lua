@@ -123,13 +123,23 @@ RetroRuns_Data[2549] = {
         mythic = 78602,
     },
 
+    -- Glory meta-achievement for this raid. Completing all 9 per-boss
+    -- criteria below awards the Shadow Dusk Dreamsaber mount.
+    gloryMeta = {
+        id   = 19349,
+        name = "Glory of the Dream Raider",
+        rewardItemID       = 210060,
+        rewardMountSpellID = 424474,
+        rewardName         = "Reins of the Shadow Dusk Dreamsaber",
+    },
+
     bosses = {
         {
             index              = 1,
             name               = "Gnarlroot",
             journalEncounterID = 2564,
             achievements = {
-                { id = 19322, name = "Meaner Pastures", meta = true },
+                { id = 19322, name = "Meaner Pastures", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=207160, slot="Back",     name="Inflammable Drapeleaf",       sources={ [17]=193497, [14]=188714, [15]=193498, [16]=193499 } },
@@ -151,7 +161,7 @@ RetroRuns_Data[2549] = {
             journalEncounterID = 2554,
             aliases            = { "Igira" },
             achievements = {
-                { id = 19320, name = "Cruelty Free", meta = true },
+                { id = 19320, name = "Cruelty Free", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=207118, slot="Legs",     name="Elder's Volcanic Wrap",       sources={ [17]=193539, [14]=188673, [15]=193540, [16]=193541 } },
@@ -181,7 +191,7 @@ RetroRuns_Data[2549] = {
             name               = "Volcoross",
             journalEncounterID = 2557,
             achievements = {
-                { id = 19321, name = "Swog Champion", meta = true },
+                { id = 19321, name = "Swog Champion", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=207121, slot="Chest",    name="Vesture of the Smoldering Serpent", sources={ [17]=193567, [14]=188676, [15]=193568, [16]=193569 } },
@@ -202,7 +212,7 @@ RetroRuns_Data[2549] = {
             journalEncounterID = 2555,
             aliases            = { "Council" },
             achievements = {
-                { id = 19193, name = "Ducks In A Row", meta = true },
+                { id = 19193, name = "Ducks In A Row", meta = true, soloable = "yes" },
             },
             loot = {
                 { id=207139, slot="Feet",             name="Cleats of the Savage Claw",       sources={ [17]=193469, [14]=188694, [15]=193470, [16]=193471 } },
@@ -224,7 +234,7 @@ RetroRuns_Data[2549] = {
             journalEncounterID = 2553,
             aliases            = { "Larodar" },
             achievements = {
-                { id = 19089, name = "Don't Let the Doe Hit You On The Way Out", meta = true },
+                { id = 19089, name = "Don't Let the Doe Hit You On The Way Out", meta = true, soloable = "kinda" },
             },
             specialLoot = {
                 { id = 209035, kind = "toy", name = "Hearthstone of the Flame" },
@@ -258,7 +268,7 @@ RetroRuns_Data[2549] = {
             journalEncounterID = 2556,
             aliases            = { "Nymue" },
             achievements = {
-                { id = 19394, name = "A Dream Within a Dream", meta = true },
+                { id = 19394, name = "A Dream Within a Dream", meta = true, soloable = "no" },
             },
             loot = {
                 { id=207123, slot="Feet",     name="Lifewoven Slippers",                  sources={ [17]=193546, [14]=188678, [15]=193547, [16]=193548 } },
@@ -289,7 +299,7 @@ RetroRuns_Data[2549] = {
             name               = "Smolderon",
             journalEncounterID = 2563,
             achievements = {
-                { id = 19319, name = "Haven't We Done This Before?", meta = true },
+                { id = 19319, name = "Haven't We Done This Before?", meta = true, soloable = "no" },
             },
             loot = {
                 { id=207161, slot="Back",     name="Mantle of Blazing Sacrifice", sources={ [17]=193490, [14]=188715, [15]=193491, [16]=193492 } },
@@ -319,7 +329,7 @@ RetroRuns_Data[2549] = {
             journalEncounterID = 2565,
             aliases            = { "Tindral" },
             achievements = {
-                { id = 19393, name = "Whelp, I'm Lost", meta = true },
+                { id = 19393, name = "Whelp, I'm Lost", meta = true, soloable = "no" },
             },
             loot = {
                 { id=207134, slot="Feet",     name="Tasseted Emberwalkers",       sources={ [17]=192594, [14]=188689, [15]=192595, [16]=192596 } },
@@ -351,7 +361,7 @@ RetroRuns_Data[2549] = {
             journalEncounterID = 2519,
             aliases            = { "Fyrakk" },
             achievements = {
-                { id = 19390, name = "Memories of Teldrassil", meta = true },
+                { id = 19390, name = "Memories of Teldrassil", meta = true, soloable = "no" },
             },
             specialLoot = {
                 -- Reins of Anu'relos, Flame's Guidance. Mythic-only legendary
@@ -696,18 +706,7 @@ RetroRuns_Data[2549] = {
                     subZone = "The Blessed Boughs",
                     note    = "After killing Tindral, mount up and fly into the fire-colored portal in the sky (marked with a |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t). This will teleport you to Heart of Amirdrassil.",
                     points  = {
-                        { 0.540, 0.656 },
-                        { 0.538, 0.747 },
-                        { 0.568, 0.657 },
-                    },
-                },
-                {
-                    mapID       = 2236,
-                    kind        = "teleport",
-                    subZone     = "The Blessed Boughs",
-                    destination = "Heart of Amirdrassil",
-                    points      = {
-                        { 0.331, 0.602 },
+                        { 0.565, 0.656 },
                     },
                 },
                 {

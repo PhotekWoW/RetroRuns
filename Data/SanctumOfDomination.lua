@@ -52,6 +52,16 @@ RetroRuns_Data[2450] = {
         mythic = 64599,
     },
 
+    -- Glory meta-achievement for this raid. Completing all 10 per-boss
+    -- criteria below awards the Hand of Hrestimorak mount.
+    gloryMeta = {
+        id   = 15130,
+        name = "Glory of the Dominant Raider",
+        rewardItemID       = 186653,
+        rewardMountSpellID = 339957,
+        rewardName         = "Hand of Hrestimorak",
+    },
+
     bosses = {
         {
             index              = 1,
@@ -59,7 +69,7 @@ RetroRuns_Data[2450] = {
             journalEncounterID = 2435,
             aliases            = { "Tarragrue" },
             achievements       = {
-                { id = 14998, name = "Name A Better Duo, I'll Wait", meta = true },
+                { id = 14998, name = "Name A Better Duo, I'll Wait", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 186303, slot = "Chest", name = "Colossus Slayer's Hauberk", sources = { [17]=145673, [14]=145672, [15]=145674, [16]=145675 } },
@@ -79,9 +89,8 @@ RetroRuns_Data[2450] = {
             name               = "The Eye of the Jailer",
             journalEncounterID = 2442,
             aliases            = { "Eye of the Jailer" },
-            soloTip            = "Kill all trash on this platform and the boss will spawn. You will need to walk to the pile of chains and use the extra action item button to grapple across.",
             achievements       = {
-                { id = 15065, name = "Eye Wish You Were Here", meta = true },
+                { id = 15065, name = "Eye Wish You Were Here", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 186296, slot = "Chest", name = "Mawsworn Eviscerator's Cuirass", sources = { [17]=145649, [14]=145648, [15]=145650, [16]=145651 } },
@@ -106,7 +115,7 @@ RetroRuns_Data[2450] = {
             aliases            = { "Nine" },
             soloTip            = "After some dialog, the boss is a Standard Nuke.",
             achievements       = {
-                { id = 15003, name = "To the Nines", meta = true },
+                { id = 15003, name = "To the Nines", meta = true, soloable = "no" },
             },
             loot = {
                 { id = 186299, slot = "Feet", name = "Daschla's Defiant Treads", sources = { [17]=145661, [14]=145660, [15]=145662, [16]=145663 } },
@@ -128,9 +137,8 @@ RetroRuns_Data[2450] = {
             name               = "Remnant of Ner'zhul",
             journalEncounterID = 2444,
             aliases            = { "Ner'zhul", "Nerzhul" },
-            soloTip            = "Kill trash to engage the boss.",
             achievements       = {
-                { id = 15058, name = "I Used to Bullseye Deeprun Rats Back Home", meta = true },
+                { id = 15058, name = "I Used to Bullseye Deeprun Rats Back Home", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 186312, slot = "Chest", name = "Cuirass of the Lonely Citadel", sources = { [17]=145701, [14]=145700, [15]=145702, [16]=145703 } },
@@ -149,7 +157,7 @@ RetroRuns_Data[2450] = {
             journalEncounterID = 2445,
             aliases            = { "Dormazain", "Soulrender" },
             achievements       = {
-                { id = 15105, name = "Tormentor's Tango", meta = true },
+                { id = 15105, name = "Tormentor's Tango", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 186289, slot = "Back", name = "Cloak of Scarred Honor", sources = { [17]=145629, [14]=145628, [15]=145630, [16]=145631 } },
@@ -174,7 +182,7 @@ RetroRuns_Data[2450] = {
             journalEncounterID = 2443,
             aliases            = { "Painsmith", "Raznal" },
             achievements       = {
-                { id = 15131, name = "Whack-A-Soul", meta = true },
+                { id = 15131, name = "Whack-A-Soul", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 186282, slot = "Chest", name = "Sacrificer's Sacramental Cassock", sources = { [17]=145601, [14]=145600, [15]=145602, [16]=145603 } },
@@ -194,7 +202,7 @@ RetroRuns_Data[2450] = {
             journalEncounterID = 2446,
             aliases            = { "Guardian" },
             achievements       = {
-                { id = 15132, name = "Knowledge is Power", meta = true },
+                { id = 15132, name = "Knowledge is Power", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 186374, slot = "Back", name = "Self-Replicating Tissue", sources = { [17]=145941, [14]=145940, [15]=145942, [16]=145943 } },
@@ -216,7 +224,7 @@ RetroRuns_Data[2450] = {
             journalEncounterID = 2447,
             aliases            = { "Fatescribe", "Roh-Kalo" },
             achievements       = {
-                { id = 15040, name = "Flawless Fate", meta = true },
+                { id = 15040, name = "Flawless Fate", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 186340, slot = "Chest", name = "Conjunction-Forged Chainmail", sources = { [17]=145805, [14]=145804, [15]=145806, [16]=145807 } },
@@ -237,7 +245,7 @@ RetroRuns_Data[2450] = {
             aliases            = { "KT", "Kelthuzad" },
             soloTip            = "Bring boss health to 0 and it will trigger a new phase. Run to the boss, and an extra action button will appear. Use this button to enter the phylactery. Inside, kill the 1 enemy and you will appear back outside to kill the boss one more time.",
             achievements       = {
-                { id = 15108, name = "Together Forever", meta = true },
+                { id = 15108, name = "Together Forever", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 186350, slot = "Head", name = "Valorous Visage of Krexus", sources = { [17]=145845, [14]=145844, [15]=145846, [16]=145847 } },
@@ -262,7 +270,7 @@ RetroRuns_Data[2450] = {
             journalEncounterID = 2441,
             aliases            = { "Sylvanas" },
             achievements       = {
-                { id = 15133, name = "This World is a Prism", meta = true },
+                { id = 15133, name = "This World is a Prism", meta = true, soloable = "no" },
             },
             loot = {
                 { id = 186439, slot = "Back", name = "Dark Ranger's Quiver", sources = { [17]=145999, [14]=145998, [15]=146000, [16]=146001 } },
@@ -328,13 +336,13 @@ RetroRuns_Data[2450] = {
                 {
                     mapID  = 1998,
                     kind   = "path",
-                    note   = "After killing Tarragrue, wait for dialog to complete then walk through the portal.",
+                    note   = "After killing Tarragrue, wait for dialog to complete, then walk through the portal marked as a map exit Shadowsteel Foundry.",
                     points = {},
                 },
                 {
                     mapID  = 1999,
                     kind   = "path",
-                    note   = "After teleporting, follow the path to Eye of the Jailer.",
+                    note   = "After teleporting, follow the path to Eye of the Jailer and clear all trash on his platform. To reach the far side, walk to the pile of chains and use the extra action button",
                     points = {
                         { 0.723, 0.757 },
                         { 0.595, 0.607 },
@@ -423,7 +431,7 @@ RetroRuns_Data[2450] = {
                 {
                     mapID  = 2000,
                     kind   = "path",
-                    note   = "After killing Soulrender Dormazain, follow the path to Remnant of Ner'zhul.",
+                    note   = "After killing Soulrender Dormazain, follow the path to Remnant of Ner'zhul. Kill the trash to engage the boss.",
                     points = {
                         { 0.566, 0.736 },
                         { 0.673, 0.798 },

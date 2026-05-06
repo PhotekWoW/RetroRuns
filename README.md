@@ -66,7 +66,7 @@ Main commands — type in chat:
 
 ## Status
 
-Version **1.3.0**
+Version **1.4.0**
 
 Four Battle for Azeroth raids, all three Shadowlands raids, and all three Dragonflight raids are feature-complete with full routing, encounter notes, armor transmog tracking, weapon-token indicators (where applicable), and achievement callouts.
 

@@ -143,6 +143,45 @@ function RR:IsSegmentCompleted(stepIndex, segIndex)
     return s and s[segIndex] == true
 end
 
+-- revealAfter gating (v1.4): per-segment "don't show this seg until
+-- the listed predecessor segs are all completed." Used when a route
+-- has a clear sequencing gate (a yell, a sub-zone change, etc.) that
+-- marks the predecessor seg complete, and downstream segs should stay
+-- hidden from both the map renderer AND the travel-pane note picker
+-- until that gate fires.
+--
+-- Eranog (Vault of the Incarnates step 1) is the canonical use case:
+-- seg 1 is the dragon-platform stub, segs 2 and 3 are the post-flyover
+-- Volcanius/Eranog approach. Both seg 2 and seg 3 declare
+-- `revealAfter = 1`, so pre-yell only seg 1 is visible (its line on
+-- the map, its note in the travel pane), and post-yell (Khadgar's
+-- "breach the outer titan seal" SAY marks seg 1 complete via
+-- advanceOn) segs 2 and 3 reveal together with the renderer's
+-- automatic (1)/(2) numbering.
+--
+-- Schema: a number means a single predecessor; a table means all
+-- listed predecessors must be complete. Missing field means "always
+-- revealed" (the prior implicit behavior, unchanged for every seg
+-- that doesn't opt in).
+--
+-- Returns true when the seg is currently eligible to display.
+function RR:IsSegmentRevealed(stepIndex, seg)
+    local prereq = seg and seg.revealAfter
+    if not prereq then return true end
+    if type(prereq) == "number" then
+        return self:IsSegmentCompleted(stepIndex, prereq)
+    end
+    if type(prereq) == "table" then
+        for _, p in ipairs(prereq) do
+            if not self:IsSegmentCompleted(stepIndex, p) then return false end
+        end
+        return true
+    end
+    -- Malformed authoring -- treat as revealed rather than silently
+    -- hide content the player needs.
+    return true
+end
+
 function RR:MarkSegmentCompleted(stepIndex, segIndex)
     self.state.completedSegments[stepIndex] =
         self.state.completedSegments[stepIndex] or {}
@@ -372,6 +411,15 @@ function RR:GetRelevantSegmentsForMap(step, mapID)
             and seg.mapID == mapID
         then
             if seg.requiresSubZone and seg.requiresSubZone ~= currentSubZone then
+                break
+            end
+            -- revealAfter gating (v1.4): same break semantic as
+            -- requiresSubZone -- if a downstream seg's predecessor
+            -- isn't done yet, stop the walk rather than skipping
+            -- past it. Preserves narrative ordering so the picker
+            -- doesn't surface a later seg out of sequence. See
+            -- IsSegmentRevealed for full schema.
+            if not self:IsSegmentRevealed(stepIndex, seg) then
                 break
             end
             table.insert(matches, { segIndex = segIndex, seg = seg })

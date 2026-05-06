@@ -41,7 +41,7 @@ RetroRuns_Data[2096] = {
             journalEncounterID = 2328,
             aliases            = { "Zaxasj the Speaker", "Fa'thuul the Feared", "Restless Cabal" },
             achievements       = {
-                { id = 13501, name = "Gotta Bounce", meta = false },
+                { id = 13501, name = "Gotta Bounce", meta = false, soloable = "yes" },
             },
             loot = {
                 { id = 167218, slot = "Feet",     name = "Zaxasj's Deepstriders",          sources = { [17]=103333, [14]=103330, [15]=103331, [16]=103332 } },
@@ -64,7 +64,7 @@ RetroRuns_Data[2096] = {
             journalEncounterID = 2332,
             aliases            = { "Uu'nat" },
             achievements       = {
-                { id = 13506, name = "A Good Eye-dea", meta = false },
+                { id = 13506, name = "A Good Eye-dea", meta = false, soloable = "yes" },
             },
             loot = {
                 { id = 167834, slot = "Feet",     name = "Stormglide Steps",               sources = { [17]=104159, [14]=104158, [15]=104160, [16]=104161 } },

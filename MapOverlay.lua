@@ -238,11 +238,31 @@ function overlay:DrawAllSegmentsForMap(mapID)
     -- at absolute indices 2/3/4 in the segments array.
     local renderNum = 0
 
+    -- Pre-count how many segs will actually render on this map. When
+    -- only one seg is renderable -- typically because revealAfter is
+    -- gating the rest -- a lone "(1)" label looks orphaned and
+    -- meaningless. Skip labeling entirely in that case; the player
+    -- only needs the start/end icons to know where they're going.
+    local renderableCount = 0
+    do
+        local sIdx = step.step or step.priority or 0
+        for segIndex, seg in ipairs(step.segments) do
+            if seg.mapID == mapID
+                and seg.points and #seg.points > 0
+                and not RR:IsSegmentCompleted(sIdx, segIndex)
+                and RR:IsSegmentRevealed(sIdx, seg) then
+                renderableCount = renderableCount + 1
+            end
+        end
+    end
+    local labelSegs = renderableCount > 1
+
     local stepIndex = step.step or step.priority or 0
     for segIndex, seg in ipairs(step.segments) do
         if seg.mapID == mapID
             and seg.points and #seg.points > 0
-            and not RR:IsSegmentCompleted(stepIndex, segIndex) then
+            and not RR:IsSegmentCompleted(stepIndex, segIndex)
+            and RR:IsSegmentRevealed(stepIndex, seg) then
             local pts = seg.points
             renderNum = renderNum + 1
             local color = SEG_COLORS[((renderNum - 1) % #SEG_COLORS) + 1]
@@ -293,12 +313,16 @@ function overlay:DrawAllSegmentsForMap(mapID)
             -- when the segment endpoint sits near a map edge -- a
             -- previous offset-above approach was clipped by the World
             -- Map's title bar when the endpoint had a low y coord.
-            local label = self.labels[labelIdx]
-            if label then
-                PlaceAt(label, self, dest[1], dest[2])
-                label:SetText(tostring(renderNum))
-                label:Show()
-                labelIdx = labelIdx + 1
+            -- Skipped when only one seg renders (labelSegs=false) -- a
+            -- lone "(1)" with no sibling is just visual noise.
+            if labelSegs then
+                local label = self.labels[labelIdx]
+                if label then
+                    PlaceAt(label, self, dest[1], dest[2])
+                    label:SetText(tostring(renderNum))
+                    label:Show()
+                    labelIdx = labelIdx + 1
+                end
             end
         end
     end

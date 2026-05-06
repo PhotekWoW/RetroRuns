@@ -77,10 +77,17 @@ panel:SetScript("OnDragStop", function(self)
     -- expects.
     local cx, cy   = self:GetCenter()
     local pcx, pcy = UIParent:GetCenter()
-    local scale    = self:GetEffectiveScale()
+    local fscale   = self:GetEffectiveScale()
     local pscale   = UIParent:GetEffectiveScale()
-    local x = (cx * scale - pcx * pscale) / pscale
-    local y = (cy * scale - pcy * pscale) / pscale
+    -- SetPoint("CENTER", UIParent, "CENTER", x, y) interprets x/y in the
+    -- ANCHORED frame's scaled coord system (per Wowpedia "UI scaling" --
+    -- offsets are specified in the Frame Scaled coordinate system of the
+    -- point being anchored). So we convert (panel_center - uiparent_center)
+    -- in screen pixels into panel-scaled units by dividing by fscale, NOT
+    -- pscale. At windowScale=1.0 fscale==pscale and the bug is invisible;
+    -- at any other windowScale this matters.
+    local x = (cx * fscale - pcx * pscale) / fscale
+    local y = (cy * fscale - pcy * pscale) / fscale
     self:ClearAllPoints()
     self:SetPoint("CENTER", UIParent, "CENTER", x, y)
     RR:SetSetting("panelX", math.floor(x + 0.5))
@@ -97,6 +104,14 @@ local browserState
 -- BackdropTemplate framed window pattern as tmogWindow, but without
 -- dropdowns / hyperlinks / hover-hide -- it's a pure read-only display.
 local skipsWindow
+
+-- Forward-declared too. Achievements window opens from the action-row
+-- "Achieves" button. Combines tmogWindow's Expansion/Raid/Boss dropdowns
+-- with a simpler open/toggle lifecycle (no hover-grace timer). Keeps its
+-- own selection state in achState (parallel to browserState), so the
+-- two windows can have independent dropdown selections.
+local achievementsWindow
+local achState
 
 -- Forward-declared so UI.ApplySettings (defined below, but before the
 -- assignment site of RefreshIdleList) can call it after font/scale
@@ -153,12 +168,19 @@ panel.closeButton:SetPoint("TOPRIGHT", -4, -4)
 panel.closeButton:SetScript("OnClick", function()
     RR:SetSetting("showPanel", false)
     panel:Hide()
-    -- Also close the standalone transmog browser if it's open. The two
-    -- windows are conceptually a single experience: closing the main panel
-    -- should leave nothing of RetroRuns visible.
+    -- Also close the standalone auxiliary windows if any are open. The
+    -- main panel and its auxiliary windows are conceptually a single
+    -- experience: closing the main panel should leave nothing of
+    -- RetroRuns visible.
     if tmogWindow and tmogWindow:IsShown() then
         browserState.active = false
         tmogWindow:Hide()
+    end
+    if skipsWindow and skipsWindow:IsShown() then
+        skipsWindow:Hide()
+    end
+    if achievementsWindow and achievementsWindow:IsShown() then
+        achievementsWindow:Hide()
     end
 end)
 
@@ -252,29 +274,12 @@ panel.encounter:SetScript("OnHyperlinkClick", function(self, link, text, button)
     self.clickFromLink = true
     SetItemRef(link, text, button)
 end)
-panel.encounter:SetScript("OnEnter", function(self)
-    if self.clickable then
-        self.label:SetTextColor(1.0, 0.85, 0.0, 1.0)
-        -- Surface the difficulty disclaimer at the moment the player
-        -- engages with the soloTip. Notes are authored against Mythic
-        -- mechanics by convention; lower-difficulty raids may streamline
-        -- or omit some of the described abilities.
-        --
-        -- Cursor-anchored rather than panel-anchored because the main
-        -- panel typically sits flush with the right edge of the screen,
-        -- where a panel-right-anchored tooltip would render offscreen.
-        GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-        GameTooltip:AddLine("Boss Encounter Notes", 1.0, 1.0, 1.0)
-        GameTooltip:AddLine(
-            "Notes assume Mythic difficulty. Some notes may not apply on lower difficulties.",
-            1.0, 0.82, 0.0, true)
-        GameTooltip:Show()
-    end
-end)
-panel.encounter:SetScript("OnLeave", function(self)
-    self.label:SetTextColor(1.0, 1.0, 1.0, 1.0)
-    GameTooltip:Hide()
-end)
+-- Hover handlers removed per user request (2026-05-05). The encounter
+-- widget previously gold-tinted its label on OnEnter and showed a
+-- "Notes assume Mythic difficulty" tooltip cursor-anchored. Both gone
+-- now -- the widget is click-only. Label color stays at the default
+-- white set at creation; no OnLeave reset needed because nothing tints
+-- it on hover anymore.
 panel.encounter:RegisterForClicks("LeftButtonUp")
 panel.encounter:SetScript("OnClick", function(self)
     if self.clickFromLink then
@@ -588,15 +593,17 @@ panel.version = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 panel.version:SetPoint("BOTTOMRIGHT", -PAD_RIGHT, 8)
 panel.version:SetText("v" .. RetroRuns.VERSION)
 
--- Action button row. Four UIPanelButtonTemplate buttons, evenly
+-- Action button row. Five UIPanelButtonTemplate buttons, evenly
 -- horizontally distributed across the panel width with a small gap
 -- between each. Anchored above the credit/version row with enough
 -- vertical breathing room to read as a separate band rather than
 -- crowding the byline.
 --
--- Order (left to right): Map, Tmog, Skips, Settings. Reads roughly by
--- frequency-of-use: Map is the primary in-raid action; Tmog and Skips
--- are reference views; Settings is config.
+-- Order (left to right): Map, Tmog, Achieves, Skips, Settings. Map is
+-- the primary in-raid action; Tmog / Achieves / Skips are reference
+-- views grouped together; Settings is config. "Achieves" rather than
+-- "Achievements" so the label fits the same 70px button width as the
+-- others without font shrinkage.
 --
 -- panel.mapBtn keeps the same name as the previous header-button
 -- version so existing Enable/Disable state-handling code (the in-raid
@@ -606,7 +613,7 @@ panel.version:SetText("v" .. RetroRuns.VERSION)
 local BUTTON_W   = 70
 local BUTTON_H   = 22
 local BUTTON_GAP = 6
-local TOTAL_W    = BUTTON_W * 4 + BUTTON_GAP * 3
+local TOTAL_W    = BUTTON_W * 5 + BUTTON_GAP * 4
 local START_X    = math.floor((PANEL_W - TOTAL_W) / 2)
 local BUTTON_Y   = 28   -- pixels up from the panel's bottom edge
 
@@ -640,12 +647,26 @@ panel.tmogBtn = MakeActionButton("Tmog", "Tmog",
         UI.ToggleTransmogBrowser()
     end)
 
-panel.skipsBtn = MakeActionButton("Skips", "Skips",
+panel.achievesBtn = MakeActionButton("Achieves", "Achieves",
     START_X + (BUTTON_W + BUTTON_GAP) * 2,
+    function()
+        -- When in a supported raid, default the dropdowns to that raid
+        -- before opening (so the user sees their actual context rather
+        -- than the last-browsed selection). Out of a raid, fall through
+        -- to the preserved last-browsed state. Mirrors the tmog button.
+        if RR.currentRaid then
+            achState.expansion = RR.currentRaid.expansion
+            achState.raidKey   = RR.currentRaid.instanceID
+        end
+        UI.ToggleAchievementsWindow()
+    end)
+
+panel.skipsBtn = MakeActionButton("Skips", "Skips",
+    START_X + (BUTTON_W + BUTTON_GAP) * 3,
     function() UI.ToggleSkipsWindow() end)
 
 panel.settingsBtn = MakeActionButton("Settings", "Settings",
-    START_X + (BUTTON_W + BUTTON_GAP) * 3,
+    START_X + (BUTTON_W + BUTTON_GAP) * 4,
     function() UI.ToggleSettings() end)
 
 -------------------------------------------------------------------------------
@@ -785,6 +806,21 @@ function UI.ApplySettings()
             skipsWindow.RefreshContent()
         end
     end
+    -- Achievements window: scale applied like the others. The current
+    -- placeholder content is a single FontString; once real content
+    -- (per-achievement rows) lands, this may want a RefreshContent call
+    -- like skips does, or a font-only update like tmog does.
+    if achievementsWindow then
+        achievementsWindow:SetScale(scale)
+        -- Achievements window uses a row pool (one frame per row, like
+        -- skips), not a single FontString. Font-size changes affect row
+        -- spacing and per-cell font metrics, so a full RefreshContent is
+        -- the simplest way to apply -- it rebuilds row positioning with
+        -- the new font size.
+        if achievementsWindow:IsShown() and achievementsWindow.RefreshContent then
+            achievementsWindow:RefreshContent()
+        end
+    end
     -- (intentionally no scale applied to settingsFrame)
 
     -- Apply panel opacity. Reads the current backdrop RGB from each window
@@ -802,6 +838,7 @@ function UI.ApplySettings()
     ApplyOpacity(panel)
     ApplyOpacity(tmogWindow)
     ApplyOpacity(skipsWindow)
+    ApplyOpacity(achievementsWindow)
     ApplyOpacity(settingsFrame)
 
     -- Re-fit the panel + auxiliary frames now that fonts and scale changed.
@@ -916,7 +953,41 @@ function UI.AutoSize()
             local screenH        = UIParent:GetHeight() or 900
             local maxH           = (screenH * 0.9) / scale
             local minH           = 360
-            panel:SetHeight(math.max(minH, math.min(maxH, desired)))
+            local newH           = math.max(minH, math.min(maxH, desired))
+
+            -- Capture geometry BEFORE SetHeight so we work with the
+            -- pre-resize frame state. SetHeight on a CENTER-anchored
+            -- frame moves the center immediately (WoW redistributes
+            -- the delta equally above and below), so any GetCenter()
+            -- call after SetHeight returns the shifted center, not the
+            -- original one -- causing X to drift on every resize.
+            local oldTop  = panel:GetTop()
+            local oldH    = panel:GetHeight() or newH
+            local fscale  = panel:GetEffectiveScale()
+            local pscale  = UIParent:GetEffectiveScale()
+            local _, pcy  = UIParent:GetCenter()
+            panel:SetHeight(newH)
+            if oldTop and oldH and pcy and math.abs(newH - oldH) > 0.5 then
+                -- TOP-PIN: compute the CENTER-anchor Y offset that keeps
+                -- the top edge at the same screen position after resize.
+                -- X never changes on a vertical resize, so we reuse the
+                -- already-saved panelX rather than re-deriving it from
+                -- GetCenter() (which would return the shifted center and
+                -- accumulate error across repeated expand/collapse calls).
+                --
+                -- All values from GetTop/GetHeight are in panel-local
+                -- scaled space. SetPoint anchor offsets are also in the
+                -- ANCHORED frame's scaled coord system (NOT UIParent's
+                -- -- per Wowpedia "UI scaling"), so we convert from
+                -- screen pixels back to panel-scaled units by dividing
+                -- by fscale, not pscale.
+                local newCenterY = oldTop - (newH / 2)  -- panel scale
+                local y = (newCenterY * fscale - pcy * pscale) / fscale
+                local x = RR:GetSetting("panelX", 0)
+                panel:ClearAllPoints()
+                panel:SetPoint("CENTER", UIParent, "CENTER", x, y)
+                RR:SetSetting("panelY", math.floor(y + 0.5))
+            end
         end
     end
 
@@ -948,6 +1019,9 @@ function UI.AutoSize()
                                  math.min(POPUP_CONTENT_CEILING, desired))
         tmogWindow:SetHeight(clamped)
     end
+
+    -- ACHIEVEMENTS POPUP: sized inside RefreshContent (row-based layout,
+    -- same pattern as skips). Nothing to do here.
 
     -- SETTINGS PANEL -------------------------------------------------------
     -- Frame height hugs the last TOPLEFT-flowing control + bottom margin.
@@ -1013,10 +1087,11 @@ local function BuildSettingsPanel()
         -- to CENTER/CENTER here before reading offsets.
         local cx, cy   = self:GetCenter()
         local pcx, pcy = UIParent:GetCenter()
-        local scale    = self:GetEffectiveScale()
+        local fscale   = self:GetEffectiveScale()
         local pscale   = UIParent:GetEffectiveScale()
-        local x = (cx * scale - pcx * pscale) / pscale
-        local y = (cy * scale - pcy * pscale) / pscale
+        -- See main-panel drag handler for the fscale-vs-pscale rationale.
+        local x = (cx * fscale - pcx * pscale) / fscale
+        local y = (cy * fscale - pcy * pscale) / fscale
         self:ClearAllPoints()
         self:SetPoint("CENTER", UIParent, "CENTER", x, y)
         RR:SetSetting("settingsX", math.floor(x + 0.5))
@@ -1448,12 +1523,18 @@ local function BuildTravelText(step)
             end
             -- Secondary mapID-match loop: same requiresSubZone gating
             -- and sequential-ordering rule as GetRelevantSegmentsForMap.
-            -- An incomplete seg with unmet requiresSubZone STOPS the
-            -- walk -- don't skip past it to consider later segs.
+            -- An incomplete seg with unmet requiresSubZone OR unmet
+            -- revealAfter STOPS the walk -- don't skip past it to
+            -- consider later segs.
             local currentSubZone = (GetSubZoneText and GetSubZoneText()) or ""
-            for _, seg in ipairs(step.segments) do
+            local stepIndex = step.step or step.priority or 0
+            for segIndex, seg in ipairs(step.segments) do
                 if seg.mapID == mapID and seg.note then
                     if seg.requiresSubZone and seg.requiresSubZone ~= currentSubZone then
+                        break
+                    end
+                    if not RR:IsSegmentCompleted(stepIndex, segIndex)
+                        and not RR:IsSegmentRevealed(stepIndex, seg) then
                         break
                     end
                     return prefix .. HighlightNames(seg.note)
@@ -1506,6 +1587,9 @@ local function BuildTravelText(step)
             for segIndex, seg in ipairs(step.segments) do
                 if seg.note and not RR:IsSegmentCompleted(stepIndex, segIndex) then
                     if seg.requiresSubZone and seg.requiresSubZone ~= currentSubZone then
+                        break
+                    end
+                    if not RR:IsSegmentRevealed(stepIndex, seg) then
                         break
                     end
                     return prefix .. HighlightNames(seg.note)
@@ -2230,18 +2314,20 @@ BuildSpecialLootSection = function(boss)
 
             -- Build the parenthetical kind+restriction group. Most items
             -- are just "(Pet)"; Mythic-only items become
-            -- "(Pet, Mythic only)" with the restriction in the Blizzard
-            -- mythic quality color (ffa335ee = purple) so the gate is
-            -- scannable at a glance. The colored suffix is spliced
-            -- inside the kindColor wrapper so the parens themselves stay
-            -- the kind's color.
+            -- "(Pet, Mythic only)" with the restriction in the RETRO brand
+            -- pink (ffF259C7) so the gate is scannable at a glance. We
+            -- avoid Blizzard's epic-quality purple (ffa335ee) here because
+            -- it's identical to the color the item link itself renders in,
+            -- which makes "Mythic only" visually blur into the item name.
+            -- The colored suffix is spliced inside the kindColor wrapper so
+            -- the parens themselves stay the kind's color.
             local kindInner = kindLabel
             if item.mythicOnly then
-                -- Close kindColor, insert mythic-purple "Mythic only",
+                -- Close kindColor, insert RETRO-pink "Mythic only",
                 -- reopen kindColor for the closing paren. The comma
                 -- stays in kindColor so the parenthetical reads as one
                 -- visually-connected group.
-                kindInner = kindLabel .. ", |r|cffa335eeMythic only|r|c" .. kindColor
+                kindInner = kindLabel .. ", |r|cffF259C7Mythic only|r|c" .. kindColor
             end
 
             -- Bracketed state indicator goes BEFORE the name, matching the
@@ -3073,11 +3159,10 @@ BuildTransmogDetail = function(stepOrCtx)
     -- Row shape:
     --   Main-Hand Weapons:   [some collected]
     --   Off-Hand Weapons:    [all collected]
-    --     -> Redeem tokens at your Kyrian weapon vendor in Bastion (Elysian Hold)
+    --     -> Redeem at Kyrian vendor: Bastion (Elysian Hold)
     --
     -- No-covenant fallback:
-    --     -> No covenant detected -- align with a covenant to redeem
-    --       weapon tokens.
+    --     -> No covenant detected -- align to redeem weapon tokens.
     local raid = RR.currentRaid
     -- Browser may display a non-current raid; resolve raid from boss.
     if not raid or (raid.bosses and raid.bosses[boss.index] ~= boss) then
@@ -3233,13 +3318,13 @@ BuildTransmogDetail = function(stepOrCtx)
             if vendorInfo then
                 local cc = vendorInfo.covenantColor or "ffffffff"
                 table.insert(lines,
-                    ("|cff888888  -> Redeem tokens at your |r|c%s%s|r|cff888888 weapon vendor in |r|c%s%s|r|cff888888 (|r|cffffffff%s|r|cff888888)|r"):format(
+                    ("|cff888888  -> Redeem at |r|c%s%s|r|cff888888 vendor: |r|c%s%s|r|cff888888 (|r|cffffffff%s|r|cff888888)|r"):format(
                         cc, vendorInfo.covenantName,
                         cc, vendorInfo.zoneMain,
                         vendorInfo.zoneSub))
             else
                 table.insert(lines,
-                    "|cffff9333  -> No covenant detected|r|cff888888 -- align with a covenant to redeem weapon tokens.|r")
+                    "|cffff9333  -> No covenant detected|r|cff888888 -- align to redeem weapon tokens.|r")
             end
         end
     end
@@ -3935,6 +4020,11 @@ end
 -- anywhere" callers. Opens the popup in BROWSE mode: it stays until the
 -- user clicks the close button; the grace-timer auto-hide doesn't apply.
 function UI.OpenTransmogBrowser()
+    -- Mutex with other auxiliary windows. See UI.OpenSkipsWindow for
+    -- rationale.
+    if skipsWindow and skipsWindow:IsShown() then skipsWindow:Hide() end
+    if achievementsWindow and achievementsWindow:IsShown() then achievementsWindow:Hide() end
+
     local w = GetOrCreateTmogWindow()
     browserState.active = true
     CancelTmogHide()
@@ -4047,8 +4137,12 @@ local GetOrCreateSkipsWindow
 -- Build a structured row list for the skips window. Each row is one of:
 --   { kind = "expansionHeader", text = "Dragonflight" }
 --   { kind = "raidRow", name = "Aberrus...", mythic = bool, heroic = bool, normal = bool }
---   { kind = "noSkipRow", name = "Castle Nathria" }       -- raids without skipQuests configured
 --   { kind = "spacer" }
+--   { kind = "message", text = "..." }   -- empty-state and error messages
+--
+-- Raids without skipQuests configured are silently omitted (no row at
+-- all). Empty expansions (zero raids with skipQuests) drop their header
+-- entirely so the table never renders a lonely orphan header.
 --
 -- The rendering pass turns rows into FontStrings/textures. Keeping the
 -- structure separate from rendering makes the layout code a simple loop
@@ -4107,16 +4201,24 @@ local function BuildSkipsRows()
         table.sort(raids, function(a, b)
             return (a.patch or "") > (b.patch or "")
         end)
-        add({ kind = "expansionHeader", text = exp })
+
+        -- Build this expansion's raidRows first so we can decide whether
+        -- to emit the expansion header at all. An expansion with zero
+        -- skip-configured raids would otherwise produce a lonely header
+        -- with nothing under it.
+        local expRows = {}
         for _, raid in ipairs(raids) do
             local sk = raid.skipQuests
-            if not sk then
-                add({ kind = "noSkipRow", name = raid.name or "?" })
-            else
+            -- Raids without skipQuests configured are simply omitted from
+            -- the table -- there's no useful "no skip data" row to render
+            -- for them. Earlier versions added a "(no skip data)" row,
+            -- but that just clutters the table for raids the player can't
+            -- skip into anyway.
+            if sk then
                 local ceiling = RR:GetRaidSkipUnlockedCeiling(raid)
                 -- Cascade-down: ceiling N means difficulties <= N are
                 -- unlocked. nil ceiling means none unlocked.
-                add({
+                table.insert(expRows, {
                     kind   = "raidRow",
                     name   = raid.name or "?",
                     mythic = ceiling and ceiling >= 16 or false,
@@ -4125,7 +4227,14 @@ local function BuildSkipsRows()
                 })
             end
         end
-        add({ kind = "spacer" })
+
+        -- Only emit the header + spacer when there's at least one row
+        -- to anchor under it.
+        if #expRows > 0 then
+            add({ kind = "expansionHeader", text = exp })
+            for _, row in ipairs(expRows) do add(row) end
+            add({ kind = "spacer" })
+        end
     end
 
     -- Drop trailing spacer.
@@ -4161,18 +4270,32 @@ local function GetSkipsRowSlot(parent, idx)
     slot.cellN = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     slot.cellN:SetJustifyH("CENTER")
 
+    -- Subtle horizontal divider drawn at the bottom of the row, matching
+    -- the achievements-window pattern. Dim and slightly transparent so
+    -- it reads as visual structure without competing with the cell text.
+    -- ARTWORK draw layer keeps it below the OVERLAY-layer FontStrings
+    -- so any text overlap (rare, only when rows are very tight) renders
+    -- with the text on top.
+    slot.divider = parent:CreateTexture(nil, "ARTWORK")
+    slot.divider:SetColorTexture(0.4, 0.4, 0.4, 0.25)
+    slot.divider:SetHeight(1)
+
     -- "message" or "noSkipRow" use the name FontString in a wider mode.
     skipsRowPool[idx] = slot
     return slot
 end
 
 local function HideAllSkipsSlots()
-    for _, slot in ipairs(skipsRowPool) do
+    -- pairs (not ipairs) for the same reason as the achievements pool:
+    -- not all row kinds populate every pool slot, so integer keys may
+    -- have gaps that ipairs would stop at.
+    for _, slot in pairs(skipsRowPool) do
         slot.expHeader:Hide()
         slot.name:Hide()
         slot.cellM:Hide()
         slot.cellH:Hide()
         slot.cellN:Hide()
+        slot.divider:Hide()
     end
 end
 
@@ -4187,6 +4310,11 @@ local function RefreshSkipsContent()
 
     local rows = BuildSkipsRows()
     local fontSize = RR:GetSetting("fontSize", 12)
+    -- Row content renders one point smaller than the user-facing fontSize
+    -- setting, matching the Tmog window's content font for visual parity
+    -- across all auxiliary windows. Line spacing keeps using fontSize so
+    -- the row pitch isn't affected by the cell-text shrink.
+    local rowFontSize = fontSize - 1
     local lineHeight = math.floor(fontSize * SKIPS_LINE_GAP + 0.5)
 
     -- y-cursor starts below the chrome (title bar + column headers).
@@ -4197,16 +4325,16 @@ local function RefreshSkipsContent()
 
     -- Update the persistent column header strings to match font size.
     if w.colHeaderM then
-        w.colHeaderM:SetFont(STANDARD_TEXT_FONT, fontSize, "")
-        w.colHeaderH:SetFont(STANDARD_TEXT_FONT, fontSize, "")
-        w.colHeaderN:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+        w.colHeaderM:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+        w.colHeaderH:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+        w.colHeaderN:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
     end
 
     for i, row in ipairs(rows) do
         local slot = GetSkipsRowSlot(w, i)
 
         if row.kind == "expansionHeader" then
-            slot.expHeader:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+            slot.expHeader:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
             slot.expHeader:SetText("|cff00ffff" .. row.text .. "|r")
             slot.expHeader:ClearAllPoints()
             slot.expHeader:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y)
@@ -4214,47 +4342,46 @@ local function RefreshSkipsContent()
             y = y - lineHeight
 
         elseif row.kind == "raidRow" then
-            slot.name:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+            slot.name:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
             slot.name:SetText("|cffffffff  " .. row.name .. "|r")
             slot.name:ClearAllPoints()
             slot.name:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y)
             slot.name:SetWidth(SKIPS_COL_MYTHIC_X - SKIPS_COL_NAME_X - 8)
             slot.name:Show()
 
-            slot.cellM:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+            slot.cellM:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
             slot.cellM:SetText(row.mythic and SKIPS_CELL_UNLOCKED or SKIPS_CELL_LOCKED)
             slot.cellM:ClearAllPoints()
             slot.cellM:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_MYTHIC_X, y)
             slot.cellM:Show()
 
-            slot.cellH:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+            slot.cellH:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
             slot.cellH:SetText(row.heroic and SKIPS_CELL_UNLOCKED or SKIPS_CELL_LOCKED)
             slot.cellH:ClearAllPoints()
             slot.cellH:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_HEROIC_X, y)
             slot.cellH:Show()
 
-            slot.cellN:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+            slot.cellN:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
             slot.cellN:SetText(row.normal and SKIPS_CELL_UNLOCKED or SKIPS_CELL_LOCKED)
             slot.cellN:ClearAllPoints()
             slot.cellN:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_NORMAL_X, y)
             slot.cellN:Show()
 
-            y = y - lineHeight
+            -- Subtle row divider at bottom of this row's vertical span,
+            -- inset from each frame edge so it visually frames the table
+            -- rather than running edge-to-edge.
+            slot.divider:ClearAllPoints()
+            slot.divider:SetPoint("TOPLEFT",  w, "TOPLEFT",  SKIPS_COL_NAME_X, y - lineHeight + 1)
+            slot.divider:SetPoint("TOPRIGHT", w, "TOPRIGHT", -14, y - lineHeight + 1)
+            slot.divider:Show()
 
-        elseif row.kind == "noSkipRow" then
-            slot.name:SetFont(STANDARD_TEXT_FONT, fontSize, "")
-            slot.name:SetText("|cff666666  " .. row.name .. "  (no skip data)|r")
-            slot.name:ClearAllPoints()
-            slot.name:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y)
-            slot.name:SetWidth(SKIPS_WINDOW_WIDTH - SKIPS_COL_NAME_X - 14)
-            slot.name:Show()
             y = y - lineHeight
 
         elseif row.kind == "spacer" then
             y = y - math.floor(lineHeight / 2)
 
         elseif row.kind == "message" then
-            slot.name:SetFont(STANDARD_TEXT_FONT, fontSize, "")
+            slot.name:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
             slot.name:SetText(row.text)
             slot.name:ClearAllPoints()
             slot.name:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y)
@@ -4332,8 +4459,8 @@ GetOrCreateSkipsWindow = function()
     local disclaimer = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     disclaimer:SetJustifyH("LEFT")
     disclaimer:SetWordWrap(true)
-    disclaimer:SetText("|cffffd200Disclaimer:|r |cff9d9d9dThis is purely informational. "
-                    .. "Skip-aware routing is not built yet.|r")
+    disclaimer:SetText("|cffffd200Note:|r |cff9d9d9dInformational Only -- "
+                    .. "No skip routing in place|r")
     f.disclaimer = disclaimer
 
     f.RefreshContent = RefreshSkipsContent
@@ -4343,6 +4470,14 @@ GetOrCreateSkipsWindow = function()
 end
 
 function UI.OpenSkipsWindow()
+    -- Auxiliary windows (skips, tmog, achievements) all anchor to the
+    -- same point at the main panel's right edge, so showing two at once
+    -- produces visual overlap. Mutex them: opening any auxiliary window
+    -- hides the others. The user can still toggle between them with
+    -- their respective action-row buttons.
+    if tmogWindow and tmogWindow:IsShown() then tmogWindow:Hide() end
+    if achievementsWindow and achievementsWindow:IsShown() then achievementsWindow:Hide() end
+
     local w = GetOrCreateSkipsWindow()
     -- Apply current settings (scale + font) before refreshing so the
     -- first visible state already matches the user's settings rather
@@ -4865,7 +5000,1057 @@ function UI.Update()
         panel.mapBtn:SetAlpha(0.45)
     end
 
+    -- Refresh achievements window if open. Route-progress changes shift
+    -- the "current boss" highlight and update kill-state pills; without
+    -- this hook the highlight would stay pinned to whatever boss was
+    -- active when the user last opened the window.
+    UI.UpdateAchievementsWindow()
+
     -- Content size can change significantly between states (in-raid vs idle,
     -- different boss counts, longer strings). Re-fit after content is set.
     UI.AutoSize()
+end
+
+-- ============================================================================
+-- Achievements window
+-- ============================================================================
+--
+-- Standalone window opened by the action-row "Achieves" button. Combines the
+-- shape of two existing windows:
+--   * tmogWindow: Expansion / Raid / Boss dropdowns at the top
+--   * skipsWindow: simple open/close lifecycle (no hover-grace timer)
+--
+-- Selection state lives in `achState` (forward-declared at top of file),
+-- parallel to but independent from tmogWindow's `browserState`. The two
+-- windows can have different raid/boss selections in the same session.
+--
+-- Forward-declared so the open helpers below can reference it.
+local GetOrCreateAchievementsWindow
+
+-- Builder: turn a (raid, boss) selection into a multi-line content string
+-- with WoW color/glyph codes. Mirrors BuildTransmogDetail's "single FontString"
+-- output shape so the window's content area can stay a simple FontString
+-- rather than per-row widgets.
+--
+-- Output layout:
+--
+--   {Glory meta name}                               [ ✓ ]    (or 7/10)
+--   <blank line>
+--   {Achievement name with hyperlink}               [ ✓ ]    (or [ X ])
+--     Soloable?:           {Yes / No / —}
+--     Required Difficulty: {LFR / Normal / Heroic / Mythic / —}
+--     Custom Solo Tips:    {verbatim or —}
+--   <blank line>
+--   ...repeat per achievement...
+--
+-- Per-achievement field values come from the data file:
+--   ach.soloable          -- nil / "yes" / "kinda" / "no"
+--                            (rendered as gray / green / orange / red star)
+--   ach.requiresDifficulty -- nil or string
+--   ach.soloTip           -- nil or verbatim string
+-- nil renders as "|cff666666—|r" (em-dash in dark gray) so empty rows are
+-- visible-but-de-emphasized rather than missing entirely.
+--
+-- Glory meta header is per-RAID, surfaced from raid.gloryMeta. Raids without
+-- gloryMeta skip the header line entirely. Completion state probed at render
+-- time via GetAchievementInfo + GetAchievementNumCriteria.
+-- StaticPopup definition for the "copy Wowhead URL" dialog. Defined once
+-- at file load (StaticPopupDialogs is a global Blizzard table). The dialog
+-- shows a single-line EditBox pre-filled with the URL; the user Ctrl+C's
+-- and dismisses. WoW addons cannot open browser URLs directly, so the
+-- copy/paste popup is the standard pattern for surfacing external links
+-- (BindPad, Pawn, and many others use the same shape).
+StaticPopupDialogs["RETRORUNS_WOWHEAD_URL"] = {
+    -- The %s slots are filled by the text_arg1/text_arg2 args passed to
+    -- StaticPopup_Show: arg1 is the boss name, arg2 the achievement name.
+    -- Putting them in the dialog text (rather than the EditBox) keeps the
+    -- copy buffer clean -- only the URL is selected for Ctrl+C.
+    text         = "%s\n|cffffd200%s|r\n\nWowhead URL (Ctrl+C to copy):",
+    button1      = OKAY or "Okay",
+    hasEditBox   = true,
+    editBoxWidth = 280,
+    timeout      = 0,
+    whileDead    = true,
+    hideOnEscape = true,
+    -- preferredIndex protects against the "RAID_WARNING" taint chain that
+    -- can break popups in older Blizzard code. 3 is the conventional safe
+    -- value; addons calling StaticPopup_Show have used this since BfA.
+    preferredIndex = 3,
+    OnShow = function(self, data)
+        local url = (data and data.url) or ""
+        -- Modern Blizzard StaticPopup (GameDialog.xml) exposes the edit
+        -- box as `self.EditBox` (capital E). Older code referenced
+        -- `self.editBox`; that path errors on current clients.
+        local eb = self.EditBox or self.editBox
+        if eb then
+            eb:SetText(url)
+            eb:HighlightText()
+            eb:SetFocus()
+        end
+    end,
+    EditBoxOnEnterPressed = function(self) self:GetParent():Hide() end,
+    EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+}
+
+-- Public so the achievements window's hyperlink handler can call it.
+function UI.ShowWowheadPopup(achievementID, bossName, achievementName)
+    if not achievementID then return end
+    -- Wowhead handles slug redirection from the bare ID, so we don't need
+    -- to construct the human-readable slug ourselves -- /achievement=14293
+    -- redirects to /achievement=14293/blind-as-a-bat automatically.
+    local url = ("https://www.wowhead.com/achievement=%d"):format(achievementID)
+    -- Defensive defaults if the caller (older codepath) doesn't pass names.
+    bossName        = bossName        or "?"
+    achievementName = achievementName or ("Achievement " .. achievementID)
+    StaticPopup_Show("RETRORUNS_WOWHEAD_URL",
+                     bossName, achievementName, { url = url })
+end
+
+
+-- Builder: walk a raid's bosses and produce a structured row list that the
+-- achievements window's row pool can render as a table. Each row has a
+-- `kind` plus kind-specific fields. The window decides per-kind which
+-- widgets to show and where to position them.
+--
+-- Row kinds:
+--   "glory"    -- raid-level Glory meta header. Fields: id, name, completed,
+--                 done, total, rewardSpellID, rewardItemID, rewardName.
+--                 Skipped when raid has no gloryMeta entry. Always first.
+--   "spacer"   -- inserts a half-row of vertical space.
+--   "header"   -- column header row. Static labels.
+--   "achRow"   -- one boss + one achievement. Fields: bossName,
+--                 achievementID, achievementName, completed, soloable, meta.
+--                 Bosses with N achievements produce N rows (boss name
+--                 repeats by design -- the column makes scanning easier).
+--   "naRow"    -- boss has zero achievements. Fields: bossName.
+--                 Renders "N/A" in the achievement and status columns.
+local function BuildAchievementRows(raid)
+    local rows = {}
+    if not raid then return rows end
+
+    -- 1. Glory meta header (when present)
+    local meta = raid.gloryMeta
+    if meta and meta.id then
+        local _, mName, _, mCompleted = GetAchievementInfo(meta.id)
+        local total = GetAchievementNumCriteria and GetAchievementNumCriteria(meta.id) or 0
+        local done  = 0
+        if total and total > 0 and GetAchievementCriteriaInfo then
+            for i = 1, total do
+                local _, _, critDone = GetAchievementCriteriaInfo(meta.id, i)
+                if critDone then done = done + 1 end
+            end
+        end
+        table.insert(rows, {
+            kind          = "glory",
+            id            = meta.id,
+            name          = mName or meta.name or ("Glory ID " .. meta.id),
+            completed     = mCompleted,
+            done          = done,
+            total         = total,
+            rewardSpellID = meta.rewardMountSpellID,
+            rewardItemID  = meta.rewardItemID,
+            rewardName    = meta.rewardName,
+        })
+        table.insert(rows, { kind = "spacer" })
+    end
+
+    -- 2. Column header row (always shown so users can read the table).
+    table.insert(rows, { kind = "header" })
+
+    -- 3. Per-boss rows in encounter order. Bosses with multiple achievements
+    --    expand to multiple rows (one per achievement); bosses with none
+    --    produce a single naRow.
+    if raid.bosses then
+        for _, boss in ipairs(raid.bosses) do
+            local bossName = boss.name or "?"
+            if not boss.achievements or #boss.achievements == 0 then
+                table.insert(rows, { kind = "naRow", bossName = bossName })
+            else
+                for _, ach in ipairs(boss.achievements) do
+                    local _, aName, _, aCompleted = GetAchievementInfo(ach.id)
+                    table.insert(rows, {
+                        kind            = "achRow",
+                        bossName        = bossName,
+                        achievementID   = ach.id,
+                        achievementName = aName or ach.name or ("ID " .. ach.id),
+                        completed       = aCompleted,
+                        soloable        = ach.soloable,
+                        meta            = ach.meta,
+                    })
+                end
+            end
+        end
+    end
+
+    return rows
+end
+
+-- Initialize achState with empty fields. Filled by EnsureAchDefaults() on
+-- first open, then maintained by dropdown clicks. Boss-level selection was
+-- removed when the window switched to a full-raid table; only Expansion
+-- and Raid are user-selectable now.
+achState = {
+    expansion = nil,
+    raidKey   = nil,
+}
+
+-- Pick sensible default selection on first open. Mirrors EnsureBrowserDefaults
+-- but writes to achState so the tmog browser's selection isn't disturbed.
+-- Defaults: current raid if the player is in one, else the first raid in the
+-- newest expansion that has data.
+local function EnsureAchDefaults()
+    local byExpansion, expansions = EnumerateRaids()
+    if #expansions == 0 then return end
+
+    -- Prefer the player's current raid if they're standing in one.
+    if not achState.raidKey then
+        local currentID = RR.currentRaid and RR.currentRaid.instanceID
+        if currentID and RetroRuns_Data[currentID] then
+            achState.raidKey   = currentID
+            achState.expansion = RetroRuns_Data[currentID].expansion
+        end
+    end
+    -- Fall back to the first raid in the first expansion.
+    if not achState.expansion then
+        achState.expansion = expansions[1]
+    end
+    if not achState.raidKey then
+        local firstRaid = byExpansion[achState.expansion]
+                          and byExpansion[achState.expansion][1]
+        if firstRaid then achState.raidKey = firstRaid.instanceID end
+    end
+end
+
+-- Layout constants for the achievements row table. Matches the skips
+-- window's pattern: column x-offsets are absolute pixel positions from
+-- the window's TOPLEFT, used for both header labels and per-row widgets
+-- so they line up by construction.
+--
+-- Window width 440. Status (right-anchored cell, ~50px wide) sits at the
+-- left, Achievement is the wide flex column, Boss is the right-side
+-- column, and the Wowhead button anchors near the right edge.
+local ACH_WINDOW_WIDTH       = 510
+local ACH_WINDOW_MIN_HEIGHT  = 200
+local ACH_WINDOW_MAX_HEIGHT  = 700
+
+local ACH_COL_STATUS_X     = 36   -- center x of the status indicator
+local ACH_COL_NAME_X       = 64   -- left of the achievement-name column
+-- The following are FLOOR minimums used by the auto-sizing pass in
+-- RefreshContent. The actual column widths and overall window width are
+-- computed per-refresh from the longest measured content; these constants
+-- prevent the table from collapsing when content is unusually short
+-- (single-achievement raid, very short boss names).
+local ACH_COL_NAME_W       = 245  -- min width of achievement column
+local ACH_COL_BOSS_W       = 150  -- min width of boss column
+
+-- Wowhead column geometry. Both the header label and the per-row button
+-- are anchored to the window's TOPRIGHT, with the header CENTER-anchored
+-- over the button's center so the column reads as one unit. Driving both
+-- from the same offsets avoids the drift that happened when they were
+-- anchored independently. Right-inset is bumped enough that the "Wowhead"
+-- header text doesn't bleed past the window's edge -- the label is wider
+-- than the button, so it needs room beyond the button's footprint.
+local ACH_WOWHEAD_BTN_W       = 22
+-- Button height shrunk to 14 (was 18) so it fits cleanly inside the
+-- row band. The row band's visible vertical extent is ~15px (lineHeight
+-- minus ACH_ROW_BOTTOM_INSET), so anything taller than that overflows
+-- the divider lines above or below. 14px keeps the button entirely
+-- within the band with ~0.5px breathing room top and bottom -- the
+-- "?" glyph still reads cleanly at this height since UIPanelButton-
+-- Template's internal padding is small.
+local ACH_WOWHEAD_BTN_H       = 14
+local ACH_WOWHEAD_RIGHT_INSET = 30   -- distance from window right edge to button's right edge
+-- Center x of the button = -RIGHT_INSET - BTN_W/2 (relative to TOPRIGHT).
+local ACH_WOWHEAD_CENTER_X    = -ACH_WOWHEAD_RIGHT_INSET - ACH_WOWHEAD_BTN_W / 2
+
+-- Per-row vertical spacing. Same multiplier as skips for visual parity.
+local ACH_LINE_GAP         = 1.7
+
+-- Row dividers and the bottom edge of the current-boss highlight band
+-- both sit at this y-offset above the row's nominal bottom (y -
+-- lineHeight). Bumped from 1 to 5 (2026-05-05) so the divider hugs the
+-- text from below instead of leaving extra space below the glyphs --
+-- with the highlight band drawn, that extra space made the text look
+-- top-aligned within its band. Higher value moves the divider/highlight
+-- bottom UP toward the text. Tune carefully: too high and the divider
+-- cuts into text descenders; too low and text looks top-heavy again.
+local ACH_ROW_BOTTOM_INSET = 5
+
+-- Glyphs reused from the encounter renderer / skips table for visual
+-- consistency.
+local ACH_CELL_DONE   = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
+local ACH_CELL_TODO   = "|cffaaaaaaX|r"
+local ACH_CELL_NA     = "|cff666666N/A|r"
+
+-- Meta-Glory prefix textures. Both occupy the same width so non-meta
+-- rows visually align with meta rows in the achievement column.
+--
+-- The non-meta variant uses the same 14x14 texture footprint but with
+-- vertex color RGBA = 0,0,0,0 (fully transparent) -- the width is
+-- preserved without any visible glyph. The full |T...|t syntax below
+-- specifies: path, height, width, xOff, yOff, texW, texH, leftCoord,
+-- rightCoord, topCoord, bottomCoord, then R, G, B, A.
+local ACH_META_PREFIX     = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14|t "
+local ACH_NON_META_PREFIX = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0:64:64:0:64:0:64:80:80:80|t "
+
+-- Soloable indicator. Per-achievement `soloable` field is one of:
+--   "yes"   -> green star  (any class can solo)
+--   "kinda" -> orange star (solo possible but requires specific class
+--                           abilities, e.g., self-heal, immunity, pet)
+--   "no"    -> red star    (confirmed not soloable)
+--   nil     -> gray star   (not yet evaluated)
+--
+-- Returns a pre-formatted string ready to concatenate into the
+-- achievement-cell text. The leading space is folded in so callers don't
+-- need to worry about spacing -- if there's no field at all the gray
+-- star still renders, since a missing marker would be ambiguous (could
+-- mean "no info" OR "not soloable").
+local function GetSoloableStar(soloable)
+    if soloable == "yes"   then return " |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:0:255:0|t" end
+    if soloable == "kinda" then return " |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:255:136:0|t" end
+    if soloable == "no"    then return " |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:255:51:51|t" end
+    return " |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:40:40:40|t"  -- nil / unknown / not yet evaluated
+end
+
+-- Row pool. Each slot holds the widgets needed for any kind of row; the
+-- refresh loop hides unused widgets per kind. Keyed by row index so slot
+-- N is reused across rebuilds at the same row position.
+local achRowPool = {}
+
+local function GetAchRowSlot(parent, idx)
+    if achRowPool[idx] then return achRowPool[idx] end
+    local slot = {}
+
+    -- Status cell (text). Center-anchored at ACH_COL_STATUS_X.
+    slot.status = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    slot.status:SetJustifyH("CENTER")
+
+    -- Achievement-name cell (FontString). Left-anchored, capped width so
+    -- long names truncate-with-ellipsis rather than running into the
+    -- Boss column.
+    slot.ach = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    slot.ach:SetJustifyH("LEFT")
+    slot.ach:SetWordWrap(false)
+
+    -- Boss-name cell.
+    slot.boss = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    slot.boss:SetJustifyH("LEFT")
+    slot.boss:SetWordWrap(false)
+
+    -- Wowhead button (real Button widget so it has hover/click states).
+    -- Square-ish, small, "?" label since the column header reads "Wowhead"
+    -- already and a plain "?" reads as "more info" without competing with
+    -- the achievement-link orange in adjacent rows. UIPanelButtonTemplate
+    -- gives the standard Blizzard pressed/highlighted states for free.
+    slot.wowhead = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    slot.wowhead:SetSize(ACH_WOWHEAD_BTN_W, ACH_WOWHEAD_BTN_H)
+    slot.wowhead:SetText("|cffffffff?|r")
+
+    -- Subtle horizontal divider drawn at the bottom of the row. Dim and
+    -- slightly transparent so it reads as visual structure without
+    -- competing with the cell text. ARTWORK draw layer keeps it below
+    -- the OVERLAY-layer FontStrings -- if a row's text overlaps the
+    -- divider position by a pixel or two, the text wins.
+    slot.divider = parent:CreateTexture(nil, "ARTWORK")
+    slot.divider:SetColorTexture(0.4, 0.4, 0.4, 0.25)
+    slot.divider:SetHeight(1)
+
+    -- "Current boss" highlight: a faint full-row blue tint plus a
+    -- brighter left-edge accent bar. BORDER draw layer (not BACKGROUND)
+    -- so they render ABOVE the frame's own backdrop -- with BACKGROUND,
+    -- the panel's opaque chrome was occluding the tint and the
+    -- highlight was only visible when window opacity was turned down.
+    -- BORDER still sits below ARTWORK (dividers) and OVERLAY (text), so
+    -- the highlight reads as a tinted band BEHIND the row's content.
+    -- Tint alpha bumped from 0.10 to 0.22 for visibility against the
+    -- standard opaque panel; accent saturation bumped to match.
+    slot.highlight = parent:CreateTexture(nil, "BORDER")
+    slot.highlight:SetColorTexture(0.30, 0.65, 1.0, 0.22)
+    slot.accent = parent:CreateTexture(nil, "BORDER")
+    slot.accent:SetColorTexture(0.45, 0.80, 1.0, 1.0)
+    slot.accent:SetWidth(3)
+
+    achRowPool[idx] = slot
+    return slot
+end
+
+local function HideAllAchSlots()
+    -- IMPORTANT: use pairs, not ipairs. The pool is keyed by render-row
+    -- index, but the first 1-3 rows of every render are "glory", "spacer",
+    -- and "header" kinds which DON'T call GetAchRowSlot -- so the pool's
+    -- integer keys start at 4 (or wherever the first achRow/naRow is),
+    -- not 1. ipairs stops at the first nil key, so it would have hidden
+    -- nothing and let the previous raid's rows leak through visually.
+    for _, slot in pairs(achRowPool) do
+        slot.status:Hide()
+        slot.ach:Hide()
+        slot.boss:Hide()
+        slot.wowhead:Hide()
+        slot.divider:Hide()
+        slot.highlight:Hide()
+        slot.accent:Hide()
+    end
+end
+
+GetOrCreateAchievementsWindow = function()
+    if achievementsWindow then return achievementsWindow end
+
+    local f = CreateFrame("Frame", "RetroRunsAchievementsWindow", UIParent, "BackdropTemplate")
+    f:SetSize(ACH_WINDOW_WIDTH, ACH_WINDOW_MIN_HEIGHT)
+    f:SetBackdrop({
+        bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
+        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    f:SetBackdropColor(0.03, 0.03, 0.03, RR:GetSetting("panelOpacity", 1.0))
+    f:SetPoint("TOPLEFT", panel, "TOPRIGHT", 6, 0)
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop",  f.StopMovingOrSizing)
+    f:SetClampedToScreen(true)
+    f:SetFrameStrata("HIGH")
+    f:Hide()
+
+    -- Hyperlink router: achievement and item links use SetItemRef as
+    -- usual. Custom RR_wowhead: links would no longer reach this handler
+    -- (the per-row Button is the new entry point), but the prefix check
+    -- is left in for forward compatibility / safety.
+    f:SetHyperlinksEnabled(true)
+    f:SetScript("OnHyperlinkClick", function(_, link, text, button)
+        local achID = link and link:match("^RR_wowhead:(%d+)$")
+        if achID then
+            UI.ShowWowheadPopup(tonumber(achID))
+            return
+        end
+        SetItemRef(link, text, button)
+    end)
+    f:SetScript("OnHyperlinkEnter", function(self, link)
+        if link and link:match("^RR_wowhead:") then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetHyperlink(link)
+        GameTooltip:Show()
+    end)
+    f:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
+
+    -- Title plate
+    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetPoint("TOPLEFT", 14, -10)
+    title:SetText("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  Achievements")
+
+    local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", -4, -4)
+    closeBtn:SetScript("OnClick", function() f:Hide() end)
+
+    -- Two cascading dropdowns: Expansion / Raid. Boss-level selection
+    -- was removed when the window switched to a full-raid table view --
+    -- all bosses for the selected raid render simultaneously.
+    local function MakeDD(name, width, parent)
+        local dd = CreateFrame("Frame", "RetroRunsAch" .. name .. "DD", parent,
+                               "UIDropDownMenuTemplate")
+        UIDropDownMenu_SetWidth(dd, width)
+        return dd
+    end
+
+    local ddExp  = MakeDD("Expansion", 140, f)
+    local ddRaid = MakeDD("Raid",      220, f)
+
+    ddExp:SetPoint("TOPLEFT",  f,     "TOPLEFT",     -4, -32)
+    ddRaid:SetPoint("TOPLEFT", ddExp, "BOTTOMLEFT",   0,   4)
+
+    f.ddExp, f.ddRaid = ddExp, ddRaid
+
+    -- Glory header section (above the column-header row). Two FontStrings
+    -- repositioned by RefreshContent based on whether the raid has a
+    -- gloryMeta. Hidden entirely when there's no Glory.
+    f.gloryLine = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    f.gloryLine:SetJustifyH("LEFT")
+    f.gloryLine:SetWordWrap(false)
+
+    f.rewardLine = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.rewardLine:SetJustifyH("LEFT")
+    f.rewardLine:SetWordWrap(false)
+
+    -- Column-header FontStrings. Persistent (positioned by RefreshContent
+    -- based on whether Glory is present) and shown for every non-empty
+    -- raid render.
+    f.hdrStatus = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    f.hdrStatus:SetJustifyH("CENTER")
+    f.hdrStatus:SetText("|cff4DCCFFStatus|r")
+
+    f.hdrAch = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    f.hdrAch:SetJustifyH("LEFT")
+    f.hdrAch:SetText("|cff4DCCFFAchievement|r")
+
+    f.hdrBoss = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    f.hdrBoss:SetJustifyH("LEFT")
+    f.hdrBoss:SetText("|cff4DCCFFBoss|r")
+
+    f.hdrWowhead = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    f.hdrWowhead:SetJustifyH("CENTER")
+    f.hdrWowhead:SetText("|cffff8000Wowhead|r")
+
+    -- Hidden measurement FontString used by RefreshContent to query the
+    -- rendered width of each row's text BEFORE laying it out, so columns
+    -- and the overall window can auto-size to fit the widest content.
+    -- GetStringWidth is synchronous after SetText/SetFont (unlike
+    -- GetStringHeight, which is lazy after SetFont) -- the trick is to
+    -- call SetFont *first* with the measurement font, then SetText, then
+    -- read GetStringWidth. Hidden because we don't want it visible.
+    f.measureFS = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    f.measureFS:Hide()
+
+    -- Legend below the table. Two FontStrings: meta-key on the left,
+    -- soloable color key on the right. Splitting them lets the soloable
+    -- key anchor to BOTTOMRIGHT independently of the meta-key text width
+    -- (which used to push the soloable text leftward and made the right
+    -- side of the table feel cluttered when the window grew wide).
+    --
+    -- Star colors match GetSoloableStar() exactly:
+    --   green  = soloable (any class)
+    --   orange = soloable with class-specific abilities ("kinda")
+    --   red    = not soloable
+    --   gray   = not yet evaluated
+    f.legendLeft = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.legendLeft:SetJustifyH("LEFT")
+    f.legendLeft:SetText(
+        "|cff9d9d9d|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14|t = meta criteria|r"
+    )
+
+    f.legendRight = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.legendRight:SetJustifyH("RIGHT")
+    f.legendRight:SetText(
+        "|cff9d9d9dSoloable: |r|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:0:255:0|t|cff9d9d9d yes  |r"
+        .. "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:255:136:0|t|cff9d9d9d kinda  |r"
+        .. "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:255:51:51|t|cff9d9d9d no  |r"
+        .. "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:40:40:40|t|cff9d9d9d unknown|r"
+    )
+
+    achievementsWindow = f
+
+    -- ----- Dropdown initializers -----
+    f.RefreshDropdowns = function(self)
+        EnsureAchDefaults()
+        local byExp, expList = EnumerateRaids()
+
+        UIDropDownMenu_Initialize(ddExp, function()
+            for _, expName in ipairs(expList) do
+                local info = UIDropDownMenu_CreateInfo()
+                info.text    = expName
+                info.value   = expName
+                info.checked = (expName == achState.expansion)
+                info.func    = function()
+                    if achState.expansion == expName then return end
+                    achState.expansion = expName
+                    local first = byExp[expName] and byExp[expName][1]
+                    achState.raidKey = first and first.instanceID or nil
+                    f:RefreshAll()
+                end
+                UIDropDownMenu_AddButton(info)
+            end
+        end)
+        UIDropDownMenu_SetText(ddExp, achState.expansion or "(none)")
+
+        UIDropDownMenu_Initialize(ddRaid, function()
+            local raids = byExp[achState.expansion] or {}
+            for _, raid in ipairs(raids) do
+                local info = UIDropDownMenu_CreateInfo()
+                info.text    = raid.name or "?"
+                info.value   = raid.instanceID
+                info.checked = (raid.instanceID == achState.raidKey)
+                info.func    = function()
+                    if achState.raidKey == raid.instanceID then return end
+                    achState.raidKey = raid.instanceID
+                    -- Use RefreshAll so the dropdown's displayed-text is
+                    -- updated alongside the content. Calling RefreshContent
+                    -- alone would leave the raid dropdown showing the
+                    -- previous raid's name.
+                    f:RefreshAll()
+                end
+                UIDropDownMenu_AddButton(info)
+            end
+        end)
+        local raidName = "(none)"
+        local selRaid = achState.raidKey and RetroRuns_Data[achState.raidKey]
+        if selRaid then raidName = selRaid.name or "?" end
+        UIDropDownMenu_SetText(ddRaid, raidName)
+    end
+
+    -- ----- Row-table refresh -----
+    -- Rebuilds the table content, positions all row widgets, sizes the
+    -- window. Same shape as RefreshSkipsContent.
+    f.RefreshContent = function(self)
+        HideAllAchSlots()
+
+        -- Defensively hide the persistent header FontStrings too. They get
+        -- :Show()'d again when the "header" row renders below, which is
+        -- always for non-empty raids -- but if a future code path renders
+        -- a raid with no rows, hiding here ensures the previous raid's
+        -- headers don't leak through visually.
+        f.gloryLine:Hide()
+        f.rewardLine:Hide()
+        f.hdrStatus:Hide()
+        f.hdrAch:Hide()
+        f.hdrBoss:Hide()
+        f.hdrWowhead:Hide()
+
+        local raid = achState.raidKey and RetroRuns_Data[achState.raidKey] or nil
+        local rows = BuildAchievementRows(raid)
+
+        -- Determine the current route boss for the displayed raid (if
+        -- any). The highlight only fires when the achievements window
+        -- is showing the same raid the route is currently progressing
+        -- through; cross-raid (browsing Sepulcher while running CN) gets
+        -- no highlight, since "current boss" makes no sense there.
+        local currentBossName = nil
+        if raid and RR.currentRaid and RR.currentRaid.instanceID == raid.instanceID then
+            local step = RR.state and RR.state.activeStep
+            if step and step.bossIndex and raid.bosses then
+                local boss = raid.bosses[step.bossIndex]
+                if boss then currentBossName = boss.name end
+            end
+        end
+
+        local fontSize   = RR:GetSetting("fontSize", 12)
+        -- Row content renders one point smaller than the user-facing
+        -- fontSize setting, matching the Tmog window's content font for
+        -- visual parity across all auxiliary windows. Line spacing keeps
+        -- using fontSize so the row pitch isn't affected.
+        local rowFontSize = fontSize - 1
+        local lineHeight  = math.floor(fontSize * ACH_LINE_GAP + 0.5)
+
+        -- Width measurement pass. Walk the rows once with a hidden
+        -- FontString to find the widest rendered achievement-name and
+        -- boss-name strings, then derive column widths and the overall
+        -- window width from those measurements. Falls back to minimums
+        -- (the ACH_COL_*_W constants) when content is shorter.
+        --
+        -- This is what makes the window auto-size to fit longer names --
+        -- a raid with a "Sanctum of Domination" boss like "Tarragrue,
+        -- the Bound One" doesn't get truncated; the window grows.
+        local function MeasureWidth(fontString, text)
+            fontString:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+            fontString:SetText(text or "")
+            return fontString:GetStringWidth() or 0
+        end
+
+        local widestAch  = MeasureWidth(f.measureFS, "Achievement")  -- start with header width
+        local widestBoss = MeasureWidth(f.measureFS, "Boss")
+        for _, row in ipairs(rows) do
+            if row.kind == "achRow" then
+                -- Build the same string the achievement column will
+                -- render so the measurement matches what's painted.
+                -- Both meta and non-meta rows include a fixed-width
+                -- prefix for column alignment (transparent for non-meta).
+                local metaPrefix = row.meta and ACH_META_PREFIX or ACH_NON_META_PREFIX
+                local link = GetAchievementLink and GetAchievementLink(row.achievementID)
+                              or row.achievementName
+                local soloStar = GetSoloableStar(row.soloable)
+                local achText  = metaPrefix .. link .. soloStar
+                local achW = MeasureWidth(f.measureFS, achText)
+                if achW > widestAch then widestAch = achW end
+
+                local bossW = MeasureWidth(f.measureFS, row.bossName)
+                if bossW > widestBoss then widestBoss = bossW end
+
+            elseif row.kind == "naRow" then
+                local bossW = MeasureWidth(f.measureFS, row.bossName)
+                if bossW > widestBoss then widestBoss = bossW end
+            end
+        end
+
+        -- Per-column padding: extra px beyond the widest content. Keeps
+        -- adjacent columns from feeling crowded.
+        local COL_PADDING = 14
+
+        -- Resolve column widths -- max(measured + padding, min-constant).
+        local colNameW = math.max(widestAch  + COL_PADDING, ACH_COL_NAME_W)
+        local colBossW = math.max(widestBoss + COL_PADDING, ACH_COL_BOSS_W)
+
+        -- Boss column starts after the achievement column ends.
+        local colBossX = ACH_COL_NAME_X + colNameW + 6
+
+        -- Window width: status column + ach column + boss column +
+        -- Wowhead column (button + inset on each side) + left margin.
+        -- The +20 right of the boss column accounts for the gap before
+        -- the Wowhead button starts.
+        local wowheadColumnW = ACH_WOWHEAD_BTN_W + ACH_WOWHEAD_RIGHT_INSET + 20
+        local windowW = colBossX + colBossW + wowheadColumnW
+        windowW = math.max(windowW, ACH_WINDOW_WIDTH)
+        f:SetWidth(windowW)
+
+        -- Vertical cursor starts below the dropdown stack. The two
+        -- dropdowns occupy ~64px below the title bar.
+        local DROPDOWNS_BOTTOM = 32 + 2 * 32  -- title + 2 dropdowns
+        local y = -DROPDOWNS_BOTTOM - 4
+
+        -- Glory header (two lines: header + reward). Hidden if absent.
+        local rowsStart = 1
+        if rows[1] and rows[1].kind == "glory" then
+            local g = rows[1]
+
+            -- Status fragment: "[ ✓ ]" if completed, "n/N" otherwise.
+            -- Gold for the progress count to match the encounter section.
+            local statusFrag
+            if g.completed then
+                statusFrag = ("|cff777777[ |r|cff00ff00%s|r|cff777777 ]|r"):format(ACH_CELL_DONE)
+            else
+                statusFrag = ("|cffffd200%d/%d|r"):format(g.done or 0, g.total or 0)
+            end
+
+            local link = GetAchievementLink and GetAchievementLink(g.id) or g.name
+            if g.completed and link ~= g.name then
+                link = link:gsub("^|cff%x%x%x%x%x%x", ""):gsub("|r$", "")
+                link = ("|cff888888%s|r"):format(link)
+            end
+            f.gloryLine:SetFont(STANDARD_TEXT_FONT, fontSize + 2, "")
+            f.gloryLine:SetText(("%s   %s"):format(link, statusFrag))
+            f.gloryLine:ClearAllPoints()
+            f.gloryLine:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
+            f.gloryLine:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, y)
+            f.gloryLine:Show()
+            y = y - (fontSize + 6)
+
+            -- Reward line.
+            local rewardText
+            if g.rewardSpellID and C_Spell and C_Spell.GetSpellLink then
+                rewardText = C_Spell.GetSpellLink(g.rewardSpellID)
+            end
+            if not rewardText and g.rewardItemID then
+                local _, itemLink = GetItemInfo(g.rewardItemID)
+                rewardText = itemLink
+            end
+            if not rewardText then
+                rewardText = g.rewardName
+                          and ("|cffffffff%s|r"):format(g.rewardName)
+                          or  "|cffffffff(Reward)|r"
+            end
+            f.rewardLine:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+            f.rewardLine:SetText(("|cff9d9d9dReward:|r %s"):format(rewardText))
+            f.rewardLine:ClearAllPoints()
+            f.rewardLine:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
+            f.rewardLine:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, y)
+            f.rewardLine:Show()
+            y = y - lineHeight
+
+            -- Skip the glory row in the data-row loop below; the spacer
+            -- row that follows still applies its half-line gap.
+            rowsStart = 2
+        end
+
+        -- Walk remaining rows. The header row is always present (added
+        -- by BuildAchievementRows after the optional glory+spacer); we
+        -- treat it the same as data rows in terms of pool-slot reuse,
+        -- but render it via the persistent column-header FontStrings.
+        for i = rowsStart, #rows do
+            local row = rows[i]
+
+            if row.kind == "spacer" then
+                y = y - math.floor(lineHeight / 2)
+
+            elseif row.kind == "header" then
+                -- Position the persistent column-header FontStrings.
+                f.hdrStatus:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+                f.hdrStatus:ClearAllPoints()
+                f.hdrStatus:SetPoint("TOP", f, "TOPLEFT", ACH_COL_STATUS_X, y)
+                f.hdrStatus:Show()
+
+                f.hdrAch:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+                f.hdrAch:ClearAllPoints()
+                f.hdrAch:SetPoint("TOPLEFT", f, "TOPLEFT", ACH_COL_NAME_X, y)
+                f.hdrAch:Show()
+
+                f.hdrBoss:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+                f.hdrBoss:ClearAllPoints()
+                f.hdrBoss:SetPoint("TOPLEFT", f, "TOPLEFT", colBossX, y)
+                f.hdrBoss:Show()
+
+                f.hdrWowhead:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+                f.hdrWowhead:ClearAllPoints()
+                -- CENTER-anchor the header at the button center so the
+                -- label reads as a column header for the buttons below.
+                f.hdrWowhead:SetPoint("TOP", f, "TOPRIGHT", ACH_WOWHEAD_CENTER_X, y)
+                f.hdrWowhead:Show()
+
+                y = y - lineHeight
+
+            elseif row.kind == "achRow" then
+                local slot = GetAchRowSlot(f, i)
+
+                -- Current-boss highlight + left accent bar. The textures
+                -- span from this row's top (y) down to the bottom of its
+                -- vertical band (y - lineHeight). Insets match the divider
+                -- inset so the highlight visually frames within the table
+                -- bounds rather than running edge-to-edge. The accent bar
+                -- is anchored to the highlight's LEFT so they move
+                -- together. Both BACKGROUND layer -- text and dividers
+                -- render on top, so the highlight reads as a tinted band
+                -- behind the row's content.
+                if currentBossName and row.bossName == currentBossName then
+                    slot.highlight:ClearAllPoints()
+                    slot.highlight:SetPoint("TOPLEFT",     f, "TOPLEFT",  14, y + 1)
+                    slot.highlight:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                    slot.highlight:Show()
+
+                    slot.accent:ClearAllPoints()
+                    slot.accent:SetPoint("TOPLEFT",    f, "TOPLEFT", 14, y + 1)
+                    slot.accent:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                    slot.accent:Show()
+                end
+
+                -- Status cell: [ ✓ ] or [ X ]
+                local statusText
+                if row.completed then
+                    statusText = ("|cff777777[ |r|cff00ff00%s|r|cff777777 ]|r"):format(ACH_CELL_DONE)
+                else
+                    statusText = ("|cff777777[ |r%s|cff777777 ]|r"):format(ACH_CELL_TODO)
+                end
+                slot.status:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+                slot.status:SetText(statusText)
+                slot.status:ClearAllPoints()
+                slot.status:SetPoint("TOP", f, "TOPLEFT", ACH_COL_STATUS_X, y)
+                slot.status:Show()
+
+                -- Achievement cell: meta-prefix + link + soloable star.
+                -- Both meta and non-meta rows include a 14x14 prefix
+                -- texture; non-meta uses a fully transparent variant
+                -- (same path with vertex-color RGBA=0,0,0,0). This keeps
+                -- the achievement-name text aligned to the same column
+                -- position regardless of meta status -- without the
+                -- transparent placeholder, non-meta names start ~16px
+                -- left of meta names.
+                local metaPrefix = row.meta and ACH_META_PREFIX or ACH_NON_META_PREFIX
+                local link = GetAchievementLink and GetAchievementLink(row.achievementID)
+                              or row.achievementName
+                if row.completed and link ~= row.achievementName then
+                    -- Gray for completed achievements (de-emphasized).
+                    link = link:gsub("^|cff%x%x%x%x%x%x", ""):gsub("|r$", "")
+                    link = ("|cff888888%s|r"):format(link)
+                end
+                local soloStar = GetSoloableStar(row.soloable)
+                slot.ach:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+                slot.ach:SetText(metaPrefix .. link .. soloStar)
+                slot.ach:SetWidth(colNameW)
+                slot.ach:ClearAllPoints()
+                slot.ach:SetPoint("TOPLEFT", f, "TOPLEFT", ACH_COL_NAME_X, y)
+                slot.ach:Show()
+
+                -- Boss cell.
+                slot.boss:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+                slot.boss:SetText(("|cffcccccc%s|r"):format(row.bossName))
+                slot.boss:SetWidth(colBossW)
+                slot.boss:ClearAllPoints()
+                slot.boss:SetPoint("TOPLEFT", f, "TOPLEFT", colBossX, y)
+                slot.boss:Show()
+
+                -- Wowhead button. Click handler captures achievement ID
+                -- and display names in a closure so the popup can show
+                -- which row it's for. Slot is reused across raid switches
+                -- with different IDs/names; the closure rebinds each row.
+                local achID    = row.achievementID
+                local achName  = row.achievementName
+                local bossName = row.bossName
+                slot.wowhead:SetScript("OnClick", function()
+                    UI.ShowWowheadPopup(achID, bossName, achName)
+                end)
+                slot.wowhead:ClearAllPoints()
+                -- Vertically center the 14px-tall button in the row's
+                -- ~15px visible band. The math says anchoring TOPRIGHT
+                -- at y should put button top at row top with 1px gap
+                -- to the divider below -- but UIPanelButtonTemplate's
+                -- chrome (the textured edges) doesn't fill its SetSize
+                -- bounds uniformly: the visible button graphics sit
+                -- biased toward the bottom of the SetSize box, so a
+                -- y-anchored button reads as bottom-heavy with empty
+                -- space above. Empirical adjustment (tuned by eye over
+                -- several iterations): y+2 lands closest to the visual
+                -- center of the row band. y+3 read slightly too high,
+                -- y+0 too low.
+                slot.wowhead:SetPoint("TOPRIGHT", f, "TOPRIGHT", -ACH_WOWHEAD_RIGHT_INSET, y + 2)
+                slot.wowhead:Show()
+
+                -- Subtle row divider. Anchored using ACH_ROW_BOTTOM_INSET
+                -- so it sits tight against the text from below rather
+                -- than at the bottom of the full lineHeight band. The
+                -- comment value (5px above nominal row bottom) is set
+                -- once at the constant; tune there.
+                slot.divider:ClearAllPoints()
+                slot.divider:SetPoint("TOPLEFT",  f, "TOPLEFT",  14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                slot.divider:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                slot.divider:Show()
+
+                y = y - lineHeight
+
+            elseif row.kind == "naRow" then
+                local slot = GetAchRowSlot(f, i)
+
+                -- Current-boss highlight (see achRow comment for layer
+                -- and inset rationale). naRow gets the same treatment so
+                -- a current boss with no achievements is still visually
+                -- marked as "where you are".
+                if currentBossName and row.bossName == currentBossName then
+                    slot.highlight:ClearAllPoints()
+                    slot.highlight:SetPoint("TOPLEFT",     f, "TOPLEFT",  14, y + 1)
+                    slot.highlight:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                    slot.highlight:Show()
+
+                    slot.accent:ClearAllPoints()
+                    slot.accent:SetPoint("TOPLEFT",    f, "TOPLEFT", 14, y + 1)
+                    slot.accent:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                    slot.accent:Show()
+                end
+
+                -- N/A in the status column, "N/A" in the achievement
+                -- column, boss name in the boss column, no Wowhead btn.
+                slot.status:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+                slot.status:SetText(ACH_CELL_NA)
+                slot.status:ClearAllPoints()
+                slot.status:SetPoint("TOP", f, "TOPLEFT", ACH_COL_STATUS_X, y)
+                slot.status:Show()
+
+                slot.ach:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+                slot.ach:SetText(ACH_CELL_NA)
+                slot.ach:SetWidth(colNameW)
+                slot.ach:ClearAllPoints()
+                slot.ach:SetPoint("TOPLEFT", f, "TOPLEFT", ACH_COL_NAME_X, y)
+                slot.ach:Show()
+
+                slot.boss:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+                slot.boss:SetText(("|cffcccccc%s|r"):format(row.bossName))
+                slot.boss:SetWidth(colBossW)
+                slot.boss:ClearAllPoints()
+                slot.boss:SetPoint("TOPLEFT", f, "TOPLEFT", colBossX, y)
+                slot.boss:Show()
+
+                -- Wowhead button slot stays hidden for naRow (no
+                -- achievement ID to link to).
+
+                -- Same row divider as achRow so visual rhythm is uniform.
+                slot.divider:ClearAllPoints()
+                slot.divider:SetPoint("TOPLEFT",  f, "TOPLEFT",  14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                slot.divider:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                slot.divider:Show()
+
+                y = y - lineHeight
+            end
+        end
+
+        -- Legend below the table. Two FontStrings on the same baseline:
+        -- left FontString anchored TOPLEFT, right FontString anchored
+        -- TOPRIGHT. Both at y - 6 (small gap below the last row's
+        -- divider).
+        f.legendLeft:SetFont(STANDARD_TEXT_FONT, fontSize - 1, "")
+        f.legendLeft:ClearAllPoints()
+        f.legendLeft:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y - 6)
+
+        f.legendRight:SetFont(STANDARD_TEXT_FONT, fontSize - 1, "")
+        f.legendRight:ClearAllPoints()
+        f.legendRight:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, y - 6)
+
+        -- Total height: |y| + legend height + bottom margin. Use the
+        -- taller of the two legend FontStrings (they're typically the
+        -- same height, but be defensive in case of font wrapping).
+        local lastY = math.abs(y)
+        local legendH = math.max(
+            f.legendLeft:GetStringHeight()  or fontSize,
+            f.legendRight:GetStringHeight() or fontSize
+        )
+        local desired = lastY + legendH + 16
+        local clamped = math.max(ACH_WINDOW_MIN_HEIGHT,
+                                 math.min(ACH_WINDOW_MAX_HEIGHT, desired))
+        f:SetHeight(clamped)
+    end
+
+    f.RefreshAll = function(self)
+        self:RefreshDropdowns()
+        self:RefreshContent()
+    end
+
+    -------------------------------------------------------------------------
+    -- Live refresh on achievement events
+    -------------------------------------------------------------------------
+    --
+    -- ACHIEVEMENT_EARNED:        fires once per achievement when earned.
+    --                            Args: (achievementID).
+    -- CRITERIA_UPDATE:           fires when ANY criterion ticks for ANY
+    --                            achievement. Very chatty -- every quest
+    --                            progress, every kill, every collection
+    --                            increment. We want it for the Glory
+    --                            header completion count which ticks
+    --                            per-criterion before the meta itself
+    --                            is earned.
+    -- RECEIVED_ACHIEVEMENT_LIST: fires after the achievement system has
+    --                            finished initial population on login or
+    --                            reload. Without this, a window opened
+    --                            before the system is ready would show
+    --                            stale-or-missing completion state.
+    --
+    -- All three feed the same debounced refresh: a single frame of
+    -- delay (50ms) collapses event bursts into one render, which matters
+    -- because CRITERIA_UPDATE bursts of 5-10 events are common (e.g.
+    -- when a quest turn-in advances multiple criteria simultaneously).
+    -- Refresh is gated on the window being shown -- events that fire
+    -- when the window is hidden are no-ops, so the next time the user
+    -- opens it the regular RefreshAll path will pick up current state.
+    f:RegisterEvent("ACHIEVEMENT_EARNED")
+    f:RegisterEvent("CRITERIA_UPDATE")
+    f:RegisterEvent("RECEIVED_ACHIEVEMENT_LIST")
+
+    local refreshPending = false
+    f:SetScript("OnEvent", function(self)
+        if not self:IsShown() then return end
+        if refreshPending then return end
+        refreshPending = true
+        C_Timer.After(0.05, function()
+            refreshPending = false
+            if self:IsShown() and self.RefreshContent then
+                self:RefreshContent()
+            end
+        end)
+    end)
+
+    return f
+end
+
+-- Public refresh hook for route-progress changes. Called from UI.Update
+-- when a boss is killed or the route advances. Keeps the current-boss
+-- highlight pinned to the actual current step rather than the step that
+-- was active when the user last opened the window. Cheap to call on
+-- every UI.Update tick; the gating on IsShown() short-circuits if the
+-- user hasn't opened the achievements window.
+function UI.UpdateAchievementsWindow()
+    if achievementsWindow and achievementsWindow:IsShown()
+       and achievementsWindow.RefreshContent then
+        achievementsWindow:RefreshContent()
+    end
+end
+
+-- Public entry points. Match the skipsWindow open/toggle shape rather than
+-- tmogWindow's hover-grace pattern -- the achievements window doesn't have
+-- the in-raid auto-popup behavior the tmog window has, so it doesn't need
+-- the cancel/schedule timer machinery.
+function UI.OpenAchievementsWindow()
+    -- Mutex with other auxiliary windows. See UI.OpenSkipsWindow for
+    -- rationale.
+    if tmogWindow and tmogWindow:IsShown() then tmogWindow:Hide() end
+    if skipsWindow and skipsWindow:IsShown() then skipsWindow:Hide() end
+
+    local w = GetOrCreateAchievementsWindow()
+    -- Apply current settings (scale + font) before refreshing so the first
+    -- visible state already matches the user's settings rather than
+    -- rendering at default and then snapping to settings.
+    local scale = RR:GetSetting("windowScale", 1.0)
+    w:SetScale(scale)
+    w:RefreshAll()
+    w:Show()
+end
+
+function UI.ToggleAchievementsWindow()
+    if achievementsWindow and achievementsWindow:IsShown() then
+        achievementsWindow:Hide()
+    else
+        UI.OpenAchievementsWindow()
+    end
 end
