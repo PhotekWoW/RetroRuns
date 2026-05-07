@@ -49,6 +49,7 @@ Click any boss name in the panel to open the transmog collection browser for tha
 * **Automatic kill detection.** Listens for `ENCOUNTER_END` and syncs with Blizzard's lockout API, so progression state is correct across reloads, disconnects, and character swaps within the same lockout.
 * **Configurable.** Font size, window scale, panel position — all persisted per character.
 * **Collapsible supported-raids list.** When the panel is idle, the list of supported raids groups by expansion with click-to-expand toggles, so the panel stays compact and you only open the expansion you're working through.
+* **One-click navigation to raid entrances.** Each supported raid has a flight-master icon next to its name; click it to be routed to the raid's entrance. With Zygor or Mapzeroth installed, you get full step-by-step turn directions through portals, flight paths, and other travel options. Without either, a single waypoint is set at the entrance via TomTom (if installed) or Blizzard's native pin.
 
 ## Commands
 
@@ -66,7 +67,7 @@ Main commands — type in chat:
 
 ## Status
 
-Version **1.4.0**
+Version **1.5.0**
 
 Four Battle for Azeroth raids, all three Shadowlands raids, and all three Dragonflight raids are feature-complete with full routing, encounter notes, armor transmog tracking, weapon-token indicators (where applicable), and achievement callouts.
 
@@ -78,6 +79,8 @@ A few ways to reach me, in rough order of preference:
 * **CurseForge comments** — the comments section on the addon's CurseForge page.
 * **Email** — [retroruns.support@gmail.com](mailto:retroruns.support@gmail.com). Good for private reports, or anything that doesn't fit a public forum.
 * **Discord** — if we're in the same server, feel free to ping me directly.
+
+The Settings panel has a beetle icon (GitHub Issues) and a chat-bubble icon (CurseForge comments) next to the Defaults button as in-game shortcuts to the first two URLs above — Ctrl+C copies the link, paste into your browser.
 
 When reporting a bug, the following info helps:
 

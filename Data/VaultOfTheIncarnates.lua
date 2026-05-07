@@ -29,6 +29,17 @@ RetroRuns_Data[2522] = {
     expansion         = "Dragonflight",
     patch             = "10.0",
 
+    -- Entrance is at the eastern end of Thaldraszus (uiMapID 2025),
+    -- behind the complex of Tyrhold. Coords from Wowpedia/Warcraft
+    -- Wiki. Designed for dragonriding approach -- ground mount is
+    -- impractical due to elevation. Library may suggest land travel;
+    -- player will likely use dragonriding regardless.
+    entrance = {
+        mapID = 2025,
+        x     = 0.731,
+        y     = 0.556,
+    },
+
     maps = {
         -- Sub-zone names match the in-game world-map dropdown. mapID 2125
         -- is the parent raid map (same name as the raid itself) rather

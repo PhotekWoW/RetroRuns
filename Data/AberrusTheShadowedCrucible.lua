@@ -27,6 +27,16 @@ RetroRuns_Data[2569] = {
     expansion         = "Dragonflight",
     patch             = "10.1",
 
+    -- Entrance is at the northern end of Zaralek Cavern (uiMapID 2133)
+    -- at the Aberrus Approach. Coords from Wowhead/dotesports. The
+    -- platform is elevated -- dragonriding (or regular flying) is
+    -- effectively required to reach it; ground mount cannot.
+    entrance = {
+        mapID = 2133,
+        x     = 0.485,
+        y     = 0.104,
+    },
+
     -- Sub-zone mapIDs for Aberrus's five wings. Names match the in-game
     -- world-map dropdown verbatim. Used by the routing renderer to label
     -- the active region in the panel header.

@@ -39,6 +39,17 @@ RetroRuns_Data[2296] = {
     expansion         = "Shadowlands",
     patch             = "9.0",
 
+    -- World coordinates of the raid entrance portal in Revendreth
+    -- (uiMapID 1525). The entrance sits in the central spire of the
+    -- zone; closest flight master is Charred Ramparts. Used by
+    -- RR:NavigateToEntrance to drop a TomTom or native Blizzard
+    -- waypoint.
+    entrance = {
+        mapID = 1525,
+        x     = 0.465,
+        y     = 0.415,
+    },
+
     -- Glory meta-achievement for this raid. Completing all 10 per-boss
     -- criteria below awards the Rampart Screecher mount.
     --

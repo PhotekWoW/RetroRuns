@@ -12,6 +12,15 @@ RetroRuns_Data[2450] = {
     expansion         = "Shadowlands",
     patch             = "9.1",
 
+    -- Entrance is in Desmotaeron, the back of Helgarde Keep, in The Maw
+    -- (uiMapID 1543). Cross-corroborated 70/32 across Wowpedia, Icy
+    -- Veins, dungeon.guide.
+    entrance = {
+        mapID = 1543,
+        x     = 0.700,
+        y     = 0.320,
+    },
+
     maps = {
         -- Sub-zone names taken from the world-map dropdown (the
         -- authoritative source in-game). GetMapInfo(mapID).name

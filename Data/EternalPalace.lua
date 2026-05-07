@@ -31,6 +31,17 @@ RetroRuns_Data[2164] = {
     expansion         = "Battle for Azeroth",
     patch             = "8.2",
 
+    -- Entrance is the whirlpool at the Gate of the Queen in northern
+    -- Nazjatar (uiMapID 1355), in front of the Azshara statue. Coords
+    -- from gamingcy. The whirlpool teleports the player into the
+    -- raid; library will route to the Gate of the Queen, which is
+    -- the correct staging point.
+    entrance = {
+        mapID = 1355,
+        x     = 0.502,
+        y     = 0.110,
+    },
+
     maps = {
         [1512] = "Dais of Eternity",
         [1513] = "Halls of the Chosen",

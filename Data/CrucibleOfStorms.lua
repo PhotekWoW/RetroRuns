@@ -22,6 +22,17 @@ RetroRuns_Data[2096] = {
     expansion         = "Battle for Azeroth",
     patch             = "8.1.5",
 
+    -- Entrance is on the Precipice of Oblivion, a small island east
+    -- of the Shrine of the Storm in Stormsong Valley (uiMapID 942).
+    -- Coords from Warcraft Wiki / dungeon.guide. Note: the area
+    -- requires curving fly approach from the Shrine flight path
+    -- because direct flight triggers a drowsy-and-port-back debuff.
+    entrance = {
+        mapID = 942,
+        x     = 0.839,
+        y     = 0.472,
+    },
+
     maps = {
         [1345] = "Shrine of Shadows",
         [1346] = "Tendril of Corruption",

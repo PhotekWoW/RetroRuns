@@ -1,6 +1,6 @@
 # RetroRuns — Roadmap & Feature Tracker
 
-## Current Version: 1.4.0
+## Current Version: 1.5.0
 
 ---
 
@@ -120,6 +120,61 @@
   and mount reward link. Updates live as you earn achievements. A
   blue highlight marks the boss the route is currently on. Mutex
   with the Tmog, Skips, and Settings windows.
+- One-click entrance navigation — every supported raid carries entrance
+  coords (zone mapID + xy) on its data table. The supported-raids list
+  in the idle panel renders a flight-master icon next to each raid;
+  clicking it routes the player to that raid's entrance via a four-tier
+  dispatch order: Zygor (premium routing addon) → Mapzeroth (free
+  routing addon) → TomTom (single waypoint) → Blizzard native pin.
+  Tier-aware visual treatment: full-color icon when a routing addon is
+  loaded ("routing" tier), muted when only single-waypoint providers
+  are available ("waypoint" tier). Footer legend names the active
+  routing addon (or, in waypoint tier, prompts the user to install
+  Zygor or Mapzeroth). On the silent dispatch tiers (Blizzard, TomTom),
+  a brief "Waypoint set" toast fades in next to the click for
+  spatial confirmation.
+
+---
+
+## ✅ Implemented (idle-panel polish, v1.5)
+
+- Three-state skip-status leading glyph on every raid row (filled
+  yellow star = skip unlocked on this account; dim star = raid has a
+  skip system but you haven't earned it yet; transparent placeholder
+  = raid has no skip mechanic). Replaces the previous `* ` bullet,
+  reading as both bullet and skip-status indicator in one glyph.
+  Per-difficulty skip granularity moved to the dedicated Skips
+  window — the supported-raids list shows binary "exists / not yet
+  unlocked" only.
+- Single-expand accordion behavior on the supported-raids list.
+  Opening one expansion now collapses any other that's currently
+  open. Click an already-open expansion to collapse it. Keeps the
+  panel compact regardless of how many expansions ship.
+- Legend block (skip key + entrance key) repositioned: pinned just
+  above the action button row at the panel bottom rather than
+  chained after the last raid line, so the keys read as a key
+  block above the action row regardless of raid-list length.
+  Smaller font (10pt fixed) makes the keys read as metadata, not
+  content. Mirrors the achievements window's bottom-strip
+  soloable legend pattern.
+- Routing-addon legend pill bar. Replaces the prior "Navigation
+  powered by X" plain-text line with a `[ Zygor | Mapzeroth ]`
+  pill bar matching the difficulty pill grammar. Active routing
+  addon renders in its brand color (Zygor: orange-gold #ff8800;
+  Mapzeroth: teal #5fcde4); the inactive one dims to gray
+  (#555555). Both routing options visible at a glance; the active
+  one called out. Waypoint tier (neither installed) keeps the
+  install-pitch text line.
+- In-Settings shortcut buttons next to the Defaults button. Two
+  custom 22x22 icon buttons: a pink beetle (RETRO pink #F259C7
+  via vertex-tinted white-source TGA) opens a Wowhead-style copy
+  popup with the GitHub Issues URL; a cyan chat-bubble (RETRO
+  cyan #4DCCFF via the same recipe) opens a parallel copy popup
+  with the CurseForge comments URL. Wowhead pattern was chosen
+  over a multi-line copy window so each button does one thing
+  cleanly. Custom TGAs in `Media/BugIcon.tga` and
+  `Media/ChatIcon.tga` after several Blizzard-stock icon attempts
+  failed to render or read poorly at 22x22.
 
 ---
 
@@ -452,3 +507,4 @@ per-item list is secondary.
 | 1.2.0   | Eighth raid (The Eternal Palace) + yell-trigger framework + sub-zone-aware route gating + panel opacity slider |
 | 1.3.0   | Two new raids — ninth (Crucible of Storms, BfA mini-raid) and tenth (Uldir, the BfA opener with the parallel-three middle) + first shipped housing decor item with collection state via `C_HousingCatalog.GetCatalogEntryInfoByRecordID` + `decorID` schema field on specialLoot rows + gray-on-collected rendering for specialLoot rows (matches achievement renderer's de-emphasis precedent) + footer reserve fix to give the Boss Progress list breathing room above the action button row + first use of yell-gated text-only segment shape (`advanceOn` with empty `points = {}`) for MOTHER's add-killing pause |
 | 1.4.0   | Achievements standalone window with Glory meta headers, mount reward links, soloable difficulty indicators, live-refresh, current-boss highlight, and mutex auxiliary window behavior + new `revealAfter` per-segment gating field paired with the existing `advanceOn` (yell trigger) and `requiresSubZone` mechanisms + numbered-waypoint label suppression when only one seg renders + Eranog routing converted from three-way `renderAllSegments` numbered mode to a two-phase yell-gated route (pre-flight dragon stub alone, post-landing two numbered lines on Raszageth's "skies are mine to control" yell) + panel-position fix at non-default Window Scale (corrected `fscale`-vs-`pscale` divisor in `SetPoint("CENTER", ...)` offset math eliminates drag-jump-on-release and BfA-toggle leftward drift) + idle-panel BfA-expansion downward-growth fix |
+| 1.5.0   | One-click entrance navigation — per-raid entrance coords across all 10 supported raids, four-tier dispatch (Zygor → Mapzeroth → TomTom → Blizzard) with tier-aware button alpha and adaptive footer legend, plus a "Waypoint set" toast on the silent fallback tiers. Routing-addon legend renders as a `[ Zygor \| Mapzeroth ]` pill bar with the active router lit in its brand color and the inactive dimmed to gray. Redesigned route lines on the World Map: pink polylines now carry directional cyan chevrons at fixed pixel stride, with a cyan-fill / pink-border end-triangle replacing the prior generic destination icon. New in-Settings shortcut buttons next to Defaults: pink beetle icon → GitHub Issues copy popup; cyan chat-bubble icon → CurseForge comments copy popup. Both pop a Wowhead-style single-line EditBox for Ctrl+C → paste-into-browser flow. EJ encounter-info cache fix (`EJ_SelectInstance` precondition + don't-cache-empty-results) resolves the v1.4.0 difficulty-pill regression where every raid showed `[ LFR - \| N - \| H - \| M - ]` instead of kill counts. Idle-panel polish pass: three-state filled/dim/invisible skip-status leading star replacing the `* ` bullet, single-expand accordion behavior on expansion toggles, and legend block repositioned to a fixed bottom-of-panel anchor above the action row at a smaller fixed font. |

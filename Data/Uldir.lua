@@ -28,6 +28,16 @@ RetroRuns_Data[1861] = {
     expansion         = "Battle for Azeroth",
     patch             = "8.0.1",
 
+    -- Entrance is at the base of the titan pyramid in central Nazmir
+    -- (uiMapID 863), under the Heart of Darkness in the southeastern
+    -- part of the Altar of Rot. Coords from dungeon.guide; cross-
+    -- corroborated by Wowpedia's textual description.
+    entrance = {
+        mapID = 863,
+        x     = 0.515,
+        y     = 0.459,
+    },
+
     maps = {
         [1148] = "Ruin's Descent",
         [1149] = "Hall of Sanitation",

@@ -2,6 +2,21 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [1.5.0] - 2026-05-07
+
+### Added
+
+- **One-click navigation to raid entrances.** Each raid in the supported-raids list now has a flight-master icon next to its name. Clicking it routes you to that raid's entrance. With Zygor or Mapzeroth installed, you get full step-by-step turn directions through portals, flight paths, hearthstones, mage teleports, class abilities, toys, and items — whatever the routing addon's travel graph covers. Without either of those installed, a single waypoint is set at the entrance via TomTom (if loaded) or Blizzard's native pin. The icon is full color when a routing addon is loaded and muted when only single-waypoint providers are available, so you can tell at a glance whether you're getting the full experience. A footer pill bar shows `[ Zygor | Mapzeroth ]` with the active routing addon lit in its brand color and the inactive one dimmed to gray, or — if neither is installed — a prompt to install one for full routing. Cancel an active route at any time with `/rr cancelnav`.
+- **"Waypoint set" toast.** When you click the entrance icon and the route falls through to TomTom or Blizzard's native pin (the silent paths), a brief gold "Waypoint set" notice fades in next to the icon for spatial confirmation that the click did something.
+- **Redesigned route lines on the World Map.** The pink route polylines now carry direction-of-travel cyan chevrons placed at a fixed pixel stride along each segment, so you can tell at a glance which way the path runs. The destination marker at the end of each route is a cyan-fill / pink-border triangle pointing at the boss, replacing the prior generic icon. Same routing behavior — just a clearer read on direction and destination.
+- **Skip-status indicator on every raid row.** Each raid in the supported-raids list now leads with a yellow star whose state tells you whether the raid's skip is unlocked on this account: filled for unlocked, dim for "raid has a skip system but you haven't earned it yet," and invisible (column-aligned blank) for raids with no skip mechanic. Per-difficulty granularity (which difficulties the skip applies to) lives in the dedicated Skips window — the supported-raids list shows the binary state only.
+- **Single-expand accordion behavior on the supported-raids list.** Click an expansion to expand it; opening one collapses any other that's currently open. Click an already-open section to collapse it. Keeps the panel compact regardless of how many expansions are supported.
+- **Submit-a-bug and feedback buttons in Settings.** A pair of icon buttons next to the Defaults button. The pink beetle opens a copyable popup with the GitHub Issues URL for filing tracked bug reports. The cyan chat-bubble opens a copyable popup with the CurseForge comments URL for general feedback, questions, and suggestions. Ctrl+C, paste into your browser, talk at me.
+
+### Fixed
+
+- **Difficulty pill kill counts now display correctly.** A regression in v1.4.0 caused every raid's `[ LFR | N | H | M ]` pill row to render as gray dashes instead of `0/8` style kill counts, even on raids and difficulties where bosses had been killed. The cause was a Blizzard API behavior change in how raid encounter data is queried; the lookup now correctly populates and pill rows reflect actual lockout state again. If you were seeing `[ LFR - | N - | H - | M - ]` on every raid, this is fixed.
+
 ## [1.4.0] - 2026-05-06
 
 ### Added

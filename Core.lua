@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "1.4.0"
+local VERSION    = "1.5.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -93,6 +93,222 @@ function RR:ZoneLog(msg)
     while #buf > 200 do table.remove(buf, 1) end
 end
 
+--- Detect which navigation tier is active for the current addon load
+--- state. Returns one of:
+---
+---   "routing"  -- A full step-by-step routing addon is loaded
+---                 (currently: Zygor with pathfinding enabled, or
+---                 Mapzeroth). Click drops the player into that
+---                 addon's GPS UI with a planned route.
+---   "waypoint" -- No routing addon, but a waypoint provider is
+---                 available (TomTom, or Blizzard native as universal
+---                 fallback). Click sets a single waypoint at the
+---                 destination -- one arrow, no step-by-step.
+---
+--- The UI uses this to gate the entrance-button visual state (full-
+--- color when "routing", muted when "waypoint") and the legend copy.
+--- NavigateToEntrance uses the same precedence order at click time,
+--- so detection and dispatch stay in lock-step.
+---
+--- Detection is reevaluated on each call so the result reflects the
+--- current addon-load state -- a /reload after the user installs or
+--- enables a routing addon picks up the change.
+---
+--- Zygor wins ties over Mapzeroth when both are installed. Zygor is
+--- a paid premium subscription with a more polished routing
+--- experience (no separate window required, integrated arrow+travel-
+--- mode UI). A user who pays for Zygor will expect that experience
+--- to take precedence; Mapzeroth is the recommended FREE fallback
+--- path for users without a Zygor sub. The legend below names
+--- Mapzeroth specifically as the install recommendation since it's
+--- the free option.
+---
+--- Zygor detection is presence-only -- we don't try to verify the
+--- license is current or that ZGV.db.profile.pathfinding is enabled.
+--- A Zygor user with a lapsed subscription or pathfinding turned off
+--- gets a single arrow instead of a route, which is the correct
+--- degradation -- it matches what would happen with /zygor goto.
+function RR:GetNavTier()
+    if _G.ZygorGuidesViewer
+        and _G.ZygorGuidesViewer.Pointer
+        and _G.ZygorGuidesViewer.Pointer.SetWaypoint then
+        return "routing"
+    end
+    if _G.Mapzeroth and _G.Mapzeroth.FindRoute then
+        return "routing"
+    end
+    return "waypoint"
+end
+
+--- Route the player to the entrance of a raid.
+---
+--- Four-tier preference order:
+---   1. Zygor installed: hand off to ZGV.Pointer:SetWaypoint with
+---      findpath=true, which triggers Zygor's LibRover pathfinder
+---      and renders the resulting route in Zygor's own arrow +
+---      travel-mode UI. Step-by-step experience for paid users.
+---      Requires ZGV.db.profile.pathfinding to be enabled (Zygor's
+---      "Travel Mode" setting); if disabled, the call falls back to
+---      a single arrow at the destination, which is the same
+---      degradation /zygor goto would produce. Zygor takes
+---      precedence over Mapzeroth because it's the premium product
+---      and a paying Zygor user expects that experience to win.
+---   2. Mapzeroth installed (no Zygor): hand off directly to its
+---      FindRoute API with our entrance coords. Mapzeroth runs
+---      Dijkstra over its curated travel graph (portals, flight
+---      paths, hearthstones, mage teleports, class abilities, toys,
+---      items) and presents the player with a multi-step route in
+---      its own GPS navigator and route execution frame. Handles
+---      cross-continent, faction filtering, attunement gating,
+---      holiday-only portals -- the whole problem space. Free
+---      install; the legend below recommends it specifically when
+---      neither routing addon is loaded.
+---   3. TomTom installed (no Zygor, no Mapzeroth): drop a single
+---      waypoint at the entrance with from = "RetroRuns" tag.
+---      Single-arrow experience that works in-zone and silently
+---      hides cross-continent (TomTom's hardcoded behavior).
+---   4. None of the above: Blizzard native C_Map.SetUserWaypoint with
+---      super-tracker arrow. Universal fallback. The Blizzard arrow
+---      cheerfully points cross-continent, so this is actually
+---      better than TomTom-direct for cross-continent guidance.
+---
+--- The detection precedence here mirrors GetNavTier(). Tiers 1 and 2
+--- both fall under GetNavTier()'s "routing" return; tiers 3 and 4
+--- both fall under "waypoint". Zygor wins ties over Mapzeroth when
+--- both are installed (see GetNavTier rationale).
+---
+--- An earlier iteration tried to drive multi-step routing ourselves
+--- via FarstriderLib + a position-watching ticker. The map-graph edge
+--- cases (city vs zone mapID mismatches, attunement gating, dragon-
+--- riding altitude considerations, phasing) made it a tar pit. We
+--- chose to be a good ecosystem citizen instead: hand off to
+--- dedicated routing addons when present, drop a plain waypoint when
+--- not.
+---
+--- Returns one of "zygor" / "mapzeroth" / "tomtom" / "blizzard" /
+--- nil to indicate which branch ran. The UI uses this to surface
+--- branch-specific feedback (e.g. a transient "waypoint set" toast
+--- on the silent Blizzard-native path, since that branch otherwise
+--- has no visible signal beyond the pin appearing on the map).
+function RR:NavigateToEntrance(raid)
+    if not raid or not raid.entrance then
+        self:Print("No entrance data for that raid.")
+        return nil
+    end
+    local e = raid.entrance
+    if not e.mapID or not e.x or not e.y then
+        self:Print("Entrance data is incomplete.")
+        return nil
+    end
+
+    -- Cancel any in-progress route before starting a new one. Avoids
+    -- stale waypoints when the user clicks a different raid back-to-back.
+    -- (Mapzeroth handles route replacement internally via BeginRoute-
+    -- Navigation; Zygor handles it via the cleartype=true flag we pass
+    -- on each call -- so neither needs Mapzeroth/Zygor-side cleanup.
+    -- The TomTom and Blizzard paths do need active cleanup -- handled
+    -- in CancelNavRoute below.)
+    self:CancelNavRoute()
+
+    local title = ("RetroRuns: %s entrance"):format(raid.name or "raid")
+
+    if _G.ZygorGuidesViewer
+        and _G.ZygorGuidesViewer.Pointer
+        and _G.ZygorGuidesViewer.Pointer.SetWaypoint then
+        -- Mirrors the data table that ZGV.Pointer:SetWaypointByCommand-
+        -- Line builds for /zygor goto -- exactly the same payload Zygor
+        -- itself constructs for its own user-facing waypoint command.
+        -- The findpath=true flag is what triggers LibRover routing
+        -- (gated by ZGV.db.profile.pathfinding); without it Zygor would
+        -- just show a single arrow.
+        _G.ZygorGuidesViewer.Pointer:SetWaypoint(e.mapID, e.x, e.y, {
+            findpath    = true,
+            type        = "manual",
+            cleartype   = true,
+            title       = title,
+            onminimap   = "always",
+            overworld   = true,
+            showonedge  = true,
+        }, true)
+        self.state.activeRoute = { raid = raid, zygorRoute = true }
+        return "zygor"
+    end
+
+    if _G.Mapzeroth and _G.Mapzeroth.FindRoute then
+        _G.Mapzeroth:FindRoute("_WAYPOINT_DESTINATION", {
+            mapID  = e.mapID,
+            x      = e.x,
+            y      = e.y,
+            name   = title,
+            source = "retroruns",
+        })
+        self.state.activeRoute = { raid = raid, mapzerothRoute = true }
+        return "mapzeroth"
+    end
+
+    if TomTom and TomTom.AddWaypoint then
+        local uid = TomTom:AddWaypoint(e.mapID, e.x, e.y, {
+            title  = title,
+            from   = "RetroRuns",
+            silent = true,
+            crazy  = true,
+        })
+        self.state.activeRoute = { raid = raid, tomtomWaypoint = uid }
+        return "tomtom"
+    end
+
+    if C_Map and C_Map.SetUserWaypoint and UiMapPoint then
+        local point = UiMapPoint.CreateFromCoordinates(e.mapID, e.x, e.y)
+        C_Map.SetUserWaypoint(point)
+        if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+            C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+        end
+        self.state.activeRoute = { raid = raid, blizzardWaypoint = true }
+        return "blizzard"
+    end
+
+    self:Print("No supported waypoint API available.")
+    return nil
+end
+
+--- Cancel the active nav route, if any. Behavior depends on which
+--- backend was used to start the route:
+---   * TomTom: removes the waypoint we set.
+---   * Blizzard: clears the user waypoint.
+---   * Mapzeroth: no-op. Mapzeroth manages its own route lifecycle
+---     and replaces the active route on the next FindRoute call;
+---     there is no separate cancel API needed for back-to-back
+---     entrance clicks. (`/rr cancelnav` will clear our internal
+---     activeRoute marker but Mapzeroth's GPS frame keeps showing
+---     the prior route until it's replaced or the user dismisses
+---     it manually.)
+---   * Zygor: no-op. The cleartype=true flag we pass to ZGV.Pointer:
+---     SetWaypoint on every call automatically clears prior manual
+---     waypoints, so back-to-back entrance clicks replace cleanly.
+---     Same caveat as Mapzeroth -- Zygor's arrow stays on screen
+---     until the route is replaced or the user dismisses it.
+--- Safe to call when there's no active route -- no-op in that case.
+function RR:CancelNavRoute()
+    local route = self.state.activeRoute
+    if not route then return end
+
+    if route.tomtomWaypoint and TomTom and TomTom.RemoveWaypoint then
+        if TomTom:IsValidWaypoint(route.tomtomWaypoint) then
+            TomTom:RemoveWaypoint(route.tomtomWaypoint)
+        end
+    end
+
+    if route.blizzardWaypoint and C_Map and C_Map.ClearUserWaypoint then
+        C_Map.ClearUserWaypoint()
+    end
+
+    -- route.mapzerothRoute / route.zygorRoute: no cleanup needed. Both
+    -- routing addons handle replacement on next call -- Mapzeroth via
+    -- its internal BeginRouteNavigation, Zygor via cleartype=true.
+
+    self.state.activeRoute = nil
+end
+
 --- Normalise a name for fuzzy matching:
 --- lowercase, strip punctuation, collapse whitespace.
 function RR:NormalizeName(name)
@@ -171,7 +387,7 @@ local function ValidateRaidData()
         -- while we're walking the bosses, validate specialLoot entries
         -- (optional field; each entry must have id + recognized kind).
         local validBossIndices = {}
-        local VALID_SPECIAL_KINDS = { mount = true, pet = true, toy = true, decor = true }
+        local VALID_SPECIAL_KINDS = { mount = true, pet = true, toy = true, decor = true, manuscript = true }
         for _, boss in ipairs(raid.bosses or {}) do
             if not boss.index then
                 warn(prefix .. " boss missing index field")
@@ -193,9 +409,9 @@ local function ValidateRaidData()
                             warn(bp .. " missing id")
                         end
                         if not item.kind then
-                            warn(bp .. " missing kind (mount|pet|toy|decor)")
+                            warn(bp .. " missing kind (mount|pet|toy|decor|manuscript)")
                         elseif not VALID_SPECIAL_KINDS[item.kind] then
-                            warn(bp .. (" unrecognized kind '%s' (expected mount|pet|toy|decor)"):format(
+                            warn(bp .. (" unrecognized kind '%s' (expected mount|pet|toy|decor|manuscript)"):format(
                                 tostring(item.kind)))
                         end
                     end
@@ -320,21 +536,69 @@ end
 -- is stable for the entire WoW session, so we memoize. Cleared only
 -- on /reload (since the cache lives in module-level state, not in
 -- SavedVariables).
+--
+-- Two non-obvious requirements, both confirmed by in-game diagnostic
+-- on 2026-05-07 during the v1.5 pill-regression debug:
+--
+--   1. EJ_GetEncounterInfoByIndex(i, journalInstanceID) without a
+--      prior EJ_SelectInstance call silently returns nothing on
+--      modern clients. The two-arg form used to work standalone; it
+--      now requires the EJ to have the instance pre-selected. We
+--      call EJ_SelectInstance before the walk and restore whatever
+--      was previously selected so the user's open EJ view doesn't
+--      yank sideways. Side-effect minimization: this only runs on
+--      cache misses, which is one call per raid per session.
+--
+--   2. The previous version cached the result unconditionally,
+--      including empty-map results. If the API ever returned nothing
+--      (e.g. before the fix above, or due to a transient server-
+--      cache miss), the empty {} would be cached permanently for
+--      the session and every subsequent call would short-circuit
+--      to it. Now: only cache non-empty results. An empty result
+--      goes to the caller for THIS call but isn't memoized, so the
+--      next call retries the API.
 local ejMapCache = {}
 
 local function GetEJMapForJournalInstance(journalInstanceID)
     if not journalInstanceID then return nil end
     local cached = ejMapCache[journalInstanceID]
     if cached then return cached end
+
+    -- Save the EJ's currently-selected instance so we can put it
+    -- back. EJ_GetSelectedInstance returns nil if nothing is
+    -- selected; in that case we just don't restore.
+    local prevInst = EJ_GetSelectedInstance and EJ_GetSelectedInstance() or nil
+    if EJ_SelectInstance then
+        EJ_SelectInstance(journalInstanceID)
+    end
+
     local jeToDe = {}
+    local count  = 0
     local i = 1
     while true do
         local _, _, je, _, _, _, de = EJ_GetEncounterInfoByIndex(i, journalInstanceID)
         if not je then break end
-        if de then jeToDe[je] = de end
+        if de then
+            jeToDe[je] = de
+            count = count + 1
+        end
         i = i + 1
     end
-    ejMapCache[journalInstanceID] = jeToDe
+
+    -- Restore the prior selection so an open EJ window doesn't snap
+    -- to whichever raid we just queried. Skip the restore if there
+    -- was no prior selection.
+    if prevInst and EJ_SelectInstance then
+        EJ_SelectInstance(prevInst)
+    end
+
+    -- Only memoize non-empty results. Empty would mean the API was
+    -- still warming up or the precondition wasn't satisfied; we want
+    -- the next call to retry, not to lock in the empty result for
+    -- the rest of the session.
+    if count > 0 then
+        ejMapCache[journalInstanceID] = jeToDe
+    end
     return jeToDe
 end
 
@@ -1915,6 +2179,40 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- find which API surface answers "is the unlock learned" --
         -- this probe dumps every plausible call so we can identify it
         -- empirically.
+        --
+        -- ====================================================================
+        -- DEFERRED: Manuscript detection is parked indefinitely. Findings
+        -- from the 2026-05 probe pass (itemID 201790, Vault of the Incarnates
+        -- Renewed Proto-Drake manuscript):
+        --
+        --   * GetItemInfo(201790) returned all-nil, even after the item was
+        --     ostensibly cached. Likely a stale or never-cached itemID that
+        --     would need C_Item.RequestLoadItemDataByID to force-fetch from
+        --     the server before any of the downstream calls become useful.
+        --   * GetItemSpell returned nil (consequence of the prior nil cache,
+        --     not a separate signal).
+        --   * C_MountJournal.GetMountFromItem returned nil. This API maps
+        --     mount-spawning items to mounts; manuscripts are NOT mount-
+        --     spawning items (they unlock customizations on a parent mount),
+        --     so this is the wrong API surface for manuscript detection.
+        --   * PlayerHasToy returned false. Manuscripts are not toys.
+        --   * No obviously-relevant calls in C_PlayerInfo's exposed surface.
+        --
+        -- The path forward, when someone returns to this:
+        --   1. Force-fetch the item: C_Item.RequestLoadItemDataByID(itemID),
+        --      wait via ITEM_DATA_LOAD_RESULT or a short C_Timer.After, then
+        --      re-probe. This rules out the cache-miss explanation.
+        --   2. Pivot from "is the manuscript itemID owned/learned" to "does
+        --      the parent mount have the customization unlocked." For Vault,
+        --      that means C_MountJournal lookups against the Renewed Proto-
+        --      Drake (mountID 1589), enumerating its customization options,
+        --      and checking which are unlocked. Wowhead has the Storm-Eater
+        --      customization slot index per appearance.
+        --
+        -- Affects 3 raids only (Vault, Aberrus, Amirdrassil) and only as a
+        -- "this drops here" tooltip enhancement. Low-leverage feature; not
+        -- urgent.
+        -- ====================================================================
         local id = tonumber(args[2])
         if not id then
             RR:Print("Usage: /rr dragontest <itemID>  (e.g. 201790 for Renewed Proto-Drake: Embodiment of the Storm-Eater)")
@@ -3044,6 +3342,14 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("YellDebug: /rr yelldebug [start|stop]  (dev diagnostic for v1.2 yell-trigger framework)")
         end
 
+    elseif cmd == "cancelnav" then
+        if RR.state.activeRoute then
+            RR:CancelNavRoute()
+            RR:Print("Navigation cancelled.")
+        else
+            RR:Print("No active navigation route.")
+        end
+
     elseif cmd == "status" then
         RR:PrintStatus()
 
@@ -3088,6 +3394,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("  /rr  settings        (open settings window)")
             RR:Print("  /rr  reset           (reset panel position & settings)")
             RR:Print("  /rr  refresh         (re-render the main panel)")
+            RR:Print("  /rr  cancelnav       (cancel an active entrance-navigation route)")
         end
     end
 end

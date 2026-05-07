@@ -426,6 +426,15 @@ panel.list:SetJustifyV("TOP")
 panel.expansionToggleButtons = {}
 panel.expansionToggleButtonPool = {}
 
+-- Entrance-navigation buttons. One per raid that has entrance data,
+-- anchored to the right end of the raid-name row's FontString. Click
+-- drops a TomTom (preferred) or native Blizzard waypoint at the raid's
+-- outdoor entrance coords. Pool / lifecycle mirrors the expansion
+-- toggle buttons exactly -- created lazily, recycled per refresh, never
+-- destroyed -- because the raids list rebuilds fully on every refresh.
+panel.entranceButtons = {}
+panel.entranceButtonPool = {}
+
 -- Borrow a Button from the pool, creating one if the pool is empty.
 -- Returned Buttons are blank/Hide()n; callers configure and Show().
 --
@@ -522,6 +531,149 @@ local function PositionExpansionToggleButton(btn, parentFS, expanded)
     btn:SetPoint("LEFT", parentFS, "LEFT", 0, 0)
 end
 
+-- Acquire / configure / position an entrance-navigation button. Same
+-- pool / lifecycle pattern as the expansion-toggle buttons (anchor to
+-- the row's FontString to avoid line-stride drift). The button uses
+-- a yellow taxi/flight icon to read as "travel to" and is anchored
+-- just to the right of the raid-name FontString text.
+local function AcquireEntranceButton()
+    local btn = table.remove(panel.entranceButtonPool)
+    if btn then return btn end
+    btn = CreateFrame("Button", nil, panel)
+    btn:RegisterForClicks("LeftButtonUp")
+    btn:SetFrameLevel((panel:GetFrameLevel() or 0) + 10)
+    -- FlightMaster minimap tracking icon -- a flight-master silhouette
+    -- with a subtle gold glow. Reads as "travel destination" similar
+    -- to the prior taxi-icon-yellow but with a slightly more
+    -- recognizable shape at small sizes (the boot-on-its-side
+    -- silhouette is harder to parse than the FlightMaster figure).
+    -- Highlight texture gives mouseover feedback in ADD blend mode.
+    --
+    -- Routing-vs-waypoint tier signal is conveyed via the button's
+    -- alpha (1.0 routing, 0.4 waypoint) -- set at the click-handler
+    -- setup site in RefreshIdleList. An earlier attempt to add a
+    -- blue glow halo behind the icon was abandoned after three
+    -- failed iterations: BACKGROUND-layer textures rendered behind
+    -- the panel backdrop (invisible); ARTWORK + ADD blend rendered
+    -- nothing on transparent surrounding pixels; ARTWORK + BLEND
+    -- with IconAlert texture rendered as a visible-but-rectangular
+    -- box that washed out the icon instead of haloing it. The
+    -- alpha-difference signal already conveys tier visibly enough.
+    btn:SetNormalTexture("Interface\\Minimap\\Tracking\\FlightMaster")
+    btn:SetHighlightTexture(
+        "Interface\\Minimap\\Tracking\\FlightMaster", "ADD")
+    return btn
+end
+
+local function ReleaseEntranceButtons()
+    for _, btn in ipairs(panel.entranceButtons) do
+        btn:Hide()
+        btn:SetScript("OnClick", nil)
+        btn:SetScript("OnEnter", nil)
+        btn:SetScript("OnLeave", nil)
+        btn:ClearAllPoints()
+        table.insert(panel.entranceButtonPool, btn)
+    end
+    wipe(panel.entranceButtons)
+end
+
+local function PositionEntranceButton(btn, parentFS)
+    local fontSize = RR:GetSetting("fontSize", 12)
+    -- Slightly larger than the toggle buttons (1.4x) since the taxi
+    -- icon's recognizable shape needs room to read clearly. Anchored
+    -- at the right-edge of the FontString's STRING WIDTH (not the
+    -- FontString's frame width, which spans the whole panel column);
+    -- using GetStringWidth keeps the button snug against the actual
+    -- end of the text regardless of how long or short the raid name is.
+    local size = math.floor(fontSize * 1.4)
+    btn:SetSize(size, size)
+    btn:ClearAllPoints()
+    btn:SetPoint("LEFT", parentFS, "LEFT",
+        (parentFS:GetStringWidth() or 0) + 4, 0)
+end
+
+-- Frameless toast popup anchored to a parent frame. Used for
+-- branch-specific feedback on the silent waypoint paths of
+-- NavigateToEntrance: the player clicks the entrance button, a pin
+-- (Blizzard or TomTom) appears on the world map, but no other UI
+-- element confirms "yes, that click did something" inside the addon
+-- panel where the click happened. This brief fade-in / hold / fade-
+-- out toast fills that gap.
+--
+-- "Frameless" means a single FontString on a transparent host frame
+-- (no backdrop, no border). Anchored to the clicked button so the
+-- feedback appears spatially next to where the user's eye already
+-- is, reinforcing cause and effect without pulling attention.
+--
+-- Implementation note: an earlier attempt used a CreateAnimationGroup
+-- + Alpha animations with SetFromAlpha/SetToAlpha and OnFinished. It
+-- didn't render. Rather than debug Blizzard's animation system, this
+-- version drives the alpha manually via C_Timer.NewTicker -- more
+-- code, but trivially debuggable and known-working. The total budget
+-- (~2.2s, ~28 frames at the 80ms tick rate) is well under the cost
+-- threshold where ticker overhead would matter.
+--
+-- Lifecycle: each call creates a fresh FontString-bearing frame on
+-- UIParent. Cheap: toasts fire only on user click, so frame creation
+-- is bounded by user input rate. The frame self-hides at the end of
+-- the fade-out and is left for GC.
+local function ShowWaypointToast(anchorFrame, text)
+    if not anchorFrame or not text then return end
+
+    local toast = CreateFrame("Frame", nil, UIParent)
+    toast:SetFrameStrata("TOOLTIP")  -- above the addon panel
+    toast:SetSize(180, 18)
+    toast:ClearAllPoints()
+    -- Due east of the button: LEFT of the toast anchored to RIGHT
+    -- of the button, no vertical offset. Lines up with the button's
+    -- vertical center so the toast reads as "the click that just
+    -- happened, with confirmation immediately to the right." A small
+    -- +6 horizontal offset gives breathing room between the button's
+    -- edge and the start of the text.
+    toast:SetPoint("LEFT", anchorFrame, "RIGHT", 6, 0)
+
+    local fs = toast:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fs:SetPoint("LEFT", toast, "LEFT", 0, 0)
+    fs:SetText("|cffffd700" .. text .. "|r")  -- gold for friendly notice
+    fs:SetJustifyH("LEFT")
+
+    -- Start invisible. Set alpha BEFORE Show() so the first rendered
+    -- frame is at alpha 0, not at the default alpha 1.
+    toast:SetAlpha(0)
+    toast:Show()
+
+    -- Manual alpha schedule. Tick at 50ms (20 Hz) for visibly smooth
+    -- fades. Ramp segments: 0.10s fade-in (2 ticks), 1.50s hold
+    -- (30 ticks), 0.60s fade-out (12 ticks). The starting tick = 0,
+    -- so the math works out to 44 ticks total.
+    local FADE_IN_TICKS  = 2
+    local HOLD_TICKS     = 30
+    local FADE_OUT_TICKS = 12
+    local TOTAL_TICKS    = FADE_IN_TICKS + HOLD_TICKS + FADE_OUT_TICKS
+
+    local tickIndex = 0
+    local ticker
+    ticker = C_Timer.NewTicker(0.05, function()
+        tickIndex = tickIndex + 1
+        local alpha
+        if tickIndex <= FADE_IN_TICKS then
+            alpha = tickIndex / FADE_IN_TICKS
+        elseif tickIndex <= FADE_IN_TICKS + HOLD_TICKS then
+            alpha = 1
+        else
+            local fadeOutPos = tickIndex - (FADE_IN_TICKS + HOLD_TICKS)
+            alpha = 1 - (fadeOutPos / FADE_OUT_TICKS)
+        end
+        if alpha < 0 then alpha = 0 end
+        if alpha > 1 then alpha = 1 end
+        toast:SetAlpha(alpha)
+        if tickIndex >= TOTAL_TICKS then
+            ticker:Cancel()
+            toast:Hide()
+        end
+    end, TOTAL_TICKS)
+end
+
 -- ---------------------------------------------------------------------------
 -- Per-line FontString pool for the idle/run-complete supported-raids list
 -- ---------------------------------------------------------------------------
@@ -543,8 +695,16 @@ end
 -- order, used to drive AutoSize bottom-of-list calculations).
 -- `panel.idleListLinePool` is the recycle bin; FontStrings are pushed
 -- there on Release and popped on Acquire.
-panel.idleListLines    = {}
-panel.idleListLinePool = {}
+--
+-- Legend rows (skip + entrance keys) live in a parallel
+-- `panel.idleListLegendLines` array. They share the same pool and
+-- the same FontString lifecycle but are tracked separately so
+-- AutoSize doesn't include their height in the path-(b) budget --
+-- the legend block is already accounted for in the footerReserve
+-- via breathingRoom.
+panel.idleListLines        = {}
+panel.idleListLegendLines  = {}
+panel.idleListLinePool     = {}
 
 -- Acquire a FontString for the next line. Caller is responsible for
 -- ClearAllPoints() + SetText() + SetPoint() + Show().
@@ -567,6 +727,13 @@ local function ReleaseIdleListLines()
         table.insert(panel.idleListLinePool, fs)
     end
     wipe(panel.idleListLines)
+    for _, fs in ipairs(panel.idleListLegendLines) do
+        fs:Hide()
+        fs:ClearAllPoints()
+        fs:SetText("")
+        table.insert(panel.idleListLinePool, fs)
+    end
+    wipe(panel.idleListLegendLines)
 end
 
 -- Footer (two rows, bottom-up):
@@ -922,18 +1089,25 @@ function UI.AutoSize()
     end
 
     if hasContent then
-        -- Footer reserve must accommodate two visual elements stacked from
-        -- the panel's bottom edge: the credit/version text row and the
-        -- action-button row above it. Earlier versions of this code sized
-        -- both as text rows (font height + leading), but the action row
-        -- was promoted from slash-command text to actual UIPanelButton-
-        -- Template buttons -- which are taller than text and anchored at
-        -- a fixed y-offset (BUTTON_Y = 28, height = BUTTON_H = 22). So
-        -- the buttons' top edge sits at 28+22 = 50 px from the panel
-        -- bottom, and the reserve must clear that PLUS leave breathing
-        -- room above so the list above doesn't crowd the buttons.
+        -- Footer reserve must accommodate three visual elements stacked
+        -- from the panel's bottom edge:
+        --   1. The credit/version text row (bottommost).
+        --   2. The action-button row (UIPanelButtonTemplate, BUTTON_H
+        --      tall, bottom edge at BUTTON_Y from the panel bottom).
+        --   3. The legend block (skip + entrance keys), pinned just
+        --      above the action row in RefreshIdleList's bottom-up
+        --      legend pass. The legend block is at most 2 rows of
+        --      LEGEND_FONT_SIZE=10 text plus inter-row spacing --
+        --      worst case ~38px (2 * (10+4) + 4 inter-row + 12 above
+        --      action row).
+        --
+        -- The reserve = "buttons top edge from panel bottom" + room
+        -- for the legend block + cushion so the list above doesn't
+        -- crowd into the legends. 50px cushion holds room for both
+        -- legend rows plus a small visible gap between the list's
+        -- last row and the topmost legend row.
         local buttonsTopFromBottom = BUTTON_Y + BUTTON_H  -- = 50 at defaults
-        local breathingRoom        = 24                    -- gap between list and buttons
+        local breathingRoom        = 50                    -- legend block + gap
         local footerReserve        = buttonsTopFromBottom + breathingRoom
 
         local parentTop      = panel:GetTop()
@@ -1182,17 +1356,168 @@ local function BuildSettingsPanel()
         SlashCmdList["RETRORUNS"]("reset")
     end)
 
-    -- Minimap toggle anchored to the bottom-right of the frame, vertically
-    -- aligned with the Reset button on the bottom-left. The
-    -- InterfaceOptionsCheckButtonTemplate places its label to the right
-    -- of the checkbox itself, so the visible compound (checkbox + label)
-    -- extends rightward from the anchor; the BOTTOMRIGHT offset reserves
-    -- enough horizontal room for the label to fit without clipping the
-    -- frame edge. The y offset matches the Reset button's so the row
-    -- reads as a single horizontal action band.
+    -- Submit-bug button. Icon-only square button (22x22, matching the
+    -- resetButton's height so the row reads as a single horizontal
+    -- band) anchored just to the right of the Defaults button. Clicking
+    -- pops a Wowhead-style copy popup with the GitHub Issues URL
+    -- (RETRORUNS_BUG_URL StaticPopup, defined in this file alongside
+    -- the wowhead URL popup -- single-line EditBox, Ctrl+C to copy,
+    -- dismiss with Enter or Escape).
+    --
+    -- Single venue (GitHub Issues) rather than two -- two URLs in one
+    -- popup would defeat the "Ctrl+C the URL" pattern, and venue choice
+    -- via dropdown was overengineered. CurseForge comments are reachable
+    -- by users without a button (they're already on the addon page),
+    -- and GitHub Issues is the right venue for tracked bug reports.
+    --
+    -- Texture: custom BugIcon.tga in Media/. A clean dark beetle
+    -- silhouette in top-down view, alpha-keyed background. Authored
+    -- specifically for this button after several Blizzard-stock icon
+    -- attempts (INV_Misc_Bug_03, Achievement_Faction_Klaxxi,
+    -- Ability_Hunter_Pet_Spider) all read poorly at 22x22. Source
+    -- art was downscaled from a 1024x1024 reference, alpha-keyed via
+    -- luminance threshold to drop the background, and saved as
+    -- 64x64 RGBA TGA. WoW renders TGAs cleanly at any rendered size.
+    --
+    -- Implementation note: skipped the BackdropTemplate frame around
+    -- the icon (first attempt) -- the backdrop was hiding the icon
+    -- texture. Pure Button widget with normal+pushed+highlight
+    -- textures handles the visual treatment cleanly.
+    f.bugButton = CreateFrame("Button", nil, f)
+    f.bugButton:SetSize(22, 22)
+    f.bugButton:SetPoint("LEFT", f.resetButton, "RIGHT", 6, 0)
+
+    f.bugButton:SetNormalTexture("Interface\\AddOns\\RetroRuns\\Media\\BugIcon")
+    f.bugButton:SetPushedTexture("Interface\\AddOns\\RetroRuns\\Media\\BugIcon")
+    f.bugButton:SetHighlightTexture(
+        "Interface\\Buttons\\CheckButtonHilight", "ADD")
+
+    -- Tint the white-source TGA via vertex color multiplication to
+    -- RETRO pink (the canonical brand color, C_PINK at the top of
+    -- this file = {0.95, 0.35, 0.78}). Earlier conversion of the TGA
+    -- baked a uniform DARK grey foreground -- vertex tinting could
+    -- only DARKEN those already-dark pixels, never lighten or color
+    -- them, since SetVertexColor multiplies channels. Re-converted
+    -- with WHITE (255,255,255) foreground so multiplying by any RGB
+    -- gives that color at full brightness.
+    local nt = f.bugButton:GetNormalTexture()
+    if nt then nt:SetVertexColor(0.95, 0.35, 0.78, 1) end
+    local pt = f.bugButton:GetPushedTexture()
+    if pt then pt:SetVertexColor(0.95, 0.35, 0.78, 1) end
+
+    -- No texcoord trim needed -- our custom TGA fills the canvas
+    -- edge-to-edge with no built-in margin (unlike Blizzard's stock
+    -- icons which ship with a ~5% transparent border).
+
+    f.bugButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("Report a bug")
+        GameTooltip:AddLine(
+            "Open a copy window with a link to the GitHub issue tracker.",
+            1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    f.bugButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    f.bugButton:SetScript("OnClick", function()
+        StaticPopup_Show("RETRORUNS_BUG_URL", nil, nil, {
+            url = "https://github.com/PhotekWoW/RetroRuns/issues",
+        })
+    end)
+
+    -- CurseForge-comments button. Same icon-button pattern as the
+    -- bug button: 22x22 square, anchored 6px to the right of the
+    -- bug button so the three-button row (Defaults + bug + chat)
+    -- reads as one horizontal action band.
+    --
+    -- Distinct purpose from the bug button: this points to the
+    -- CurseForge page's comments tab, the public discussion venue
+    -- where users post questions, suggestions, kudos, and general
+    -- chatter. Bug button is for filing tracked issues; this is for
+    -- conversation. Two separate buttons keeps each affordance clear.
+    --
+    -- Texture: custom ChatIcon.tga in Media/. Two overlapping speech
+    -- bubbles with a "+" in the larger one. Sourced from a 1408x768
+    -- reference, cropped to a square (the source had a "CHAT/CONTACT"
+    -- caption at the bottom which would be unreadable at 22x22 anyway),
+    -- alpha-keyed to a white silhouette via the same luminance-threshold
+    -- recipe as BugIcon.tga. Tinted at render time to RETRO cyan
+    -- (C_BLUE = {0.30, 0.80, 1.00}, the brand color in the title's
+    -- "RUNS" half) to visually distinguish from the pink bug button.
+    f.chatButton = CreateFrame("Button", nil, f)
+    f.chatButton:SetSize(22, 22)
+    f.chatButton:SetPoint("LEFT", f.bugButton, "RIGHT", 6, 0)
+
+    f.chatButton:SetNormalTexture("Interface\\AddOns\\RetroRuns\\Media\\ChatIcon")
+    f.chatButton:SetPushedTexture("Interface\\AddOns\\RetroRuns\\Media\\ChatIcon")
+    f.chatButton:SetHighlightTexture(
+        "Interface\\Buttons\\CheckButtonHilight", "ADD")
+
+    -- Scale the texture region UP beyond the 22x22 button frame so the
+    -- silhouette renders at roughly the same visual size as the bug
+    -- icon next to it. The chat source TGA was authored with the
+    -- silhouette at ~70% of canvas (transparent padding around it for
+    -- positional precision), but at button-default sizing that shrinks
+    -- the rendered silhouette below the bug icon's apparent size.
+    -- Sizing the texture region to ~30x30 centered on the button frame
+    -- (vs the button's own 22x22) makes the silhouette inside fill
+    -- roughly the bug icon's visual footprint while keeping the
+    -- button's 22x22 hit-area for the row's spacing rhythm. Texture
+    -- regions can extend outside their parent frame's bounds; only
+    -- the click-detection respects the frame size.
+    local cnt = f.chatButton:GetNormalTexture()
+    if cnt then
+        cnt:ClearAllPoints()
+        cnt:SetSize(30, 30)
+        cnt:SetPoint("CENTER", f.chatButton, "CENTER", 0, 0)
+        cnt:SetVertexColor(0.30, 0.80, 1.00, 1)
+    end
+    local cpt = f.chatButton:GetPushedTexture()
+    if cpt then
+        cpt:ClearAllPoints()
+        cpt:SetSize(30, 30)
+        cpt:SetPoint("CENTER", f.chatButton, "CENTER", 0, 0)
+        cpt:SetVertexColor(0.30, 0.80, 1.00, 1)
+    end
+
+    f.chatButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("Comments and feedback")
+        GameTooltip:AddLine(
+            "Open a copy window with a link to the CurseForge comments page.",
+            1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    f.chatButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    f.chatButton:SetScript("OnClick", function()
+        StaticPopup_Show("RETRORUNS_CHAT_URL", nil, nil, {
+            url = "https://www.curseforge.com/wow/addons/retroruns/comments",
+        })
+    end)
+
+    -- Minimap toggle anchored to the bottom-right of the frame, sharing
+    -- the same horizontal action band as the Defaults / bug / chat
+    -- buttons on the left.
+    --
+    -- Geometry note: InterfaceOptionsCheckButtonTemplate puts the
+    -- checkbox square at the anchor point and the LABEL TO THE RIGHT
+    -- of the checkbox (extending outward from the anchor). Anchoring
+    -- the checkbox at BOTTOMRIGHT, -120, ... worked but the -120 was
+    -- a guess at label width that didn't actually match -- the
+    -- compound (checkbox + label) ended up clipping the panel edge or
+    -- leaving an awkward gap depending on the label text. And the
+    -- y=14 was off from the Defaults row's y=12 by 2px, breaking the
+    -- visual baseline alignment.
+    --
+    -- New approach: anchor the checkbox to BOTTOMRIGHT with a
+    -- two-step offset that accounts for both the label's measured
+    -- string width and a 14px right margin matching the panel's
+    -- standard padding. Y matches the Defaults button at y=12 so
+    -- the row reads as one horizontal band.
     f.minimapCheck = MakeCheckbox(
         "Minimap button",
-        "BOTTOMRIGHT", f, "BOTTOMRIGHT", -120, 14,
+        "BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 8,
         -- showMinimap default is true; only an explicit `false` hides.
         function() return RR:GetSetting("showMinimap") ~= false end,
         function(val)
@@ -1202,6 +1527,23 @@ local function BuildSettingsPanel()
                 else RR.minimapButton:Hide() end
             end
         end)
+
+    -- Reposition after MakeCheckbox returns: measure the label's
+    -- string width and re-anchor the compound widget so the LABEL's
+    -- right edge sits at the panel's right edge with 14px padding.
+    -- Done as a post-create reposition because the label width isn't
+    -- known until the FontString has had its text set.
+    if f.minimapCheck and f.minimapCheck.Text then
+        local labelWidth = f.minimapCheck.Text:GetStringWidth() or 80
+        f.minimapCheck:ClearAllPoints()
+        -- Total horizontal space the compound needs: label width +
+        -- a small gap between the checkbox-square and the label
+        -- (the template's built-in spacing is ~4px) + the label's
+        -- right margin to the panel edge (14px). The checkbox
+        -- square itself is ~26px wide.
+        f.minimapCheck:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT",
+            -(labelWidth + 14), 8)
+    end
 
     f.fontSlider:SetScript("OnValueChanged", function(self, value)
         if not RetroRunsDB then return end
@@ -4063,16 +4405,103 @@ end
 -- 9x9 pixel render fits cleanly alongside GameFontHighlightSmall text
 -- without dominating the raid name; legend text uses the same size for
 -- a consistent reading.
-local SKIP_MARKER = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:9:9|t"
+--
+-- The leading-position raid-row marker has three states:
+--
+--   SKIP_MARKER_LED      -- gold/native: skip unlocked on this account
+--   SKIP_MARKER_LED_DIM  -- dim, R:G:B 80:80:80 multipliers (matches the
+--                           ACH_NON_META_PREFIX recipe used in the
+--                           achievements window): skip exists for this
+--                           raid but not yet unlocked
+--   SKIP_MARKER_LED_NONE -- transparent: this raid has no skip mechanic
+--                           at all. Renders nothing visually but reserves
+--                           the same width as the other two so columns
+--                           stay aligned across rows. R:G:B doesn't
+--                           matter here -- alpha 0 (the trailing 0) is
+--                           what makes it invisible.
+--
+-- These are the LEADING raid-row variants at 12x12. The original 9x9
+-- SKIP_MARKER (no LED suffix) is still used for the in-raid header
+-- (panel.raid) where the trailing-marker placement and smaller size
+-- both make sense for that surface. The achievement-window patterns
+-- (UI-RaidTargetingIcon_3 diamond at 14x14) are independent and live
+-- below in their own constants.
+local SKIP_MARKER          = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:9:9|t"
+local SKIP_MARKER_LED      = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:12:12|t"
+local SKIP_MARKER_LED_DIM  = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:12:12:0:0:64:64:0:64:0:64:80:80:80|t"
+local SKIP_MARKER_LED_NONE = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:12:12:0:0:64:64:0:64:0:64:0:0:0:0|t"
 
--- Footer line shown only when at least one raid in the rendered list
--- has its skip unlocked on this account. Explains the star marker.
--- (The "Designed for max-level..." tagline that used to live here was
--- promoted to panel.tagline -- a static footer row -- and then dropped
--- entirely when the action-button row replaced both the tagline and the
--- slash-command bar at the bottom of the panel.)
+-- Inline texture marker matching the entrance-navigation buttons that
+-- appear next to raid names. Same texture as the button so the legend's
+-- "= Navigator powered by..." reads as a key for that exact glyph.
+-- Rendered at 12x12 to roughly match the button's visual presence.
+local ENTRANCE_MARKER = "|TInterface\\Minimap\\Tracking\\FlightMaster:12:12|t"
+
+-- Footer line shown when the supported-raids list is rendered. Single
+-- line: explains the gold star and points to the Skips window for
+-- per-difficulty detail. The dim and invisible variants don't need
+-- legend coverage -- dim reads as "less prominent than gold," and the
+-- absent-glyph rows visually distinguish themselves by absence.
 local IDLE_SKIP_LEGEND =
-    "|cff9d9d9d" .. SKIP_MARKER .. " = raid skip unlocked on this account|r"
+    "|cff9d9d9d" .. SKIP_MARKER_LED .. " = skip unlocked -- check Skips for details|r"
+
+-- Footer line explaining the entrance-navigation icon. Shown only when
+-- at least one raid in the rendered list has an entrance button. The
+-- copy adapts based on the current routing tier (RR:GetNavTier()) and
+-- which routing addon is providing the experience:
+--
+--   * "routing" tier -> "Navigation powered by [ Zygor | Mapzeroth ]"
+--     pill bar matching the visual grammar of the per-difficulty kill
+--     pills. The active routing addon is rendered in its brand color
+--     (Zygor: |cffff8800 orange-gold; Mapzeroth: |cff5fcde4 light teal)
+--     and the other is dimmed to INACTIVE gray (|cff555555). When both
+--     are loaded, Zygor wins the active slot per the precedence in
+--     RR:GetNavTier (premium-first).
+--   * "waypoint" tier (no routing addon) -> "Blizzard Waypoint Only.
+--     Install Zygor or Mapzeroth for full navigation." Single line,
+--     plain text -- the dimmed-pills route was considered but the
+--     install pitch reads more clearly as prose. Both routing addons
+--     named in the install prompt with cyan branding to match the
+--     idle-list visual palette; Zygor first matches the dispatch
+--     precedence, Mapzeroth second is the free recommendation.
+--
+-- Builds the legend at render time so a /reload after the user
+-- installs/enables a routing addon picks up the change.
+local function BuildEntranceLegend()
+    local prefix = "|cff9d9d9d" .. ENTRANCE_MARKER .. " = "
+    local suffix = "|r"
+
+    if RR:GetNavTier() == "routing" then
+        -- Pill grammar (matches BuildIdleListPills):
+        --   "[ name1 | name2 ]" with light-gray brackets and dim sep.
+        -- Brand colors:
+        --   Zygor:     ff8800  (orange-gold from the Zygor brand identity)
+        --   Mapzeroth: 5fcde4  (light teal/cyan accent used in their UI)
+        -- Both color hexes are 6-char (no alpha byte) -- the |cff prefix
+        -- supplies the alpha. See BuildIdleListPills for the cautionary
+        -- tale about leaking "00" bytes when the alpha is doubled up.
+        local INACTIVE = "555555"
+        local ZG_BRAND = "ff8800"
+        local MZ_BRAND = "5fcde4"
+
+        local zygorActive = _G.ZygorGuidesViewer
+            and _G.ZygorGuidesViewer.Pointer
+            and _G.ZygorGuidesViewer.Pointer.SetWaypoint
+        local zgHex = zygorActive and ZG_BRAND or INACTIVE
+        local mzHex = zygorActive and INACTIVE or MZ_BRAND
+
+        local pills = ("|cff777777[ |r|cff%sZygor|r|cff555555 | |r|cff%sMapzeroth|r|cff777777 ]|r")
+            :format(zgHex, mzHex)
+
+        return prefix .. "Navigation powered by " .. pills .. suffix
+    else
+        local mzName = "|cff00ccffMapzeroth|r"
+        local zgName = "|cff00ccffZygor|r"
+        return prefix .. "Blizzard Waypoint Only. Install "
+            .. zgName .. " or " .. mzName
+            .. " for full navigation." .. suffix
+    end
+end
 
 -- ----------------------------------------------------------------------------
 -- Skips window
@@ -4507,24 +4936,17 @@ end
 --   dim "-" = difficulty doesn't apply to this raid (rare; some legacy
 --             raids predate certain difficulties)
 --
--- Skip-unlock decoration: each Normal/Heroic/Mythic pill whose
--- difficulty is at or below the raid's cascade ceiling gets a SKIP_MARKER
--- (yellow star) appended after the difficulty letter -- e.g. "N* 0/9".
--- LFR is never decorated since the in-game raid-skip system doesn't
--- apply to LFR. The star next to a difficulty letter means "skip works
--- at this difficulty (and all easier ones)". When ALL THREE applicable
--- difficulties (N/H/M) are unlocked, the star moves UP to the raid name
--- line instead -- see emitRaid -- to avoid three identical stars cluttering
--- the pill row.
+-- Skip-cascade granularity used to live here as per-pill stars (e.g.
+-- "N* 0/9" = skip works at Normal). That decoration was removed when
+-- the leading raid-name star (in emitRaid) became the single skip
+-- indicator on this surface. Per-difficulty granularity now lives
+-- exclusively in the dedicated Skips window, accessed via the action
+-- button. The supported-raids list shows binary "skip unlocked /
+-- not unlocked / no skip mechanic" via the leading star and points
+-- the user to Skips for the breakdown.
 local function BuildIdleListPills(raid)
     local counts = RR:GetPerDifficultyKillCountsForRaid(raid)
     if not counts then return "" end
-
-    -- Cascade ceiling: 16 (Mythic) / 15 (Heroic) / 14 (Normal) / nil.
-    -- Skip the marker insertion entirely when ceiling is Mythic since
-    -- the raid-name line carries the indicator in that case.
-    local ceiling = RR:GetRaidSkipUnlockedCeiling(raid)
-    local decorate = ceiling and ceiling < 16
 
     local PILLS = {
         { id = 17, label = "LFR" },
@@ -4545,19 +4967,7 @@ local function BuildIdleListPills(raid)
     local parts = {}
     for _, p in ipairs(PILLS) do
         local c = counts[p.id]
-
-        -- Build the difficulty-letter label with optional trailing
-        -- skip-marker. Note: the marker is inserted INTO the label
-        -- before applying the lockout-state color, so it sits inside
-        -- the pill's color block. This is fine -- |T...|t texture
-        -- markup ignores the surrounding color and renders at native
-        -- colors regardless.
         local label = p.label
-        if decorate
-           and (p.id == 14 or p.id == 15 or p.id == 16)
-           and p.id <= ceiling then
-            label = label .. SKIP_MARKER
-        end
 
         if c and c.total > 0 then
             local hex
@@ -4623,31 +5033,62 @@ local function BuildIdleListRows()
     end
 
     local rows = {}
-    local anySkipShown = false
+    -- Tracks whether at least one raid line was emitted (i.e. at
+    -- least one expansion is expanded). Used to gate the skip legend,
+    -- which now applies to every raid (filled = unlocked, dim = not),
+    -- not just to raids with active unlocks. If every expansion is
+    -- collapsed, no raid lines render, no stars are visible, and the
+    -- legend stays hidden.
+    local anyRaidShown = false
+    local anyEntranceShown = false
 
     local function emitRaid(raid)
         local name  = raid.name or "??"
         local patch = raid.patch
+
+        -- Leading skip-status star. Three states drive the glyph:
+        --
+        --   raid.skipQuests defined + ceiling != nil -> gold (unlocked)
+        --   raid.skipQuests defined + ceiling == nil -> dim   (not unlocked yet)
+        --   raid.skipQuests not defined              -> transparent placeholder
+        --                                                (raid has no skip mechanic)
+        --
+        -- The transparent placeholder reserves the same width as the
+        -- gold/dim variants so column alignment is preserved across
+        -- rows. Per-tier granularity (which difficulties unlocked) is
+        -- intentionally NOT shown here -- the dedicated Skips window
+        -- has the full breakdown, and the legend below points there.
+        --
+        -- The gold-or-dim distinction matters most for users who have
+        -- some skips unlocked and some not -- they can scan the column
+        -- and see which raids still need the unlock quest. For users
+        -- with nothing unlocked, all the skip-bearing raids show dim
+        -- and the no-skip-mechanic raids show blank, which still
+        -- conveys "these have a skip system you could earn, those
+        -- don't have one at all."
+        local hasSkipMechanic = raid.skipQuests ~= nil
+        local ceiling = RR:GetRaidSkipUnlockedCeiling(raid)
+        local leading
+        if not hasSkipMechanic then
+            leading = SKIP_MARKER_LED_NONE
+        elseif ceiling then
+            leading = SKIP_MARKER_LED
+        else
+            leading = SKIP_MARKER_LED_DIM
+        end
+
         local label
         if type(patch) == "string" and patch ~= "" then
-            label = ("|cffffffff* %s (%s)|r"):format(name, patch)
+            label = ("%s |cffffffff%s (%s)|r"):format(leading, name, patch)
         else
-            label = ("|cffffffff* %s|r"):format(name)
+            label = ("%s |cffffffff%s|r"):format(leading, name)
         end
-        -- Skip-marker placement depends on the cascade ceiling:
-        --   Mythic ceiling (all 3 difficulties unlocked) -> star at the
-        --     raid name. Cleaner than three identical stars on the pills.
-        --   Heroic / Normal ceiling -> star moves DOWN onto the affected
-        --     pill(s); BuildIdleListPills handles that.
-        --   No unlock -> no star anywhere.
-        local ceiling = RR:GetRaidSkipUnlockedCeiling(raid)
-        if ceiling == 16 then
-            label = label .. " " .. SKIP_MARKER
+
+        anyRaidShown = true
+        if raid.entrance then
+            anyEntranceShown = true
         end
-        if ceiling then
-            anySkipShown = true
-        end
-        table.insert(rows, { kind = "raidName", text = label })
+        table.insert(rows, { kind = "raidName", text = label, raid = raid })
         local pills = BuildIdleListPills(raid)
         if pills ~= "" then
             -- Indent the pill row two spaces under the raid name so the
@@ -4690,12 +5131,27 @@ local function BuildIdleListRows()
         table.insert(rows, { kind = "emptyMessage", text = "|cff9d9d9d(no raid data loaded)|r" })
     end
 
-    -- Skip legend appears only when at least one currently-visible raid
-    -- shows the star marker. If all expansions are collapsed (or no
-    -- raids in the expanded sections have the skip), the legend stays
-    -- hidden so we're not explaining a glyph the user can't see.
-    if anySkipShown then
+    -- Skip legend appears whenever at least one raid line is rendered
+    -- (i.e. at least one expansion is expanded). Every visible raid
+    -- gets a leading star -- filled if unlocked, dim if not -- so
+    -- the legend always has something to explain when raids are
+    -- visible. If every expansion is collapsed, no raids show, no
+    -- stars are visible, and the legend stays hidden.
+    --
+    -- Both legends are rendered in a separate bottom-up pass in
+    -- RefreshIdleList -- they pin near the action button row at the
+    -- panel bottom rather than chaining after the last raid line, so
+    -- they read as a key block above the action row regardless of
+    -- raid-list length.
+    if anyRaidShown then
         table.insert(rows, { kind = "skipLegend" })
+    end
+
+    -- Entrance legend appears only when at least one currently-visible
+    -- raid has entrance data (and therefore got a button rendered next
+    -- to its name). Same conditional-explain logic as the skip legend.
+    if anyEntranceShown then
+        table.insert(rows, { kind = "entranceLegend" })
     end
 
     return rows
@@ -4721,6 +5177,7 @@ RefreshIdleList = function()
     -- before this frame's batch is created.
     ReleaseIdleListLines()
     ReleaseExpansionToggleButtons()
+    ReleaseEntranceButtons()
 
     local rows = BuildIdleListRows()
     local fontSize = RR:GetSetting("fontSize", 12)
@@ -4731,8 +5188,19 @@ RefreshIdleList = function()
     -- Spacer rows are smaller than a full-line gap; just enough to
     -- visually separate expansion sections.
     local SPACER_GAP = math.max(4, math.floor(fontSize * 0.5))
+    -- Hard-coded smaller font for legend rows -- mirrors the
+    -- achievements window's bottom-strip soloable legend, which uses
+    -- GameFontHighlightSmall regardless of user font-slider value.
+    -- The intent is "this is metadata about what you're seeing, not
+    -- content to read" -- bumping it with the slider would lose that
+    -- visual hierarchy.
+    local LEGEND_FONT_SIZE = 10
 
     local prev = nil  -- previous FontString, for anchor chaining
+    -- Collect legend rows during the main pass; render them in a
+    -- dedicated bottom-up pass below so they pin near the action
+    -- row regardless of how short the raid list is.
+    local legendRows = {}
     for _, row in ipairs(rows) do
         if row.kind == "spacer" then
             -- No FontString needed -- next row anchors below the prior
@@ -4741,24 +5209,23 @@ RefreshIdleList = function()
             if prev then
                 prev._nextGap = SPACER_GAP
             end
+        elseif row.kind == "skipLegend" or row.kind == "entranceLegend" then
+            -- Defer: renders bottom-up below.
+            table.insert(legendRows, row)
         else
             local fs = AcquireIdleListLine()
-            -- Apply the current font setting. Per-line FontStrings
-            -- aren't in the bumped-font targets table that ApplySettings
-            -- walks (the old single panel.list was), so we apply the
-            -- font directly here on every refresh. RefreshIdleList runs
-            -- on font-slider change (wired via ApplySettings), so this
-            -- keeps the list text in sync with the slider.
+            -- Apply font. Non-legend rows use the user's font-slider
+            -- value via the body font size.
             SafeSetFont(fs, BODY_FONT, fontSize, "")
 
             -- Set text. Different row kinds use different formats; the
-            -- text is already pre-colored in BuildIdleListRows.
+            -- text is already pre-colored in BuildIdleListRows. Legend
+            -- rows are filtered out earlier and rendered in the post-
+            -- loop bottom-up pass.
             if row.kind == "expansionHeader" then
                 -- Indent with leading spaces to leave room for the
                 -- toggle button glyph anchored at LEFT.
                 fs:SetText(("    |cff00ffff%s|r"):format(row.exp))
-            elseif row.kind == "skipLegend" then
-                fs:SetText(IDLE_SKIP_LEGEND)
             else
                 -- raidName / pillRow / emptyMessage all carry pre-built
                 -- text strings.
@@ -4786,11 +5253,23 @@ RefreshIdleList = function()
                 PositionExpansionToggleButton(btn, fs, row.expanded)
                 local expName = row.exp
                 btn:SetScript("OnClick", function()
+                    -- Single-expand accordion: opening one expansion
+                    -- closes any other that's currently open. Keeps
+                    -- the supported-raids list short and focused; the
+                    -- prior multi-expand mode could grow the panel
+                    -- beyond comfortable reading length when the user
+                    -- expanded several at once. Toggling the same
+                    -- expansion still closes it (click-to-collapse on
+                    -- the already-open one).
                     RR.state = RR.state or {}
-                    RR.state.expandedExpansions = RR.state.expandedExpansions or {}
-                    if RR.state.expandedExpansions[expName] then
-                        RR.state.expandedExpansions[expName] = nil
-                    else
+                    local already = RR.state.expandedExpansions
+                                    and RR.state.expandedExpansions[expName]
+                    -- Close everything regardless. If this expansion
+                    -- was already open, that ends the operation
+                    -- (click-to-collapse). Otherwise we fall through
+                    -- and re-open just this one.
+                    RR.state.expandedExpansions = {}
+                    if not already then
                         RR.state.expandedExpansions[expName] = true
                     end
                     if RR.UI and RR.UI.Update then RR.UI.Update() end
@@ -4799,9 +5278,92 @@ RefreshIdleList = function()
                 table.insert(panel.expansionToggleButtons, btn)
             end
 
+            -- Position an entrance-navigation button against the raid-name
+            -- FontString if the raid has entrance data. Tier-based visual
+            -- treatment: full-color (alpha 1.0) when a step-by-step routing
+            -- addon is loaded ("routing" tier), muted (alpha 0.4) when only
+            -- single-waypoint providers are available ("waypoint" tier).
+            -- The button still functions in either tier; the alpha is a
+            -- visual hint that the user is missing the better experience.
+            -- The legend below adapts to the same tier, naming Mapzeroth
+            -- explicitly as the recommended free install.
+            if row.kind == "raidName" and row.raid and row.raid.entrance then
+                local btn = AcquireEntranceButton()
+                PositionEntranceButton(btn, fs)
+                local raid = row.raid
+                local tier = RR:GetNavTier()
+                btn:SetAlpha(tier == "routing" and 1.0 or 0.4)
+                btn:SetScript("OnClick", function(self)
+                    -- Capture which dispatch branch ran. The Blizzard-
+                    -- native and TomTom paths are visually quiet
+                    -- INSIDE the addon panel where the click happened
+                    -- (Blizzard drops a silent pin; TomTom prints to
+                    -- chat, which is far from the click site). Both
+                    -- benefit from a spatial confirmation toast next
+                    -- to the button. Mapzeroth and Zygor open their
+                    -- own prominent UIs and don't need an additional
+                    -- toast.
+                    local result = RR:NavigateToEntrance(raid)
+                    if result == "blizzard" or result == "tomtom" then
+                        ShowWaypointToast(self, "Waypoint set")
+                    end
+                end)
+                btn:Show()
+                table.insert(panel.entranceButtons, btn)
+            end
+
             table.insert(panel.idleListLines, fs)
             prev = fs
         end
+    end
+
+    -- Bottom-up legend pass. Renders the legend rows pinned near the
+    -- action button row at the bottom of the panel rather than
+    -- chained after the last raid line. This keeps the legend in a
+    -- predictable spot regardless of how short or long the visible
+    -- raid list is, mirroring how the achievements window's
+    -- soloable legend is anchored to the frame's bottom-right.
+    --
+    -- Action row geometry (from MakeActionButton at the top of this
+    -- file): buttons sit at BUTTON_Y=28 from the panel's bottom and
+    -- are BUTTON_H=22 tall, so the action-row TOP edge is at 50px
+    -- up from the panel bottom. We add 12px of breathing room above
+    -- that for the lowest legend row's BOTTOM anchor.
+    --
+    -- Multi-row legends (e.g. when both skip and entrance legends
+    -- are showing): the LAST legend row anchors to the panel bottom;
+    -- earlier legends chain ABOVE it so the block reads top-down
+    -- visually but is anchored from the bottom up.
+    local LEGEND_BOTTOM_OFFSET = BUTTON_Y + BUTTON_H + 12  -- 28 + 22 + 12 = 62
+    local LEGEND_INTER_GAP = 4  -- compact spacing between legend rows
+    -- Iterate legendRows in REVERSE so the last legend ends up
+    -- anchored to the panel bottom and earlier legends chain ABOVE.
+    local lastLegendFS = nil
+    for i = #legendRows, 1, -1 do
+        local row = legendRows[i]
+        local fs = AcquireIdleListLine()
+        SafeSetFont(fs, BODY_FONT, LEGEND_FONT_SIZE, "")
+        if row.kind == "skipLegend" then
+            fs:SetText(IDLE_SKIP_LEGEND)
+        elseif row.kind == "entranceLegend" then
+            fs:SetText(BuildEntranceLegend())
+        end
+        fs:ClearAllPoints()
+        if lastLegendFS then
+            -- Earlier legend row -- anchor BOTTOMLEFT to TOPLEFT of
+            -- the next-later legend (which we just rendered last
+            -- iteration). Visual stack reads top-down even though
+            -- we're rendering bottom-up.
+            fs:SetPoint("BOTTOMLEFT", lastLegendFS, "TOPLEFT", 0, LEGEND_INTER_GAP)
+        else
+            -- Last legend (first in reverse iteration) -- anchor to
+            -- panel BOTTOMLEFT with the breathing offset above the
+            -- action row.
+            fs:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", PAD_LEFT, LEGEND_BOTTOM_OFFSET)
+        end
+        fs:Show()
+        table.insert(panel.idleListLegendLines, fs)
+        lastLegendFS = fs
     end
 end
 
@@ -4860,7 +5422,11 @@ function UI.Update()
             -- SetShown call below based on whether there's a summary
             -- to display.
             panel.encounter:Show()
-            panel.next:SetText(boss and boss.name or "Unknown")
+            -- White "Boss:" prefix mirrors the "Raid:" label on panel.raid
+            -- above. The boss name itself takes the FontString's default
+            -- GameFontNormal gold; the |cffffffff...|r escape paints only
+            -- the prefix label white so the boss-name color is unchanged.
+            panel.next:SetText("|cffffffffBoss:|r " .. (boss and boss.name or "Unknown"))
             panel.travel:SetText(BuildTravelText(step))
             local encText, encClickable = BuildEncounterText(step)
             panel.encounter:SetText(encText)
@@ -4897,6 +5463,7 @@ function UI.Update()
             -- idle/run-complete pass to avoid floating widgets over the
             -- progress lines.
             ReleaseExpansionToggleButtons()
+            ReleaseEntranceButtons()
             ReleaseIdleListLines()
         else
             -- Run-complete state. The user has cleared every boss in
@@ -5081,6 +5648,58 @@ StaticPopupDialogs["RETRORUNS_WOWHEAD_URL"] = {
         -- Modern Blizzard StaticPopup (GameDialog.xml) exposes the edit
         -- box as `self.EditBox` (capital E). Older code referenced
         -- `self.editBox`; that path errors on current clients.
+        local eb = self.EditBox or self.editBox
+        if eb then
+            eb:SetText(url)
+            eb:HighlightText()
+            eb:SetFocus()
+        end
+    end,
+    EditBoxOnEnterPressed = function(self) self:GetParent():Hide() end,
+    EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+}
+
+-- Sister StaticPopup for the Settings panel's "comments and feedback"
+-- button. Same shape as RETRORUNS_BUG_URL but points to the CurseForge
+-- comments tab rather than the GitHub Issues tracker.
+StaticPopupDialogs["RETRORUNS_CHAT_URL"] = {
+    text         = "Comments and feedback\n\nCurseForge URL (Ctrl+C to copy):",
+    button1      = OKAY or "Okay",
+    hasEditBox   = true,
+    editBoxWidth = 280,
+    timeout      = 0,
+    whileDead    = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+    OnShow = function(self, data)
+        local url = (data and data.url) or ""
+        local eb = self.EditBox or self.editBox
+        if eb then
+            eb:SetText(url)
+            eb:HighlightText()
+            eb:SetFocus()
+        end
+    end,
+    EditBoxOnEnterPressed = function(self) self:GetParent():Hide() end,
+    EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+}
+
+-- Sister StaticPopup for the Settings panel's "submit a bug" button.
+-- Same pattern as RETRORUNS_WOWHEAD_URL but the dialog text is fixed
+-- ("Report a bug") rather than dynamic per-target, so no text_arg
+-- substitutions in the text format string. Single-line EditBox
+-- pre-filled with the GitHub Issues URL; user Ctrl+C's and dismisses.
+StaticPopupDialogs["RETRORUNS_BUG_URL"] = {
+    text         = "Report a bug\n\nGitHub Issues URL (Ctrl+C to copy):",
+    button1      = OKAY or "Okay",
+    hasEditBox   = true,
+    editBoxWidth = 280,
+    timeout      = 0,
+    whileDead    = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+    OnShow = function(self, data)
+        local url = (data and data.url) or ""
         local eb = self.EditBox or self.editBox
         if eb then
             eb:SetText(url)

@@ -33,6 +33,18 @@ RetroRuns_Data[2549] = {
     expansion         = "Dragonflight",
     patch             = "10.2",
 
+    -- Entrance is at the Wellspring of Life in northwestern Emerald
+    -- Dream (uiMapID 2200). Coords from Icy Veins/Warcraft Wiki.
+    -- Access requires completing the first two chapters of the
+    -- Guardians of the Dream campaign to unlock the Emerald Dream
+    -- portal in Valdrakken; library will fail to find a route for
+    -- characters who haven't unlocked the zone yet.
+    entrance = {
+        mapID = 2200,
+        x     = 0.270,
+        y     = 0.310,
+    },
+
     -- Sub-zone mapIDs for Amirdrassil's wings. Names match the in-game
     -- world-map dropdown verbatim. Used by the routing renderer to label
     -- the active region in the panel header.

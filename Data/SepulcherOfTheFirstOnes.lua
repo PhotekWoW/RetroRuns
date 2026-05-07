@@ -12,6 +12,18 @@ RetroRuns_Data[2481] = {
     expansion         = "Shadowlands",
     patch             = "9.2",
 
+    -- Entrance is on a floating island in eastern Zereth Mortis
+    -- (uiMapID 1970). Coords from Wowhead/gamingcy. Reaching the door
+    -- requires the Ancient Translocator near Pilgrim's Grace, OR the
+    -- Zereth Mortis flying unlock. Library will route to "near
+    -- Pilgrim's Grace" rather than the floating island itself, which
+    -- is the correct behavior for unattuned characters.
+    entrance = {
+        mapID = 1970,
+        x     = 0.806,
+        y     = 0.534,
+    },
+
     maps = {
         [2047] = "Immortal Hearth",
         [2048] = "Genesis Cradle",

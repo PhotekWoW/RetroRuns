@@ -29,6 +29,19 @@ RetroRuns_Data[2217] = {
     expansion         = "Battle for Azeroth",
     patch             = "8.3",
 
+    -- Entrance is a floating obelisk that ALTERNATES WEEKLY between
+    -- two zones: Uldum (uiMapID 1527) at 54/43 above the Vir'naal
+    -- Dam, and Vale of Eternal Blossoms (uiMapID 1530) at 39/43
+    -- above Whitepetal Lake. We default to Uldum here. If the
+    -- obelisk is currently in the Vale instead, the player will
+    -- need to travel the short way over from Uldum (or we can
+    -- improve this later by detecting the active assault).
+    entrance = {
+        mapID = 1527,
+        x     = 0.551,
+        y     = 0.438,
+    },
+
     maps = {
         -- Sub-zone names taken from the world-map dropdown (the
         -- authoritative source in-game). Note: C_Map.GetMapInfo(mapID).name
@@ -750,12 +763,12 @@ RetroRuns_Data[2217] = {
             requires  = { 11 },
             segments  = {
                 {
-                    mapID   = 1597,
-                    kind    = "poi",
-                    subZone = "Locus of Infinite Truths",
-                    poiSize = 35,
-                    note    = "After killing Carapace, you will find yourself standing in front of N'Zoth. Attack the boss to start the encounter.",
-                    points  = {
+                    mapID    = 1597,
+                    kind     = "poi",
+                    subZone  = "Locus of Infinite Truths",
+                    noMarker = true,
+                    note     = "After killing Carapace, you will find yourself standing in front of N'Zoth. Attack the boss to start the encounter.",
+                    points   = {
                         { 0.483, 0.294 },
                     },
                 },

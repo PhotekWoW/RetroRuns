@@ -9,20 +9,26 @@ local RR = RetroRuns
 -- Pool sizes -- sized to handle the largest expected raid routing
 -------------------------------------------------------------------------------
 
-local MAX_LINES  = 80
-local MAX_ICONS  = 30
-local MAX_DOTS   = 80
-local MAX_LABELS = 30
+local MAX_LINES    = 80
+local MAX_ICONS    = 30
+local MAX_DOTS     = 80
+local MAX_LABELS   = 30
+-- Direction-of-travel chevrons placed along route polylines at a fixed
+-- pixel stride. Sized for the tightest current stride (35px) across the
+-- largest current routes -- multi-segment renders like Eranog produce
+-- the highest counts. 200 leaves comfortable headroom.
+local MAX_CHEVRONS = 200
 
 local overlay = CreateFrame(
     "Frame", "RetroRunsMapOverlay",
     WorldMapFrame.ScrollContainer.Child)
 overlay:SetAllPoints(WorldMapFrame.ScrollContainer.Child)
 
-overlay.lines  = {}
-overlay.icons  = {}
-overlay.dots   = {}
-overlay.labels = {}
+overlay.lines    = {}
+overlay.icons    = {}
+overlay.dots     = {}
+overlay.labels   = {}
+overlay.chevrons = {}
 
 local function MakeLine(p)
     local ln = p:CreateLine(nil, "ARTWORK")
@@ -55,10 +61,32 @@ local function MakeLabel(p)
     return fs
 end
 
-for i = 1, MAX_LINES  do overlay.lines[i]  = MakeLine(overlay)  end
-for i = 1, MAX_ICONS  do overlay.icons[i]  = MakeIcon(overlay)  end
-for i = 1, MAX_DOTS   do overlay.dots[i]   = MakeDot(overlay)   end
-for i = 1, MAX_LABELS do overlay.labels[i] = MakeLabel(overlay) end
+-- Direction-of-travel chevron. Uses our own asset Media/Chevron.tga --
+-- a 32x32 white-on-transparent "V" pointing DOWN at native rotation 0.
+-- Authored white-on-transparent specifically so SetVertexColor can tint
+-- it freely to any color. Cyan {0.30, 0.80, 1.00} matches UI.lua C_BLUE
+-- for the RETRORUNS color scheme.
+--
+-- The asset's "tip points down" orientation matches the placement
+-- helper's atan2(dx, dy) rotation formula so swapping the asset
+-- doesn't require any geometry changes.
+--
+-- Drawn at OVERLAY (above the ARTWORK lines) so chevrons sit on top of
+-- the polyline rather than being painted over by it.
+local function MakeChevron(p)
+    local tx = p:CreateTexture(nil, "OVERLAY")
+    tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Chevron")
+    tx:SetVertexColor(0.30, 0.80, 1.00, 1.0)  -- cyan (matches UI.lua C_BLUE)
+    tx:SetSize(18, 18)
+    tx:Hide()
+    return tx
+end
+
+for i = 1, MAX_LINES    do overlay.lines[i]    = MakeLine(overlay)    end
+for i = 1, MAX_ICONS    do overlay.icons[i]    = MakeIcon(overlay)    end
+for i = 1, MAX_DOTS     do overlay.dots[i]     = MakeDot(overlay)     end
+for i = 1, MAX_LABELS   do overlay.labels[i]   = MakeLabel(overlay)   end
+for i = 1, MAX_CHEVRONS do overlay.chevrons[i] = MakeChevron(overlay) end
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -71,15 +99,182 @@ local function PlaceAt(el, parent, nx, ny)
 end
 
 local function ApplyIconStyle(icon, kind)
+    -- "start" only -- the "end" case is handled by PlaceEndMarker below
+    -- (which also wants rotation, so it lives separately).
     if kind == "start" then
         icon:SetTexture("Interface\\MINIMAP\\TempleofKotmogu_ball_cyan")
         icon:SetVertexColor(0.2, 1.0, 1.0, 1.0)
         icon:SetSize(14, 14)
-    else  -- "end"
-        icon:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
-        icon:SetVertexColor(1.0, 0.85, 0.15, 1.0)
-        icon:SetSize(18, 18)
+        -- Reset rotation and draw layer in case this icon was previously
+        -- used as an end marker (which sets a non-zero rotation and bumps
+        -- the layer to OVERLAY). The cyan ball texture is rotation-
+        -- invariant visually, but cleaner to keep state predictable.
+        icon:SetRotation(0)
+        icon:SetDrawLayer("ARTWORK")
     end
+end
+
+-------------------------------------------------------------------------------
+-- End marker
+--
+-- Place the destination marker at the end of a route. Uses our own
+-- Media/EndTriangle.tga -- a 32x32 white-on-transparent solid triangle
+-- pointing DOWN at native rotation 0. Same color (cyan) and rotation
+-- math as the trail chevrons so the visual flow lands cleanly on a
+-- single shape pointing at the boss.
+--
+-- Rotation points toward `dest` from the previous polyline point, NOT
+-- along the last polyline segment. This matters when navPoint is set
+-- (boss icon offset from the polyline end) -- the marker should point
+-- at the actual destination, not along the recorded path's tail.
+--
+-- For single-point segments (#pts == 1) where there's no direction
+-- to compute, the marker renders un-rotated (tip pointing down) --
+-- visually fine since there's no path leading into it.
+-------------------------------------------------------------------------------
+
+local function PlaceEndMarker(self, icon, pts, dest, W, H)
+    icon:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\EndTriangle")
+    -- Cyan fill and pink border are baked into the asset (vertex tint
+    -- is global to the texture so we can't tint fill and border
+    -- independently at runtime). White tint = no-op so the baked
+    -- colors render as authored.
+    icon:SetVertexColor(1.0, 1.0, 1.0, 1.0)
+    -- 24x24 (vs the trail chevrons' 18x18) -- a filled triangle reads
+    -- as smaller-presence than an open V-chevron at the same pixel
+    -- size because there's no negative space carrying the shape's
+    -- visual extent outward. Going up to 24 matches the trail's weight.
+    icon:SetSize(24, 24)
+    -- Bump to OVERLAY so the triangle sits above the polyline. The icon
+    -- pool is created at ARTWORK (same layer as the lines), and on this
+    -- platform the lines were winning the draw order. Start-dot and POI
+    -- styling reset back to ARTWORK so the bump doesn't leak across
+    -- pool reuse.
+    icon:SetDrawLayer("OVERLAY")
+
+    -- Position at dest (normalized coords -> pixels).
+    icon:ClearAllPoints()
+    icon:SetPoint("CENTER", self, "TOPLEFT",
+        dest[1] * W, -dest[2] * H)
+
+    -- Rotation: from the second-to-last polyline point toward dest.
+    -- Same texture-orientation assumption as the chevron asset (tip
+    -- points down at rotation 0), so atan2(dx, dy) aligns the tip
+    -- with the destination direction in screen coords (+y is down).
+    if pts and #pts >= 2 then
+        local prev = pts[#pts - 1]
+        local dx = (dest[1] - prev[1]) * W
+        local dy = (dest[2] - prev[2]) * H
+        if dx ~= 0 or dy ~= 0 then
+            icon:SetRotation(math.atan2(dx, dy))
+        else
+            icon:SetRotation(0)
+        end
+    else
+        icon:SetRotation(0)
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Direction-of-travel chevrons
+--
+-- Place chevron textures along a polyline at a fixed pixel stride, each
+-- rotated to face along the local segment direction. The raid-target
+-- triangle texture's "forward" axis points DOWN (south, +y on screen)
+-- at rotation 0 (determined empirically -- WoW's raid-target icons
+-- aren't documented for orientation). WoW SetRotation uses
+-- counter-clockwise radians, so rotation = atan2(dx, dy) aligns the
+-- triangle's tip with the screen-space travel direction.
+--
+-- Skips chevrons placed within END_PADDING px of the start or end of the
+-- path so they don't crowd the start dot or end-X icon. Returns the
+-- number of chevrons consumed from the pool starting at startChevronIdx.
+-------------------------------------------------------------------------------
+
+local CHEVRON_STRIDE_PX  = 25   -- distance between chevrons in pixels
+local CHEVRON_END_PAD_PX = 10   -- skip placement within this many px of either endpoint
+-- Paths shorter than this skip chevrons entirely. The start dot + end
+-- triangle alone make the route's direction clear at short distances;
+-- chevrons in between just crowd the visual. 70px lines up roughly with
+-- "could fit at least 2 chevrons comfortably given the stride" -- below
+-- that, chevron placement starts looking sparse and pointless.
+local CHEVRON_MIN_PATH_PX = 70
+
+local function PlaceChevronsAlongPath(self, pts, W, H, startChevronIdx)
+    -- Need at least 2 points to define a direction.
+    if not pts or #pts < 2 then return 0 end
+
+    -- Convert all points from normalized (0..1) into screen pixels once.
+    -- Pre-compute per-segment lengths and total path length so we can
+    -- place chevrons by arc-length parameter.
+    local screenPts = {}
+    for i, pt in ipairs(pts) do
+        screenPts[i] = { pt[1] * W, pt[2] * H }
+    end
+
+    local segLens = {}
+    local total = 0
+    for i = 2, #screenPts do
+        local p, c = screenPts[i-1], screenPts[i]
+        local dx, dy = c[1] - p[1], c[2] - p[2]
+        local d = math.sqrt(dx * dx + dy * dy)
+        segLens[i-1] = d
+        total = total + d
+    end
+
+    -- Skip chevrons on short paths -- start dot + end triangle make the
+    -- direction obvious without them. (See CHEVRON_MIN_PATH_PX docstring.)
+    if total < CHEVRON_MIN_PATH_PX then return 0 end
+
+    local chevronIdx = startChevronIdx
+    local placed = 0
+
+    -- Start at the first stride-multiple that's past the start padding,
+    -- continue while still inside the end padding.
+    local target = CHEVRON_STRIDE_PX
+    if target < CHEVRON_END_PAD_PX then target = CHEVRON_END_PAD_PX end
+
+    -- Walk the polyline accumulating arc length. When the accumulator
+    -- crosses each `target`, interpolate within the current segment to
+    -- find the chevron position, compute rotation from that segment's
+    -- direction, place the chevron, and advance target by the stride.
+    local accum = 0
+    for i = 1, #segLens do
+        local segLen = segLens[i]
+        local segStart = accum
+        local segEnd = accum + segLen
+        local p, c = screenPts[i], screenPts[i+1]
+        local dx, dy = c[1] - p[1], c[2] - p[2]
+        -- Rotation: the raid-target triangle texture's "forward" axis
+        -- points DOWN (south, +y in screen coords) at rotation 0 --
+        -- determined empirically. WoW's SetRotation uses counter-clockwise
+        -- radians. atan2(dx, dy) maps the screen-space travel direction
+        -- (dx, dy where +y is DOWN) to the rotation needed to align the
+        -- triangle's tip with travel direction.
+        local rot = math.atan2(dx, dy)
+
+        while target <= segEnd and target <= total - CHEVRON_END_PAD_PX do
+            local localT = (target - segStart) / segLen
+            local px = p[1] + dx * localT
+            local py = p[2] + dy * localT
+
+            local ch = self.chevrons[chevronIdx]
+            if not ch then return placed end
+
+            ch:ClearAllPoints()
+            ch:SetPoint("CENTER", self, "TOPLEFT", px, -py)
+            ch:SetRotation(rot)
+            ch:Show()
+            chevronIdx = chevronIdx + 1
+            placed = placed + 1
+            target = target + CHEVRON_STRIDE_PX
+        end
+
+        accum = segEnd
+        if target > total - CHEVRON_END_PAD_PX then break end
+    end
+
+    return placed
 end
 
 -------------------------------------------------------------------------------
@@ -87,10 +282,11 @@ end
 -------------------------------------------------------------------------------
 
 function overlay:HideAll()
-    for _, v in ipairs(self.lines)  do v:Hide() end
-    for _, v in ipairs(self.icons)  do v:Hide() end
-    for _, v in ipairs(self.dots)   do v:Hide() end
-    for _, v in ipairs(self.labels) do v:Hide() end
+    for _, v in ipairs(self.lines)    do v:Hide() end
+    for _, v in ipairs(self.icons)    do v:Hide() end
+    for _, v in ipairs(self.dots)     do v:Hide() end
+    for _, v in ipairs(self.labels)   do v:Hide() end
+    for _, v in ipairs(self.chevrons) do v:Hide() end
 end
 
 function overlay:DrawSegmentsForMap(mapID)
@@ -101,8 +297,9 @@ function overlay:DrawSegmentsForMap(mapID)
     if not segments or #segments == 0 then return end
 
     local W, H      = self:GetWidth(), self:GetHeight()
-    local lineIdx   = 1
-    local iconIdx   = 1
+    local lineIdx    = 1
+    local iconIdx    = 1
+    local chevronIdx = 1
 
     for _, seg in ipairs(segments) do
         local pts = seg.points
@@ -116,6 +313,15 @@ function overlay:DrawSegmentsForMap(mapID)
             -- (red X) at the segment's last point. No start dot, no
             -- lines -- the segment isn't a path, it's a "go here" pin.
             if seg.kind == "poi" then
+                -- noMarker=true on a poi segment suppresses the World Map
+                -- icon entirely. Used for "step needs to exist structurally
+                -- (carries a note for the panel travel pane) but the
+                -- player doesn't need a map marker because they're
+                -- already at the destination" cases. N'Zoth (Ny'alotha)
+                -- is the canonical example: after killing Carapace, the
+                -- player auto-spawns directly in front of the boss --
+                -- no walking, no clicking, no decision about where to go.
+                if not seg.noMarker then
                 local mark    = seg.navPoint or pts[#pts]
                 local poiIcon = self.icons[iconIdx]
                 if poiIcon then
@@ -123,12 +329,18 @@ function overlay:DrawSegmentsForMap(mapID)
                     -- POI uses a distinctive bold marker so it reads
                     -- as a search-area indicator at parent-zoom-out
                     -- map scale, distinct from the standard end-of-
-                    -- path red X. Star raid-target icon is
+                    -- path cyan triangle. Star raid-target icon is
                     -- semantically familiar to players ("look here")
                     -- and sized large enough to read clearly when
                     -- the world map is zoomed to a parent map view.
                     poiIcon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_1")
                     poiIcon:SetVertexColor(1.0, 1.0, 1.0, 1.0)
+                    -- Reset rotation and draw layer in case this icon was
+                    -- previously used as an end marker. The star is
+                    -- rotation-invariant visually but cleaner to keep
+                    -- state predictable.
+                    poiIcon:SetRotation(0)
+                    poiIcon:SetDrawLayer("ARTWORK")
                     -- Default 78 matches Fyrakk in Amirdrassil. Older raids
                     -- on smaller sub-zone maps (Ny'alotha) can override via
                     -- per-segment poiSize for proportional rendering.
@@ -137,6 +349,7 @@ function overlay:DrawSegmentsForMap(mapID)
                     poiIcon:Show()
                     iconIdx = iconIdx + 1
                 end
+                end -- end "if not seg.noMarker"
             else
 
             -- Start dot: always show so the player knows where the segment begins
@@ -148,13 +361,16 @@ function overlay:DrawSegmentsForMap(mapID)
                 iconIdx = iconIdx + 1
             end
 
-            -- Lines: all segments use the same bright thick line for visibility
+            -- Lines: all segments use the same bright thick line for visibility.
+            -- Pink {0.95, 0.35, 0.78} matches UI.lua C_PINK (the RETRORUNS
+            -- title color); pairs with cyan chevrons for the addon's color
+            -- scheme.
             for i = 2, #pts do
                 local ln = self.lines[lineIdx]
                 if ln then
                     local p, c = pts[i-1], pts[i]
                     ln:SetThickness(5)
-                    ln:SetColorTexture(1.0, 0.95, 0.3, 1.0)
+                    ln:SetColorTexture(0.95, 0.35, 0.78, 1.0)
                     ln:SetStartPoint("TOPLEFT", p[1] * W, -p[2] * H)
                     ln:SetEndPoint  ("TOPLEFT", c[1] * W, -c[2] * H)
                     ln:Show()
@@ -162,15 +378,18 @@ function overlay:DrawSegmentsForMap(mapID)
                 end
             end
 
-            -- End icon: red X marking the boss location. (Teleporter
-            -- destinations are rendered natively by the World Map, so
-            -- segments whose kind=="teleport" still get the end icon
-            -- here -- we no longer draw a separate teleporter glyph.)
+            -- Direction-of-travel chevrons along the polyline.
+            chevronIdx = chevronIdx +
+                PlaceChevronsAlongPath(self, pts, W, H, chevronIdx)
+
+            -- End marker: cyan triangle pointing at the boss location.
+            -- (Teleporter destinations are rendered natively by the World
+            -- Map, so segments whose kind=="teleport" still get the end
+            -- marker here -- we no longer draw a separate teleporter glyph.)
             local dest    = seg.navPoint or pts[#pts]
             local endIcon = self.icons[iconIdx]
             if endIcon then
-                PlaceAt(endIcon, self, dest[1], dest[2])
-                ApplyIconStyle(endIcon, "end")
+                PlaceEndMarker(self, endIcon, pts, dest, W, H)
                 endIcon:Show()
                 iconIdx = iconIdx + 1
             end
@@ -211,9 +430,10 @@ function overlay:DrawAllSegmentsForMap(mapID)
     if not step or not step.segments then return end
 
     local W, H    = self:GetWidth(), self:GetHeight()
-    local lineIdx = 1
-    local iconIdx = 1
-    local labelIdx = 1
+    local lineIdx    = 1
+    local iconIdx    = 1
+    local labelIdx   = 1
+    local chevronIdx = 1
 
     -- Per-segment color palette, cycled by render order on this map
     -- (see renderNum below). Three high-contrast colors that read
@@ -298,12 +518,15 @@ function overlay:DrawAllSegmentsForMap(mapID)
                 end
             end
 
-            -- End icon (red X) at the segment endpoint
+            -- Direction-of-travel chevrons along the polyline.
+            chevronIdx = chevronIdx +
+                PlaceChevronsAlongPath(self, pts, W, H, chevronIdx)
+
+            -- End marker (cyan triangle) at the segment endpoint
             local dest    = seg.navPoint or pts[#pts]
             local endIcon = self.icons[iconIdx]
             if endIcon then
-                PlaceAt(endIcon, self, dest[1], dest[2])
-                ApplyIconStyle(endIcon, "end")
+                PlaceEndMarker(self, endIcon, pts, dest, W, H)
                 endIcon:Show()
                 iconIdx = iconIdx + 1
             end
