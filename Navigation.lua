@@ -258,6 +258,7 @@ function RR:GetAvailableSteps()
 end
 
 function RR:ComputeNextStep()
+    local prevStep = self.state.activeStep
     self.state.activeStep = nil
     if not self.currentRaid then return nil end
     local available = self:GetAvailableSteps()
@@ -265,6 +266,7 @@ function RR:ComputeNextStep()
         for _, step in ipairs(available) do
             if step.bossIndex == self.state.manualTargetBossIndex then
                 self.state.activeStep = step
+                self:OnActiveStepChanged(prevStep, step)
                 return step
             end
         end
@@ -272,9 +274,64 @@ function RR:ComputeNextStep()
     end
     if #available > 0 then
         self.state.activeStep = available[1]
+        self:OnActiveStepChanged(prevStep, available[1])
         return available[1]
     end
+    self:OnActiveStepChanged(prevStep, nil)
     return nil
+end
+
+-- Called from ComputeNextStep whenever the active step is set (or
+-- cleared). Used to reset step-scoped state -- specifically the
+-- stepVisitedMapIDs set, which the seg-picker consults to decide
+-- whether a seg's mapID has been reached during the CURRENT step.
+-- Without per-step reset, mapIDs visited during prior steps in the
+-- same lockout would falsely unlock segs in later steps. The
+-- canonical case is BfD's Mekkatorque step 7: the player has been
+-- on mapID 875 during prior recording sessions in the same lockout,
+-- but for step 7 we need "have you reached 875 SINCE Rastakhan
+-- died?" -- which is only true after the gryphon lands.
+function RR:OnActiveStepChanged(prevStep, newStep)
+    if prevStep == newStep then return end
+    -- Step changed (including step becoming nil). Reset the per-step
+    -- visited set. Seed it with the player's current mapID so the
+    -- starting seg of the new step is immediately reachable.
+    wipe(self.state.stepVisitedMapIDs)
+    local currentMapID = C_Map and C_Map.GetBestMapForUnit and
+                         C_Map.GetBestMapForUnit("player")
+    if currentMapID then
+        self.state.stepVisitedMapIDs[currentMapID] = true
+    end
+    -- If we have persisted step-visit history for the new step
+    -- (typical case: /reload mid-step), restore it. The persisted
+    -- table was loaded by RestorePersistedSegments and staged on
+    -- state.persistedStepVisited until the active step was known.
+    if newStep then
+        local stepIndex = newStep.step or newStep.priority
+        if stepIndex and self.state.persistedStepVisited
+            and self.state.persistedStepVisited[stepIndex]
+        then
+            for mapID, v in pairs(self.state.persistedStepVisited[stepIndex]) do
+                self.state.stepVisitedMapIDs[mapID] = v
+            end
+            if self.ZoneLog then
+                self:ZoneLog(("OnActiveStepChanged: restored persisted stepVisited for step %d"):format(stepIndex))
+            end
+        end
+    end
+    if self.ZoneLog then
+        local prevLabel = prevStep and (prevStep.title or ("step " .. tostring(prevStep.step or prevStep.priority))) or "(none)"
+        local newLabel = newStep and (newStep.title or ("step " .. tostring(newStep.step or newStep.priority))) or "(none)"
+        self:ZoneLog(("OnActiveStepChanged: %s -> %s, stepVisitedMapIDs reset, seeded with %s"):format(
+            prevLabel, newLabel, tostring(currentMapID or "(nil)")))
+    end
+
+    -- BfD-isolated activeSeg seeding (v1.6+): for instanceID 2070, seed
+    -- the activeSeg based on player's current mapID matching a seg.
+    -- BfD-guarded internally, no-op outside BfD. See Data/BfDPicker.lua.
+    if newStep then
+        self:SeedBfDActiveSeg(newStep)
+    end
 end
 
 function RR:SetManualTarget(bossIndex)
@@ -364,12 +421,145 @@ end
 function RR:GetRelevantSegmentsForMap(step, mapID)
     local results = {}
     if not step or not step.segments or not mapID then return results end
+
+    -- BfD-isolated picker dispatch (v1.6+): instanceID 2070 routes
+    -- through the activeSeg-based picker in Data/BfDPicker.lua. Other
+    -- raids fall through to the existing layered-gate logic below.
+    -- See BfDPicker.lua header for the model rationale.
+    if self.currentRaid and self.currentRaid.instanceID == self.BFD_INSTANCE_ID then
+        return self:PickBfDLineSegs(step, mapID)
+    end
+
     local stepIndex = step.step or step.priority or 0
     local matches   = {}
     -- Read current sub-zone for requiresSubZone gating (see below).
     -- Cheap call, fine to do once per picker invocation.
     local currentSubZone = (GetSubZoneText and GetSubZoneText()) or ""
+
+    -- Step-scoped reachability cap (v1.6+): determine the highest seg
+    -- index whose mapID has been visited during the current active
+    -- step. The picker will never return a seg with index higher than
+    -- this -- preventing the picker from advancing past unreached segs.
+    --
+    -- Canonical case: BfD's Mekkatorque step 7. Player starts on 1357
+    -- (seg 1). Gryphon flight transits through mapID 1352 -- which is
+    -- ALSO seg 4's mapID. Without this cap, the picker would surface
+    -- seg 4's note mid-flight ("After you reach the next area, go
+    -- downstairs..."). With the cap, since mapID 875 (seg 2) hasn't
+    -- been visited yet during this step, maxReachable stays at 1 and
+    -- seg 4 stays invisible. Once the player lands on 875,
+    -- maxReachable advances to 2; once they reach 1352 again post-
+    -- Tandred, maxReachable advances to 4 (skipping seg 3 if 1367
+    -- was never visited -- the rule allows skip-ahead since seg 3 is
+    -- a note-only "passing-through" announcement rather than a
+    -- gate).
+    --
+    -- Visit set is seeded with the player's mapID at step-activation
+    -- time (see OnActiveStepChanged), so the FIRST seg of every step
+    -- is reachable immediately.
+    -- Step-scoped reachability cap (v1.6+, OPT-IN via step.useStrictSegOrdering):
+    -- walk segs in strict order, advancing the cap by one only when the
+    -- next seg's mapID has been visited during the current active step.
+    -- Stop at the first gap.
+    --
+    -- Why opt-in: this is a behavioral tightening that could break
+    -- existing raids whose data was authored expecting the picker to
+    -- advance past unreached segs. Setting useStrictSegOrdering=true
+    -- on a step opts into the new rule for that step only.
+    --
+    -- Canonical case: BfD's Mekkatorque step 7. Player starts on 1357
+    -- (seg 1). Gryphon flight transits through mapID 1352 -- which is
+    -- ALSO seg 4's mapID. With strict-sequential, the cap stays at 1
+    -- because seg 2's mapID (875) hasn't been visited yet, and the
+    -- walk stops at the first gap. Once player physically reaches
+    -- 875 -> 1367 -> 1352 in order, the cap advances.
+    --
+    -- Known limitation: this cap only blocks SKIPPING AHEAD. Once all
+    -- segs' mapIDs have been visited (typical at the end of a multi-
+    -- mapID step's traversal), the cap saturates at #segments and
+    -- stops filtering. The picker can still match against earlier
+    -- segs when the player transiently re-enters their mapID (e.g.
+    -- BfD Horde Opulence: jump-in-hole transit through 1357 briefly
+    -- re-fires seg 2's note). A v1.6 attempt at adding a "minReachable
+    -- floor" (block segs below the highest-visited seg) was reverted
+    -- because it also blocked legitimate backtracking (player runs
+    -- back to seg 3's mapID after reaching seg 4 -- their seg 3 note
+    -- becomes inaccessible). Proper fix is time-based debouncing of
+    -- mapID transitions in the picker, which is a larger v1.7 design
+    -- problem. For now the brief transit-flash is the lesser evil.
+    local maxReachable = #step.segments  -- default: no cap (existing behavior)
+    if step.useStrictSegOrdering then
+        -- The player's current mapID (the value passed to this picker
+        -- via GetBestMapForStep) is by definition a "visited" mapID --
+        -- they're physically on it right now. Add to the visit set
+        -- before walking. Closes the post-reload gap where HLC hasn't
+        -- yet fired for the current mapID (e.g., player /reload's
+        -- while on Mekkatorque's encounter platform; HLC fires with
+        -- prev=nil and doesn't write to the persisted visit set
+        -- because there's no transition).
+        if mapID and self.state.stepVisitedMapIDs then
+            self.state.stepVisitedMapIDs[mapID] = true
+        end
+        maxReachable = 0
+        local visited = self.state.stepVisitedMapIDs
+        if visited then
+            for segIndex, seg in ipairs(step.segments) do
+                if seg.mapID and visited[seg.mapID] then
+                    maxReachable = segIndex
+                else
+                    break
+                end
+            end
+        end
+        -- Recovery: if the cap blocks all segs (typically because
+        -- /reload happened before any HLC writes to the persisted
+        -- visit set), seed from completedSegments. Any seg already
+        -- marked complete must have been reached, so its mapID
+        -- belongs in the visit set retroactively. Restores a
+        -- usable cap value without losing the strict-sequential
+        -- semantic for future picker calls.
+        if maxReachable == 0 then
+            local visit = self.state.stepVisitedMapIDs
+            -- Recovery 1: if seg N is marked complete, segs 1..N's
+            -- mapIDs were all reached at some point (sequential
+            -- implication).
+            local highestCompleted = 0
+            for segIndex, seg in ipairs(step.segments) do
+                if self:IsSegmentCompleted(stepIndex, segIndex) then
+                    highestCompleted = segIndex
+                end
+            end
+            -- Recovery 2: if the player's current mapID matches some
+            -- seg N's mapID, they must have reached every prior seg
+            -- to be standing here. Same sequential implication.
+            local currentMatch = 0
+            if mapID then
+                for segIndex, seg in ipairs(step.segments) do
+                    if seg.mapID == mapID then
+                        currentMatch = segIndex
+                        break  -- earliest match wins for this purpose
+                    end
+                end
+            end
+            local highest = math.max(highestCompleted, currentMatch)
+            for segIndex = 1, highest do
+                local seg = step.segments[segIndex]
+                if seg and seg.mapID then
+                    visit[seg.mapID] = true
+                end
+            end
+            for segIndex, seg in ipairs(step.segments) do
+                if seg.mapID and visit[seg.mapID] then
+                    maxReachable = segIndex
+                else
+                    break
+                end
+            end
+        end
+    end
+
     for segIndex, seg in ipairs(step.segments) do
+        if segIndex > maxReachable then break end
         -- Note: don't gate on seg.points here. Note-only segments
         -- (no points, just a note) should still match for travel-pane
         -- text purposes -- they're authored when no path-line is
@@ -413,6 +603,40 @@ function RR:GetRelevantSegmentsForMap(step, mapID)
             if seg.requiresSubZone and seg.requiresSubZone ~= currentSubZone then
                 break
             end
+            -- revealAfterMapVisit (v1.6+): gate on whether the player has
+            -- physically visited a specific mapID at any point during
+            -- the current lockout. Used when subZone-string gates are
+            -- ambiguous (same string at multiple mapIDs along a route).
+            -- Canonical case: BfD's Mekkatorque seg 4 -- subZone
+            -- "Dazar'alor" briefly fires on mapID 1352 mid-gryphon-
+            -- flight AND at the post-Tandred destination; only the
+            -- destination case is preceded by the player landing on
+            -- mapID 875 (the ship). Gate: "this seg cannot display
+            -- until you've physically been on mapID 875 at least
+            -- once." Same break-walk semantic as requiresSubZone.
+            if seg.revealAfterMapVisit
+                and not (self.state.visitedMapIDs
+                    and self.state.visitedMapIDs[seg.revealAfterMapVisit])
+            then
+                break
+            end
+            -- gateBySubZone (v1.6+): opt-in flag for new-style segs that
+            -- want strict subZone matching as a default. Auto-stamped
+            -- segs (recorded with the auto-stamp infrastructure) emit
+            -- this flag because their subZone field is reliably the
+            -- DESTINATION subZone, not a recorder-default leftover.
+            -- When set, the seg requires both mapID AND subZone to
+            -- match -- prevents transit-zone false-matches like the
+            -- Mekkatorque gryphon flight briefly transiting through
+            -- mapID 1352 and matching seg 4 erroneously. Same break-
+            -- walk semantic as requiresSubZone (preserves sequential
+            -- ordering by stopping at the first gated seg). Old segs
+            -- without gateBySubZone keep their existing mapID-only
+            -- match behavior -- no migration needed for shipped raids.
+            if seg.gateBySubZone and seg.subZone
+                and seg.subZone ~= currentSubZone then
+                break
+            end
             -- revealAfter gating (v1.4): same break semantic as
             -- requiresSubZone -- if a downstream seg's predecessor
             -- isn't done yet, stop the walk rather than skipping
@@ -425,6 +649,7 @@ function RR:GetRelevantSegmentsForMap(step, mapID)
             table.insert(matches, { segIndex = segIndex, seg = seg })
         end
     end
+
     if #matches <= 1 then
         for _, m in ipairs(matches) do table.insert(results, m.seg) end
         return results

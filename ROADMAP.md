@@ -1,6 +1,6 @@
 # RetroRuns — Roadmap & Feature Tracker
 
-## Current Version: 1.5.0
+## Current Version: 1.6.0
 
 ---
 
@@ -266,6 +266,31 @@
     kill-the-adds pause segment between Brann's "get these doors
     open" voiceline and MOTHER's "decontamination chamber" voiceline.
     Shipped in v1.3.0.
+  - BFA: Battle of Dazar'alor — **DONE.** 9 bosses, 95 loot items,
+    full faction-asymmetric routing (different entrances, different
+    bosses 1-3 names + journalEncounterIDs, different routing paths
+    through the same nine boss rooms; Alliance and Horde fight bosses
+    2 and 3 in opposite orders against different NPCs). Faction-shared
+    achievements (Glory of the Dazar'alor Raider meta + 9 boss criteria),
+    mostly-faction-shared loot (Jadefire encounter has 4 swapped items
+    named per faction's NPCs), faction-aware specialLoot detection on
+    Glacial Tidestorm + G.M.O.D. + 3 Conclave pets. First raid using
+    the new `RetroRuns_DataHorde[instanceID]` parallel-table architecture
+    for faction-asymmetric data (single global for the 10 symmetric
+    raids; parallel global for BfD). First raid using the achievement-
+    gated skip mechanism (`skipAchievement` field) for "Bigger Stick
+    than Bwonsamdi's" Mythic skip-to-Jaina detection. First raid
+    using the strict-activeSeg picker model (Data/BfDPicker.lua,
+    dispatch-isolated by instanceID 2070) which replaces the
+    layered-gate picker for this raid only -- a single integer
+    activeSeg per step, advances on next-expected-mapID match, never
+    retreats. Faction-scoped persistent state in
+    `RetroRunsDB.bfdActiveSeg[instanceID][faction]`. Heartbeat poll
+    closes Blizzard event-timing gaps where ZONE_CHANGED fires before
+    `C_Map.GetBestMapForUnit` reflects the new mapID (Loa's Sanctum
+    elevator, intra-instance flights). Faction marker `[A]`/`[H]` in
+    Alliance blue / Horde red appended to the panel's Raid: line.
+    Shipped in v1.6.0.
   - Legion: Antorus, the Burning Throne
   - Legion: Tomb of Sargeras
   - + others as time allows
@@ -508,3 +533,4 @@ per-item list is secondary.
 | 1.3.0   | Two new raids — ninth (Crucible of Storms, BfA mini-raid) and tenth (Uldir, the BfA opener with the parallel-three middle) + first shipped housing decor item with collection state via `C_HousingCatalog.GetCatalogEntryInfoByRecordID` + `decorID` schema field on specialLoot rows + gray-on-collected rendering for specialLoot rows (matches achievement renderer's de-emphasis precedent) + footer reserve fix to give the Boss Progress list breathing room above the action button row + first use of yell-gated text-only segment shape (`advanceOn` with empty `points = {}`) for MOTHER's add-killing pause |
 | 1.4.0   | Achievements standalone window with Glory meta headers, mount reward links, soloable difficulty indicators, live-refresh, current-boss highlight, and mutex auxiliary window behavior + new `revealAfter` per-segment gating field paired with the existing `advanceOn` (yell trigger) and `requiresSubZone` mechanisms + numbered-waypoint label suppression when only one seg renders + Eranog routing converted from three-way `renderAllSegments` numbered mode to a two-phase yell-gated route (pre-flight dragon stub alone, post-landing two numbered lines on Raszageth's "skies are mine to control" yell) + panel-position fix at non-default Window Scale (corrected `fscale`-vs-`pscale` divisor in `SetPoint("CENTER", ...)` offset math eliminates drag-jump-on-release and BfA-toggle leftward drift) + idle-panel BfA-expansion downward-growth fix |
 | 1.5.0   | One-click entrance navigation — per-raid entrance coords across all 10 supported raids, four-tier dispatch (Zygor → Mapzeroth → TomTom → Blizzard) with tier-aware button alpha and adaptive footer legend, plus a "Waypoint set" toast on the silent fallback tiers. Routing-addon legend renders as a `[ Zygor \| Mapzeroth ]` pill bar with the active router lit in its brand color and the inactive dimmed to gray. Redesigned route lines on the World Map: pink polylines now carry directional cyan chevrons at fixed pixel stride, with a cyan-fill / pink-border end-triangle replacing the prior generic destination icon. New in-Settings shortcut buttons next to Defaults: pink beetle icon → GitHub Issues copy popup; cyan chat-bubble icon → CurseForge comments copy popup. Both pop a Wowhead-style single-line EditBox for Ctrl+C → paste-into-browser flow. EJ encounter-info cache fix (`EJ_SelectInstance` precondition + don't-cache-empty-results) resolves the v1.4.0 difficulty-pill regression where every raid showed `[ LFR - \| N - \| H - \| M - ]` instead of kill counts. Idle-panel polish pass: three-state filled/dim/invisible skip-status leading star replacing the `* ` bullet, single-expand accordion behavior on expansion toggles, and legend block repositioned to a fixed bottom-of-panel anchor above the action row at a smaller fixed font. |
+| 1.6.0   | Eleventh raid: Battle of Dazar'alor with full faction-asymmetric handling (parallel `RetroRuns_DataHorde[instanceID]` table dispatched by `UnitFactionGroup`, separate Alliance and Horde routing through the same nine boss rooms, faction-shared achievements + mostly-faction-shared loot with 4 swapped Jadefire items, faction marker `[A]`/`[H]` in faction colors on the Raid: line). New `skipAchievement` schema field for achievement-gated raid skips ("Bigger Stick than Bwonsamdi's" Mythic skip-to-Jaina, the first such skip the addon recognizes). New strict-activeSeg picker (`Data/BfDPicker.lua`) dispatch-isolated to instanceID 2070 — replaces the layered-gate picker (requiresSubZone / gateBySubZone / revealAfter / revealAfterMapVisit / useStrictSegOrdering) for BfD only; single integer activeSeg per step, advances one seg at a time on next-expected-mapID match, never retreats. Faction-scoped persistent state (`RetroRunsDB.bfdActiveSeg[instanceID][faction]`) with auto-migration from a pre-faction-scoped legacy shape. Heartbeat poll closes Blizzard event-timing gaps where `ZONE_CHANGED_INDOORS` fires before `C_Map.GetBestMapForUnit` reflects the new mapID (Loa's Sanctum elevator, intra-instance pterrordax/gryphon flights). AzerothWaypoint integration on the entrance buttons: AWP detected → routes via `_G.AzerothWaypointNS.RequestManualRoute` (hands off to AWP's backend planner — Zygor / Mapzeroth / Farstrider — for full step-by-step), AWP without backend behaves like a single TomTom waypoint; footer pill bar extended to `[ AWP \| Zygor \| Mapzeroth ]` with brand-colored multi-pill activation. Auto-stamp recorder feature (`Recorder.lua` listens for ENCOUNTER_END / PLAYER_CONTROL_LOST/GAINED to capture player physical mapID instead of visible-map mapID; pending-event queue persists across reloads via `RetroRunsDB.recorderPendingEvent`; `LogRecorderSession` writes to `RetroRunsDB.recorderSessionLog` capped at 2000 entries; Mark Destination + Session Log buttons on DevTools panel for cases where the auto-stamp doesn't fire e.g. scripted in-instance flights). Em-dash byte-sequence fix (Lua 5.1 doesn't support `\xNN` hex escapes; in-game render produced literal `xE2x80x94` glyphs instead of the em-dash on BfD's Mythic-only difficulty cells in the Skips window — only path that emitted that constant; rebuilt via `string.char(0xE2, 0x80, 0x94)`). Faction-aware browser dispatch (Tmog + Achievements via `GetRaidByInstanceID` resolves to the faction-correct table). Subtle brightness pulse on the `[!]` view-special-note marker (16-step cosine breathing curve over 1.6s, full-bright down to ~70% RGB and back, only pulses while the encounter section is collapsed and the boss has a custom soloTip). |

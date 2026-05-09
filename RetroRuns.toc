@@ -2,7 +2,7 @@
 ## Title: RetroRuns
 ## Notes: Solo legacy raid navigator — routing, tips, and achievement tracking
 ## Author: Photek
-## Version: 1.5.0
+## Version: 1.6.0
 ## X-License: MIT
 ## SavedVariables: RetroRunsDB, RetroRunsDebug
 ## IconTexture: Interface\AddOns\RetroRuns\Media\MinimapIcon
@@ -12,6 +12,8 @@
 Data\NyalothaTheWakingCity.lua
 Data\EternalPalace.lua
 Data\CrucibleOfStorms.lua
+Data\BattleOfDazaralor.lua
+Data\BattleOfDazaralorHorde.lua
 Data\Uldir.lua
 Data\CastleNathria.lua
 Data\SanctumOfDomination.lua
@@ -23,6 +25,7 @@ Data\AmirdrassilTheDreamsHope.lua
 # ── Core ──────────────────────────────────────────────────────────────────────
 Core.lua
 Navigation.lua
+Data\BfDPicker.lua
 RaidState.lua
 Recorder.lua
 
@@ -33,3 +36,4 @@ Harvester.lua
 UI.lua
 MinimapButton.lua
 MapOverlay.lua
+DevTools.lua

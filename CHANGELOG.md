@@ -2,6 +2,17 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [1.6.0] - 2026-05-09
+
+### Added
+
+- **Battle of Dazar'alor** is now fully supported — walk-along routes for all 9 bosses with full faction-asymmetric handling. Alliance and Horde have different physical entrances, fight bosses 2 and 3 in opposite orders against different NPCs, and take meaningfully different paths through the same nine boss rooms. The addon detects your faction and serves the right route, encounter notes, achievement attribution, and entrance coordinate automatically. The panel also appends a small bracketed faction marker to the Raid: line — blue `[A]` for Alliance, red `[H]` for Horde — so it's obvious at a glance which side's route you're being shown. Includes the per-boss solo tips you'd expect, achievement callouts for the Glory of the Dazar'alor Raider meta and its nine boss criteria, special loot tracking for two mounts (Glacial Tidestorm from Jaina on Mythic, G.M.O.D. from Mekkatorque) and three Conclave-of-the-Chosen pets (Enchanted Talon of Pa'ku, Spawn of Krag'wa, Thundering Scale of Akunda), and account-wide skip detection on the "Mythic: Lady Jaina Proudmoore" achievement (which gates BfD's Mythic-only skip-to-Jaina at the entrance NPC) — informational only, the addon doesn't modify your encounter selection.
+- **AzerothWaypoint integration on the entrance buttons.** If you have AWP installed, clicking a raid entrance routes through AWP's planner, which gives you full step-by-step routing if you also have Zygor, Mapzeroth, or Farstrider installed alongside it. Without a backend, AWP behaves like a single TomTom waypoint. The footer pill bar now reads `[ AWP | Zygor | Mapzeroth ]` with each pill lit in its brand color when that addon is loaded and dimmed to gray otherwise.
+
+### Changed
+
+- **The yellow `[!]` next to "view special note" now pulses subtly.** A gentle brightness-breathing effect — full-bright down to about 70% and back over a 1.6-second cycle — to draw the eye to bosses that have custom solo-play notes. The link text itself stays static and fully readable; only the leading `[!]` glyph pulses. Stops automatically once you expand the note.
+
 ## [1.5.0] - 2026-05-07
 
 ### Added

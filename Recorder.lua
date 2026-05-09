@@ -38,7 +38,110 @@ RR.recorder = {
     active   = false,
     segments = {},     -- list of completed segments
     current  = nil,    -- segment being built right now
+
+    -- Auto-stamping infrastructure (added to fix the destination-metadata
+    -- class of bug -- segments authored against the visible-map mapID and
+    -- the recorder's-physical-location subZone, which describes the LEAVING
+    -- point not the ARRIVING point. Especially bites on forced-flight
+    -- transitions where the player physically lands on a different mapID
+    -- than the one they were clicking points on.)
+    --
+    -- Two events trigger automatic stamping:
+    --   * ENCOUNTER_END (success=1)  -> just-killed boss is the seg's
+    --       intended destination. Stamp player's physical mapID + subZone.
+    --   * PLAYER_CONTROL_GAINED after PLAYER_CONTROL_LOST -> player just
+    --       finished a transition that took control away (gryphon flight,
+    --       taxi, scripted teleport). Stamp post-transition location.
+    --
+    -- Filter: PLAYER_CONTROL_GAINED only triggers a stamp if the player's
+    -- mapID actually changed during the control-lost period. Combat CC
+    -- and short mount-lock effects produce control-lost/gained pairs but
+    -- don't move the player; filtering these out keeps stamping aligned
+    -- with actual destination transitions.
+    --
+    -- Pending-event persistence: events fired BETWEEN recording sessions
+    -- (after stop, before next start) are queued in pendingEvent and
+    -- consumed on the first seg of the NEXT session. Necessary because
+    -- the typical workflow records one segment per leg (start/click/stop)
+    -- with boss kills and flight landings happening at the seam between
+    -- sessions -- if pending events weren't persisted, the most useful
+    -- auto-stamps would never fire onto a real seg.
+    --
+    -- Stale-event expiry: pending events older than 60s are discarded
+    -- on consumption. Prevents a long break between sessions from
+    -- mis-attributing an old event to an unrelated new seg.
+    --
+    -- Stamp records (segIndex, eventName, capturedMapID, capturedSubZone,
+    -- pending=true|nil) accumulate in stampLog so the dump can surface
+    -- them as comments. Pending=true marks stamps that came from a queued
+    -- event rather than a within-session one.
+    controlLostMapID = nil,    -- set on PLAYER_CONTROL_LOST, cleared on GAINED
+    pendingEvent     = nil,    -- { event, mapID, subZone, time } between sessions
+    stampLog         = {},     -- list of { segIndex, event, mapID, subZone, pending? }
+    eventFrame       = nil,    -- registered lazily on first StartRecording
+
+    -- Verbose session log: timestamped record of every meaningful
+    -- event during a recording session. Persisted to RetroRunsDB so
+    -- it survives /reload (necessary for diagnosing bugs that involve
+    -- reloads). Accumulates across start/stop cycles -- only cleared
+    -- on /rr record reset or when capped at MAX_SESSION_LOG_ENTRIES.
+    --
+    -- Each entry: { time, kind, ... } where `kind` is a short string
+    -- ("Click", "AutoStamp", "Queue", "ConsumeEvent", etc.) and the
+    -- remaining fields are kind-specific. Helper LogSession() builds
+    -- the entry and handles capping.
+    --
+    -- Restoration from RetroRunsDB happens in StartRecording (pulls
+    -- previous-session entries forward so a reload mid-recording
+    -- doesn't lose context). Saving to RetroRunsDB happens
+    -- continuously -- every LogSession write also writes-through to
+    -- RetroRunsDB.recorderSessionLog.
+    sessionLog       = {},     -- list of timestamped log entries
 }
+
+-- Cap on session log size to prevent unbounded RetroRunsDB growth on
+-- long recording streaks. 2000 entries comfortably covers a full raid
+-- recording session even at maximum verbosity. Older entries are
+-- dropped FIFO-style when the cap is exceeded.
+local MAX_SESSION_LOG_ENTRIES = 2000
+
+-- Append a timestamped entry to the session log AND persist to
+-- RetroRunsDB so /reload doesn't lose context. Caps the log at
+-- MAX_SESSION_LOG_ENTRIES, dropping oldest entries first.
+--
+-- Caller passes a `kind` string and a table of additional fields.
+-- The fields table is shallow-copied into the entry; caller can
+-- safely mutate the original after the call.
+local function LogSession(rec, kind, fields)
+    local entry = { time = GetTime and GetTime() or 0, kind = kind }
+    if fields then
+        for k, v in pairs(fields) do entry[k] = v end
+    end
+    table.insert(rec.sessionLog, entry)
+    -- Cap: drop oldest if over the limit. table.remove(t, 1) is O(n)
+    -- but we're talking about a 2000-entry table at worst -- rare and
+    -- cheap enough that the simplicity beats a ring buffer.
+    while #rec.sessionLog > MAX_SESSION_LOG_ENTRIES do
+        table.remove(rec.sessionLog, 1)
+    end
+    -- Write-through to RetroRunsDB. Lazy-init the table since we may
+    -- log before the addon-load init runs. Pointer-shared with the
+    -- recorder's in-memory copy is fine -- they're the same table.
+    if RetroRunsDB then
+        RetroRunsDB.recorderSessionLog = rec.sessionLog
+    end
+end
+
+-- Public wrapper so other files can append to the same session log used
+-- by recorder events. Caller passes a kind string and a fields table
+-- (same shape as the internal LogSession). Used by UI.lua's travel-pane
+-- picker to record what seg note was returned for each fetch -- needed
+-- to diagnose seg-picker bugs that otherwise leave no trail (the picker
+-- is called every heartbeat tick and can return different segs for the
+-- same player location depending on subZone, completion state, etc).
+function RR:LogRecorderSession(kind, fields)
+    LogSession(self.recorder, kind, fields)
+end
 
 -------------------------------------------------------------------------------
 -- Internal helpers
@@ -73,6 +176,303 @@ local function NewSegment(mapID, kind)
                          -- those segments get no subZone field in the dump.
         points  = {},
     }
+end
+
+-- Auto-stamp the current segment's mapID and subZone from the player's
+-- physical location right now. Called by event handlers (ENCOUNTER_END,
+-- PLAYER_CONTROL_GAINED) and the manual "Mark Destination" DevTools
+-- button. Records the stamp in rec.stampLog so the dump can surface
+-- which segs were auto-stamped vs manually authored.
+--
+-- segIndex passed to stampLog is the index the seg WILL HAVE in the
+-- final segs list -- #rec.segments + 1, since rec.current isn't yet
+-- in segs. Lets the dump annotate "seg 3 was auto-stamped by
+-- ENCOUNTER_END" against the correct seg.
+--
+-- No-op if recording isn't active or if rec.current is nil. Stamps
+-- even if rec.current.points is empty (the empty seg might pick up
+-- clicks afterward and we want the metadata correct from the start).
+local function AutoStampCurrent(rec, eventName)
+    if not rec.active or not rec.current then
+        LogSession(rec, "AutoStampSkipped", {
+            event  = eventName,
+            reason = (not rec.active) and "not active" or "no current seg",
+        })
+        return
+    end
+
+    local mapID = C_Map and C_Map.GetBestMapForUnit
+        and C_Map.GetBestMapForUnit("player")
+    local subZone = GetSubZoneText and GetSubZoneText() or ""
+    if not mapID then
+        LogSession(rec, "AutoStampSkipped", {
+            event  = eventName,
+            reason = "GetBestMapForUnit returned nil",
+        })
+        return
+    end
+
+    rec.current.mapID         = mapID
+    rec.current.subZone       = subZone
+    -- Mark this seg as auto-stamped: its subZone field is now reliably
+    -- the destination subZone (not a recorder-default leftover from
+    -- click-time). Emitting gateBySubZone=true in the dump tells the
+    -- renderer's seg-picker to require both mapID AND subZone to match,
+    -- preventing transit-zone false-matches like the Mekkatorque
+    -- gryphon flight briefly transiting through mapID 1352 and
+    -- false-matching seg 4. See UI.lua and Navigation.lua picker logic.
+    rec.current.gateBySubZone = true
+
+    local segIndex = #rec.segments + 1
+    table.insert(rec.stampLog, {
+        segIndex = segIndex,
+        event    = eventName,
+        mapID    = mapID,
+        subZone  = subZone,
+    })
+
+    LogSession(rec, "AutoStamp", {
+        event    = eventName,
+        segIndex = segIndex,
+        mapID    = mapID,
+        subZone  = subZone,
+    })
+end
+
+-- Queue an event for consumption by the next recording session. Called
+-- when an event fires and recording is inactive (between sessions) -- the
+-- typical case in the multi-segment-per-boss workflow where boss kills
+-- and flight landings happen at the seam between sessions.
+local function QueuePendingEvent(eventName)
+    local mapID = C_Map and C_Map.GetBestMapForUnit
+        and C_Map.GetBestMapForUnit("player")
+    local subZone = GetSubZoneText and GetSubZoneText() or ""
+    if not mapID then
+        LogSession(RR.recorder, "QueueSkipped", {
+            event  = eventName,
+            reason = "GetBestMapForUnit returned nil",
+        })
+        return
+    end
+    RR.recorder.pendingEvent = {
+        event   = eventName,
+        mapID   = mapID,
+        subZone = subZone,
+        time    = time and time() or 0,   -- epoch seconds; survives /reload
+    }
+    -- Persist to RetroRunsDB so a /reload between queue and consume
+    -- (e.g. user reloads mid-session to install a dev build) doesn't
+    -- silently lose the queued event. Restored at addon load alongside
+    -- sessionLog. See InitializeDB in Core.lua.
+    if RetroRunsDB then
+        RetroRunsDB.recorderPendingEvent = RR.recorder.pendingEvent
+    end
+    LogSession(RR.recorder, "Queue", {
+        event   = eventName,
+        mapID   = mapID,
+        subZone = subZone,
+    })
+end
+
+-- Event handler. Dispatches ENCOUNTER_END (success=1) and the
+-- PLAYER_CONTROL_LOST/GAINED pair through to AutoStampCurrent when
+-- recording is active, or to QueuePendingEvent when inactive.
+--
+-- PLAYER_CONTROL_LOST/GAINED filtering: stash the player's mapID at
+-- LOST time, and only stamp on GAINED if the mapID has changed since.
+-- This filters out combat CC and mount locks that produce a
+-- control-lost/gained pair without actually moving the player.
+--
+-- LOST tracking happens regardless of recording state -- need it cached
+-- so a GAINED event between sessions can still apply the filter.
+local function OnRecorderEvent(self, event, ...)
+    local rec = RR.recorder
+
+    if event == "ENCOUNTER_END" then
+        local _, encName, _, _, success = ...
+        LogSession(rec, "Event", {
+            event           = "ENCOUNTER_END",
+            encounterName   = encName or "?",
+            success         = success,
+            recordingActive = rec.active,
+        })
+        if success == 1 then
+            if rec.active then
+                AutoStampCurrent(rec, "ENCOUNTER_END")
+            else
+                QueuePendingEvent("ENCOUNTER_END")
+            end
+        end
+    elseif event == "PLAYER_CONTROL_LOST" then
+        local mapID = C_Map and C_Map.GetBestMapForUnit
+            and C_Map.GetBestMapForUnit("player")
+        rec.controlLostMapID = mapID
+        LogSession(rec, "Event", {
+            event              = "PLAYER_CONTROL_LOST",
+            stashedMapID       = mapID,
+            recordingActive    = rec.active,
+        })
+        -- Diagnostic-only: log the LOST when recording is active so we
+        -- can later tell if the GAINED side got filtered vs. never fired.
+        if rec.active and rec.current then
+            table.insert(rec.stampLog, {
+                segIndex = #rec.segments + 1,
+                event    = "PLAYER_CONTROL_LOST (diagnostic)",
+                mapID    = mapID,
+                subZone  = "(not captured at LOST)",
+            })
+        end
+    elseif event == "PLAYER_CONTROL_GAINED" then
+        local previousMapID = rec.controlLostMapID
+        rec.controlLostMapID = nil
+        local currentMapID = C_Map and C_Map.GetBestMapForUnit
+            and C_Map.GetBestMapForUnit("player")
+        LogSession(rec, "Event", {
+            event              = "PLAYER_CONTROL_GAINED",
+            previousMapID      = previousMapID or "(no LOST stashed)",
+            currentMapID       = currentMapID,
+            mapIDChanged       = (previousMapID and currentMapID and currentMapID ~= previousMapID) or false,
+            recordingActive    = rec.active,
+        })
+        if not previousMapID then return end
+        if currentMapID and currentMapID ~= previousMapID then
+            if rec.active then
+                AutoStampCurrent(rec, "PLAYER_CONTROL_GAINED")
+            else
+                QueuePendingEvent("PLAYER_CONTROL_GAINED")
+            end
+        elseif rec.active and rec.current then
+            -- Diagnostic-only: filtered-out GAINED, recording active.
+            local subZone = GetSubZoneText and GetSubZoneText() or ""
+            table.insert(rec.stampLog, {
+                segIndex = #rec.segments + 1,
+                event    = "PLAYER_CONTROL_GAINED (FILTERED: no mapID change)",
+                mapID    = currentMapID or 0,
+                subZone  = subZone,
+            })
+        end
+    end
+end
+
+-- Consume any pending event at the start of a new recording session.
+-- Stamps the current seg with the queued event's metadata, OR discards
+-- the event if it's older than 60s (stale -- author probably took a
+-- long break and the queued event is unrelated to what they're now
+-- recording). Marks the stamp log entry with `pending = true` so the
+-- author can see this stamp came from a cross-session queue rather
+-- than a within-session event.
+local function ConsumePendingEvent(rec)
+    local pending = rec.pendingEvent
+    rec.pendingEvent = nil
+    -- Clear persisted copy too -- a /reload between consume and the
+    -- next queue would otherwise restore an already-consumed event.
+    if RetroRunsDB then
+        RetroRunsDB.recorderPendingEvent = nil
+    end
+    if not pending then
+        LogSession(rec, "Consume", { result = "no pending event" })
+        return
+    end
+
+    -- Staleness check uses time() (epoch seconds) rather than GetTime()
+    -- (seconds-since-WoW-launch) because GetTime() resets on /reload --
+    -- a queued event that survived a reload would have a pending.time
+    -- value from the prior session that's not comparable to the new
+    -- session's GetTime(). pending.time was written as time() in
+    -- QueuePendingEvent for exactly this reason.
+    local now = time and time() or 0
+    local age = now - (pending.time or 0)
+    if age > 60 then
+        -- Stale -- log the discard so the author isn't surprised by a
+        -- missing stamp.
+        table.insert(rec.stampLog, {
+            segIndex = #rec.segments + 1,
+            event    = ("%s (DISCARDED: %.0fs stale)"):format(pending.event, age),
+            mapID    = pending.mapID or 0,
+            subZone  = pending.subZone or "",
+        })
+        LogSession(rec, "Consume", {
+            result    = "DISCARDED stale",
+            event     = pending.event,
+            ageSecs   = ("%.1f"):format(age),
+            mapID     = pending.mapID or 0,
+            subZone   = pending.subZone or "",
+        })
+        return
+    end
+
+    if not rec.current then
+        LogSession(rec, "Consume", { result = "no current seg to stamp" })
+        return
+    end
+    rec.current.mapID         = pending.mapID
+    rec.current.subZone       = pending.subZone
+    -- See AutoStampCurrent for rationale on gateBySubZone.
+    rec.current.gateBySubZone = true
+    table.insert(rec.stampLog, {
+        segIndex = #rec.segments + 1,
+        event    = pending.event,
+        mapID    = pending.mapID,
+        subZone  = pending.subZone,
+        pending  = true,
+    })
+    LogSession(rec, "Consume", {
+        result    = "consumed",
+        event     = pending.event,
+        ageSecs   = ("%.1f"):format(age),
+        mapID     = pending.mapID,
+        subZone   = pending.subZone,
+    })
+    -- Stash a copy in case StopRecording ends up dropping the only seg
+    -- (zero-points discard via existing line-179 guard). Without this
+    -- restore-on-empty path, a brief throwaway recording session
+    -- (cutscene-cancellation, accidental start/stop, etc.) silently
+    -- consumes a queued event onto a soon-to-be-dropped seg, and the
+    -- event vanishes -- the next real session sees an empty queue and
+    -- the auto-stamp goes missing. Restoring at Stop preserves the
+    -- queued event for the next session, where it actually belongs.
+    rec.consumedPendingThisSession = {
+        event   = pending.event,
+        mapID   = pending.mapID,
+        subZone = pending.subZone,
+        time    = pending.time,
+    }
+end
+
+-- Lazy event-frame setup. Registered on first StartRecording, kept
+-- alive across recordings (cheap; events only act when rec.active).
+local function EnsureEventFrame()
+    local rec = RR.recorder
+    if rec.eventFrame then return end
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("ENCOUNTER_END")
+    f:RegisterEvent("PLAYER_CONTROL_LOST")
+    f:RegisterEvent("PLAYER_CONTROL_GAINED")
+    f:SetScript("OnEvent", OnRecorderEvent)
+    rec.eventFrame = f
+end
+
+-- Manual auto-stamp trigger for the "Mark Destination" DevTools button.
+-- Use when neither ENCOUNTER_END nor PLAYER_CONTROL_GAINED fires at the
+-- destination -- intermediate non-boss locations, seamless portals,
+-- mid-zone destinations like "stand at the orb" that have no Blizzard
+-- event. Stamps the current segment with the player's physical mapID
+-- and subZone right now.
+function RR:RecorderMarkDestination()
+    local rec = self.recorder
+    if not rec.active then
+        LogSession(rec, "MarkDestination", { result = "rejected: not active" })
+        self:Print("Recorder is not running. Start recording first.")
+        return
+    end
+    if not rec.current then
+        LogSession(rec, "MarkDestination", { result = "rejected: no current seg" })
+        self:Print("No active segment to stamp.")
+        return
+    end
+    AutoStampCurrent(rec, "MANUAL")
+    self:Print(("Stamped current segment: mapID=%d subZone=%q"):format(
+        rec.current.mapID or 0, rec.current.subZone or ""))
 end
 
 -------------------------------------------------------------------------------
@@ -129,6 +529,34 @@ function RR:RecorderHandleMapClick()
     -- pure map-floor changes (only for actual teleporter usage where
     -- the segment kind needs to be "teleport").
     if rec.current.mapID ~= visibleMapID then
+        -- Diagnostic: log the discard if we're about to throw away an
+        -- auto-stamped empty seg. This catches the suspected bug where
+        -- ConsumePendingEvent stamps the seg with the player's physical
+        -- mapID, but the user has the world map open to a different
+        -- mapID, so the first shift-click immediately discards the
+        -- stamped seg and creates a fresh one with the visible-map
+        -- mapID. Auto-stamp metadata lost.
+        if #rec.current.points == 0
+            and rec.consumedPendingThisSession
+        then
+            table.insert(rec.stampLog, {
+                segIndex = #rec.segments + 1,
+                event    = ("CLICK_HANDLER_DISCARD: stamped seg discarded -- rec.current.mapID=%d visibleMapID=%d (stamp from %s)"):format(
+                    rec.current.mapID or 0,
+                    visibleMapID,
+                    rec.consumedPendingThisSession.event or "?"),
+                mapID    = rec.current.mapID or 0,
+                subZone  = rec.current.subZone or "",
+            })
+        end
+        LogSession(rec, "SegCut", {
+            reason         = "visible-map mismatch",
+            oldSegMapID    = rec.current.mapID or 0,
+            oldSegPoints   = #rec.current.points,
+            newSegMapID    = visibleMapID,
+            droppedEmpty   = (#rec.current.points == 0),
+            wasStamped     = (rec.consumedPendingThisSession ~= nil),
+        })
         if #rec.current.points > 0 then
             table.insert(rec.segments, rec.current)
         end
@@ -145,6 +573,16 @@ function RR:RecorderHandleMapClick()
     if GetSubZoneText then
         rec.current.subZone = GetSubZoneText()
     end
+
+    LogSession(rec, "Click", {
+        cursor             = ("(%.3f, %.3f)"):format(R3(nx), R3(ny)),
+        visibleMapID       = visibleMapID,
+        currentSegMapID    = rec.current.mapID or 0,
+        playerMapID        = C_Map and C_Map.GetBestMapForUnit
+            and C_Map.GetBestMapForUnit("player"),
+        playerSubZone      = GetSubZoneText and GetSubZoneText() or "",
+        currentSegPoints   = #rec.current.points,
+    })
 end
 
 -------------------------------------------------------------------------------
@@ -164,27 +602,35 @@ function RR:StartRecording()
         return
     end
 
-    rec.active   = true
-    rec.segments = {}
-    rec.current  = NewSegment(mapID, "path")
+    rec.active           = true
+    rec.segments         = {}
+    rec.current          = NewSegment(mapID, "path")
+    rec.stampLog         = {}
+    -- Note: controlLostMapID is NOT reset -- a LOST event between
+    -- sessions still needs to be available for filter-checking when
+    -- its corresponding GAINED arrives. Same for pendingEvent, which
+    -- ConsumePendingEvent below will read and clear.
 
-    self:ShowRecorderHUD()
+    LogSession(rec, "StartRecording", {
+        startMapID         = mapID,
+        playerMapID        = C_Map and C_Map.GetBestMapForUnit
+            and C_Map.GetBestMapForUnit("player"),
+        playerSubZone      = GetSubZoneText and GetSubZoneText() or "",
+        hasPendingEvent    = rec.pendingEvent and rec.pendingEvent.event or "(none)",
+        controlLostStashed = rec.controlLostMapID or "(nil)",
+    })
+
+    EnsureEventFrame()
+    ConsumePendingEvent(rec)
 
     self:Print("Recording started.")
-    self:Print("  Open the World Map and SHIFT+CLICK each waypoint along the route.")
-    self:Print("  Switch World Map floors between clicks to record across multiple maps.")
-    self:Print("  /rr record tp <name>   -- mark current segment as a teleporter use")
-    self:Print("  /rr record break       -- split AFTER crossing a sub-zone threshold")
-    self:Print("  /rr record note <text> -- attach a travel note to the current segment")
-    self:Print("  /rr record stop        -- finish")
 end
 
 function RR:StopRecording()
     local rec = self.recorder
     rec.active = false
 
-    self:HideRecorderHUD()
-
+    local pointsInCurrent = (rec.current and #rec.current.points) or 0
     if rec.current then
         if #rec.current.points > 0 then
             table.insert(rec.segments, rec.current)
@@ -192,28 +638,48 @@ function RR:StopRecording()
         rec.current = nil
     end
 
-    local total = 0
-    for _, s in ipairs(rec.segments) do total = total + #s.points end
-    self:Print(("Stopped. %d segment(s), %d total waypoint(s)."):format(
-        #rec.segments, total))
+    -- Restore-on-empty: if this session consumed a pending event but
+    -- ended up producing zero kept segs (typical case: a brief
+    -- start/stop to dodge a cutscene), put the event back in the queue
+    -- so the next real session can pick it up. Without this, the
+    -- queued event is silently lost -- the soon-to-be-dropped seg ate
+    -- the stamp and went away with it. See ConsumePendingEvent for
+    -- where consumedPendingThisSession gets set.
+    local restoredPending = false
+    if #rec.segments == 0 and rec.consumedPendingThisSession then
+        rec.pendingEvent = rec.consumedPendingThisSession
+        restoredPending = true
+        -- Re-persist so a /reload after this empty stop doesn't lose
+        -- the just-restored event.
+        if RetroRunsDB then
+            RetroRunsDB.recorderPendingEvent = rec.pendingEvent
+        end
+    end
+    rec.consumedPendingThisSession = nil
+
+    LogSession(rec, "StopRecording", {
+        segsKept          = #rec.segments,
+        pointsInCurrent   = pointsInCurrent,
+        restoredPending   = restoredPending,
+        playerMapID       = C_Map and C_Map.GetBestMapForUnit
+            and C_Map.GetBestMapForUnit("player"),
+        playerSubZone     = GetSubZoneText and GetSubZoneText() or "",
+    })
+
+    self:Print("Recording stopped.")
 
     -- Auto-dump on stop. The author's workflow always wants to see (and
     -- copy) the export immediately after stopping; previously this
     -- required a separate /rr record dump call. Auto-firing the dump
     -- saves a keystroke per recording and matches the natural "stop
-    -- and show me what I caught" mental model.
-    --
-    -- Skip silently if there's nothing to export -- this happens when
-    -- the user stops a recording they aborted early (no shift-clicks
-    -- captured) and is about to /rr record reset. Showing a "nothing
-    -- to export" error in that case is noise. The /rr record dump
-    -- command is still available for manual invocation if the user
-    -- wants to re-export later (the data persists in
-    -- RetroRunsDB.lastRecording).
+    -- and show me what I caught" mental model. If there's nothing to
+    -- export (Start -> Stop with no shift-clicks), say so explicitly --
+    -- silent skip caused confusion when the export window failed to
+    -- appear and the user couldn't tell whether Stop had registered.
     if #rec.segments > 0 then
         self:DumpRecording()
     else
-        self:Print("/rr record reset -- to clear")
+        self:Print("No waypoints captured.")
     end
 end
 
@@ -269,6 +735,10 @@ function RR:RecordBreak()
         return
     end
     local mapID = rec.current.mapID
+    LogSession(rec, "RecordBreak", {
+        oldSegMapID  = mapID,
+        oldSegPoints = #rec.current.points,
+    })
     table.insert(rec.segments, rec.current)
     rec.current = NewSegment(mapID, "path")
     self:Print(("Segment break inserted (mapID %d). Continue shift-clicking."):format(mapID))
@@ -290,10 +760,62 @@ function RR:RecordSetNote(text)
     self:Print("Note set: " .. text)
 end
 
+--- Render the verbose recorder session log into a copy window. Called
+--- by the DevTools "Session Log" button. Each log entry rendered as
+--- "[time] kind  field=value field=value ..." -- one line per entry.
+--- Time is formatted as seconds-since-session-start (relative to the
+--- earliest entry) so absolute clock noise doesn't dominate.
+---
+--- The session log persists across /reload and across start/stop
+--- cycles, so this view shows the full history of recorder activity
+--- since the last /rr record reset.
+function RR:ShowRecorderSessionLog()
+    local rec = self.recorder
+    local log = rec.sessionLog or {}
+    if #log == 0 then
+        self:ShowCopyWindow(
+            "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaRecorder Session Log|r",
+            "(empty -- no recorder activity since last reset)")
+        return
+    end
+
+    local out = {}
+    table.insert(out, ("Session log: %d entries (oldest first)"):format(#log))
+    table.insert(out, "")
+
+    local startTime = log[1].time or 0
+    for _, entry in ipairs(log) do
+        local relTime = (entry.time or 0) - startTime
+        local fields = {}
+        for k, v in pairs(entry) do
+            if k ~= "time" and k ~= "kind" then
+                table.insert(fields, ("%s=%s"):format(k, tostring(v)))
+            end
+        end
+        table.sort(fields)
+        table.insert(out, ("[%7.2fs] %-18s  %s"):format(
+            relTime, entry.kind or "?", table.concat(fields, "  ")))
+    end
+
+    self:ShowCopyWindow(
+        "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaRecorder Session Log|r",
+        table.concat(out, "\n"))
+end
+
 function RR:ResetRecording()
     local rec = self.recorder
+    LogSession(rec, "ResetRecording", { sessionLogCleared = true })
     rec.active, rec.segments, rec.current = false, {}, nil
-    self:Print("Recorder reset.")
+    rec.stampLog = {}
+    rec.sessionLog = {}
+    rec.consumedPendingThisSession = nil
+    rec.pendingEvent = nil
+    rec.controlLostMapID = nil
+    if RetroRunsDB then
+        RetroRunsDB.recorderSessionLog = rec.sessionLog
+        RetroRunsDB.recorderPendingEvent = nil
+    end
+    self:Print("Recorder reset (session log cleared).")
 end
 
 function RR:RecordingStatus()
@@ -333,6 +855,22 @@ function RR:BuildRecordingExport()
 
     local out = {}
     table.insert(out, "-- Paste into the raid's routing[] array. Fill in TODOs.")
+
+    -- Stamp log: one comment line per auto-stamp event that fired during
+    -- recording, ordered as they occurred. Lets the author verify which
+    -- segs got authoritative metadata from the auto-stamp system vs.
+    -- which still rely on the recorder's "visible-map mapID + player-
+    -- physical-subZone" defaults. If a seg you expected to see in the
+    -- log isn't there, that seg's mapID/subZone may need manual review.
+    if rec.stampLog and #rec.stampLog > 0 then
+        table.insert(out, "-- Auto-stamp log:")
+        for _, s in ipairs(rec.stampLog) do
+            local pendingTag = s.pending and " [from pending queue]" or ""
+            table.insert(out, ("--   seg %d: %s -> mapID=%d subZone=%q%s"):format(
+                s.segIndex, s.event, s.mapID or 0, s.subZone or "", pendingTag))
+        end
+    end
+
     table.insert(out, "{")
     table.insert(out, "    step      = TODO,")
     table.insert(out, "    priority  = TODO,")
@@ -342,11 +880,26 @@ function RR:BuildRecordingExport()
     table.insert(out, "    segments  = {")
 
     for _, s in ipairs(segs) do
+        -- Auto-detect POI segments: a default-path segment with exactly
+        -- one waypoint is almost certainly meant to be a POI marker
+        -- (single-point paths don't render usefully). Saves the manual
+        -- rewrite from "path" to "poi" at integration time. Empty-points
+        -- segments stay "path" -- they're the yell-gated kill-in-place
+        -- pattern (Uldir MOTHER), not a POI. Explicit teleport segments
+        -- (kind = "teleport") are untouched.
+        local kind = s.kind or "path"
+        if kind == "path" and #s.points == 1 then
+            kind = "poi"
+        end
+
         table.insert(out, "        {")
         table.insert(out, ("            mapID = %d,"):format(s.mapID or 0))
-        table.insert(out, ("            kind  = %q,"):format(s.kind or "path"))
+        table.insert(out, ("            kind  = %q,"):format(kind))
         if s.subZone and s.subZone ~= "" then
             table.insert(out, ("            subZone = %q,"):format(s.subZone))
+        end
+        if s.gateBySubZone then
+            table.insert(out, "            gateBySubZone = true,")
         end
         if s.destination then
             table.insert(out, ("            destination = %q,"):format(s.destination))
@@ -399,141 +952,3 @@ function RR:DumpRecording()
     end
 end
 
--------------------------------------------------------------------------------
--- Recorder HUD
---
--- A small floating frame that shows the player's current zone, sub-zone, and
--- mapID in real time. Shown only while recording is active. Purpose: the
--- author needs to know when route waypoints are crossing into named sub-zones
--- (so they can issue /rr record break for same-mapID segment splits, decide
--- when waypoint clicks should be made, and verify segment endpoints land in
--- the expected sub-zone for the dump). Watching the white sub-zone toast
--- flicker by on screen is unreliable; this HUD shows current state in place,
--- always glance-able.
---
--- Frame is created lazily on first /rr record start so we don't allocate UI
--- bandwidth on installs that never record. Position is draggable and saved
--- to RetroRunsDB.recorderHudX/Y. Default position is roughly top-center.
---
--- Refresh sources:
---   * ZONE_CHANGED, ZONE_CHANGED_INDOORS, ZONE_CHANGED_NEW_AREA events
---     (the _INDOORS variant catches sub-sub-zone transitions that don't
---     fire ZONE_CHANGED).
---   * 1Hz polling ticker, started on Show, cancelled on Hide. Catches
---     the case where C_Map.GetBestMapForUnit's return value drifts
---     without a corresponding zone event firing (observed during
---     Sennarth's ascent: mapID 2122 -> 2123 transition completed
---     without ZONE_CHANGED, leaving event-only refresh stale until
---     the next event happened to fire).
--------------------------------------------------------------------------------
-
-local hud  -- frame, lazily created
-
-local function HudUpdate()
-    if not hud or not hud:IsShown() then return end
-    local zone    = (GetZoneText and GetZoneText())       or ""
-    local subZone = (GetSubZoneText and GetSubZoneText()) or ""
-    local mapID   = (C_Map and C_Map.GetBestMapForUnit and
-                     C_Map.GetBestMapForUnit("player")) or 0
-    if zone    == "" then zone    = "<empty>" end
-    if subZone == "" then subZone = "<empty>" end
-    hud.zoneFS:SetText("zone:    " .. zone)
-    hud.subFS:SetText( "subZone: " .. subZone)
-    hud.mapFS:SetText( "mapID:   " .. tostring(mapID))
-end
-
-local function HudCreate()
-    if hud then return hud end
-    local f = CreateFrame("Frame", "RetroRunsRecorderHUD", UIParent, "BackdropTemplate")
-    f:SetSize(260, 64)
-    f:SetFrameStrata("HIGH")
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetClampedToScreen(true)
-    f:SetBackdrop({
-        bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 12,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    f:SetBackdropColor(0.03, 0.03, 0.03, 0.85)
-
-    -- Restore saved position. Same CENTER-anchored contract as the main
-    -- panel uses (UI.lua RestorePanelPosition).
-    f:ClearAllPoints()
-    f:SetPoint("CENTER", UIParent, "CENTER",
-        RR:GetSetting("recorderHudX", 0),
-        RR:GetSetting("recorderHudY", 240))
-
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local cx, cy   = self:GetCenter()
-        local pcx, pcy = UIParent:GetCenter()
-        local scale    = self:GetEffectiveScale()
-        local pscale   = UIParent:GetEffectiveScale()
-        local x = (cx * scale - pcx * pscale) / pscale
-        local y = (cy * scale - pcy * pscale) / pscale
-        self:ClearAllPoints()
-        self:SetPoint("CENTER", UIParent, "CENTER", x, y)
-        RR:SetSetting("recorderHudX", math.floor(x + 0.5))
-        RR:SetSetting("recorderHudY", math.floor(y + 0.5))
-    end)
-
-    -- Three left-aligned FontStrings, monospace-ish via GameFontHighlight
-    -- (the addon's standard small-text font). Stacked top-to-bottom.
-    local function makeFS(parent, yOffset)
-        local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        fs:SetPoint("TOPLEFT", parent, "TOPLEFT", 10, yOffset)
-        fs:SetJustifyH("LEFT")
-        fs:SetTextColor(0.9, 0.9, 0.9)
-        return fs
-    end
-    f.zoneFS = makeFS(f, -8)
-    f.subFS  = makeFS(f, -24)
-    f.mapFS  = makeFS(f, -40)
-
-    -- Event listening. Three zone events cover most transitions; HudUpdate
-    -- is also called eagerly on Show() so the HUD has correct state the
-    -- moment it appears (events won't fire until the player moves). A
-    -- polling ticker (1Hz, started on Show, cancelled on Hide) catches
-    -- the case where C_Map.GetBestMapForUnit's return value drifts
-    -- without a corresponding zone event firing -- e.g. during the
-    -- Sennarth ascent the player's mapID transitions from 2122 to 2123
-    -- without a ZONE_CHANGED, so event-only refresh leaves the HUD stale.
-    -- /rr status reads on demand and stays correct, but the HUD needs
-    -- continuous updates while it's visible. Polling cost is three
-    -- string reads per tick, only while HUD is visible (i.e. during
-    -- active recording), so the overhead is negligible.
-    f:SetScript("OnEvent", HudUpdate)
-    f:RegisterEvent("ZONE_CHANGED")
-    f:RegisterEvent("ZONE_CHANGED_INDOORS")
-    f:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-
-    f:SetScript("OnShow", function(self)
-        HudUpdate()
-        if not self.ticker then
-            self.ticker = C_Timer.NewTicker(1.0, HudUpdate)
-        end
-    end)
-    f:SetScript("OnHide", function(self)
-        if self.ticker then
-            self.ticker:Cancel()
-            self.ticker = nil
-        end
-    end)
-    f:Hide()
-
-    hud = f
-    return hud
-end
-
-function RR:ShowRecorderHUD()
-    HudCreate()
-    if hud then hud:Show() end
-end
-
-function RR:HideRecorderHUD()
-    if hud then hud:Hide() end
-end

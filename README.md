@@ -4,9 +4,10 @@ A solo legacy raid navigator for World of Warcraft retail.
 
 Zone into an old raid and RetroRuns lays out a styled panel with the next boss, turn-by-turn routing to reach it, solo-focused encounter notes, and transmog collection status for every drop. Kill a boss and the guide advances automatically.
 
-Currently supports four Battle for Azeroth raids, all three Shadowlands raids, and all three Dragonflight raids:
+Currently supports five Battle for Azeroth raids, all three Shadowlands raids, and all three Dragonflight raids:
 
 * Uldir (8.0)
+* Battle of Dazar'alor (8.1)
 * Crucible of Storms (8.1.5)
 * The Eternal Palace (8.2)
 * Ny'alotha, the Waking City (8.3)
@@ -67,9 +68,9 @@ Main commands — type in chat:
 
 ## Status
 
-Version **1.5.0**
+Version **1.6.0**
 
-Four Battle for Azeroth raids, all three Shadowlands raids, and all three Dragonflight raids are feature-complete with full routing, encounter notes, armor transmog tracking, weapon-token indicators (where applicable), and achievement callouts.
+Five Battle for Azeroth raids, all three Shadowlands raids, and all three Dragonflight raids are feature-complete with full routing, encounter notes, armor transmog tracking, weapon-token indicators (where applicable), and achievement callouts.
 
 ## Reporting bugs / requesting features
 

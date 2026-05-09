@@ -1690,10 +1690,56 @@ local function HighlightNames(text)
         text = text:gsub(CaseInsensitivePattern(name), OrangeText(name))
     end
 
+    -- Raid map names from the active raid's maps[] table. These run
+    -- BEFORE boss-name highlighting so multi-word map names get the
+    -- full-phrase match before single-word boss names match a
+    -- substring inside them. Canonical case: "Halls of Opulence"
+    -- contains the boss name "Opulence" -- without this pass, only
+    -- "Opulence" inside the phrase would highlight. Sort by length
+    -- descending so longer names match first (avoids "Bay of Kings"
+    -- consuming "Bay" before "Bay of Kings" can match).
+    --
+    -- Track which map names actually matched -- the boss-name pass
+    -- below uses this to avoid double-wrapping when a boss name
+    -- appears inside a map name that was already wrapped.
+    local matchedMapNames = {}
+    if RR.currentRaid and RR.currentRaid.maps then
+        local names = {}
+        for _, n in pairs(RR.currentRaid.maps) do
+            table.insert(names, n)
+        end
+        table.sort(names, function(a, b) return #a > #b end)
+        for _, name in ipairs(names) do
+            if name and #name > 3 then
+                local newText, count = text:gsub(CaseInsensitivePattern(name), OrangeText(name))
+                text = newText
+                if count > 0 then
+                    matchedMapNames[name:lower()] = true
+                end
+            end
+        end
+    end
+
+    -- Helper: returns true if `name` appears as a substring (case-
+    -- insensitive) of any map name that was just highlighted.
+    -- Prevents the boss-name pass below from double-wrapping a name
+    -- like "Opulence" that lives inside an already-wrapped "Halls of
+    -- Opulence".
+    local function isInsideMatchedMapName(name)
+        if not name or name == "" then return false end
+        local lname = name:lower()
+        for mapName in pairs(matchedMapNames) do
+            if mapName:find(lname, 1, true) then return true end
+        end
+        return false
+    end
+
     -- Boss names from current raid
     if RR.currentRaid and RR.currentRaid.bosses then
         for _, boss in ipairs(RR.currentRaid.bosses) do
-            if boss.name and #boss.name > 3 then
+            if boss.name and #boss.name > 3
+                and not isInsideMatchedMapName(boss.name)
+            then
                 -- Capture the substitution count from gsub. We need it
                 -- below to decide whether the alias loop is safe to run.
                 local newText, fullMatched = text:gsub(
@@ -1842,6 +1888,48 @@ end
 -- these mid-encounter regressions.
 local lastTravelText = nil
 
+-- Last picker-output we logged. Used to suppress heartbeat-tick spam:
+-- the picker is called every UI.Update tick (1Hz) and we only want to
+-- log when the returned text actually changes. First-call always logs
+-- (lastLoggedTravelText starts nil, any returned text differs).
+local lastLoggedTravelText = nil
+
+-- Pulse state for the "[!] view special note" attention-grabber on the
+-- Boss Encounter line. Cycles 0..15 every 0.1s, giving a 1.6s round
+-- trip with 16 brightness steps per cycle. BuildEncounterText reads
+-- this to pick a smoothly-graduated yellow color for the [!] glyph,
+-- producing a subtle breathing effect while the encounter section is
+-- collapsed and the boss has a custom soloTip. Static at full
+-- brightness whenever the section is expanded or no soloTip exists.
+--
+-- Cosmetic-only: feeds back into UI.Update via the dedicated ticker
+-- below, no game-state implications.
+local encounterPulsePhase = 0
+local ENCOUNTER_PULSE_STEPS = 16
+
+-- Brightness curve: cosine-modulated yellow (RGB ffff00 base, varying
+-- brightness multiplier from ~70% to 100%). Built at load time -- a
+-- 16-entry lookup table is cheaper than recomputing the math every
+-- tick, and keeps BuildEncounterText to a single index lookup.
+--
+-- Cosine over a full 2π range gives the breathing curve: slow at the
+-- extremes (bright peak, dim trough), fast through the middle. Pure
+-- linear stepping reads as mechanical even with many steps; the
+-- cosine is what makes it feel organic. Multiplier base 0.85 plus
+-- amplitude 0.15 keeps the [!] visible at all phases (never below
+-- ~70% of full yellow) so it doesn't disappear at the dim end.
+local ENCOUNTER_PULSE_COLORS = {}
+for i = 0, ENCOUNTER_PULSE_STEPS - 1 do
+    local phase = (i / ENCOUNTER_PULSE_STEPS) * 2 * math.pi
+    local brightness = 0.85 + 0.15 * math.cos(phase)
+    -- Clamp and convert to 0xff-scale byte for RGB. Yellow = ffff00,
+    -- so the R and G channels both modulate; B stays 0.
+    local byte = math.floor(brightness * 255 + 0.5)
+    if byte > 255 then byte = 255 end
+    if byte < 0 then byte = 0 end
+    ENCOUNTER_PULSE_COLORS[i] = ("|cff%02x%02x00"):format(byte, byte)
+end
+
 local function BuildTravelText(step)
     local prefix = ("|cff%sTraveling:|r "):format(C_LABEL)
     if not step then return prefix .. "N/A" end
@@ -1858,6 +1946,25 @@ local function BuildTravelText(step)
     -- function.
     local function compute()
         local mapID = GetBestMapForStep(step)
+
+        -- BfD-isolated picker dispatch (v1.6+): instanceID 2070 routes
+        -- through the activeSeg-based picker in Data/BfDPicker.lua. Other
+        -- raids fall through to the existing layered-gate logic below.
+        -- See BfDPicker.lua header for the model rationale.
+        if RR.currentRaid and RR.currentRaid.instanceID == RR.BFD_INSTANCE_ID then
+            local seg = RR:PickBfDNoteSeg(step, mapID)
+            if seg and seg.note then
+                return prefix .. HighlightNames(seg.note)
+            end
+            -- Picker returned nil (step has no segments, or activeSeg
+            -- pointed past the end -- shouldn't happen but guard for it).
+            -- Use step.travelText if present.
+            if step.travelText then
+                return prefix .. HighlightNames(step.travelText)
+            end
+            return prefix .. "|cff888888Open the map and select a section to see directions.|r"
+        end
+
         if step.segments and mapID then
             local relevant = RR:GetRelevantSegmentsForMap(step, mapID)
             for _, seg in ipairs(relevant) do
@@ -1870,9 +1977,71 @@ local function BuildTravelText(step)
             -- consider later segs.
             local currentSubZone = (GetSubZoneText and GetSubZoneText()) or ""
             local stepIndex = step.step or step.priority or 0
+            -- Step-scoped reachability cap (opt-in via step.useStrictSegOrdering).
+            -- See GetRelevantSegmentsForMap for full rationale.
+            local maxReachable = #step.segments
+            if step.useStrictSegOrdering then
+                if mapID and RR.state.stepVisitedMapIDs then
+                    RR.state.stepVisitedMapIDs[mapID] = true
+                end
+                maxReachable = 0
+                local visited = RR.state.stepVisitedMapIDs
+                if visited then
+                    for segIndex, seg in ipairs(step.segments) do
+                        if seg.mapID and visited[seg.mapID] then
+                            maxReachable = segIndex
+                        else
+                            break
+                        end
+                    end
+                end
+                if maxReachable == 0 then
+                    local visit = RR.state.stepVisitedMapIDs
+                    local highestCompleted = 0
+                    for segIndex, seg in ipairs(step.segments) do
+                        if RR:IsSegmentCompleted(stepIndex, segIndex) then
+                            highestCompleted = segIndex
+                        end
+                    end
+                    local currentMatch = 0
+                    if mapID then
+                        for segIndex, seg in ipairs(step.segments) do
+                            if seg.mapID == mapID then
+                                currentMatch = segIndex
+                                break
+                            end
+                        end
+                    end
+                    local highest = math.max(highestCompleted, currentMatch)
+                    for segIndex = 1, highest do
+                        local seg = step.segments[segIndex]
+                        if seg and seg.mapID then
+                            visit[seg.mapID] = true
+                        end
+                    end
+                    for segIndex, seg in ipairs(step.segments) do
+                        if seg.mapID and visit[seg.mapID] then
+                            maxReachable = segIndex
+                        else
+                            break
+                        end
+                    end
+                end
+            end
             for segIndex, seg in ipairs(step.segments) do
+                if segIndex > maxReachable then break end
                 if seg.mapID == mapID and seg.note then
                     if seg.requiresSubZone and seg.requiresSubZone ~= currentSubZone then
+                        break
+                    end
+                    if seg.revealAfterMapVisit
+                        and not (RR.state.visitedMapIDs
+                            and RR.state.visitedMapIDs[seg.revealAfterMapVisit])
+                    then
+                        break
+                    end
+                    if seg.gateBySubZone and seg.subZone
+                        and seg.subZone ~= currentSubZone then
                         break
                     end
                     if not RR:IsSegmentCompleted(stepIndex, segIndex)
@@ -1950,6 +2119,32 @@ local function BuildTravelText(step)
     end
 
     local text = compute()
+
+    -- Log every change in the picker's returned travel text. The picker
+    -- is called every UI.Update tick (~1Hz), so we suppress heartbeat
+    -- spam by only logging when text changes vs the previous fetch.
+    -- Goal: settle "what seg's note is the picker actually returning at
+    -- this player location" questions definitively, without separate
+    -- diagnostics. Captures playerMapID, playerSubZone, stepNumber, and
+    -- the returned text -- enough to figure out which seg won the walk.
+    if text ~= lastLoggedTravelText then
+        local playerMapID = C_Map and C_Map.GetBestMapForUnit
+            and C_Map.GetBestMapForUnit("player")
+        local playerSubZone = (GetSubZoneText and GetSubZoneText()) or ""
+        if RR.LogRecorderSession then
+            RR:LogRecorderSession("PickerOutput", {
+                playerMapID    = playerMapID,
+                playerSubZone  = playerSubZone,
+                stepNumber     = step and (step.step or step.priority) or 0,
+                -- Strip the prefix and any color codes for shorter log
+                -- lines; keep the first ~80 chars for identification.
+                text           = text:gsub("|c%x%x%x%x%x%x%x%x", "")
+                                     :gsub("|r", "")
+                                     :sub(1, 80),
+            })
+        end
+        lastLoggedTravelText = text
+    end
 
     lastTravelText = text
     return text
@@ -2085,7 +2280,13 @@ local function BuildEncounterText(step)
         -- work without the whole line shouting. When the user
         -- expands the note, the marker drops away (the expanded
         -- text speaks for itself).
-        headerLine = prefix .. "|cffffff00[!]|r |cffaaaaaaview special note|r"
+        --
+        -- The [!] alpha-pulses subtly via encounterPulsePhase (set by
+        -- a 0.4s ticker, see ENCOUNTER_PULSE_COLORS). Static-bright at
+        -- phase 0, dimmer at phases 1-2, back up at phase 3. Cosmetic
+        -- only -- the link itself stays fully readable throughout.
+        local pulseColor = ENCOUNTER_PULSE_COLORS[encounterPulsePhase] or "|cffffff00"
+        headerLine = prefix .. pulseColor .. "[!]|r |cffaaaaaaview special note|r"
         clickable  = true
     else
         local tip = (boss and boss.soloTip) or step.soloTip or ""
@@ -3896,8 +4097,7 @@ local function FormatCountSuffix(_, _, _)
 end
 
 local function GetBrowserSelection()
-    local raid = browserState.raidKey and RetroRuns_Data
-                 and RetroRuns_Data[browserState.raidKey]
+    local raid = browserState.raidKey and RR:GetRaidByInstanceID(browserState.raidKey)
     local boss
     if raid and raid.bosses and browserState.bossIndex then
         boss = raid.bosses[browserState.bossIndex]
@@ -3925,19 +4125,19 @@ local function EnsureBrowserDefaults()
     -- have removed a raid's data file since their last session).
     local saved = not browserState.raidKey and RR:GetSetting("browserSelection") or nil
     if saved then
-        if saved.raidKey and RetroRuns_Data[saved.raidKey] then
+        if saved.raidKey and RR:GetRaidByInstanceID(saved.raidKey) then
             browserState.raidKey   = saved.raidKey
             browserState.expansion = saved.expansion
-                                     or RetroRuns_Data[saved.raidKey].expansion
+                                     or RR:GetRaidByInstanceID(saved.raidKey).expansion
             browserState.bossIndex = saved.bossIndex or 1
         end
     end
 
     if not browserState.raidKey then
         local currentID = RR.currentRaid and RR.currentRaid.instanceID
-        if currentID and RetroRuns_Data[currentID] then
+        if currentID and RR:GetRaidByInstanceID(currentID) then
             browserState.raidKey   = currentID
-            browserState.expansion = RetroRuns_Data[currentID].expansion
+            browserState.expansion = RR:GetRaidByInstanceID(currentID).expansion
         end
     end
     if not browserState.expansion then
@@ -3978,8 +4178,7 @@ end
 -- navigates to.
 local function WarmBrowserItemCache()
     if not GetItemInfo then return end
-    local raid = browserState.raidKey and RetroRuns_Data
-                 and RetroRuns_Data[browserState.raidKey]
+    local raid = browserState.raidKey and RR:GetRaidByInstanceID(browserState.raidKey)
     if not raid or not raid.bosses then return end
     for _, boss in ipairs(raid.bosses) do
         if boss.loot then
@@ -4210,13 +4409,13 @@ GetOrCreateTmogWindow = function()
             end
         end)
         local raidName = "(none)"
-        local selRaid = browserState.raidKey and RetroRuns_Data[browserState.raidKey]
+        local selRaid = browserState.raidKey and RR:GetRaidByInstanceID(browserState.raidKey)
         if selRaid then raidName = selRaid.name or "?" end
         UIDropDownMenu_SetText(ddRaid, raidName)
 
         -- Boss dropdown (within current raid)
         UIDropDownMenu_Initialize(ddBoss, function()
-            local raid = browserState.raidKey and RetroRuns_Data[browserState.raidKey]
+            local raid = browserState.raidKey and RR:GetRaidByInstanceID(browserState.raidKey)
             if not raid or not raid.bosses then return end
             for idx, boss in ipairs(raid.bosses) do
                 local n, s, t = CountBossLoot(boss)
@@ -4448,22 +4647,35 @@ local IDLE_SKIP_LEGEND =
 -- Footer line explaining the entrance-navigation icon. Shown only when
 -- at least one raid in the rendered list has an entrance button. The
 -- copy adapts based on the current routing tier (RR:GetNavTier()) and
--- which routing addon is providing the experience:
+-- which routing addons are providing the experience:
 --
---   * "routing" tier -> "Navigation powered by [ Zygor | Mapzeroth ]"
---     pill bar matching the visual grammar of the per-difficulty kill
---     pills. The active routing addon is rendered in its brand color
---     (Zygor: |cffff8800 orange-gold; Mapzeroth: |cff5fcde4 light teal)
---     and the other is dimmed to INACTIVE gray (|cff555555). When both
---     are loaded, Zygor wins the active slot per the precedence in
---     RR:GetNavTier (premium-first).
---   * "waypoint" tier (no routing addon) -> "Blizzard Waypoint Only.
---     Install Zygor or Mapzeroth for full navigation." Single line,
---     plain text -- the dimmed-pills route was considered but the
---     install pitch reads more clearly as prose. Both routing addons
---     named in the install prompt with cyan branding to match the
---     idle-list visual palette; Zygor first matches the dispatch
---     precedence, Mapzeroth second is the free recommendation.
+--   * "routing" tier -> "Navigation powered by [ AWP | Zygor | Mapzeroth ]"
+--     three-pill bar matching the visual grammar of the per-difficulty
+--     kill pills. Each pill is rendered in its brand color when its
+--     addon is installed and active in the current cascade, and dimmed
+--     to INACTIVE gray when not. Brand colors:
+--       AWP:       |cff00ccff cyan
+--       Zygor:     |cffff8800 orange-gold (Zygor brand identity)
+--       Mapzeroth: |cff5fcde4 light teal/cyan accent
+--     Multiple pills can light simultaneously to honestly credit both the
+--     orchestrator and the planner. With AWP and a backend (e.g.
+--     Mapzeroth) installed, AWP and Mapzeroth both light because AWP is
+--     the orchestrator and Mapzeroth is the actual planning engine. With
+--     AWP installed but no backend, only AWP lights -- the dim Zygor and
+--     Mapzeroth pills serve as a passive nudge that installing one would
+--     unlock multi-leg routing. Without AWP, the legacy two-addon
+--     precedence (Zygor wins ties over Mapzeroth) applies to which
+--     planner pill lights.
+--   * "waypoint" tier (no routing addon installed, OR AWP-only with no
+--     backend) -> two-line legend: line 1 "Blizzard waypoint only."
+--     line 2 (indented) "Install AzerothWaypoint (with a backend),
+--     Zygor, or Mapzeroth for step-by-step routing." The "(with a
+--     backend)" caveat on AWP is the architecturally honest correction
+--     -- AWP without a routing backend is functionally equivalent to no
+--     routing addon at all (single-pin Blizzard fallback), since AWP
+--     is a meta-router not a routing engine. All three addon names use
+--     cyan branding to match the idle-list visual palette; AWP first
+--     to match the active-pill row order, Zygor and Mapzeroth follow.
 --
 -- Builds the legend at render time so a /reload after the user
 -- installs/enables a routing addon picks up the change.
@@ -4473,33 +4685,75 @@ local function BuildEntranceLegend()
 
     if RR:GetNavTier() == "routing" then
         -- Pill grammar (matches BuildIdleListPills):
-        --   "[ name1 | name2 ]" with light-gray brackets and dim sep.
-        -- Brand colors:
-        --   Zygor:     ff8800  (orange-gold from the Zygor brand identity)
-        --   Mapzeroth: 5fcde4  (light teal/cyan accent used in their UI)
-        -- Both color hexes are 6-char (no alpha byte) -- the |cff prefix
-        -- supplies the alpha. See BuildIdleListPills for the cautionary
-        -- tale about leaking "00" bytes when the alpha is doubled up.
+        --   "[ name1 | name2 | name3 ]" with light-gray brackets and
+        --   dim sep. All color hexes are 6-char (no alpha byte) -- the
+        --   |cff prefix supplies the alpha. See BuildIdleListPills for
+        --   the cautionary tale about leaking "00" bytes when the alpha
+        --   is doubled up.
         local INACTIVE = "555555"
-        local ZG_BRAND = "ff8800"
-        local MZ_BRAND = "5fcde4"
+        local AWP_BRAND = "00ccff"
+        local ZG_BRAND  = "ff8800"
+        local MZ_BRAND  = "5fcde4"
 
-        local zygorActive = _G.ZygorGuidesViewer
+        -- Per-addon installation checks. Mirror the same conditionals
+        -- NavigateToEntrance and GetNavTier use, so the legend stays in
+        -- lock-step with which branch will actually run on a click.
+        local awpInstalled = _G.AzerothWaypointNS
+            and type(_G.AzerothWaypointNS.RequestManualRoute) == "function"
+        local zygorInstalled = _G.ZygorGuidesViewer
             and _G.ZygorGuidesViewer.Pointer
             and _G.ZygorGuidesViewer.Pointer.SetWaypoint
-        local zgHex = zygorActive and ZG_BRAND or INACTIVE
-        local mzHex = zygorActive and INACTIVE or MZ_BRAND
+        local mapzerothInstalled = _G.Mapzeroth and _G.Mapzeroth.FindRoute
 
-        local pills = ("|cff777777[ |r|cff%sZygor|r|cff555555 | |r|cff%sMapzeroth|r|cff777777 ]|r")
-            :format(zgHex, mzHex)
+        -- Active-pill rules. AWP lights whenever it's installed (it's
+        -- the orchestrator). The planner pill that lights is the one
+        -- that's actually doing (or would do) the planning -- when AWP
+        -- is present, AWP picks: Zygor wins ties over Mapzeroth, mirror
+        -- of the cascade order. When AWP is absent, the cascade picks:
+        -- same Zygor-wins-ties-over-Mapzeroth precedence. Either way:
+        -- Zygor's pill lights when Zygor is installed; Mapzeroth's
+        -- pill lights when Mapzeroth is installed AND Zygor isn't.
+        local awpActive       = awpInstalled
+        local zygorActive     = zygorInstalled
+        local mapzerothActive = mapzerothInstalled and not zygorInstalled
+
+        local awpHex = awpActive and AWP_BRAND or INACTIVE
+        local zgHex  = zygorActive and ZG_BRAND or INACTIVE
+        local mzHex  = mapzerothActive and MZ_BRAND or INACTIVE
+
+        local pills = ("|cff777777[ |r|cff%sAWP|r|cff555555 | |r|cff%sZygor|r|cff555555 | |r|cff%sMapzeroth|r|cff777777 ]|r")
+            :format(awpHex, zgHex, mzHex)
 
         return prefix .. "Navigation powered by " .. pills .. suffix
     else
-        local mzName = "|cff00ccffMapzeroth|r"
-        local zgName = "|cff00ccffZygor|r"
-        return prefix .. "Blizzard Waypoint Only. Install "
-            .. zgName .. " or " .. mzName
-            .. " for full navigation." .. suffix
+        local awpName = "|cff00ccffAzerothWaypoint|r"
+        local zgName  = "|cff00ccffZygor|r"
+        local mzName  = "|cff00ccffMapzeroth|r"
+        -- Two-line legend: status statement on line 1, install hint
+        -- on line 2 (indented). The "(with a backend)" parenthetical
+        -- on AWP is the architecturally honest correction -- AWP
+        -- without a routing backend (FarstriderLib / Zygor /
+        -- Mapzeroth) is functionally equivalent to no routing addon
+        -- at all, since AWP itself is a meta-router not a routing
+        -- engine. See HANDOFF "Lessons captured" v1.5 entry on AWP
+        -- being a meta-router.
+        --
+        -- Line 2 indent uses leading spaces to approximate alignment
+        -- under the line-1 text (past the "🛩 = " marker). Line 2
+        -- has no marker prefix -- the gray "|cff9d9d9d" wrapper is
+        -- inlined here so the install hint reads as muted relative
+        -- to the brand-cyan addon names. FontStrings render embedded
+        -- \n natively.
+        local LINE2_INDENT = "     "
+        local LINE2_GRAY   = "|cff9d9d9d"
+        return prefix .. "Blizzard waypoint only." .. suffix
+            .. "\n" .. LINE2_INDENT .. LINE2_GRAY .. "Install " .. suffix
+            .. awpName
+            .. LINE2_GRAY .. " (with a backend), " .. suffix
+            .. zgName
+            .. LINE2_GRAY .. ", or " .. suffix
+            .. mzName
+            .. LINE2_GRAY .. " for step-by-step routing." .. suffix
     end
 end
 
@@ -4560,6 +4814,23 @@ local SKIPS_LINE_GAP       = 1.7
 -- addon.
 local SKIPS_CELL_UNLOCKED = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
 local SKIPS_CELL_LOCKED   = "|cff666666X|r"
+-- BfD-only: the achievement-gated skip is Mythic-only, so the Normal and
+-- Heroic columns are not applicable. Render as a muted em-dash rather
+-- than the locked-X to communicate "no skip exists at this difficulty"
+-- instead of "skip exists but you haven't unlocked it yet". Brightness
+-- chosen so it's clearly visible against the panel background but still
+-- reads as muted relative to the locked-X (cff666666) and unlocked
+-- checkmark (full color).
+-- Em-dash (U+2014) as UTF-8: bytes 0xE2 0x80 0x94. Built via
+-- string.char rather than written as a "\xE2\x80\x94" string literal:
+-- WoW's Lua is based on 5.1, which does NOT support \xNN hex escapes
+-- (those were added in Lua 5.2). The hex-escape form parses fine in
+-- standalone Lua 5.3 (so our parse-check never caught it) but in-game
+-- it renders the literal characters "xE2x80x94" instead of the byte
+-- sequence -- visible on BfD's Heroic and Normal cells in the skips
+-- window (the only raid using non-cascading skipAchievement, which
+-- is the only path that emits this constant).
+local SKIPS_CELL_NA       = "|cff888888" .. string.char(0xE2, 0x80, 0x94) .. "|r"
 
 local GetOrCreateSkipsWindow
 
@@ -4569,9 +4840,10 @@ local GetOrCreateSkipsWindow
 --   { kind = "spacer" }
 --   { kind = "message", text = "..." }   -- empty-state and error messages
 --
--- Raids without skipQuests configured are silently omitted (no row at
--- all). Empty expansions (zero raids with skipQuests) drop their header
--- entirely so the table never renders a lonely orphan header.
+-- Raids without skipQuests OR skipAchievement configured are silently
+-- omitted (no row at all). Empty expansions (zero raids with any skip
+-- mechanism) drop their header entirely so the table never renders a
+-- lonely orphan header.
 --
 -- The rendering pass turns rows into FontStrings/textures. Keeping the
 -- structure separate from rendering makes the layout code a simple loop
@@ -4638,21 +4910,39 @@ local function BuildSkipsRows()
         local expRows = {}
         for _, raid in ipairs(raids) do
             local sk = raid.skipQuests
-            -- Raids without skipQuests configured are simply omitted from
-            -- the table -- there's no useful "no skip data" row to render
-            -- for them. Earlier versions added a "(no skip data)" row,
-            -- but that just clutters the table for raids the player can't
-            -- skip into anyway.
-            if sk then
+            local sa = raid.skipAchievement
+            -- Raids without skipQuests OR skipAchievement configured are
+            -- simply omitted from the table -- there's no useful "no
+            -- skip data" row to render for them. Earlier versions added
+            -- a "(no skip data)" row, but that just clutters the table
+            -- for raids the player can't skip into anyway.
+            if sk or sa then
                 local ceiling = RR:GetRaidSkipUnlockedCeiling(raid)
-                -- Cascade-down: ceiling N means difficulties <= N are
-                -- unlocked. nil ceiling means none unlocked.
+                local cascading = RR:RaidSkipIsCascading(raid)
+                -- Three-state cells: true = unlocked, false = locked,
+                -- "na" = not applicable for this raid (only Mythic exists).
+                -- Cascade-down for standard skipQuests: ceiling N means
+                -- difficulties <= N are unlocked. For non-cascading
+                -- (BfD), only the exact ceiling difficulty unlocks; the
+                -- others are "na", not "locked".
+                local mCell, hCell, nCell
+                if cascading then
+                    mCell = ceiling and ceiling >= 16 or false
+                    hCell = ceiling and ceiling >= 15 or false
+                    nCell = ceiling and ceiling >= 14 or false
+                else
+                    -- Non-cascading: BfD-only. Mythic is the only real
+                    -- column; Normal/Heroic render as N/A.
+                    mCell = ceiling == 16
+                    hCell = "na"
+                    nCell = "na"
+                end
                 table.insert(expRows, {
                     kind   = "raidRow",
                     name   = raid.name or "?",
-                    mythic = ceiling and ceiling >= 16 or false,
-                    heroic = ceiling and ceiling >= 15 or false,
-                    normal = ceiling and ceiling >= 14 or false,
+                    mythic = mCell,
+                    heroic = hCell,
+                    normal = nCell,
                 })
             end
         end
@@ -4778,20 +5068,31 @@ local function RefreshSkipsContent()
             slot.name:SetWidth(SKIPS_COL_MYTHIC_X - SKIPS_COL_NAME_X - 8)
             slot.name:Show()
 
+            -- Tri-state cell renderer: true = unlocked checkmark,
+            -- false = locked X, "na" = dim dash (no skip exists at this
+            -- difficulty). The "na" state is only used for BfD's
+            -- Mythic-only achievement-gated skip, where the Normal and
+            -- Heroic columns are not applicable.
+            local function cellText(v)
+                if v == "na" then return SKIPS_CELL_NA end
+                if v then return SKIPS_CELL_UNLOCKED end
+                return SKIPS_CELL_LOCKED
+            end
+
             slot.cellM:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
-            slot.cellM:SetText(row.mythic and SKIPS_CELL_UNLOCKED or SKIPS_CELL_LOCKED)
+            slot.cellM:SetText(cellText(row.mythic))
             slot.cellM:ClearAllPoints()
             slot.cellM:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_MYTHIC_X, y)
             slot.cellM:Show()
 
             slot.cellH:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
-            slot.cellH:SetText(row.heroic and SKIPS_CELL_UNLOCKED or SKIPS_CELL_LOCKED)
+            slot.cellH:SetText(cellText(row.heroic))
             slot.cellH:ClearAllPoints()
             slot.cellH:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_HEROIC_X, y)
             slot.cellH:Show()
 
             slot.cellN:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
-            slot.cellN:SetText(row.normal and SKIPS_CELL_UNLOCKED or SKIPS_CELL_LOCKED)
+            slot.cellN:SetText(cellText(row.normal))
             slot.cellN:ClearAllPoints()
             slot.cellN:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_NORMAL_X, y)
             slot.cellN:Show()
@@ -5016,9 +5317,19 @@ local function BuildIdleListRows()
         -- doesn't resolve to any encounter, so total-bosses-detectable = 0
         -- and the pill renderer takes the "doesn't apply" branch).
         if raid.instanceID and raid.instanceID > 0 then
-            local exp = raid.expansion or "Unknown"
+            -- Faction-aware swap: when the player is Horde and we have
+            -- Horde-specific data for this raid (currently only BfD), use
+            -- that instead of the shared Alliance copy. Without this, the
+            -- idle-list pill row would compute kills against Alliance
+            -- jeids on a Horde character and report 0/6 instead of 2/9
+            -- because Horde kills register against Horde-variant encounter
+            -- IDs that don't appear in the Alliance bosses[] table. Mirror
+            -- of the dispatch in GetSupportedRaid / GetRaidByInstanceID;
+            -- Alliance and Neutral characters get the shared raid object.
+            local resolved = RR:GetRaidByInstanceID(raid.instanceID) or raid
+            local exp = resolved.expansion or "Unknown"
             byExpansion[exp] = byExpansion[exp] or {}
-            table.insert(byExpansion[exp], raid)
+            table.insert(byExpansion[exp], resolved)
         end
     end
 
@@ -5048,10 +5359,10 @@ local function BuildIdleListRows()
 
         -- Leading skip-status star. Three states drive the glyph:
         --
-        --   raid.skipQuests defined + ceiling != nil -> gold (unlocked)
-        --   raid.skipQuests defined + ceiling == nil -> dim   (not unlocked yet)
-        --   raid.skipQuests not defined              -> transparent placeholder
-        --                                                (raid has no skip mechanic)
+        --   raid has skip mechanism + ceiling != nil -> gold (unlocked)
+        --   raid has skip mechanism + ceiling == nil -> dim   (not unlocked yet)
+        --   raid has no skip mechanism              -> transparent placeholder
+        --                                              (no skip exists for this raid)
         --
         -- The transparent placeholder reserves the same width as the
         -- gold/dim variants so column alignment is preserved across
@@ -5066,7 +5377,13 @@ local function BuildIdleListRows()
         -- and the no-skip-mechanic raids show blank, which still
         -- conveys "these have a skip system you could earn, those
         -- don't have one at all."
-        local hasSkipMechanic = raid.skipQuests ~= nil
+        --
+        -- "Skip mechanic" is true for raids with either skipQuests
+        -- (standard quest-flag cascade) or skipAchievement (BfD-only
+        -- achievement-gated, Mythic-only). The leading-LED state is
+        -- derived from the unified ceiling -- nil means dim, non-nil
+        -- means lit -- so the star renders identically for both kinds.
+        local hasSkipMechanic = (raid.skipQuests ~= nil) or (raid.skipAchievement ~= nil)
         local ceiling = RR:GetRaidSkipUnlockedCeiling(raid)
         local leading
         if not hasSkipMechanic then
@@ -5085,7 +5402,7 @@ local function BuildIdleListRows()
         end
 
         anyRaidShown = true
-        if raid.entrance then
+        if RR:GetRaidEntrance(raid) then
             anyEntranceShown = true
         end
         table.insert(rows, { kind = "raidName", text = label, raid = raid })
@@ -5287,7 +5604,7 @@ RefreshIdleList = function()
             -- visual hint that the user is missing the better experience.
             -- The legend below adapts to the same tier, naming Mapzeroth
             -- explicitly as the recommended free install.
-            if row.kind == "raidName" and row.raid and row.raid.entrance then
+            if row.kind == "raidName" and row.raid and RR:GetRaidEntrance(row.raid) then
                 local btn = AcquireEntranceButton()
                 PositionEntranceButton(btn, fs)
                 local raid = row.raid
@@ -5395,7 +5712,23 @@ function UI.Update()
         -- them use it. Showing the star purely on "any unlock exists"
         -- would mislead a Mythic player whose ceiling is only Heroic;
         -- they'd see the star and walk to the skip NPC for nothing.
+        -- Faction marker for raids with separate per-faction data.
+        -- BfD is the only such raid currently. Symmetric raids get no
+        -- marker -- showing [A] on every raid an Alliance player visits
+        -- would just be visual noise.
+        --
+        -- Alliance blue / Horde red roughly matching Blizzard's faction
+        -- color conventions. Bracketed letter pattern matches the [!]
+        -- style used on the boss-encounter line for consistency.
         local raidLabel = "Raid: " .. raid.name
+        if RetroRuns_DataHorde and RetroRuns_DataHorde[raid.instanceID] then
+            local faction = UnitFactionGroup("player")
+            if faction == "Horde" then
+                raidLabel = raidLabel .. " |cffe60100[H]|r"
+            else
+                raidLabel = raidLabel .. " |cff0078ff[A]|r"
+            end
+        end
         local currentDiff = RR.state and RR.state.currentDifficultyID
         if currentDiff and RR:IsRaidSkipAvailableAtDifficulty(raid, currentDiff) then
             raidLabel = raidLabel .. " " .. SKIP_MARKER
@@ -5466,6 +5799,27 @@ function UI.Update()
             ReleaseEntranceButtons()
             ReleaseIdleListLines()
         else
+            -- step == nil branch: either the player has cleared every
+            -- boss in this lockout (genuine run-complete) OR the raid
+            -- is loaded but doesn't have routing data for every boss
+            -- (in-development bring-ups; currently affects Horde-side
+            -- BfD during the recorder pass where steps land
+            -- incrementally). Distinguish by comparing routing length
+            -- to boss count: if every boss has a step authored, an
+            -- empty GetAvailableSteps means "all killed/blocked"
+            -- (genuine complete); if routing is shorter than bosses,
+            -- some bosses don't have steps yet and we shouldn't show
+            -- the green "Run complete!" -- the user might have killed
+            -- all the steps that exist and still have more boss work
+            -- ahead of them per the bosses[] count.
+            local routingCount = (RR.currentRaid
+                and type(RR.currentRaid.routing) == "table"
+                and #RR.currentRaid.routing) or 0
+            local bossCount = (RR.currentRaid
+                and type(RR.currentRaid.bosses) == "table"
+                and #RR.currentRaid.bosses) or 0
+            local hasRouting = bossCount > 0 and routingCount >= bossCount
+
             -- Run-complete state. The user has cleared every boss in
             -- this lockout. Layout goal: tight, informative, points at
             -- "what to do next." Per Photek 2026-04-26:
@@ -5482,7 +5836,16 @@ function UI.Update()
             --      list was just re-stating what the pill row at top
             --      already showed; the per-raid list answers the more
             --      useful question "where to farm next?"
-            panel.next:SetText("|cff00ff00Run complete!|r")
+            --
+            -- Uncaptured-raid state (hasRouting=false): same layout
+            -- shape, different text. Tells the user the raid loaded
+            -- but routing data isn't available yet, rather than the
+            -- misleading "Run complete!" green.
+            if hasRouting then
+                panel.next:SetText("|cff00ff00Run complete!|r")
+            else
+                panel.next:SetText("|cffff9333Routing data not yet captured for this raid.|r")
+            end
             panel.travel:SetText("")
             panel.encounter:SetText("")
             panel.encounter.clickable = false
@@ -5824,9 +6187,10 @@ local function EnsureAchDefaults()
     -- Prefer the player's current raid if they're standing in one.
     if not achState.raidKey then
         local currentID = RR.currentRaid and RR.currentRaid.instanceID
-        if currentID and RetroRuns_Data[currentID] then
+        local currentRaid = currentID and RR:GetRaidByInstanceID(currentID)
+        if currentRaid then
             achState.raidKey   = currentID
-            achState.expansion = RetroRuns_Data[currentID].expansion
+            achState.expansion = currentRaid.expansion
         end
     end
     -- Fall back to the first raid in the first expansion.
@@ -6192,7 +6556,7 @@ GetOrCreateAchievementsWindow = function()
             end
         end)
         local raidName = "(none)"
-        local selRaid = achState.raidKey and RetroRuns_Data[achState.raidKey]
+        local selRaid = achState.raidKey and RR:GetRaidByInstanceID(achState.raidKey)
         if selRaid then raidName = selRaid.name or "?" end
         UIDropDownMenu_SetText(ddRaid, raidName)
     end
@@ -6215,7 +6579,7 @@ GetOrCreateAchievementsWindow = function()
         f.hdrBoss:Hide()
         f.hdrWowhead:Hide()
 
-        local raid = achState.raidKey and RetroRuns_Data[achState.raidKey] or nil
+        local raid = achState.raidKey and RR:GetRaidByInstanceID(achState.raidKey) or nil
         local rows = BuildAchievementRows(raid)
 
         -- Determine the current route boss for the displayed raid (if
@@ -6673,3 +7037,27 @@ function UI.ToggleAchievementsWindow()
         UI.OpenAchievementsWindow()
     end
 end
+
+-- "[!] view special note" subtle pulse driver. Advances
+-- encounterPulsePhase through 0..15 every 0.1s (1.6s round trip), and
+-- calls UI.Update so BuildEncounterText re-renders the [!] glyph at
+-- the new brightness. Pulse is purely cosmetic; it only re-runs the
+-- existing UI.Update path. Gated to "panel is allowed and raid is
+-- loaded" to avoid wasted work on the login screen / non-raid maps,
+-- and to "encounter section is collapsed" since the [!] is only
+-- visible in that state.
+--
+-- Why a separate ticker rather than piggy-backing on the 1Hz Core
+-- heartbeat: heartbeat fires every 1s, way too slow for smooth
+-- breathing. 0.1s gives 16 phases over the 1.6s cycle, fine enough
+-- to read as gradual rather than stepping.
+C_Timer.NewTicker(0.1, function()
+    -- Cheap exit if there's nothing to display the pulse on.
+    if not RR:IsPanelAllowed() then return end
+    if not RR.currentRaid then return end
+    if RR.state.loadedRaidKey ~= RR:GetRaidContextKey() then return end
+    if RR:GetSetting("encounterExpanded") then return end
+
+    encounterPulsePhase = (encounterPulsePhase + 1) % ENCOUNTER_PULSE_STEPS
+    UI.Update()
+end)

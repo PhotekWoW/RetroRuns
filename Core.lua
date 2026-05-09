@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "1.5.0"
+local VERSION    = "1.6.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -21,6 +21,8 @@ RetroRuns = {
     state = {
         bossesKilled          = {},   -- [bossIndex] = true
         completedSegments     = {},   -- [stepIndex][segIndex] = true
+        visitedMapIDs         = {},   -- [mapID] = true; mapIDs the player has been on this lockout
+        stepVisitedMapIDs     = {},   -- [mapID] = true; mapIDs visited since current step became active. Reset on step change.
         activeStep            = nil,
         testMode              = false,
         manualTargetBossIndex = nil,
@@ -97,9 +99,17 @@ end
 --- state. Returns one of:
 ---
 ---   "routing"  -- A full step-by-step routing addon is loaded
----                 (currently: Zygor with pathfinding enabled, or
----                 Mapzeroth). Click drops the player into that
----                 addon's GPS UI with a planned route.
+---                 (currently: AzerothWaypoint, Zygor with pathfinding
+---                 enabled, or Mapzeroth). Click drops the player into
+---                 that addon's GPS UI with a planned route. AWP is
+---                 included here even though it's a meta-router rather
+---                 than a planner itself: it presents a queue/arrow
+---                 UI for routes regardless of which backend is doing
+---                 the planning, so from the user's perspective the
+---                 click experience is the same as a direct routing
+---                 addon. AWP without a backend installed degrades to
+---                 a single-pin presentation, same as Zygor without
+---                 pathfinding -- treated as the correct degradation.
 ---   "waypoint" -- No routing addon, but a waypoint provider is
 ---                 available (TomTom, or Blizzard native as universal
 ---                 fallback). Click sets a single waypoint at the
@@ -114,14 +124,16 @@ end
 --- current addon-load state -- a /reload after the user installs or
 --- enables a routing addon picks up the change.
 ---
---- Zygor wins ties over Mapzeroth when both are installed. Zygor is
---- a paid premium subscription with a more polished routing
---- experience (no separate window required, integrated arrow+travel-
---- mode UI). A user who pays for Zygor will expect that experience
---- to take precedence; Mapzeroth is the recommended FREE fallback
---- path for users without a Zygor sub. The legend below names
---- Mapzeroth specifically as the install recommendation since it's
---- the free option.
+--- Zygor wins ties over Mapzeroth when both are installed but AWP is
+--- not. Zygor is a paid premium subscription with a more polished
+--- routing experience (no separate window required, integrated
+--- arrow+travel-mode UI). A user who pays for Zygor will expect that
+--- experience to take precedence; Mapzeroth is the recommended FREE
+--- fallback path for users without a Zygor sub. The legend below
+--- names Mapzeroth specifically as the install recommendation since
+--- it's the free option. When AWP is present it wins over both --
+--- AWP would be orchestrating one of them itself, so calling them
+--- directly would skip AWP's UI surface entirely.
 ---
 --- Zygor detection is presence-only -- we don't try to verify the
 --- license is current or that ZGV.db.profile.pathfinding is enabled.
@@ -129,6 +141,10 @@ end
 --- gets a single arrow instead of a route, which is the correct
 --- degradation -- it matches what would happen with /zygor goto.
 function RR:GetNavTier()
+    if _G.AzerothWaypointNS
+        and type(_G.AzerothWaypointNS.RequestManualRoute) == "function" then
+        return "routing"
+    end
     if _G.ZygorGuidesViewer
         and _G.ZygorGuidesViewer.Pointer
         and _G.ZygorGuidesViewer.Pointer.SetWaypoint then
@@ -142,40 +158,55 @@ end
 
 --- Route the player to the entrance of a raid.
 ---
---- Four-tier preference order:
----   1. Zygor installed: hand off to ZGV.Pointer:SetWaypoint with
----      findpath=true, which triggers Zygor's LibRover pathfinder
----      and renders the resulting route in Zygor's own arrow +
----      travel-mode UI. Step-by-step experience for paid users.
----      Requires ZGV.db.profile.pathfinding to be enabled (Zygor's
----      "Travel Mode" setting); if disabled, the call falls back to
----      a single arrow at the destination, which is the same
----      degradation /zygor goto would produce. Zygor takes
----      precedence over Mapzeroth because it's the premium product
----      and a paying Zygor user expects that experience to win.
----   2. Mapzeroth installed (no Zygor): hand off directly to its
----      FindRoute API with our entrance coords. Mapzeroth runs
----      Dijkstra over its curated travel graph (portals, flight
----      paths, hearthstones, mage teleports, class abilities, toys,
----      items) and presents the player with a multi-step route in
----      its own GPS navigator and route execution frame. Handles
----      cross-continent, faction filtering, attunement gating,
----      holiday-only portals -- the whole problem space. Free
----      install; the legend below recommends it specifically when
----      neither routing addon is loaded.
----   3. TomTom installed (no Zygor, no Mapzeroth): drop a single
----      waypoint at the entrance with from = "RetroRuns" tag.
----      Single-arrow experience that works in-zone and silently
----      hides cross-continent (TomTom's hardcoded behavior).
----   4. None of the above: Blizzard native C_Map.SetUserWaypoint with
+--- Five-tier preference order:
+---   1. AzerothWaypoint installed: hand off to NS.RequestManualRoute.
+---      AWP is a meta-router that orchestrates one of Farstrider /
+---      Mapzeroth / Zygor / direct underneath, plus its own arrow and
+---      queue UI. Calling AWP directly (rather than relying on its
+---      TomTom hook to silently intercept us) makes our route appear
+---      in AWP's queue with proper RetroRuns attribution and bypasses
+---      the hook-adoption path that the user's allowlist setting
+---      doesn't cover. Goes first because AWP would be orchestrating
+---      the lower-tier addons itself; calling them directly when AWP
+---      is present would skip AWP's UI surface entirely. We register
+---      RetroRuns as a known external waypoint source at PLAYER_LOGIN
+---      so AWP attributes adopted routes to us by name.
+---   2. Zygor installed (no AWP): hand off to ZGV.Pointer:SetWaypoint
+---      with findpath=true, which triggers Zygor's LibRover pathfinder
+---      and renders the resulting route in Zygor's own arrow + travel-
+---      mode UI. Step-by-step experience for paid users. Requires
+---      ZGV.db.profile.pathfinding to be enabled (Zygor's "Travel
+---      Mode" setting); if disabled, the call falls back to a single
+---      arrow at the destination, same degradation /zygor goto would
+---      produce. Zygor takes precedence over Mapzeroth because it's
+---      the premium product and a paying Zygor user expects that
+---      experience to win.
+---   3. Mapzeroth installed (no AWP, no Zygor): hand off directly to
+---      its FindRoute API with our entrance coords. Mapzeroth runs
+---      Dijkstra over its curated travel graph (portals, flight paths,
+---      hearthstones, mage teleports, class abilities, toys, items)
+---      and presents the player with a multi-step route in its own
+---      GPS navigator and route execution frame. Handles cross-
+---      continent, faction filtering, attunement gating, holiday-only
+---      portals -- the whole problem space. Free install; the legend
+---      below recommends it specifically when no routing addon is
+---      loaded.
+---   4. TomTom installed (none of the above): drop a single waypoint
+---      at the entrance with from = "RetroRuns" tag. Single-arrow
+---      experience that works in-zone and silently hides cross-
+---      continent (TomTom's hardcoded behavior).
+---   5. None of the above: Blizzard native C_Map.SetUserWaypoint with
 ---      super-tracker arrow. Universal fallback. The Blizzard arrow
 ---      cheerfully points cross-continent, so this is actually
 ---      better than TomTom-direct for cross-continent guidance.
 ---
---- The detection precedence here mirrors GetNavTier(). Tiers 1 and 2
---- both fall under GetNavTier()'s "routing" return; tiers 3 and 4
---- both fall under "waypoint". Zygor wins ties over Mapzeroth when
---- both are installed (see GetNavTier rationale).
+--- The detection precedence here mirrors GetNavTier(). Tiers 1, 2,
+--- and 3 fall under GetNavTier()'s "routing" return (AWP is a router
+--- whether or not it has a backend installed -- AWP without a backend
+--- still produces queue UI and pin presentation, just no multi-leg
+--- planning); tiers 4 and 5 fall under "waypoint". Zygor wins ties
+--- over Mapzeroth when both are installed and AWP is absent (see
+--- GetNavTier rationale).
 ---
 --- An earlier iteration tried to drive multi-step routing ourselves
 --- via FarstriderLib + a position-watching ticker. The map-graph edge
@@ -185,17 +216,36 @@ end
 --- dedicated routing addons when present, drop a plain waypoint when
 --- not.
 ---
---- Returns one of "zygor" / "mapzeroth" / "tomtom" / "blizzard" /
---- nil to indicate which branch ran. The UI uses this to surface
---- branch-specific feedback (e.g. a transient "waypoint set" toast
---- on the silent Blizzard-native path, since that branch otherwise
---- has no visible signal beyond the pin appearing on the map).
+--- Entrance accessor. Looks like a one-liner today, but kept as a named
+--- accessor so callers don't reach into raid struct internals -- if the
+--- entrance schema ever changes again (e.g. multi-portal raids, instanced-
+--- city entrance disambiguation), there's a single chokepoint to update
+--- rather than a grep-and-replace across UI/Core read sites.
+---
+--- Faction-asymmetric raids (currently only BfD) are handled at a higher
+--- level: `GetSupportedRaid` consults `RetroRuns_DataHorde[instanceID]`
+--- first for Horde characters and falls back to the shared
+--- `RetroRuns_Data[instanceID]` table when no Horde-specific file exists.
+--- By the time a raid object reaches this accessor, faction dispatch has
+--- already happened, so the entrance field is simply `raid.entrance` --
+--- whichever side's table we read from.
+function RR:GetRaidEntrance(raid)
+    if not raid then return nil end
+    return raid.entrance
+end
+
+--- Returns one of "awp" / "zygor" / "mapzeroth" / "tomtom" /
+--- "blizzard" / nil to indicate which branch ran. The UI uses this to
+--- surface branch-specific feedback (e.g. a transient "waypoint set"
+--- toast on the silent Blizzard-native path, since that branch
+--- otherwise has no visible signal beyond the pin appearing on the
+--- map).
 function RR:NavigateToEntrance(raid)
-    if not raid or not raid.entrance then
+    local e = self:GetRaidEntrance(raid)
+    if not raid or not e then
         self:Print("No entrance data for that raid.")
         return nil
     end
-    local e = raid.entrance
     if not e.mapID or not e.x or not e.y then
         self:Print("Entrance data is incomplete.")
         return nil
@@ -205,12 +255,39 @@ function RR:NavigateToEntrance(raid)
     -- stale waypoints when the user clicks a different raid back-to-back.
     -- (Mapzeroth handles route replacement internally via BeginRoute-
     -- Navigation; Zygor handles it via the cleartype=true flag we pass
-    -- on each call -- so neither needs Mapzeroth/Zygor-side cleanup.
-    -- The TomTom and Blizzard paths do need active cleanup -- handled
-    -- in CancelNavRoute below.)
+    -- on each call; AWP handles it via RequestManualRoute supplanting
+    -- whatever manual route was previously active -- so none of those
+    -- need explicit teardown. The TomTom and Blizzard paths do need
+    -- active cleanup -- handled in CancelNavRoute below.)
     self:CancelNavRoute()
 
     local title = ("RetroRuns: %s entrance"):format(raid.name or "raid")
+
+    -- AWP tier: AzerothWaypoint is a meta-router that orchestrates one of
+    -- Farstrider / Mapzeroth / Zygor / direct, plus its own arrow and queue
+    -- UI. When AWP is installed, it's the user's deliberate choice for
+    -- routing presentation -- so we hand off to it directly via its
+    -- documented public route-request API rather than calling TomTom and
+    -- relying on AWP's hook to silently intercept us. Direct call surfaces
+    -- our route in AWP's queue with proper RetroRuns attribution (paired
+    -- with the RegisterExternalWaypointSource call at PLAYER_LOGIN), and
+    -- works regardless of whether the user has TomTom installed at all.
+    -- Goes ABOVE Zygor/Mapzeroth in the cascade because AWP would be
+    -- orchestrating those itself; calling them directly when AWP is
+    -- present would skip AWP's UI surface entirely. If RequestManualRoute
+    -- returns false (AWP declined to adopt -- e.g. routing disabled in
+    -- AWP settings), we fall through to the Zygor/Mapzeroth/TomTom/
+    -- Blizzard tiers as a safety net.
+    if _G.AzerothWaypointNS
+        and type(_G.AzerothWaypointNS.RequestManualRoute) == "function"
+    then
+        local ok, routed = pcall(_G.AzerothWaypointNS.RequestManualRoute,
+            e.mapID, e.x, e.y, title, nil, nil)
+        if ok and routed then
+            self.state.activeRoute = { raid = raid, awpRoute = true }
+            return "awp"
+        end
+    end
 
     if _G.ZygorGuidesViewer
         and _G.ZygorGuidesViewer.Pointer
@@ -275,6 +352,12 @@ end
 --- backend was used to start the route:
 ---   * TomTom: removes the waypoint we set.
 ---   * Blizzard: clears the user waypoint.
+---   * AWP: no-op. RequestManualRoute supplants whatever manual route
+---     was previously active on each call, so back-to-back entrance
+---     clicks replace cleanly. Like the Zygor and Mapzeroth cases,
+---     `/rr cancelnav` clears our internal activeRoute marker but
+---     AWP's queue/arrow keeps showing the prior route until it's
+---     replaced or the user dismisses it manually.
 ---   * Mapzeroth: no-op. Mapzeroth manages its own route lifecycle
 ---     and replaces the active route on the next FindRoute call;
 ---     there is no separate cancel API needed for back-to-back
@@ -302,9 +385,11 @@ function RR:CancelNavRoute()
         C_Map.ClearUserWaypoint()
     end
 
-    -- route.mapzerothRoute / route.zygorRoute: no cleanup needed. Both
-    -- routing addons handle replacement on next call -- Mapzeroth via
-    -- its internal BeginRouteNavigation, Zygor via cleartype=true.
+    -- route.awpRoute / route.mapzerothRoute / route.zygorRoute: no
+    -- cleanup needed. AWP supplants the prior manual route on each
+    -- RequestManualRoute call; Mapzeroth handles replacement via its
+    -- internal BeginRouteNavigation; Zygor handles it via cleartype=
+    -- true on every Pointer:SetWaypoint call.
 
     self.state.activeRoute = nil
 end
@@ -369,93 +454,104 @@ local function ValidateRaidData()
     -- on when iterating on new raid data or chasing a suspected bad entry.
     local warn = function(msg) RR:Debug(msg) end
 
-    for instanceID, raid in pairs(RetroRuns_Data) do
-        local prefix = ("Data[%s] (%s):"):format(
-            tostring(instanceID), tostring(raid.name or "?"))
+    -- Single-table validator. Called once for the shared table and once
+    -- for the Horde-specific table (which holds parallel raid data for
+    -- faction-asymmetric raids; currently only BfD). The `tableLabel`
+    -- parameter prefixes warnings so a missing-routing warning makes
+    -- clear which faction's data is incomplete.
+    local function validateTable(tbl, tableLabel)
+        if type(tbl) ~= "table" then return end
+        for instanceID, raid in pairs(tbl) do
+            local prefix = ("%s[%s] (%s):"):format(
+                tableLabel, tostring(instanceID), tostring(raid.name or "?"))
 
-        if not raid.instanceID then
-            warn(prefix .. " missing instanceID")
-        end
-        if type(raid.bosses) ~= "table" or #raid.bosses == 0 then
-            warn(prefix .. " missing or empty bosses table")
-        end
-        if type(raid.routing) ~= "table" or #raid.routing == 0 then
-            warn(prefix .. " missing or empty routing table")
-        end
-
-        -- Build a set of valid boss indices for cross-checking, and
-        -- while we're walking the bosses, validate specialLoot entries
-        -- (optional field; each entry must have id + recognized kind).
-        local validBossIndices = {}
-        local VALID_SPECIAL_KINDS = { mount = true, pet = true, toy = true, decor = true, manuscript = true }
-        for _, boss in ipairs(raid.bosses or {}) do
-            if not boss.index then
-                warn(prefix .. " boss missing index field")
-            elseif not boss.name then
-                warn(prefix .. " boss #" .. boss.index .. " missing name")
-            else
-                validBossIndices[boss.index] = true
+            if not raid.instanceID then
+                warn(prefix .. " missing instanceID")
+            end
+            if type(raid.bosses) ~= "table" or #raid.bosses == 0 then
+                warn(prefix .. " missing or empty bosses table")
+            end
+            if type(raid.routing) ~= "table" or #raid.routing == 0 then
+                warn(prefix .. " missing or empty routing table")
             end
 
-            if boss.specialLoot ~= nil then
-                if type(boss.specialLoot) ~= "table" then
-                    warn(prefix .. (" boss #%s specialLoot must be a table"):format(
-                        tostring(boss.index)))
+            -- Build a set of valid boss indices for cross-checking, and
+            -- while we're walking the bosses, validate specialLoot entries
+            -- (optional field; each entry must have id + recognized kind).
+            local validBossIndices = {}
+            local VALID_SPECIAL_KINDS = { mount = true, pet = true, toy = true, decor = true, manuscript = true }
+            for _, boss in ipairs(raid.bosses or {}) do
+                if not boss.index then
+                    warn(prefix .. " boss missing index field")
+                elseif not boss.name then
+                    warn(prefix .. " boss #" .. boss.index .. " missing name")
                 else
-                    for si, item in ipairs(boss.specialLoot) do
-                        local bp = prefix .. (" boss #%s specialLoot[%d]:"):format(
-                            tostring(boss.index), si)
-                        if not item.id then
-                            warn(bp .. " missing id")
-                        end
-                        if not item.kind then
-                            warn(bp .. " missing kind (mount|pet|toy|decor|manuscript)")
-                        elseif not VALID_SPECIAL_KINDS[item.kind] then
-                            warn(bp .. (" unrecognized kind '%s' (expected mount|pet|toy|decor|manuscript)"):format(
-                                tostring(item.kind)))
-                        end
-                    end
+                    validBossIndices[boss.index] = true
                 end
-            end
-        end
 
-        for i, step in ipairs(raid.routing or {}) do
-            local sp = prefix .. " step " .. i .. ":"
-            if not step.bossIndex then
-                warn(sp .. " missing bossIndex")
-            elseif not validBossIndices[step.bossIndex] then
-                warn(sp .. (" bossIndex %d has no matching boss"):format(
-                    step.bossIndex))
-            end
-            if not step.requires then
-                warn(sp .. " missing requires table (use {} for none)")
-            else
-                for _, req in ipairs(step.requires) do
-                    if not validBossIndices[req] then
-                        warn(sp .. (" requires unknown bossIndex %d"):format(req))
+                if boss.specialLoot ~= nil then
+                    if type(boss.specialLoot) ~= "table" then
+                        warn(prefix .. (" boss #%s specialLoot must be a table"):format(
+                            tostring(boss.index)))
+                    else
+                        for si, item in ipairs(boss.specialLoot) do
+                            local bp = prefix .. (" boss #%s specialLoot[%d]:"):format(
+                                tostring(boss.index), si)
+                            if not item.id then
+                                warn(bp .. " missing id")
+                            end
+                            if not item.kind then
+                                warn(bp .. " missing kind (mount|pet|toy|decor|manuscript)")
+                            elseif not VALID_SPECIAL_KINDS[item.kind] then
+                                warn(bp .. (" unrecognized kind '%s' (expected mount|pet|toy|decor|manuscript)"):format(
+                                    tostring(item.kind)))
+                            end
+                        end
                     end
                 end
             end
-            if not step.segments or #step.segments == 0 then
-                warn(sp .. " has no segments")
-            else
-                for si, seg in ipairs(step.segments) do
-                    if not seg.mapID then
-                        warn(sp .. (" segment %d missing mapID"):format(si))
+
+            for i, step in ipairs(raid.routing or {}) do
+                local sp = prefix .. " step " .. i .. ":"
+                if not step.bossIndex then
+                    warn(sp .. " missing bossIndex")
+                elseif not validBossIndices[step.bossIndex] then
+                    warn(sp .. (" bossIndex %d has no matching boss"):format(
+                        step.bossIndex))
+                end
+                if not step.requires then
+                    warn(sp .. " missing requires table (use {} for none)")
+                else
+                    for _, req in ipairs(step.requires) do
+                        if not validBossIndices[req] then
+                            warn(sp .. (" requires unknown bossIndex %d"):format(req))
+                        end
                     end
-                    if not seg.kind then
-                        warn(sp .. (" segment %d missing kind"):format(si))
+                end
+                if not step.segments or #step.segments == 0 then
+                    warn(sp .. " has no segments")
+                else
+                    for si, seg in ipairs(step.segments) do
+                        if not seg.mapID then
+                            warn(sp .. (" segment %d missing mapID"):format(si))
+                        end
+                        if not seg.kind then
+                            warn(sp .. (" segment %d missing kind"):format(si))
+                        end
+                        -- `points` may legitimately be empty for teleport /
+                        -- portal segments that carry only a note, so we don't
+                        -- warn on an empty points list the way we warn on
+                        -- missing mapID/kind. Segments with NO points table at
+                        -- all (structurally malformed) would still be caught
+                        -- by the nil-check in the rendering path.
                     end
-                    -- `points` may legitimately be empty for teleport /
-                    -- portal segments that carry only a note, so we don't
-                    -- warn on an empty points list the way we warn on
-                    -- missing mapID/kind. Segments with NO points table at
-                    -- all (structurally malformed) would still be caught
-                    -- by the nil-check in the rendering path.
                 end
             end
         end
     end
+
+    validateTable(RetroRuns_Data,      "Data")
+    validateTable(RetroRuns_DataHorde, "DataHorde")
 end
 
 -------------------------------------------------------------------------------
@@ -466,6 +562,26 @@ function RR:InitializeDB()
     RetroRunsDB = RetroRunsDB or {}
     MergeDefaults(RetroRunsDB, self.defaults)
     RetroRunsDB.showPanel = false
+
+    -- Restore recorder session log from persistent storage so /reload
+    -- mid-recording doesn't lose diagnostic context. Recorder state
+    -- itself (active, current, segments, stampLog) intentionally does
+    -- NOT survive reload -- those are per-session-attempt and should
+    -- start clean on each addon load. Only the long-lived log is
+    -- restored for cross-reload diagnostic continuity.
+    if RetroRunsDB.recorderSessionLog and self.recorder then
+        self.recorder.sessionLog = RetroRunsDB.recorderSessionLog
+    end
+    -- Restore pending auto-stamp event (queued ENCOUNTER_END or
+    -- PLAYER_CONTROL_GAINED that fired while recording was inactive).
+    -- Persisted in QueuePendingEvent; cleared in ConsumePendingEvent
+    -- and ResetRecording. Survives /reload so a queued event isn't
+    -- silently lost when the user reloads between queue and the next
+    -- StartRecording. Stored as time() epoch seconds, so the staleness
+    -- check in ConsumePendingEvent stays valid across reloads.
+    if RetroRunsDB.recorderPendingEvent and self.recorder then
+        self.recorder.pendingEvent = RetroRunsDB.recorderPendingEvent
+    end
 end
 
 function RR:RestorePanelPosition()
@@ -713,18 +829,55 @@ end
 -- The walk from highest to lowest gives us the ceiling directly.
 
 -- Returns the highest difficulty for which the skip is unlocked on the
--- account, or nil if no flag is set or the raid has no skipQuests
--- config. Returned values are WoW raid difficulty IDs:
+-- account, or nil if no flag is set or the raid has neither skipQuests
+-- nor skipAchievement configured. Returned values are WoW raid difficulty
+-- IDs:
 --   16 = Mythic, 15 = Heroic, 14 = Normal.
 -- LFR (17) is intentionally excluded -- LFR raids don't have skip quests.
+--
+-- Two skip-mechanism schemas are recognized:
+--   * skipQuests: standard post-Shadowlands quest-flag cascade. Per
+--     difficulty, with downward cascade (mythic implies heroic implies
+--     normal) handled by the consumer (IsRaidSkipAvailableAtDifficulty).
+--   * skipAchievement: BfD-only sibling field. Mythic-only, gated by an
+--     achievement ID. The achievement's per-account "completed" boolean
+--     is the 4th return of GetAchievementInfo (since 11.0.5, this is
+--     account-wide for any cross-realm earned achievement).
 function RR:GetRaidSkipUnlockedCeiling(raid)
-    if not raid or not raid.skipQuests then return nil end
-    local fn = C_QuestLog and C_QuestLog.IsQuestFlaggedCompletedOnAccount
-    if not fn then return nil end
-    if raid.skipQuests.mythic and fn(raid.skipQuests.mythic) then return 16 end
-    if raid.skipQuests.heroic and fn(raid.skipQuests.heroic) then return 15 end
-    if raid.skipQuests.normal and fn(raid.skipQuests.normal) then return 14 end
+    if not raid then return nil end
+
+    -- Standard quest-flag cascade.
+    if raid.skipQuests then
+        local fn = C_QuestLog and C_QuestLog.IsQuestFlaggedCompletedOnAccount
+        if not fn then return nil end
+        if raid.skipQuests.mythic and fn(raid.skipQuests.mythic) then return 16 end
+        if raid.skipQuests.heroic and fn(raid.skipQuests.heroic) then return 15 end
+        if raid.skipQuests.normal and fn(raid.skipQuests.normal) then return 14 end
+        return nil
+    end
+
+    -- BfD-only achievement-gated skip. Mythic-only -- the cascade-down
+    -- rule does NOT apply here. Caller must consult RaidSkipIsCascading
+    -- (or equivalent) before assuming downward unlock.
+    if raid.skipAchievement and raid.skipAchievement.mythic then
+        if GetAchievementInfo then
+            local _, _, _, completed = GetAchievementInfo(raid.skipAchievement.mythic)
+            if completed then return 16 end
+        end
+        return nil
+    end
+
     return nil
+end
+
+-- True iff the raid's skip mechanic uses the standard cascade-down rule
+-- (completing X unlocks X and every easier difficulty). False for
+-- achievement-gated skips, which only unlock the exact difficulty named.
+function RR:RaidSkipIsCascading(raid)
+    if not raid then return false end
+    if raid.skipQuests then return true end
+    if raid.skipAchievement then return false end
+    return false
 end
 
 -- Returns true if the skip is available at the given difficulty,
@@ -738,6 +891,12 @@ function RR:IsRaidSkipAvailableAtDifficulty(raid, difficultyID)
     if difficultyID < 14 or difficultyID > 16 then return false end
     local ceiling = self:GetRaidSkipUnlockedCeiling(raid)
     if not ceiling then return false end
+    -- Non-cascading skips (BfD-only achievement-gated) only unlock the
+    -- exact difficulty matching the ceiling -- the standard "everything
+    -- below the ceiling is also unlocked" rule does not apply.
+    if not self:RaidSkipIsCascading(raid) then
+        return difficultyID == ceiling
+    end
     return difficultyID <= ceiling
 end
 
@@ -750,9 +909,46 @@ function RR:HasRaidSkipUnlocked(raid)
     return self:GetRaidSkipUnlockedCeiling(raid) ~= nil
 end
 
+-- Looks up the data table for the raid the player is currently inside.
+-- For most raids (faction-symmetric) the data lives at
+-- RetroRuns_Data[instanceID] and that's all there is to it.
+--
+-- BfD is faction-asymmetric: bosses 1-3 differ in journalEncounterIDs
+-- and display names, the boss-2/3 order is swapped, the entrance is in a
+-- different city/zone, and the routing path through the raid is entirely
+-- different. Rather than parameterizing every field, we ship Horde data
+-- as a parallel file (`BattleOfDazaralorHorde.lua`) that registers under
+-- a separate global `RetroRuns_DataHorde[instanceID]`. This lookup
+-- consults that table first when the player is Horde, falling through to
+-- the shared `RetroRuns_Data` table when no Horde-specific data exists
+-- (the case for the other 9 raids and for Alliance / Neutral characters).
+--
+-- Faction read per-call via UnitFactionGroup; cheap C-side string lookup,
+-- no caching needed. Pandaren on Wandering Isle return "Neutral" -- they
+-- can't enter the raid anyway, but the fall-through to RetroRuns_Data
+-- means the panel still surfaces the Alliance-side data so they're not
+-- looking at an empty panel pre-faction-pick.
 function RR:GetSupportedRaid()
     local info = self:GetCurrentInstanceInfo()
     if info.instanceType ~= "raid" then return nil end
+
+    local faction = UnitFactionGroup("player")
+    if faction == "Horde" and RetroRuns_DataHorde then
+        if RetroRuns_DataHorde[info.instanceID] then
+            return RetroRuns_DataHorde[info.instanceID]
+        end
+        if info.name then
+            local needle = self:NormalizeName(info.name)
+            for _, raid in pairs(RetroRuns_DataHorde) do
+                if self:NormalizeName(raid.name) == needle then
+                    return raid
+                end
+            end
+        end
+        -- No Horde-specific data for this raid; fall through to the
+        -- shared Alliance/symmetric table below.
+    end
+
     if RetroRuns_Data then
         if RetroRuns_Data[info.instanceID] then
             return RetroRuns_Data[info.instanceID]
@@ -767,6 +963,24 @@ function RR:GetSupportedRaid()
         end
     end
     return nil
+end
+
+-- Browser-context faction-aware lookup. Same dispatch shape as
+-- GetSupportedRaid (above) but takes an explicit instanceID rather than
+-- reading the player's current zone. Used by the Tmog and Achievements
+-- browsers, which let the user select a raid by name without having to
+-- be zoned into it. Returns nil if the instanceID isn't registered in
+-- either table.
+function RR:GetRaidByInstanceID(instanceID)
+    if not instanceID then return nil end
+    local faction = UnitFactionGroup("player")
+    if faction == "Horde"
+        and RetroRuns_DataHorde
+        and RetroRuns_DataHorde[instanceID]
+    then
+        return RetroRuns_DataHorde[instanceID]
+    end
+    return RetroRuns_Data and RetroRuns_Data[instanceID] or nil
 end
 
 -------------------------------------------------------------------------------
@@ -815,30 +1029,63 @@ end
 -- to know if the user's current lockout matches the unrecorded one).
 function RR:RestorePersistedSegments()
     wipe(self.state.completedSegments)
+    wipe(self.state.visitedMapIDs)
 
-    if not (RetroRunsDB and RetroRunsDB.completedSegments) then return end
     if not self.currentRaid then return end
-
-    local store = RetroRunsDB.completedSegments[self.currentRaid.instanceID]
-    if not store then return end
-
     local currentLockoutId = self:GetCurrentLockoutId()
-    -- Old-schema record (no segments field) OR lockoutId mismatch:
-    -- persistence is stale (different lockout, or pre-0.6.1 schema),
-    -- wipe it. Initial-login wipe in PEW handles cross-WoW-session
-    -- staleness; this guard handles the smaller case where a /reload
-    -- happens AFTER the weekly reset rolled the lockout.
-    if not store.lockoutId or store.lockoutId ~= currentLockoutId then
-        RetroRunsDB.completedSegments[self.currentRaid.instanceID] = nil
-        return
+
+    -- Restore completedSegments (existing behavior).
+    if RetroRunsDB and RetroRunsDB.completedSegments then
+        local store = RetroRunsDB.completedSegments[self.currentRaid.instanceID]
+        if store then
+            -- Old-schema record (no segments field) OR lockoutId mismatch:
+            -- persistence is stale (different lockout, or pre-0.6.1 schema),
+            -- wipe it. Initial-login wipe in PEW handles cross-WoW-session
+            -- staleness; this guard handles the smaller case where a /reload
+            -- happens AFTER the weekly reset rolled the lockout.
+            if not store.lockoutId or store.lockoutId ~= currentLockoutId then
+                RetroRunsDB.completedSegments[self.currentRaid.instanceID] = nil
+            elseif store.segments then
+                for stepIndex, segs in pairs(store.segments) do
+                    self.state.completedSegments[stepIndex] = {}
+                    for segIndex, v in pairs(segs) do
+                        self.state.completedSegments[stepIndex][segIndex] = v
+                    end
+                end
+            end
+        end
     end
 
-    -- Lockout matches: restore segments.
-    if store.segments then
-        for stepIndex, segs in pairs(store.segments) do
-            self.state.completedSegments[stepIndex] = {}
-            for segIndex, v in pairs(segs) do
-                self.state.completedSegments[stepIndex][segIndex] = v
+    -- Restore visitedMapIDs (same lockout-scoped pattern as
+    -- completedSegments). Used by the seg-picker's revealAfterMapVisit
+    -- gate; without restoration, /reload mid-route loses visit history
+    -- and gates that should be unlocked re-lock erroneously.
+    if RetroRunsDB and RetroRunsDB.visitedMapIDs then
+        local store = RetroRunsDB.visitedMapIDs[self.currentRaid.instanceID]
+        if store then
+            if not store.lockoutId or store.lockoutId ~= currentLockoutId then
+                RetroRunsDB.visitedMapIDs[self.currentRaid.instanceID] = nil
+            elseif store.mapIDs then
+                for mapID, v in pairs(store.mapIDs) do
+                    self.state.visitedMapIDs[mapID] = v
+                end
+            end
+        end
+    end
+
+    -- Stage the per-step visited tables for OnActiveStepChanged to
+    -- consume when the next step activates. We can't restore directly
+    -- into self.state.stepVisitedMapIDs here because we don't yet
+    -- know which step will be active -- ComputeNextStep runs after
+    -- this. Same lockout-scoped pattern as the others.
+    self.state.persistedStepVisited = nil
+    if RetroRunsDB and RetroRunsDB.stepVisitedMapIDs then
+        local store = RetroRunsDB.stepVisitedMapIDs[self.currentRaid.instanceID]
+        if store then
+            if not store.lockoutId or store.lockoutId ~= currentLockoutId then
+                RetroRunsDB.stepVisitedMapIDs[self.currentRaid.instanceID] = nil
+            elseif store.byStep then
+                self.state.persistedStepVisited = store.byStep
             end
         end
     end
@@ -856,6 +1103,7 @@ function RR:RestoreRealRaidState()
     self:ClearBossState()
     self:SyncFromSavedRaidInfo(true)   -- request fresh server data
     self:RestorePersistedSegments()
+    self:RestorePersistedBfDActiveSeg()
     self:ComputeNextStep()
     self:RefreshAll()
 end
@@ -865,6 +1113,7 @@ function RR:LoadCurrentRaid()
     self.state.loadedRaidKey = self:GetRaidContextKey()
 
     self:RestorePersistedSegments()
+    self:RestorePersistedBfDActiveSeg()
 
     self:SetSetting("showPanel", true)
     self:RefreshAll()
@@ -922,6 +1171,71 @@ function RR:HandleLocationChange()
     local currentMapID = C_Map and C_Map.GetBestMapForUnit and
                          C_Map.GetBestMapForUnit("player")
     local previousMapID = self.state.lastPlayerMapID
+
+    -- Visit tracking: record the player's mapID into the in-memory
+    -- visited-set AND persist to RetroRunsDB for /reload survival.
+    -- Used by the seg-picker's `revealAfterMapVisit` gate (Navigation.lua),
+    -- which gates a seg's display on the player having physically
+    -- reached a specific mapID at some point during the current lockout.
+    --
+    -- Necessary because subZone-string gates (`requiresSubZone`) can be
+    -- ambiguous when the same subZone string appears at multiple
+    -- mapIDs along a route -- e.g. BfD's "Dazar'alor" subZone fires
+    -- briefly on mapID 1352 mid-gryphon-flight AND at the post-Tandred
+    -- destination on the same mapID. mapID-visit-history disambiguates
+    -- these cleanly: the destination case happens AFTER the player has
+    -- visited mapID 875 (the ship), the transit case happens BEFORE.
+    --
+    -- Persisted scoped by raid instanceID + lockoutId, same shape as
+    -- completedSegments. RestorePersistedSegments handles the wipe-on-
+    -- lockout-roll case for both.
+    if currentMapID and self.currentRaid and self.currentRaid.instanceID then
+        local wasNew = not self.state.stepVisitedMapIDs[currentMapID]
+        self.state.visitedMapIDs[currentMapID] = true
+        self.state.stepVisitedMapIDs[currentMapID] = true
+        if wasNew then
+            self:ZoneLog(("  -> stepVisitedMapIDs += %d (now: %s)"):format(
+                currentMapID,
+                (function()
+                    local keys = {}
+                    for k in pairs(self.state.stepVisitedMapIDs) do
+                        table.insert(keys, tostring(k))
+                    end
+                    table.sort(keys)
+                    return table.concat(keys, ", ")
+                end)()))
+        end
+        local lockoutId = self:GetCurrentLockoutId()
+        if lockoutId and RetroRunsDB then
+            RetroRunsDB.visitedMapIDs = RetroRunsDB.visitedMapIDs or {}
+            local store = RetroRunsDB.visitedMapIDs[self.currentRaid.instanceID]
+            if not store or store.lockoutId ~= lockoutId then
+                store = { lockoutId = lockoutId, mapIDs = {} }
+                RetroRunsDB.visitedMapIDs[self.currentRaid.instanceID] = store
+            end
+            store.mapIDs[currentMapID] = true
+
+            -- Persist stepVisitedMapIDs scoped by active step index.
+            -- Survives /reload mid-step. Without this, the picker's
+            -- strict-sequential cap loses its history on reload and
+            -- falls back to seg 1's note even when the player has
+            -- progressed deep into a step. Same lockoutId-scoped
+            -- shape as completedSegments / visitedMapIDs.
+            local activeStep = self.state.activeStep
+            local activeStepIndex = activeStep and (activeStep.step or activeStep.priority)
+            if activeStepIndex then
+                RetroRunsDB.stepVisitedMapIDs = RetroRunsDB.stepVisitedMapIDs or {}
+                local stepStore = RetroRunsDB.stepVisitedMapIDs[self.currentRaid.instanceID]
+                if not stepStore or stepStore.lockoutId ~= lockoutId then
+                    stepStore = { lockoutId = lockoutId, byStep = {} }
+                    RetroRunsDB.stepVisitedMapIDs[self.currentRaid.instanceID] = stepStore
+                end
+                stepStore.byStep[activeStepIndex] = stepStore.byStep[activeStepIndex] or {}
+                stepStore.byStep[activeStepIndex][currentMapID] = true
+            end
+        end
+    end
+
     -- Helper: resolve mapID -> sub-zone name from the active raid's
     -- maps table, falling back to the raw ID if no name is registered.
     local mapName = function(id)
@@ -963,6 +1277,12 @@ function RR:HandleLocationChange()
     end
 
     if currentMapID and previousMapID and currentMapID ~= previousMapID then
+        -- BfD-isolated activeSeg advancement (v1.6+): for instanceID 2070,
+        -- the activeSeg-based picker advances on mapID transitions. The
+        -- function itself guards against non-BfD raids, so this hook
+        -- is a no-op outside BfD. See Data/BfDPicker.lua for the model.
+        self:AdvanceBfDActiveSeg(currentMapID)
+
         local step = self.state.activeStep
         if step and step.segments then
             local stepIndex = step.step or step.priority or 0
@@ -1651,6 +1971,12 @@ function RR:YellDebugStop()
     yellDebug.buffer = nil  -- free memory; new buffer on next start
 end
 
+-- Read-only accessor for DevTools. The yellDebug table is file-local
+-- so external modules can't read .active directly.
+function RR:IsYellDebugActive()
+    return yellDebug.active == true
+end
+
 
 
 -------------------------------------------------------------------------------
@@ -1692,6 +2018,83 @@ SlashCmdList["RETRORUNS"] = function(input)
 
     elseif cmd == "settings" then
         RR.UI.ToggleSettings()
+
+    elseif cmd == "bfdstate" then
+        -- Diagnostic dump of BfD strict-activeSeg picker state. Use when
+        -- the travel pane shows "Open the map..." fallback inside BfD --
+        -- typically caused by activeSeg pointing past end of step.segments,
+        -- or by the picker dispatch not routing to BfDPicker for some reason.
+        local lines = {}
+        local function add(s) lines[#lines + 1] = s end
+        local raid = RR.currentRaid
+        add("== BfD Picker State ==")
+        add(("currentRaid: %s (instanceID=%s)"):format(
+            tostring(raid and raid.name or "(none)"),
+            tostring(raid and raid.instanceID or "(none)")))
+        add(("BFD_INSTANCE_ID: %s"):format(tostring(RR.BFD_INSTANCE_ID)))
+        add(("playerMapID (real-time): %s"):format(
+            tostring(C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player") or "(api missing)")))
+        add(("state.lastPlayerMapID:    %s"):format(tostring(RR.state and RR.state.lastPlayerMapID)))
+        local s = RR.state and RR.state.activeStep
+        if s then
+            add("")
+            add(("activeStep: step=%s priority=%s title=%q"):format(
+                tostring(s.step), tostring(s.priority), tostring(s.title)))
+            local stepIndex = s.step or s.priority or 0
+            local activeSeg = RR:GetBfDActiveSeg(stepIndex)
+            add(("activeSeg for step %d: %d"):format(stepIndex, activeSeg))
+            if s.segments then
+                add(("step.segments: %d entries"):format(#s.segments))
+                for i, seg in ipairs(s.segments) do
+                    local notePreview = seg.note and seg.note:sub(1, 60) or "(no note)"
+                    add(("  seg %d: mapID=%s note=%q"):format(i, tostring(seg.mapID), notePreview))
+                end
+                local pickedSeg = RR:PickBfDNoteSeg(s, RR.state.lastPlayerMapID)
+                if pickedSeg then
+                    add(("PickBfDNoteSeg returned: seg with mapID=%s, note=%q"):format(
+                        tostring(pickedSeg.mapID),
+                        tostring(pickedSeg.note and pickedSeg.note:sub(1, 60) or "(no note)")))
+                else
+                    add("PickBfDNoteSeg returned: nil")
+                end
+            else
+                add("step.segments: NIL")
+            end
+        else
+            add("activeStep: (none)")
+        end
+        add("")
+        add("== Persisted bfdActiveSeg ==")
+        if RetroRunsDB and RetroRunsDB.bfdActiveSeg then
+            for instID, instStore in pairs(RetroRunsDB.bfdActiveSeg) do
+                add(("instanceID %s:"):format(tostring(instID)))
+                -- Pre-faction-scoped legacy shape (lockoutId/activeSegs at
+                -- top level). Printed for diagnostic visibility but new
+                -- writes will migrate this away.
+                if instStore.lockoutId ~= nil or instStore.activeSegs ~= nil then
+                    add(("  [LEGACY pre-faction shape] lockoutId=%s"):format(
+                        tostring(instStore.lockoutId)))
+                    if instStore.activeSegs then
+                        for stepIdx, seg in pairs(instStore.activeSegs) do
+                            add(("    step %d activeSeg = %d"):format(stepIdx, seg))
+                        end
+                    end
+                else
+                    for faction, factionStore in pairs(instStore) do
+                        add(("  [%s] lockoutId=%s"):format(
+                            tostring(faction), tostring(factionStore.lockoutId)))
+                        if factionStore.activeSegs then
+                            for stepIdx, seg in pairs(factionStore.activeSegs) do
+                                add(("    step %d activeSeg = %d"):format(stepIdx, seg))
+                            end
+                        end
+                    end
+                end
+            end
+        else
+            add("(empty)")
+        end
+        RR:ShowCopyWindow("RetroRuns -- BfD Picker State", table.concat(lines, "\n"))
 
     elseif cmd == "zonelog" then
         -- Diagnostic dump of the in-memory zone-change log. Used to
@@ -1823,6 +2226,9 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- per-raid available-difficulty annotations. See
         -- UI.OpenSkipsWindow for the rendering.
         RR.UI.ToggleSkipsWindow()
+
+    elseif cmd == "devtools" then
+        RR:ToggleDevTools()
 
     elseif cmd == "tmogsrc" then
         RR:DebugTransmogSources()
@@ -3427,6 +3833,30 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
                 VERSION))
         end)
 
+        -- Register RetroRuns as a known external waypoint source with
+        -- AzerothWaypoint, so that when AWP adopts our route it attributes
+        -- it to RetroRuns in its UI (display name, queue presentation)
+        -- instead of the generic-unknown-addon path. The stackMatches
+        -- string is the lowercased Lua filename AWP looks for in the
+        -- call stack; it must end up matching ours exactly when AWP
+        -- inspects debugstack(). transient=true is the right semantic
+        -- for our entrance-button waypoints -- short-lived per-click
+        -- destinations that shouldn't displace AWP's persistent manual
+        -- queue. Guarded on the API existing so older AWP versions (or
+        -- AWP not installed at all) silently no-op. AWP's own README
+        -- documents the API as the integration entry point for partner
+        -- addons; SilverDragon and RareScanner are the existing examples.
+        if _G.AzerothWaypointNS
+            and type(_G.AzerothWaypointNS.RegisterExternalWaypointSource) == "function"
+        then
+            _G.AzerothWaypointNS.RegisterExternalWaypointSource("retroruns", {
+                displayName  = "RetroRuns",
+                stackMatches = { "retroruns\\core.lua" },
+                transient    = true,
+                iconKey      = "retroruns",
+            })
+        end
+
         -- Reset the encounter-note expand state to collapsed at session
         -- start. The setting controls whether the "Boss Encounter:" line
         -- shows the full soloTip text or the "view special note" link;
@@ -3464,9 +3894,23 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         -- (so /reload preserves it) but doesn't carry across full
         -- logout/relaunch. This prevents stale segment marks from a
         -- prior session showing up as "already walked" on a new login.
+        --
+        -- stepVisitedMapIDs is wiped alongside completedSegments because
+        -- it has the same semantics: "what mapIDs has the player physically
+        -- reached during the active step?" The strict-sequential picker cap
+        -- consults this set, and a stale set carries the prior session's
+        -- "I reached seg 4's mapID" signal across a logout, which makes the
+        -- cap permit seg 4 mid-flight when the player retries the step
+        -- post-logout. Canonical case: BfD Mekkatorque step 7 with the
+        -- 1357 -> [transit 1352] -> 875 -> 1367 -> 1352 gryphon route, on
+        -- second attempt this lockout. Without this wipe, all four mapIDs
+        -- are pre-loaded into the visit set at step-activation time, the
+        -- cap stays maxed, and seg 4's "go downstairs..." note flashes
+        -- mid-flight on 1352 -- the exact bug the cap was designed to fix.
         if isInitialLogin and RetroRunsDB then
             RetroRunsDB.completedSegments = {}
-            RR:ZoneLog("PEW: initial login -- wiped persisted segments")
+            RetroRunsDB.stepVisitedMapIDs = {}
+            RR:ZoneLog("PEW: initial login -- wiped persisted segments and step visit history")
         end
 
         C_Timer.After(1.0, function() RR:HandleLocationChange() end)
@@ -3597,6 +4041,7 @@ end)
 -- explicitly requested via /rr debug -- otherwise it would flood the
 -- log buffer (60 entries per minute) and push useful entries out.
 local heartbeatTicks = 0
+local lastPolledBfDMapID = nil
 C_Timer.NewTicker(1.0, function()
     if RR.currentRaid
         and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
@@ -3607,6 +4052,33 @@ C_Timer.NewTicker(1.0, function()
         RR.UI.Update()
         if WorldMapFrame and WorldMapFrame:IsShown() and RetroRunsMapOverlay then
             RetroRunsMapOverlay:Refresh()
+        end
+
+        -- BfD-isolated mapID-change poll (v1.6+). Closes a gap in
+        -- Blizzard's event timing: some elevator and flight transitions
+        -- don't fire ZONE_CHANGED events at the exact moment the mapID
+        -- changes. For example, the Loa's Sanctum (1354) -> Walk of
+        -- Kings (1356) elevator only fires ZONE_CHANGED_INDOORS for the
+        -- sub-zone change, while C_Map.GetBestMapForUnit still reports
+        -- 1354 at that moment; the actual mapID transition to 1356
+        -- happens mid-elevator with no event accompanying it. Without
+        -- this poll, AdvanceBfDActiveSeg never gets called for those
+        -- transitions and the activeSeg pointer stays stuck.
+        --
+        -- Why polling is acceptable here: the BfD picker is the only
+        -- consumer of mapID changes in BfD; missing a poll cycle
+        -- (1 second resolution) is fine for note-display latency.
+        -- Other consumers (recorder, segment-completion in non-BfD
+        -- raids) still use the event-driven HLC path.
+        --
+        -- AdvanceBfDActiveSeg is BfD-guarded internally (no-op outside
+        -- instanceID 2070), so this poll is safe to run unconditionally.
+        if C_Map and C_Map.GetBestMapForUnit then
+            local nowMapID = C_Map.GetBestMapForUnit("player")
+            if nowMapID and nowMapID ~= lastPolledBfDMapID then
+                lastPolledBfDMapID = nowMapID
+                RR:AdvanceBfDActiveSeg(nowMapID)
+            end
         end
     end
 end)
