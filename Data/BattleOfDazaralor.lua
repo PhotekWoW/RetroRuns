@@ -6,7 +6,7 @@
 -- set in the Zandalari capital city of Dazar'alor. The two factions have
 -- meaningfully different in-raid experiences: different physical
 -- entrances, different routes through the same nine boss rooms, different
--- boss-1-3 visual variants and journalEncounterIDs (Alliance fights
+-- boss-1-3 visual variants and journal encounter IDs (Alliance fights
 -- Frida Ironbellows / Ma'ra Grimfang & Anathos Firecaller / Grong-the-
 -- Revenant; Horde fights Ra'wani Kanae / Grong-the-Jungle-Lord / Mestrah
 -- & Manceroy Flamefist), and Horde fights bosses 2 and 3 in opposite
@@ -16,25 +16,13 @@
 -- named after the NPCs each faction fights (Manceroy / Mestrah for
 -- Horde-killable, Grimfang / Firecaller for Alliance-killable).
 --
--- Architecture: this file holds Alliance data only and registers under
--- `RetroRuns_Data[2070]`. Horde data lives in BattleOfDazaralorHorde.lua
--- and registers under `RetroRuns_DataHorde[2070]`. GetSupportedRaid
--- (Core.lua) consults the Horde table first when the player is Horde
--- and falls through to this shared table otherwise. The other 9 raids
--- in the addon are faction-symmetric and ship single-file under the
--- shared table.
---
--- No class tier sets. Patch 8.1 predated the return of proper tier sets
--- (which came with 9.2 / Sepulcher). No quest-flag-based skip mechanic --
--- the account-wide raid-skip quest system arrived with Shadowlands. BfD
--- does have a skip-to-Jaina mechanic via Otoye/Ensign Roberts at the
--- entrance, but it predates the post-Shadowlands quest-flag cascade and
--- works differently in two ways: (1) it's gated by the achievement
--- "Mythic: Lady Jaina Proudmoore" (13314), not by completing a per-tier
--- skip quest; (2) the skip is Mythic-only -- there are no Normal or
--- Heroic skip variants. We model this with a `skipAchievement` field
--- (BfD-only special case) rather than the standard `skipQuests` schema;
--- the renderer treats N/H cells as "not applicable" for this raid.
+-- Patch 8.1 predated the return of proper class tier sets (which came
+-- back with 9.2 / Sepulcher), so BfD has no tier gear in its loot
+-- tables. The raid does have a skip-to-Jaina mechanic offered by Otoye
+-- (Horde) or Ensign Roberts (Alliance) at the entrance, but it predates
+-- the post-Shadowlands account-wide quest-flag skip system: the BfD
+-- skip is Mythic-only and gated by earning the achievement "Mythic:
+-- Lady Jaina Proudmoore" (13314).
 -------------------------------------------------------------------------------
 
 RetroRuns_Data = RetroRuns_Data or {}
@@ -46,55 +34,34 @@ RetroRuns_Data[2070] = {
     expansion         = "Battle for Azeroth",
     patch             = "8.1.0",
 
+    useStrictActiveSegPicker = true,
+
     -- Alliance entrance: outside the BfD portal at the Boralus docks.
-    -- Note that mapID 1161 is the Boralus *city* map (interior), not
-    -- the parent zone Tiragarde Sound (895) -- the city/zone mapID
-    -- asymmetry is documented as the canonical sub-zone gotcha.
-    --
-    -- Horde players get a separate raid-data file
-    -- (BattleOfDazaralorHorde.lua) with their own entrance, bosses,
-    -- routing, and maps; faction dispatch happens at GetSupportedRaid
-    -- (Core.lua) which consults RetroRuns_DataHorde first for Horde
-    -- characters and falls back to this shared table otherwise. This
-    -- file is therefore Alliance-only by virtue of which lookup table
-    -- serves it -- no per-field faction suffixing needed here.
+    -- mapID 1161 is the Boralus city map (interior); the parent zone
+    -- Tiragarde Sound is mapID 895.
     entrance = {
         mapID = 1161,
         x     = 0.7057,
         y     = 0.3523,
     },
 
-    -- mapID -> world-map dropdown label (authoritative per provenance rule).
-    -- Several mapIDs host multiple GetSubZoneText sub-zones (especially
-    -- 1352 which spans the city's main expanse: Port of Zandalar, Grand
-    -- Bazaar, Terrace of the Speakers, Dazar'alor); per-segment subZone
-    -- captures preserve those granular names. Two dropdown entries (The
-    -- Zocalo, Boralus) have no mapID pairing here because the Alliance
-    -- route doesn't traverse them; they exist in the dropdown but are
-    -- visited by Horde or in flavor scenes only.
+    -- mapID -> world-map dropdown label.
     --
-    -- Per ATT inst(1176), BfD exposes 8 raid-internal mapIDs:
-    -- {1352, 1353, 1354, 1356, 1357, 1358, 1364, 1367}. The Alliance
-    -- route uses 6 of them (mapped below); 1358 and 1364 are unpaired.
-    -- The in-game world-map dropdown is faction-independent (both
-    -- factions see all 8 labels) but highlights the current floor:
-    -- Alliance lands with "Boralus" highlighted, suggesting 1358 pairs
-    -- with "Boralus" (Alliance staging area). 1364 likely pairs with
-    -- "The Zocalo" (Horde-side area) by elimination. Both pending v1.7
-    -- verification during the Horde recorder pass.
-    -- mapIDs verified from in-game zonelog captures except where
-    -- noted. 875 and 1358 names are inferred from context (both
-    -- report subZone "Bay of Kings" during the Mekkatorque ship
-    -- sequence) -- replace with verified names as the data lands.
+    -- mapIDs 1352, 1353, 1354, 1356, 1357 cover the Alliance route
+    -- through the city interior; 1358 is "The Zocalo" (never visited
+    -- by Alliance route, included for completeness); 1364 is "The
+    -- Zocalo's" lower deck and is also Horde-side. 862 / 875 / 1367
+    -- cover the Bay of Kings ship sequence during the Mekkatorque
+    -- and Jaina encounters.
     maps = {
         [862]  = "The Great Sea",
-        [875]  = "Zandalar",          -- inferred
+        [875]  = "Zandalar",
         [1352] = "Port of Zandalar",
         [1353] = "Halls of Opulence",
         [1354] = "Loa's Sanctum",
         [1356] = "Walk of Kings",
         [1357] = "The Heart of the Empire",
-        [1358] = "The Zocalo",       -- never visited by Alliance route; label verified during Horde-side recorder pass
+        [1358] = "The Zocalo",
         [1367] = "Boralus Harbor",
     },
 
@@ -103,30 +70,18 @@ RetroRuns_Data[2070] = {
         tokenSources = {},
     },
 
-    -- BfD-specific skip mechanic: Mythic-only, achievement-gated.
+    -- BfD's skip mechanic. Talking to Otoye (Horde) or Ensign Roberts
+    -- (Alliance) at the raid entrance offers a "skip directly to Lady
+    -- Jaina Proudmoore" option when the player has earned the
+    -- achievement "Mythic: Lady Jaina Proudmoore" (13314). The
+    -- achievement is account-wide -- earning it on any character
+    -- unlocks the skip on every character.
     --
-    -- Talking to Otoye (Horde) or Ensign Roberts (Alliance) at the raid
-    -- entrance offers a "skip directly to Lady Jaina Proudmoore" option
-    -- when the player has earned the achievement "Mythic: Lady Jaina
-    -- Proudmoore" (13314). The achievement is account-wide -- earning it
-    -- on any character unlocks the skip on every character.
-    --
-    -- This is structurally different from every other shipped raid's
-    -- skip system in two ways:
-    --   1. Gated by an achievement, not a quest flag. Read via
-    --      GetAchievementInfo(13314) -- the 4th return ("completed") is
-    --      a per-account boolean for cross-realm/cross-character earned
-    --      achievements.
-    --   2. Mythic-only. There is no Normal or Heroic skip variant -- the
-    --      cascade-down rule that applies to standard skipQuests does
-    --      NOT apply here. The renderer renders Normal/Heroic cells as
-    --      "not applicable" for this raid, not as locked/unlocked.
-    --
-    -- Because BfD is the only raid in the game with this pattern, we
-    -- model it as a sibling field (skipAchievement) rather than
-    -- extending the skipQuests schema with a kind discriminator. The
-    -- two consumer code paths (Core.lua's GetRaidSkipUnlockedCeiling
-    -- and UI.lua's BuildSkipsRows) explicitly check both fields.
+    -- BfD is the only raid in the game with this pattern: the skip
+    -- is Mythic-only and gated by an achievement rather than by a
+    -- per-difficulty quest flag like later raids use. There is no
+    -- Normal or Heroic skip variant -- the Skips browser shows N/H
+    -- cells as "not applicable" for this raid.
     skipAchievement = {
         mythic = 13314,
     },
@@ -357,7 +312,7 @@ RetroRuns_Data[2070] = {
     },
 
     routing = {
-        -- DAG: linear progression for Alliance.
+        -- Routing: linear progression for Alliance.
         --   1. Champion of the Light    requires {}
         --   2. Jadefire Masters         requires { 1 }
         --   3. Grong, the Revenant      requires { 2 }
@@ -367,16 +322,6 @@ RetroRuns_Data[2070] = {
         --   7. High Tinker Mekkatorque  requires { 6 }
         --   8. Stormwall Blockade       requires { 7 }
         --   9. Lady Jaina Proudmoore    requires { 8 }
-        --
-        -- Mekkatorque's approach uses the most varied segment shapes in
-        -- the project: a path on land, a POI star on the ship at sea,
-        -- an empty-points note-only segment for the ship-in-transit
-        -- moment (gated implicitly by the player entering mapID 1367),
-        -- and a final landing path. Rastakhan's last segment is a
-        -- noMarker POI reusing the prior segment's end coord; this is
-        -- the N'Zoth Nyalotha pattern for "kill trash, dialog plays,
-        -- boss spawns" rooms where no walking happens but a note is
-        -- still needed.
 
         -- 1. Champion of the Light
         {
@@ -562,9 +507,9 @@ RetroRuns_Data[2070] = {
         -- 875 (Bay of Kings) via gryphon flight -> 1367 (Boralus Harbor)
         -- via ship -> 1352 (Dazar'alor) for final landing. The flight
         -- briefly transits 1352 mid-route, which is also seg 4's mapID;
-        -- the BfD picker's strict-activeSeg model handles this naturally
+        -- the strict-activeSeg picker handles this naturally
         -- (mid-flight 1352 doesn't match seg 2's mapID 875, so the
-        -- activeSeg pointer doesn't advance). See Data/BfDPicker.lua.
+        -- activeSeg pointer doesn't advance). See Data/StrictPicker.lua.
         {
             step      = 7,
             priority  = 1,

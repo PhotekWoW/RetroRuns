@@ -2,6 +2,19 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [1.7.0] - 2026-05-10
+
+### Added
+
+- **The Emerald Nightmare** is now fully supported — walk-along routes for all 7 bosses with hub-and-spoke routing through the central Core of the Nightmare. Bosses 2-5 (Ursoc, Dragons of Nightmare, Elerethe Renferal, Il'gynoth) can be killed in any order; Cenarius unlocks after all four of those wings are clear, and Xavius unlocks after Cenarius. The addon recognizes the parallel-middle structure and surfaces whichever wing you walk toward first. Includes per-boss solo tips where relevant, achievement callouts for the seven Glory of the Legion Raider boss criteria with soloability ratings (some are pet-class only, flagged accordingly), and account-wide skip detection on "The Emerald Nightmare: Piercing the Veil" — the post-Nythendra skip to Cenarius offered by Malfurion at the Nightmare Iris.
+- **Illusion: Nightmare tracking on Xavius.** The weapon-enchant illusion that drops from Xavius now appears in his encounter card with a collected/missing indicator pulled from your transmog collection — same treatment mounts, pets, and toys get on other bosses. Reflects whether you've personally collected the illusion (account-wide).
+- **Minimize button on the main panel.** A small `-` button just left of the close X collapses the panel down to its title bar — logo, RETRO RUNS text, and the close + minimize buttons. The body content (raid info, route note, supported-raids list) and the action-button row (Map, Tmog, Achieves, Skips, Settings) hide when minimized; click the `+` button to expand back. The panel's top edge stays put across the resize, so it grows downward from the title bar rather than shifting up. Minimized state persists across `/reload` — if you logged out minimized, the panel comes back up minimized next session.
+- **Flight to the Castle Nathria covenant weapon vendor.** When viewing the transmog details for a Castle Nathria boss that drops weapon tokens, a small flight-master button appears next to the "Redeem at..." vendor hint. Click it to drop a waypoint directly on the Mythic Nathrian Weaponsmith for your active covenant (Battlemaster Endios in Elysian Hold for Kyrian, Vorpalia in Sinfall for Venthyr, Sulanoom in Heart of the Forest for Night Fae, or Odious Gwor in Seat of the Primus for Necrolord). Uses the same waypoint cascade as the raid-entrance buttons — AzerothWaypoint, Zygor, Mapzeroth, TomTom, or the Blizzard map pin — picking the routing-capable one you have installed. Hover for a tooltip showing which vendor you're being sent to. The button doesn't appear if you haven't picked a covenant yet.
+
+### Fixed
+
+- **Stale route notes after `/reload` mid-raid.** A timing issue in how the route picker stored lockout state could cause it to surface a later seg's note after a `/reload` mid-raid, instead of the seg matching your actual current location. Affected Battle of Dazar'alor on the live build; the fix lands in time to also cover The Emerald Nightmare. The picker now reads the lockout ID directly from Blizzard's API at every check, and self-heals corrupted persisted state from prior sessions on the next `/reload`.
+
 ## [1.6.0] - 2026-05-09
 
 ### Added

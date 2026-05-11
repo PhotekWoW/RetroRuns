@@ -112,8 +112,17 @@ local MAX_SESSION_LOG_ENTRIES = 2000
 -- Caller passes a `kind` string and a table of additional fields.
 -- The fields table is shallow-copied into the entry; caller can
 -- safely mutate the original after the call.
+--
+-- Each entry is stamped with the current raid name (RR.currentRaid.name)
+-- so that ShowRecorderSessionLog can default-filter to "just this raid"
+-- when the player is in one, while still preserving a cross-raid view
+-- via `/rr sessionlog all`. Entries logged outside any raid context
+-- (raid = nil) are always shown regardless of filter.
 local function LogSession(rec, kind, fields)
     local entry = { time = GetTime and GetTime() or 0, kind = kind }
+    if RR.currentRaid and RR.currentRaid.name then
+        entry.raid = RR.currentRaid.name
+    end
     if fields then
         for k, v in pairs(fields) do entry[k] = v end
     end
@@ -221,7 +230,15 @@ local function AutoStampCurrent(rec, eventName)
     -- preventing transit-zone false-matches like the Mekkatorque
     -- gryphon flight briefly transiting through mapID 1352 and
     -- false-matching seg 4. See UI.lua and Navigation.lua picker logic.
-    rec.current.gateBySubZone = true
+    --
+    -- Skipped for raids that opt in to the strict-activeSeg picker.
+    -- The strict picker fixes the same transit-flash class of bugs
+    -- by design (see Data/StrictPicker.lua header), so emitting
+    -- gateBySubZone for those raids would be dead data carrying
+    -- anti-pattern intent.
+    if not (RR.UsesStrictActiveSegPicker and RR:UsesStrictActiveSegPicker()) then
+        rec.current.gateBySubZone = true
+    end
 
     local segIndex = #rec.segments + 1
     table.insert(rec.stampLog, {
@@ -407,8 +424,11 @@ local function ConsumePendingEvent(rec)
     end
     rec.current.mapID         = pending.mapID
     rec.current.subZone       = pending.subZone
-    -- See AutoStampCurrent for rationale on gateBySubZone.
-    rec.current.gateBySubZone = true
+    -- See AutoStampCurrent for rationale on gateBySubZone (and the
+    -- v1.7 strict-picker exception).
+    if not (RR.UsesStrictActiveSegPicker and RR:UsesStrictActiveSegPicker()) then
+        rec.current.gateBySubZone = true
+    end
     table.insert(rec.stampLog, {
         segIndex = #rec.segments + 1,
         event    = pending.event,
@@ -769,26 +789,75 @@ end
 --- The session log persists across /reload and across start/stop
 --- cycles, so this view shows the full history of recorder activity
 --- since the last /rr record reset.
-function RR:ShowRecorderSessionLog()
+---
+--- @param showAll boolean? When truthy, shows ALL entries regardless of
+---        raid context (cross-raid chronological view). When falsy/nil
+---        and the player is currently in a known raid, filters to entries
+---        stamped with that raid's name (plus any unstamped entries, which
+---        were logged outside raid context). When falsy/nil and the player
+---        is not in a raid, shows all entries.
+function RR:ShowRecorderSessionLog(showAll)
     local rec = self.recorder
     local log = rec.sessionLog or {}
-    if #log == 0 then
+
+    -- Decide filter: if showAll is set, no filter. Otherwise filter to
+    -- the current raid (if we're in one). This default-current-raid
+    -- behavior keeps the log readable when bouncing between raids in
+    -- one play session -- without it, debugging an issue in one raid
+    -- surfaces entries from a prior run in a different raid that just
+    -- clutter the view.
+    local filterRaid = nil
+    if not showAll and self.currentRaid and self.currentRaid.name then
+        filterRaid = self.currentRaid.name
+    end
+
+    local filtered = log
+    if filterRaid then
+        filtered = {}
+        for _, entry in ipairs(log) do
+            -- Include entries stamped with this raid name. Entries
+            -- without a raid stamp (logged outside any raid) are
+            -- excluded from per-raid views; they're only visible via
+            -- /rr sessionlog all. This is the right default since
+            -- cross-raid noise like login-time events shouldn't show
+            -- up in "what just happened in this raid."
+            if entry.raid == filterRaid then
+                table.insert(filtered, entry)
+            end
+        end
+    end
+
+    if #filtered == 0 then
+        local msg
+        if filterRaid then
+            msg = ("(no entries for %s -- use /rr sessionlog all to see all entries)"):format(filterRaid)
+        else
+            msg = "(empty -- no recorder activity since last reset)"
+        end
         self:ShowCopyWindow(
             "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaRecorder Session Log|r",
-            "(empty -- no recorder activity since last reset)")
+            msg)
         return
     end
 
     local out = {}
-    table.insert(out, ("Session log: %d entries (oldest first)"):format(#log))
+    if filterRaid then
+        table.insert(out, ("Session log: %d entries for %s (oldest first; %d total in buffer; /rr sessionlog all for cross-raid view)"):format(
+            #filtered, filterRaid, #log))
+    else
+        table.insert(out, ("Session log: %d entries (oldest first)"):format(#filtered))
+    end
     table.insert(out, "")
 
-    local startTime = log[1].time or 0
-    for _, entry in ipairs(log) do
+    local startTime = filtered[1].time or 0
+    for _, entry in ipairs(filtered) do
         local relTime = (entry.time or 0) - startTime
         local fields = {}
         for k, v in pairs(entry) do
-            if k ~= "time" and k ~= "kind" then
+            -- Don't print `raid` as a field when filtering to one raid;
+            -- it's redundant. Always show it in the all-entries view so
+            -- the reader can tell which raid each entry came from.
+            if k ~= "time" and k ~= "kind" and not (k == "raid" and filterRaid) then
                 table.insert(fields, ("%s=%s"):format(k, tostring(v)))
             end
         end

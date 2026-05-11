@@ -326,11 +326,12 @@ function RR:OnActiveStepChanged(prevStep, newStep)
             prevLabel, newLabel, tostring(currentMapID or "(nil)")))
     end
 
-    -- BfD-isolated activeSeg seeding (v1.6+): for instanceID 2070, seed
-    -- the activeSeg based on player's current mapID matching a seg.
-    -- BfD-guarded internally, no-op outside BfD. See Data/BfDPicker.lua.
+    -- Strict-activeSeg seeding: when the player advances to a new step,
+    -- seed the active seg based on player's current mapID. The seeding
+    -- function is predicated internally, so it's a no-op for raids that
+    -- don't opt in via useStrictActiveSegPicker. See Data/StrictPicker.lua.
     if newStep then
-        self:SeedBfDActiveSeg(newStep)
+        self:SeedStrictActiveSeg(newStep)
     end
 end
 
@@ -422,12 +423,13 @@ function RR:GetRelevantSegmentsForMap(step, mapID)
     local results = {}
     if not step or not step.segments or not mapID then return results end
 
-    -- BfD-isolated picker dispatch (v1.6+): instanceID 2070 routes
-    -- through the activeSeg-based picker in Data/BfDPicker.lua. Other
-    -- raids fall through to the existing layered-gate logic below.
-    -- See BfDPicker.lua header for the model rationale.
-    if self.currentRaid and self.currentRaid.instanceID == self.BFD_INSTANCE_ID then
-        return self:PickBfDLineSegs(step, mapID)
+    -- Strict-activeSeg picker dispatch: raids that opt in via
+    -- `useStrictActiveSegPicker = true` route through the activeSeg-
+    -- based picker in Data/StrictPicker.lua. Other raids fall through
+    -- to the existing layered-gate logic below. See StrictPicker.lua
+    -- header for the model rationale.
+    if self:UsesStrictActiveSegPicker() then
+        return self:PickStrictLineSegs(step, mapID)
     end
 
     local stepIndex = step.step or step.priority or 0

@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "1.6.0"
+local VERSION    = "1.7.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -46,6 +46,13 @@ RetroRuns = {
         panelY       = 0,
         settingsX    = 290,
         settingsY    = 60,
+        -- minimized: when true, the main panel renders as a tiny title-bar
+        -- only (logo + RETRO RUNS text + minimize/close buttons), with all
+        -- body fields and footer action buttons hidden. Toggled via the
+        -- minimize button left of the close X. Persists across /reload
+        -- (unlike showPanel, which is force-reset to false on init so the
+        -- panel always starts hidden after a reload).
+        minimized    = false,
     },
 }
 
@@ -92,7 +99,12 @@ end
 function RR:ZoneLog(msg)
     local buf = self.state.zoneLog
     table.insert(buf, ("[%s] %s"):format(date("%H:%M:%S"), tostring(msg)))
-    while #buf > 200 do table.remove(buf, 1) end
+    -- Buffer cap: 1000 entries. Bumped from 200 in v1.7 because the 1Hz
+    -- heartbeat tick logger (when /rr debug is on) produced 60 entries/min,
+    -- exhausting a 200-entry buffer in ~3 minutes and pushing useful HLC-
+    -- fire entries out before they could be reviewed. 1000 covers ~16 min
+    -- of continuous debug-mode heartbeat plus headroom for actual events.
+    while #buf > 1000 do table.remove(buf, 1) end
 end
 
 --- Detect which navigation tier is active for the current addon load
@@ -348,6 +360,104 @@ function RR:NavigateToEntrance(raid)
     return nil
 end
 
+--- Drop a waypoint at a Covenant Sanctum's Mythic Nathrian Weaponsmith.
+--- Mirrors NavigateToEntrance's cascade (AWP -> Zygor -> Mapzeroth ->
+--- TomTom -> Blizzard) but reads target coords from raid.weaponVendors
+--- keyed by covenantID (C_Covenants.GetActiveCovenantID return value).
+---
+--- Specific to Castle Nathria, where the Tmog detail pane surfaces a
+--- "Redeem at <covenant> vendor" hint when viewing a boss that drops
+--- weapon tokens. The Flight button next to that hint calls into here.
+---
+--- Returns the same tier string NavigateToEntrance does ("awp", "zygor",
+--- "mapzeroth", "tomtom", "blizzard") or nil on failure -- caller uses
+--- this for the same toast-popup branching.
+function RR:NavigateToSanctum(raid, covID)
+    if not raid or not raid.weaponVendors or not covID then
+        self:Print("No sanctum vendor data available.")
+        return nil
+    end
+    local vendor = raid.weaponVendors[covID]
+    if not vendor or not vendor.vendorMapID or not vendor.x or not vendor.y then
+        self:Print("Sanctum vendor data is incomplete.")
+        return nil
+    end
+
+    -- Clear any in-progress route before starting a new one (same
+    -- rationale as NavigateToEntrance -- avoids stale waypoints when
+    -- the user clicks between the entrance and sanctum buttons back-
+    -- to-back).
+    self:CancelNavRoute()
+
+    local title = ("RetroRuns: %s (%s vendor)"):format(
+        vendor.vendorName or "Sanctum", vendor.covenantName or "covenant")
+
+    if _G.AzerothWaypointNS
+        and type(_G.AzerothWaypointNS.RequestManualRoute) == "function"
+    then
+        local ok, routed = pcall(_G.AzerothWaypointNS.RequestManualRoute,
+            vendor.vendorMapID, vendor.x, vendor.y, title, nil, nil)
+        if ok and routed then
+            self.state.activeRoute = { raid = raid, awpRoute = true }
+            return "awp"
+        end
+    end
+
+    if _G.ZygorGuidesViewer
+        and _G.ZygorGuidesViewer.Pointer
+        and _G.ZygorGuidesViewer.Pointer.SetWaypoint then
+        _G.ZygorGuidesViewer.Pointer:SetWaypoint(vendor.vendorMapID,
+            vendor.x, vendor.y, {
+                findpath    = true,
+                type        = "manual",
+                cleartype   = true,
+                title       = title,
+                onminimap   = "always",
+                overworld   = true,
+                showonedge  = true,
+            }, true)
+        self.state.activeRoute = { raid = raid, zygorRoute = true }
+        return "zygor"
+    end
+
+    if _G.Mapzeroth and _G.Mapzeroth.FindRoute then
+        _G.Mapzeroth:FindRoute("_WAYPOINT_DESTINATION", {
+            mapID  = vendor.vendorMapID,
+            x      = vendor.x,
+            y      = vendor.y,
+            name   = title,
+            source = "retroruns",
+        })
+        self.state.activeRoute = { raid = raid, mapzerothRoute = true }
+        return "mapzeroth"
+    end
+
+    if TomTom and TomTom.AddWaypoint then
+        local uid = TomTom:AddWaypoint(vendor.vendorMapID, vendor.x, vendor.y, {
+            title  = title,
+            from   = "RetroRuns",
+            silent = true,
+            crazy  = true,
+        })
+        self.state.activeRoute = { raid = raid, tomtomWaypoint = uid }
+        return "tomtom"
+    end
+
+    if C_Map and C_Map.SetUserWaypoint and UiMapPoint then
+        local point = UiMapPoint.CreateFromCoordinates(
+            vendor.vendorMapID, vendor.x, vendor.y)
+        C_Map.SetUserWaypoint(point)
+        if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+            C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+        end
+        self.state.activeRoute = { raid = raid, blizzardWaypoint = true }
+        return "blizzard"
+    end
+
+    self:Print("No supported waypoint API available.")
+    return nil
+end
+
 --- Cancel the active nav route, if any. Behavior depends on which
 --- backend was used to start the route:
 ---   * TomTom: removes the waypoint we set.
@@ -442,116 +552,319 @@ end
 -- errors surface immediately rather than causing silent misbehaviour later.
 -------------------------------------------------------------------------------
 
-local function ValidateRaidData()
-    if not RetroRuns_Data then
-        RR:Debug("RetroRuns_Data is nil -- no raid data loaded.")
-        return
+--- Walk all loaded raid data and produce a list of structural issues.
+--- Each issue is a table with `severity` ("error" | "warn"), `raid` (the
+--- raid display name or instanceID), and `msg` (human-readable detail).
+---
+--- Used by two consumers:
+---   * Addon-load debug pass: filters to severity=="error" and prints
+---     each via RR:Debug (no-op unless /rr debug is on).
+---   * `/rr lintroute`: shows ALL issues (errors + warnings) in a copy
+---     window, on-demand.
+---
+--- @param scopeFilter string?  When set, only lint raids whose name
+---        contains this substring (case-insensitive). nil = all raids.
+--- @return table   List of {severity, raid, msg} tables, in walk order.
+local function CollectRaidDataIssues(scopeFilter)
+    local issues = {}
+    local function add(severity, raid, msg)
+        table.insert(issues, { severity = severity, raid = raid, msg = msg })
     end
 
-    -- Validation output is developer / maintainer signal, not something a
-    -- regular player needs to see in chat every /reload. Route all warnings
-    -- through RR:Debug(), which no-ops unless `/rr debug` is on. Turn debug
-    -- on when iterating on new raid data or chasing a suspected bad entry.
-    local warn = function(msg) RR:Debug(msg) end
+    if not RetroRuns_Data then
+        add("error", "(global)", "RetroRuns_Data is nil -- no raid data loaded")
+        return issues
+    end
+
+    -- Strings flagged in raid.maps[] that mean "this name has not been
+    -- in-game-verified" -- per the HANDOFF Section 6 maps-provenance
+    -- rule. Linted as warnings so they don't block a run but are easy
+    -- to find for follow-up verification.
+    local UNVERIFIED_MAP_MARKERS = { "??", "unverified", "inferred" }
+    local function looksUnverified(s)
+        if type(s) ~= "string" then return false end
+        local lower = s:lower()
+        for _, marker in ipairs(UNVERIFIED_MAP_MARKERS) do
+            if lower:find(marker, 1, true) then return true end
+        end
+        return false
+    end
+
+    local function matchesScope(raidName)
+        if not scopeFilter or scopeFilter == "" then return true end
+        if type(raidName) ~= "string" then return false end
+        return raidName:lower():find(scopeFilter:lower(), 1, true) ~= nil
+    end
 
     -- Single-table validator. Called once for the shared table and once
     -- for the Horde-specific table (which holds parallel raid data for
-    -- faction-asymmetric raids; currently only BfD). The `tableLabel`
-    -- parameter prefixes warnings so a missing-routing warning makes
-    -- clear which faction's data is incomplete.
+    -- faction-asymmetric raids; currently only BfD).
     local function validateTable(tbl, tableLabel)
         if type(tbl) ~= "table" then return end
         for instanceID, raid in pairs(tbl) do
-            local prefix = ("%s[%s] (%s):"):format(
-                tableLabel, tostring(instanceID), tostring(raid.name or "?"))
+            local raidName = raid.name or ("?@" .. tostring(instanceID))
+            -- For faction-asymmetric raids, distinguish in the report
+            -- so a BfD-Horde-specific issue is recognizable.
+            local raidLabel = raidName
+            if tableLabel == "DataHorde" then
+                raidLabel = raidName .. " (Horde)"
+            end
+
+            -- Apply scope filter: skip raids whose name (or
+            -- faction-disambiguated label) doesn't match the filter.
+            -- A nil/empty filter matches everything, handled inside
+            -- matchesScope.
+            if matchesScope(raidName) or matchesScope(raidLabel) then
 
             if not raid.instanceID then
-                warn(prefix .. " missing instanceID")
+                add("error", raidLabel, "missing instanceID")
             end
             if type(raid.bosses) ~= "table" or #raid.bosses == 0 then
-                warn(prefix .. " missing or empty bosses table")
+                add("error", raidLabel, "missing or empty bosses table")
             end
             if type(raid.routing) ~= "table" or #raid.routing == 0 then
-                warn(prefix .. " missing or empty routing table")
+                add("error", raidLabel, "missing or empty routing table")
             end
 
-            -- Build a set of valid boss indices for cross-checking, and
-            -- while we're walking the bosses, validate specialLoot entries
-            -- (optional field; each entry must have id + recognized kind).
+            -- Build a set of valid boss indices for cross-checking,
+            -- and validate specialLoot while we're at it.
             local validBossIndices = {}
-            local VALID_SPECIAL_KINDS = { mount = true, pet = true, toy = true, decor = true, manuscript = true }
+            local VALID_SPECIAL_KINDS = { mount = true, pet = true, toy = true, decor = true, manuscript = true, illusion = true }
             for _, boss in ipairs(raid.bosses or {}) do
                 if not boss.index then
-                    warn(prefix .. " boss missing index field")
+                    add("error", raidLabel, "boss missing index field")
                 elseif not boss.name then
-                    warn(prefix .. " boss #" .. boss.index .. " missing name")
+                    add("error", raidLabel, ("boss #%s missing name"):format(tostring(boss.index)))
                 else
                     validBossIndices[boss.index] = true
                 end
 
                 if boss.specialLoot ~= nil then
                     if type(boss.specialLoot) ~= "table" then
-                        warn(prefix .. (" boss #%s specialLoot must be a table"):format(
-                            tostring(boss.index)))
+                        add("error", raidLabel,
+                            ("boss #%s specialLoot must be a table"):format(tostring(boss.index)))
                     else
                         for si, item in ipairs(boss.specialLoot) do
-                            local bp = prefix .. (" boss #%s specialLoot[%d]:"):format(
+                            local bp = ("boss #%s specialLoot[%d]:"):format(
                                 tostring(boss.index), si)
                             if not item.id then
-                                warn(bp .. " missing id")
+                                add("error", raidLabel, bp .. " missing id")
                             end
                             if not item.kind then
-                                warn(bp .. " missing kind (mount|pet|toy|decor|manuscript)")
+                                add("error", raidLabel,
+                                    bp .. " missing kind (mount|pet|toy|decor|manuscript|illusion)")
                             elseif not VALID_SPECIAL_KINDS[item.kind] then
-                                warn(bp .. (" unrecognized kind '%s' (expected mount|pet|toy|decor|manuscript)"):format(
-                                    tostring(item.kind)))
+                                add("error", raidLabel,
+                                    bp .. (" unrecognized kind '%s' (expected mount|pet|toy|decor|manuscript|illusion)"):format(
+                                        tostring(item.kind)))
+                            end
+                            -- kind=illusion needs a sourceID for the
+                            -- C_TransmogCollection.GetIllusionSourceInfo
+                            -- lookup (item.id is the itemID, separate
+                            -- from the illusion's visual sourceID).
+                            -- Lint the missing-sourceID case so author
+                            -- doesn't ship without the validation hook.
+                            if item.kind == "illusion" and not item.sourceID then
+                                add("error", raidLabel,
+                                    bp .. " kind=illusion requires sourceID field for transmog API validation")
                             end
                         end
+                    end
+                end
+            end
+
+            -- Maps-table linting: warn on entries flagged unverified
+            -- (matches "??", "unverified", or "inferred" anywhere in
+            -- the value). These are intentional placeholders awaiting
+            -- in-game verification per Section 6's maps-provenance
+            -- rule, but we want them visible so they don't get
+            -- forgotten.
+            if type(raid.maps) == "table" then
+                for mapID, mapName in pairs(raid.maps) do
+                    if looksUnverified(mapName) then
+                        add("warn", raidLabel,
+                            ("maps[%s] = %q is flagged unverified"):format(
+                                tostring(mapID), tostring(mapName)))
                     end
                 end
             end
 
             for i, step in ipairs(raid.routing or {}) do
-                local sp = prefix .. " step " .. i .. ":"
+                local sp = "step " .. i .. ":"
                 if not step.bossIndex then
-                    warn(sp .. " missing bossIndex")
+                    add("error", raidLabel, sp .. " missing bossIndex")
                 elseif not validBossIndices[step.bossIndex] then
-                    warn(sp .. (" bossIndex %d has no matching boss"):format(
-                        step.bossIndex))
+                    add("error", raidLabel,
+                        sp .. (" bossIndex %d has no matching boss"):format(step.bossIndex))
                 end
                 if not step.requires then
-                    warn(sp .. " missing requires table (use {} for none)")
+                    add("error", raidLabel, sp .. " missing requires table (use {} for none)")
                 else
                     for _, req in ipairs(step.requires) do
                         if not validBossIndices[req] then
-                            warn(sp .. (" requires unknown bossIndex %d"):format(req))
+                            add("error", raidLabel,
+                                sp .. (" requires unknown bossIndex %d"):format(req))
                         end
                     end
                 end
                 if not step.segments or #step.segments == 0 then
-                    warn(sp .. " has no segments")
+                    add("error", raidLabel, sp .. " has no segments")
                 else
+                    local prevMapID = nil
                     for si, seg in ipairs(step.segments) do
                         if not seg.mapID then
-                            warn(sp .. (" segment %d missing mapID"):format(si))
+                            add("error", raidLabel,
+                                sp .. (" segment %d missing mapID"):format(si))
                         end
                         if not seg.kind then
-                            warn(sp .. (" segment %d missing kind"):format(si))
+                            add("error", raidLabel,
+                                sp .. (" segment %d missing kind"):format(si))
                         end
-                        -- `points` may legitimately be empty for teleport /
-                        -- portal segments that carry only a note, so we don't
-                        -- warn on an empty points list the way we warn on
-                        -- missing mapID/kind. Segments with NO points table at
-                        -- all (structurally malformed) would still be caught
-                        -- by the nil-check in the rendering path.
+
+                        -- subZone-near-miss check: if a seg's subZone
+                        -- string ALMOST matches an existing maps[]
+                        -- entry but isn't an exact match, it's likely
+                        -- a typo (e.g. "Heart of the Empire" when the
+                        -- maps[] entry is "The Heart of the Empire").
+                        -- Mismatches break the renderer's
+                        -- HighlightNames orange-coloring pass.
+                        --
+                        -- We don't warn on subZones that are simply
+                        -- absent from maps[] -- raid.maps holds top-
+                        -- level map names while sub-zones can be
+                        -- finer-grained, so an absent subZone is
+                        -- usually legitimate (e.g. "Pit of Volcoross"
+                        -- within the Amirdrassil parent map). The
+                        -- typo bug class only shows up as near-misses.
+                        if seg.subZone and type(raid.maps) == "table" then
+                            local exact = false
+                            local nearMiss = nil
+                            local sub = seg.subZone
+                            local subLower = sub:lower()
+                            for _, mapName in pairs(raid.maps) do
+                                if mapName == sub then
+                                    exact = true
+                                    break
+                                elseif type(mapName) == "string" then
+                                    -- Case-insensitive substring in
+                                    -- either direction is the
+                                    -- "almost-matches" signal: catches
+                                    -- "Heart of the Empire" vs "The
+                                    -- Heart of the Empire" (subZone
+                                    -- is a substring of mapName) AND
+                                    -- "The Heart of the Empire" vs
+                                    -- "Heart of the Empire" (mapName
+                                    -- is a substring of subZone).
+                                    local mLower = mapName:lower()
+                                    if subLower:find(mLower, 1, true)
+                                        or mLower:find(subLower, 1, true) then
+                                        nearMiss = mapName
+                                    end
+                                end
+                            end
+                            if not exact and nearMiss then
+                                add("warn", raidLabel,
+                                    sp .. (" segment %d subZone=%q is a near-miss for maps[] entry %q (typo?)"):format(
+                                        si, sub, nearMiss))
+                            end
+                        end
+
+                        -- Consecutive-duplicate mapID check: two segs
+                        -- in a row with the same mapID is almost
+                        -- always a copy-paste oversight. Legitimate
+                        -- cases exist (a path that crosses an area,
+                        -- exits, then re-enters) but are rare enough
+                        -- that flagging gives signal worth checking.
+                        if seg.mapID and prevMapID == seg.mapID then
+                            add("warn", raidLabel,
+                                sp .. (" segments %d and %d have the same mapID %d (intentional? or copy-paste?)"):format(
+                                    si - 1, si, seg.mapID))
+                        end
+                        prevMapID = seg.mapID
                     end
                 end
             end
+
+            end -- if matchesScope
         end
     end
 
     validateTable(RetroRuns_Data,      "Data")
     validateTable(RetroRuns_DataHorde, "DataHorde")
+    return issues
+end
+
+-- Wrapper preserving the old load-time API: walk all raids, surface
+-- only ERROR-severity issues via RR:Debug (chat output gated by
+-- /rr debug). Warnings (unverified maps, subZone-not-in-maps,
+-- duplicate-consecutive mapIDs) are intentionally omitted here --
+-- they're not malformed data, just things worth checking, and they
+-- belong in /rr lintroute output where they can be reviewed
+-- deliberately rather than every login.
+local function ValidateRaidData()
+    local issues = CollectRaidDataIssues(nil)
+    for _, issue in ipairs(issues) do
+        if issue.severity == "error" then
+            RR:Debug(("Data[%s]: %s"):format(issue.raid, issue.msg))
+        end
+    end
+end
+
+--- Public on-demand linter. Walks all raid data, formats every
+--- issue (errors AND warnings) as a categorized report, and opens
+--- a copy window. With an optional scope substring (e.g. "Aberrus"),
+--- limits the report to raids whose name contains that substring
+--- (case-insensitive).
+---
+--- @param scopeFilter string?  Optional raid-name substring filter.
+function RR:LintRoute(scopeFilter)
+    local issues = CollectRaidDataIssues(scopeFilter)
+
+    local errors, warns = {}, {}
+    for _, issue in ipairs(issues) do
+        if issue.severity == "error" then
+            table.insert(errors, issue)
+        else
+            table.insert(warns, issue)
+        end
+    end
+
+    local out = {}
+    local function add(s) table.insert(out, s) end
+
+    add("RetroRuns -- Route Lint Report")
+    if scopeFilter and scopeFilter ~= "" then
+        add(("Scope: raids matching %q"):format(scopeFilter))
+    else
+        add("Scope: all loaded raids")
+    end
+    add(("Errors: %d   Warnings: %d"):format(#errors, #warns))
+    add("")
+
+    if #errors == 0 and #warns == 0 then
+        add("No issues found.")
+    else
+        if #errors > 0 then
+            add("=== ERRORS ===")
+            for _, issue in ipairs(errors) do
+                add(("  [%s] %s"):format(issue.raid, issue.msg))
+            end
+            add("")
+        end
+        if #warns > 0 then
+            add("=== WARNINGS ===")
+            for _, issue in ipairs(warns) do
+                add(("  [%s] %s"):format(issue.raid, issue.msg))
+            end
+            add("")
+        end
+    end
+
+    self:ShowCopyWindow(
+        "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaRoute Lint Report|r",
+        table.concat(out, "\n"))
+    self:Print(("Lint complete: %d errors, %d warnings. Copy window opened."):format(
+        #errors, #warns))
 end
 
 -------------------------------------------------------------------------------
@@ -1103,7 +1416,7 @@ function RR:RestoreRealRaidState()
     self:ClearBossState()
     self:SyncFromSavedRaidInfo(true)   -- request fresh server data
     self:RestorePersistedSegments()
-    self:RestorePersistedBfDActiveSeg()
+    self:RestorePersistedStrictActiveSeg()
     self:ComputeNextStep()
     self:RefreshAll()
 end
@@ -1113,7 +1426,7 @@ function RR:LoadCurrentRaid()
     self.state.loadedRaidKey = self:GetRaidContextKey()
 
     self:RestorePersistedSegments()
-    self:RestorePersistedBfDActiveSeg()
+    self:RestorePersistedStrictActiveSeg()
 
     self:SetSetting("showPanel", true)
     self:RefreshAll()
@@ -1277,11 +1590,13 @@ function RR:HandleLocationChange()
     end
 
     if currentMapID and previousMapID and currentMapID ~= previousMapID then
-        -- BfD-isolated activeSeg advancement (v1.6+): for instanceID 2070,
-        -- the activeSeg-based picker advances on mapID transitions. The
-        -- function itself guards against non-BfD raids, so this hook
-        -- is a no-op outside BfD. See Data/BfDPicker.lua for the model.
-        self:AdvanceBfDActiveSeg(currentMapID)
+        -- Strict-activeSeg advancement hook (v1.6+, generalized in
+        -- v1.7): for raids opting in via useStrictActiveSegPicker,
+        -- the activeSeg-based picker advances on mapID transitions.
+        -- The function itself is predicated internally via
+        -- UsesStrictActiveSegPicker, so this hook is a no-op for
+        -- legacy raids. See Data/StrictPicker.lua for the model.
+        self:AdvanceStrictActiveSeg(currentMapID)
 
         local step = self.state.activeStep
         if step and step.segments then
@@ -2019,19 +2334,21 @@ SlashCmdList["RETRORUNS"] = function(input)
     elseif cmd == "settings" then
         RR.UI.ToggleSettings()
 
-    elseif cmd == "bfdstate" then
-        -- Diagnostic dump of BfD strict-activeSeg picker state. Use when
-        -- the travel pane shows "Open the map..." fallback inside BfD --
-        -- typically caused by activeSeg pointing past end of step.segments,
-        -- or by the picker dispatch not routing to BfDPicker for some reason.
+    elseif cmd == "pickerstate" then
+        -- Diagnostic dump of strict-activeSeg picker state. Use when the
+        -- travel pane shows "Open the map..." fallback in a raid that
+        -- opted in via useStrictActiveSegPicker -- typically caused by
+        -- activeSeg pointing past end of step.segments, or by the
+        -- picker dispatch not routing to StrictPicker for some reason.
         local lines = {}
         local function add(s) lines[#lines + 1] = s end
         local raid = RR.currentRaid
-        add("== BfD Picker State ==")
+        add("== Strict-activeSeg Picker State ==")
         add(("currentRaid: %s (instanceID=%s)"):format(
             tostring(raid and raid.name or "(none)"),
             tostring(raid and raid.instanceID or "(none)")))
-        add(("BFD_INSTANCE_ID: %s"):format(tostring(RR.BFD_INSTANCE_ID)))
+        add(("UsesStrictActiveSegPicker: %s"):format(
+            tostring(RR:UsesStrictActiveSegPicker())))
         add(("playerMapID (real-time): %s"):format(
             tostring(C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player") or "(api missing)")))
         add(("state.lastPlayerMapID:    %s"):format(tostring(RR.state and RR.state.lastPlayerMapID)))
@@ -2041,7 +2358,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             add(("activeStep: step=%s priority=%s title=%q"):format(
                 tostring(s.step), tostring(s.priority), tostring(s.title)))
             local stepIndex = s.step or s.priority or 0
-            local activeSeg = RR:GetBfDActiveSeg(stepIndex)
+            local activeSeg = RR:GetStrictActiveSeg(stepIndex)
             add(("activeSeg for step %d: %d"):format(stepIndex, activeSeg))
             if s.segments then
                 add(("step.segments: %d entries"):format(#s.segments))
@@ -2049,13 +2366,13 @@ SlashCmdList["RETRORUNS"] = function(input)
                     local notePreview = seg.note and seg.note:sub(1, 60) or "(no note)"
                     add(("  seg %d: mapID=%s note=%q"):format(i, tostring(seg.mapID), notePreview))
                 end
-                local pickedSeg = RR:PickBfDNoteSeg(s, RR.state.lastPlayerMapID)
+                local pickedSeg = RR:PickStrictNoteSeg(s, RR.state.lastPlayerMapID)
                 if pickedSeg then
-                    add(("PickBfDNoteSeg returned: seg with mapID=%s, note=%q"):format(
+                    add(("PickStrictNoteSeg returned: seg with mapID=%s, note=%q"):format(
                         tostring(pickedSeg.mapID),
                         tostring(pickedSeg.note and pickedSeg.note:sub(1, 60) or "(no note)")))
                 else
-                    add("PickBfDNoteSeg returned: nil")
+                    add("PickStrictNoteSeg returned: nil")
                 end
             else
                 add("step.segments: NIL")
@@ -2064,9 +2381,9 @@ SlashCmdList["RETRORUNS"] = function(input)
             add("activeStep: (none)")
         end
         add("")
-        add("== Persisted bfdActiveSeg ==")
-        if RetroRunsDB and RetroRunsDB.bfdActiveSeg then
-            for instID, instStore in pairs(RetroRunsDB.bfdActiveSeg) do
+        add("== Persisted strictActiveSeg ==")
+        if RetroRunsDB and RetroRunsDB.strictActiveSeg then
+            for instID, instStore in pairs(RetroRunsDB.strictActiveSeg) do
                 add(("instanceID %s:"):format(tostring(instID)))
                 -- Pre-faction-scoped legacy shape (lockoutId/activeSegs at
                 -- top level). Printed for diagnostic visibility but new
@@ -2094,7 +2411,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         else
             add("(empty)")
         end
-        RR:ShowCopyWindow("RetroRuns -- BfD Picker State", table.concat(lines, "\n"))
+        RR:ShowCopyWindow("RetroRuns -- Strict-activeSeg Picker State", table.concat(lines, "\n"))
 
     elseif cmd == "zonelog" then
         -- Diagnostic dump of the in-memory zone-change log. Used to
@@ -2107,6 +2424,25 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:ShowCopyWindow("RetroRuns -- Zone Log",
                 table.concat(buf, "\n"))
         end
+
+    elseif cmd == "sessionlog" then
+        -- Open the recorder session log copy window. Defaults to
+        -- showing entries for the current raid only (so debugging an
+        -- issue in one raid isn't cluttered by entries from a prior
+        -- run in a different raid). Pass `all` to see every entry
+        -- across raids.
+        local showAll = (args[2] == "all")
+        RR:ShowRecorderSessionLog(showAll)
+
+    elseif cmd == "lintroute" then
+        -- On-demand structural lint of all loaded raid data. Reports
+        -- errors (malformed required fields, broken cross-refs) and
+        -- warnings (unverified maps[] entries, segment subZones not
+        -- present in maps[], consecutive-duplicate mapIDs). Optional
+        -- second arg filters to raids whose name contains that
+        -- substring, e.g. `/rr lintroute Aberrus`.
+        local scope = args[2]
+        RR:LintRoute(scope)
 
     elseif cmd == "reset" then
         -- Preserve "transient toggle" state across reset. Reset is about
@@ -2574,135 +2910,6 @@ SlashCmdList["RETRORUNS"] = function(input)
                 ("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug: specialtest %d|r"):format(id),
                 table.concat(lines, "\n"))
             RR:Print(("specialtest %d complete. Copy window opened."):format(id))
-        end
-
-    elseif cmd == "dragontest" then
-        -- Probe a single itemID against APIs likely to track dragon-
-        -- riding manuscript appearance unlocks. Manuscripts are
-        -- consumable items: using one casts a spell that unlocks a
-        -- customization in the dragonriding UI. After consumption the
-        -- itemID is gone, but the unlock state persists. We need to
-        -- find which API surface answers "is the unlock learned" --
-        -- this probe dumps every plausible call so we can identify it
-        -- empirically.
-        --
-        -- ====================================================================
-        -- DEFERRED: Manuscript detection is parked indefinitely. Findings
-        -- from the 2026-05 probe pass (itemID 201790, Vault of the Incarnates
-        -- Renewed Proto-Drake manuscript):
-        --
-        --   * GetItemInfo(201790) returned all-nil, even after the item was
-        --     ostensibly cached. Likely a stale or never-cached itemID that
-        --     would need C_Item.RequestLoadItemDataByID to force-fetch from
-        --     the server before any of the downstream calls become useful.
-        --   * GetItemSpell returned nil (consequence of the prior nil cache,
-        --     not a separate signal).
-        --   * C_MountJournal.GetMountFromItem returned nil. This API maps
-        --     mount-spawning items to mounts; manuscripts are NOT mount-
-        --     spawning items (they unlock customizations on a parent mount),
-        --     so this is the wrong API surface for manuscript detection.
-        --   * PlayerHasToy returned false. Manuscripts are not toys.
-        --   * No obviously-relevant calls in C_PlayerInfo's exposed surface.
-        --
-        -- The path forward, when someone returns to this:
-        --   1. Force-fetch the item: C_Item.RequestLoadItemDataByID(itemID),
-        --      wait via ITEM_DATA_LOAD_RESULT or a short C_Timer.After, then
-        --      re-probe. This rules out the cache-miss explanation.
-        --   2. Pivot from "is the manuscript itemID owned/learned" to "does
-        --      the parent mount have the customization unlocked." For Vault,
-        --      that means C_MountJournal lookups against the Renewed Proto-
-        --      Drake (mountID 1589), enumerating its customization options,
-        --      and checking which are unlocked. Wowhead has the Storm-Eater
-        --      customization slot index per appearance.
-        --
-        -- Affects 3 raids only (Vault, Aberrus, Amirdrassil) and only as a
-        -- "this drops here" tooltip enhancement. Low-leverage feature; not
-        -- urgent.
-        -- ====================================================================
-        local id = tonumber(args[2])
-        if not id then
-            RR:Print("Usage: /rr dragontest <itemID>  (e.g. 201790 for Renewed Proto-Drake: Embodiment of the Storm-Eater)")
-        else
-            local lines = {}
-            local function add(s) table.insert(lines, s) end
-
-            add(("dragontest itemID=%d"):format(id))
-
-            -- Item-level info first
-            local name, link, _, _, _, itemType, itemSubType, _, equipLoc, _, _, classID, subclassID = GetItemInfo(id)
-            add(("GetItemInfo: name=%s itemType=%s itemSubType=%s equipLoc=%q classID=%s subclassID=%s"):format(
-                tostring(name), tostring(itemType), tostring(itemSubType),
-                tostring(equipLoc or ""), tostring(classID), tostring(subclassID)))
-            add(("  link=%s"):format(tostring(link)))
-
-            -- The item triggers a spell on use. That spell's ID is
-            -- usually the durable identifier for the unlock.
-            if GetItemSpell then
-                local spellName, spellID = GetItemSpell(id)
-                add(("GetItemSpell: name=%s spellID=%s"):format(
-                    tostring(spellName), tostring(spellID)))
-                if spellID then
-                    if IsPlayerSpell then
-                        add(("  IsPlayerSpell(%d): %s"):format(spellID, tostring(IsPlayerSpell(spellID))))
-                    end
-                    if IsSpellKnown then
-                        add(("  IsSpellKnown(%d): %s"):format(spellID, tostring(IsSpellKnown(spellID))))
-                    end
-                    if IsSpellKnownOrOverridesKnown then
-                        add(("  IsSpellKnownOrOverridesKnown(%d): %s"):format(
-                            spellID, tostring(IsSpellKnownOrOverridesKnown(spellID))))
-                    end
-                end
-            else
-                add("GetItemSpell: (function missing)")
-            end
-
-            -- Dragonriding-specific namespace (might exist as
-            -- C_PlayerInfo, C_MountJournal extension, or its own C_*).
-            -- Probe with try-catch so missing tables don't crash.
-            local function probeNamespace(ns, label)
-                if type(ns) == "table" then
-                    add(("%s: (table present)"):format(label))
-                    -- List visible function-typed members for orientation
-                    for k, v in pairs(ns) do
-                        if type(v) == "function" then
-                            add(("    %s.%s (function)"):format(label, k))
-                        end
-                    end
-                else
-                    add(("%s: (not present)"):format(label))
-                end
-            end
-            -- Dragon riding lived under different names through DF/TWW
-            -- patches. Probe several.
-            probeNamespace(C_PlayerInfo, "C_PlayerInfo")
-
-            -- C_MountJournal.GetMountFromItem still useful here in case
-            -- manuscripts unlock customizations associated with a parent
-            -- mount ID.
-            if C_MountJournal and C_MountJournal.GetMountFromItem then
-                local mountID = C_MountJournal.GetMountFromItem(id)
-                add(("C_MountJournal.GetMountFromItem: %s"):format(tostring(mountID)))
-            end
-
-            -- C_MountJournal might have a GetIsDragonRidingMount or
-            -- similar extension on parent mounts.
-            if C_MountJournal and C_MountJournal.GetMountIDs then
-                add("C_MountJournal.GetMountIDs: (skipped enumeration; too many entries)")
-            end
-
-            -- Toy/PlayerHasToy is unlikely to apply but cheap to confirm
-            if PlayerHasToy then
-                add(("PlayerHasToy(%d): %s"):format(id, tostring(PlayerHasToy(id))))
-            end
-
-            RetroRunsDebug = RetroRunsDebug or {}
-            RetroRunsDebug.dragontest = table.concat(lines, "\n")
-
-            RR:ShowCopyWindow(
-                ("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug: dragontest %d|r"):format(id),
-                table.concat(lines, "\n"))
-            RR:Print(("dragontest %d complete. Copy window opened."):format(id))
         end
 
     elseif cmd == "dottest" then
@@ -3548,6 +3755,37 @@ SlashCmdList["RETRORUNS"] = function(input)
                                     table.insert(findings, ("[WRN] kind=toy but C_ToyBox.GetToyInfo(%d) returned nil (or cold cache)"):format(sp.id or 0))
                                     T.special_kind_mismatch = T.special_kind_mismatch + 1
                                 end
+                            elseif sp.kind == "illusion" then
+                                -- For illusions, item.id is the itemID
+                                -- (used by GetItemInfo for name/icon)
+                                -- and item.sourceID is the illusion's
+                                -- visual source identifier (separate
+                                -- ID space). Validate against
+                                -- C_TransmogCollection.GetIllusionInfo
+                                -- which takes sourceID and returns the
+                                -- TransmogIllusionInfo struct (visualID,
+                                -- isCollected, sourceID, icon, etc.).
+                                --
+                                -- Earlier Wowpedia docs referenced a
+                                -- GetIllusionSourceInfo function, but
+                                -- that doesn't exist on the live 11.x
+                                -- client (verified by /api search and
+                                -- direct call attempts during v1.7 EN
+                                -- bring-up). GetIllusionInfo is the
+                                -- canonical name now.
+                                if not sp.sourceID then
+                                    table.insert(findings, "[ERR] kind=illusion missing sourceID field")
+                                    T.special_kind_mismatch = T.special_kind_mismatch + 1
+                                else
+                                    local info = nil
+                                    if C_TransmogCollection and C_TransmogCollection.GetIllusionInfo then
+                                        info = C_TransmogCollection.GetIllusionInfo(sp.sourceID)
+                                    end
+                                    if not info then
+                                        table.insert(findings, ("[ERR] kind=illusion but C_TransmogCollection.GetIllusionInfo(%d) returned nil"):format(sp.sourceID))
+                                        T.special_kind_mismatch = T.special_kind_mismatch + 1
+                                    end
+                                end
                             end
                             local mythicTag = sp.mythicOnly and " [Mythic only]" or ""
                             if #findings == 0 then
@@ -3773,6 +4011,8 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("  /rr  resetsegments               (clear persisted segment state)")
             RR:Print("  /rr  kill <name> | unkill <name> (manual kill-state override)")
             RR:Print("  /rr  record [start|stop|dump|reset|status|break|tp <dest>|note <text>]")
+            RR:Print("  /rr  sessionlog [all]            (recorder session log; omit `all` for current-raid only)")
+            RR:Print("  /rr  lintroute [raid name]       (structural lint of raid routing data)")
             RR:Print("  /rr  raidcapture                 (full new-raid tier + loot harvest)")
             RR:Print("  /rr  weaponharvest               (harvest CN weapon-token pools)")
             RR:Print("  /rr  vendorscan                  (scan open merchant frame for items+costs)")
@@ -3782,7 +4022,6 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("  /rr  traveldebug                 (snapshot of travel-pane renderer state)")
             RR:Print("  /rr  srctest <sourceID>          (transmog source diagnostic)")
             RR:Print("  /rr  specialtest <itemID>        (special-loot API probe)")
-            RR:Print("  /rr  dragontest <itemID>         (dragonriding manuscript API probe)")
             RR:Print("  /rr  dottest <itemID>            (per-diff dot state probe)")
             RR:Print("  /rr  tmogaudit [raid name]       (full-raid tmog audit dump)")
             RR:Print("  /rr  tmogverify [raid name]      (full-raid data-integrity audit)")
@@ -4041,7 +4280,7 @@ end)
 -- explicitly requested via /rr debug -- otherwise it would flood the
 -- log buffer (60 entries per minute) and push useful entries out.
 local heartbeatTicks = 0
-local lastPolledBfDMapID = nil
+local lastPolledMapID = nil
 C_Timer.NewTicker(1.0, function()
     if RR.currentRaid
         and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
@@ -4054,30 +4293,34 @@ C_Timer.NewTicker(1.0, function()
             RetroRunsMapOverlay:Refresh()
         end
 
-        -- BfD-isolated mapID-change poll (v1.6+). Closes a gap in
-        -- Blizzard's event timing: some elevator and flight transitions
-        -- don't fire ZONE_CHANGED events at the exact moment the mapID
-        -- changes. For example, the Loa's Sanctum (1354) -> Walk of
-        -- Kings (1356) elevator only fires ZONE_CHANGED_INDOORS for the
-        -- sub-zone change, while C_Map.GetBestMapForUnit still reports
-        -- 1354 at that moment; the actual mapID transition to 1356
-        -- happens mid-elevator with no event accompanying it. Without
-        -- this poll, AdvanceBfDActiveSeg never gets called for those
+        -- Strict-activeSeg mapID-change poll. Closes a gap in
+        -- Blizzard's event timing: some elevator and flight
+        -- transitions don't fire ZONE_CHANGED events at the exact
+        -- moment the mapID changes. For example, BfD's Loa's
+        -- Sanctum (1354) -> Walk of Kings (1356) elevator only fires
+        -- ZONE_CHANGED_INDOORS for the sub-zone change, while
+        -- C_Map.GetBestMapForUnit still reports 1354 at that
+        -- moment; the actual mapID transition to 1356 happens
+        -- mid-elevator with no event accompanying it. Without this
+        -- poll, AdvanceStrictActiveSeg never gets called for those
         -- transitions and the activeSeg pointer stays stuck.
         --
-        -- Why polling is acceptable here: the BfD picker is the only
-        -- consumer of mapID changes in BfD; missing a poll cycle
-        -- (1 second resolution) is fine for note-display latency.
-        -- Other consumers (recorder, segment-completion in non-BfD
-        -- raids) still use the event-driven HLC path.
+        -- Why polling is acceptable here: the strict-activeSeg
+        -- picker is the only consumer of mapID changes for raids
+        -- using it; missing a poll cycle (1 second resolution) is
+        -- fine for note-display latency. Other consumers (recorder,
+        -- segment-completion in raids using the layered-gate
+        -- picker) still use the event-driven HLC path.
         --
-        -- AdvanceBfDActiveSeg is BfD-guarded internally (no-op outside
-        -- instanceID 2070), so this poll is safe to run unconditionally.
+        -- AdvanceStrictActiveSeg is predicated internally via
+        -- UsesStrictActiveSegPicker, so this poll is safe to run
+        -- unconditionally -- it's a no-op for raids that don't
+        -- opt in.
         if C_Map and C_Map.GetBestMapForUnit then
             local nowMapID = C_Map.GetBestMapForUnit("player")
-            if nowMapID and nowMapID ~= lastPolledBfDMapID then
-                lastPolledBfDMapID = nowMapID
-                RR:AdvanceBfDActiveSeg(nowMapID)
+            if nowMapID and nowMapID ~= lastPolledMapID then
+                lastPolledMapID = nowMapID
+                RR:AdvanceStrictActiveSeg(nowMapID)
             end
         end
     end

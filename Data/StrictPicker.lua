@@ -1,78 +1,45 @@
 -------------------------------------------------------------------------------
 -- RetroRuns Data -- Strict-activeSeg picker
 -------------------------------------------------------------------------------
--- Alternative picker subsystem, replacing the general-purpose layered-gate
--- picker (requiresSubZone, gateBySubZone, revealAfter, revealAfterMapVisit,
--- useStrictSegOrdering, cross-mapID completion, traversal-implication side-
--- effect) for raids that opt in via `useStrictActiveSegPicker = true` on
--- their data table. Other raids continue using the existing layered-gate
--- picker via dispatch in Navigation.lua and UI.lua.
+-- Alternative picker subsystem for raids that opt in via the
+-- `useStrictActiveSegPicker = true` flag on their data table. Other
+-- raids continue using the default picker via dispatch in
+-- Navigation.lua and UI.lua. Originally written for Battle of
+-- Dazar'alor (hence the filename), since generalized to support
+-- additional raids.
 --
--- ORIGINS: this picker was originally written for Battle of Dazar'alor in
--- v1.6 (hence the filename `BfDPicker.lua` and the historical references
--- to "BfD" throughout). BfD's routes had accumulated several picker bugs
--- across the v1.5/v1.6 development arc that exposed how complex the
--- layered gates had become. Rather than continue layering, a simpler
--- model was built around BfD's actual structure and dispatched to it
--- via instanceID == 2070 only. In v1.7 (Emerald Nightmare bring-up), the
--- model was generalized: the dispatch became a flag-based predicate
--- (`useStrictActiveSegPicker`) so EN -- and per HANDOFF wishlist #15,
--- eventually Crucible / Vault / Aberrus etc. -- can opt in without
--- touching this picker's logic. The other raids' data has been validated
--- against the existing layered-gate picker across multiple ship cycles;
--- they remain on it by default.
---
--- THE MODEL (strict-activeSeg): each step has an integer activeSeg pointer
+-- THE MODEL: each step has an integer activeSeg pointer
 -- (state.strictActiveSeg[stepIndex]), starting at 1 and monotonically
--- advancing. Advances ONE seg at a time when the player's mapID transitions
--- to seg[activeSeg+1]'s mapID. Never retreats. Persisted across /reload,
--- wiped on lockout reset.
+-- advancing. Advances ONE seg at a time when the player's mapID
+-- transitions to the next seg's mapID. Never retreats. Persisted
+-- across /reload, wiped on lockout reset.
 --
--- DISPLAY RULES:
+-- DISPLAY:
 --   * Note: picker always returns step.segments[activeSeg].note. The
---     displayed note doesn't change based on the player's current mapID --
---     it changes only when activeSeg advances. This trades backtrack-
---     redisplay (walking back through a prior seg's mapID does NOT
---     redisplay that seg's note) for correctness on transit cases (mid-
+--     displayed note doesn't change based on the player's current
+--     mapID -- it changes only when activeSeg advances. This trades
+--     backtrack-redisplay for correctness on transit cases (mid-
 --     flight transits, jump-in-hole tunnel passes) where mapID-based
 --     matching would surface wrong notes.
 --
---   * Lines: drawn for every seg whose mapID matches the currently-visible
---     map. Independent of activeSeg, so the visual breadcrumb trail is
---     preserved even when notes follow a strict pointer. Player gets
---     "what to do next" (note) plus "where I've been" (lines).
+--   * Lines: drawn for every seg whose mapID matches the currently-
+--     visible map. Independent of activeSeg, so the visual breadcrumb
+--     trail is preserved even when notes follow a strict pointer.
+--     Player gets "what to do next" (note) plus "where I've been"
+--     (lines).
 --
 -- ADVANCEMENT:
---   * On HLC (player mapID transition): if new mapID == seg[activeSeg+1].mapID,
---     advance by exactly one. No multi-seg jumps during live play
---     (prevents transit-flash bugs where a brief mid-flight mapID match
---     would jump past intermediate segs not physically visited).
+--   * On player mapID transition: if the new mapID matches the next
+--     seg's mapID, advance by exactly one. No multi-seg jumps during
+--     live play (prevents transit-flash bugs where a brief mid-flight
+--     mapID match would jump past intermediate segs not physically
+--     visited).
 --
---   * On step activation (post-boss-kill, fresh login, /reload): seeded
---     via "highest seg whose mapID == player's current mapID," or 1 if
---     no match. This recovers the pointer for /reload mid-step scenarios
---     without requiring a journey through every prior mapID.
---
--- WHAT THIS DOESN'T HANDLE (intentionally -- callers that need these
--- features should stay on the layered-gate picker):
---   * No requiresSubZone gating. Opt-in raids must have segs whose
---     mapID alone is enough to identify them.
---   * No revealAfter chains. Segs must be linearly orderable by mapID
---     arrival within a single step; no "this seg only valid after
---     that seg" beyond the natural advancement order.
---   * No transit segs (mid-route mapID hops the addon should ignore) --
---     handled implicitly by the strict "advance only on next-seg match"
---     rule. A mid-flight transit through seg-N+2's mapID doesn't advance
---     activeSeg because seg-N+1's mapID hasn't been hit yet.
---   * No backtrack-note-redisplay -- removed deliberately to fix the
---     transit-flash class of bugs. Lines on the map preserve visual
---     trail; notes track only the current directive.
---
--- The CONSTRAINT this places on opt-in raids: each step's segments must
--- be linearly orderable by mapID arrival. Parallel structure at the
--- step level (e.g. EN's 4-way Wing 2 fork) is fine because that's a
--- routing-engine concern (the requires{} graph), not a within-step
--- picker concern. Each individual step still has a linear segment chain.
+--   * On step activation (post-boss-kill, fresh login, /reload):
+--     seeded via "highest seg whose mapID matches the player's
+--     current mapID," or 1 if no match. This recovers the pointer
+--     for /reload mid-step scenarios without requiring a journey
+--     through every prior mapID.
 -------------------------------------------------------------------------------
 
 local addonName, addon = ...
@@ -83,13 +50,9 @@ local RR = _G.RetroRuns
 -- false if no raid is loaded or the flag is absent / falsy.
 --
 -- Every public function in this picker is a no-op when this predicate is
--- false; that gives the legacy 9 raids zero behavioural change. Dispatch
+-- false; that gives non-opted-in raids zero behavioural change. Dispatch
 -- sites in Navigation.lua and UI.lua check the same predicate to choose
--- between this picker and the layered-gate picker.
---
--- Originally a hardcoded `instanceID == BFD_INSTANCE_ID (= 2070)` check
--- when this picker was BfD-only. Generalized in v1.7 so EN (and future
--- raids per HANDOFF wishlist #15) can opt in.
+-- between this picker and the default picker.
 function RR:UsesStrictActiveSegPicker()
     return self.currentRaid and self.currentRaid.useStrictActiveSegPicker == true
 end
@@ -191,16 +154,10 @@ function RR:RestorePersistedStrictActiveSeg()
     local faction = CurrentFactionKey()
     local factionStore = instStore[faction]
     if not factionStore then return end
-    -- Defensive: nil-lockoutId persistence is a corruption signature
-    -- from the v1.6/v1.7 bug where the picker read self.state.lockoutId
-    -- (which was never written by anything) instead of calling
-    -- GetCurrentLockoutId() directly. The nil==nil comparison on
-    -- restore would silently pass and stale activeSeg state would
-    -- leak across sessions. Bug fixed in v1.7 (those state-field
-    -- reads are now API calls) but already-persisted nil-lockout
-    -- records can still be in someone's RetroRunsDB. Treat them as
-    -- corrupt and wipe -- next progress write will repopulate
-    -- with a real lockoutId.
+    -- Defensive: nil-lockoutId persistence is a corruption signature.
+    -- Wiping ensures stale activeSeg state can't leak across sessions
+    -- via a nil==nil comparison on restore -- next progress write
+    -- will repopulate with a real lockoutId.
     if factionStore.lockoutId == nil then
         instStore[faction] = nil
         return

@@ -384,30 +384,54 @@ RetroRuns_Data[2296] = {
     --                      in covenantColor.
     --   zoneSub         -- Sanctum name (Elysian Hold, Sinfall, etc.),
     --                      rendered in white for visual separation.
+    --   vendorName      -- the Mythic Nathrian Weaponsmith NPC name. Used
+    --                      in the Flight button's hover tooltip ("Travel
+    --                      to <vendorName>") so the player knows where
+    --                      they're being routed before clicking.
+    --   vendorMapID,
+    --   x, y            -- waypoint target. The Sanctum's interior mapID
+    --                      and the NPC's standing coords. Drives the
+    --                      Flight button via RR:NavigateToSanctum.
     weaponVendors = {
         [1] = {  -- Kyrian (blue)
             covenantName  = "Kyrian",
             covenantColor = "ff00a2ff",
             zoneMain      = "Bastion",
             zoneSub       = "Elysian Hold",
+            vendorName    = "Battlemaster Endios",
+            vendorMapID   = 1707,
+            x             = 0.580,
+            y             = 0.814,
         },
         [2] = {  -- Venthyr (red)
             covenantName  = "Venthyr",
             covenantColor = "ffe50000",
             zoneMain      = "Revendreth",
             zoneSub       = "Sinfall",
+            vendorName    = "Vorpalia",
+            vendorMapID   = 1700,
+            x             = 0.403,
+            y             = 0.461,
         },
         [3] = {  -- Night Fae (purple)
             covenantName  = "Night Fae",
             covenantColor = "ff9b59ff",
             zoneMain      = "Ardenweald",
             zoneSub       = "Heart of the Forest",
+            vendorName    = "Sulanoom",
+            vendorMapID   = 1702,
+            x             = 0.494,
+            y             = 0.544,
         },
         [4] = {  -- Necrolord (green)
             covenantName  = "Necrolord",
             covenantColor = "ff34a73f",
             zoneMain      = "Maldraxxus",
             zoneSub       = "Seat of the Primus",
+            vendorName    = "Odious Gwor",
+            vendorMapID   = 1698,
+            x             = 0.605,
+            y             = 0.486,
         },
     },
 

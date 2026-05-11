@@ -3,39 +3,23 @@
 -- Battle for Azeroth, Patch 8.1.0  |  instanceID: 2070  |  journalInstanceID: 1176
 -------------------------------------------------------------------------------
 -- Horde-side data for BfD, the only faction-asymmetric raid in the addon.
--- Registers under the parallel global `RetroRuns_DataHorde[2070]`;
--- consulted by GetSupportedRaid (Core.lua) when the player is Horde,
--- with fall-through to the shared `RetroRuns_Data[2070]` (Alliance side)
--- when no Horde-specific data exists. See BattleOfDazaralor.lua for the
--- Alliance side and for the file-architecture rationale.
+-- See BattleOfDazaralor.lua for the Alliance side.
 --
 -- Differences from Alliance data:
 --   * Bosses 2 and 3 swap order: Horde fights Champion -> Grong (Jungle
 --     Lord) -> Jadefire Masters, while Alliance fights Champion ->
 --     Jadefire -> Grong (the Revenant).
---   * Bosses 1-3 use Horde-variant journalEncounterIDs and (for boss 2)
---     a different display name. journalEncounterIDs verified in-game via
---     /rr ej from a Horde character (2026-05-08).
+--   * Bosses 1-3 use Horde-variant journal encounter IDs and (for boss 2)
+--     a different display name.
 --   * Entrance is in Zuldazar (mapID 1165) at the city's northern
 --     outskirts, not Boralus (mapID 1161).
 --   * Routing path through the raid is entirely different (Horde fights
 --     "down toward the harbor" rather than Alliance's "up the pyramid").
 --
--- Faction-shared (duplicated literally from Alliance file -- BfD's only
--- faction-asymmetric raid; duplication acceptable because BfD's data is
--- effectively static now and won't drift):
---   * Loot tables for all 9 bosses
---   * Achievement entries for all 9 bosses
---   * specialLoot (mounts, pets) on Conclave / Mekkatorque / Jaina
---   * Stormwall soloTip (mechanically identical fight)
---
--- Currently empty (recorder pass pending):
---   * maps[]   -- mapIDs the Horde route traverses
---   * routing  -- segment DAG with paths and notes
--- With these empty, a Horde character zoning into BfD will see the
--- "uncaptured raid" panel state, which is intentional during this build
--- phase. v1.6 should not ship to CurseForge until the recorder pass is
--- complete and these tables are populated.
+-- Bosses 4-9 share IDs, names, loot, achievements, and specialLoot
+-- (mounts/pets on Conclave, Mekkatorque, and Jaina) with the Alliance
+-- side -- the data is duplicated rather than cross-referenced for
+-- runtime simplicity.
 -------------------------------------------------------------------------------
 
 RetroRuns_DataHorde = RetroRuns_DataHorde or {}
@@ -47,16 +31,12 @@ RetroRuns_DataHorde[2070] = {
     expansion         = "Battle for Azeroth",
     patch             = "8.1.0",
 
-    -- Horde entrance: northern outskirts of Dazar'alor (near Zanchul,
-    -- per Wowpedia; "northwestern tip" per dungeon.guide). Coord
-    -- cross-corroborated from Wowpedia (38.8 / 2.4) and dungeon.guide
-    -- (38.86 / 2.33). Web-corroborated, NOT in-game-walked -- same
-    -- caveat as the other 9 raids' entrance coords. Replace with
-    -- captured value when the recorder pass produces one.
-    --
-    -- mapID 1165 is Zuldazar (the parent zone). Unlike the Alliance
-    -- entrance which uses Boralus city map 1161, the Horde entrance
-    -- is on the open Zuldazar map -- no city/zone mismatch here.
+    useStrictActiveSegPicker = true,
+
+    -- Horde entrance: northern outskirts of Dazar'alor (near Zanchul).
+    -- mapID 1165 is Zuldazar (the parent zone) -- no city/zone mismatch
+    -- here, unlike the Alliance entrance which sits on the Boralus
+    -- city map 1161.
     entrance = {
         mapID = 1165,
         x     = 0.388,
@@ -64,9 +44,7 @@ RetroRuns_DataHorde[2070] = {
     },
 
     -- mapID -> world-map dropdown label. Horde-side traversal hits a
-    -- different set of mapIDs than Alliance; populated incrementally as
-    -- the recorder pass walks the route. Verified per provenance rule
-    -- (recorder capture or in-game world-map dropdown).
+    -- different set of mapIDs than Alliance.
     maps = {
         [1352] = "Port of Zandalar",       -- shared with Alliance file
         [1353] = "Halls of Opulence",      -- shared with Alliance file
@@ -171,8 +149,7 @@ RetroRuns_DataHorde[2070] = {
             --     drops are "Mestrah's Singing Spaulders" (165516) and
             --     "Manceroy's Flamefists" (165503).
             -- The non-named items (Mistfire Raiment, Grips of Harmonious
-            -- Spirits, etc.) are faction-shared. Loot table below is the
-            -- Horde-side harvest from /rr raidcapture (2026-05-08).
+            -- Spirits, etc.) are faction-shared.
             index              = 3,
             name               = "Jadefire Masters",
             journalEncounterID = 2341,
@@ -336,13 +313,9 @@ RetroRuns_DataHorde[2070] = {
         },
     },
 
-    -- Routing DAG. Boss order matches bossesHorde[] -- Horde fights:
+    -- Routing. Boss order matches bossesHorde[] -- Horde fights:
     -- Champion -> Grong (Jungle Lord) -> Jadefire -> Opulence ->
     -- Conclave -> Rastakhan -> Mekkatorque -> Stormwall -> Jaina.
-    -- Steps populated incrementally as the recorder pass dumps land;
-    -- panel renders "Routing data not yet captured" when the array is
-    -- shorter than the boss count, so partial data is safe to ship to
-    -- the test rig but NOT to CurseForge until the full route lands.
     routing = {
         -- 1. Champion of the Light
         {
@@ -429,14 +402,14 @@ RetroRuns_DataHorde[2070] = {
         -- seg 4 (mapID 1353) physically passes through 1357's airspace
         -- (The Heart of the Empire), AND the player can deliberately
         -- retrace back through the 1357 tunnel after reaching 1352.
-        -- Both cases are handled cleanly by the BfD picker's
+        -- Both cases are handled cleanly by the strict-activeSeg picker's
         -- strict-activeSeg model: notes only advance when the player
         -- arrives on the next-expected seg's mapID, and never retreat.
         -- Mid-flight transit through 1357's airspace doesn't match seg
         -- 4's expected mapID 1353, so the picker holds on seg 3.
         -- Retrace back to 1357 doesn't match seg N+1's mapID either,
         -- so the picker holds on whatever activeSeg currently points
-        -- at. See Data/BfDPicker.lua for the model.
+        -- at. See Data/StrictPicker.lua for the model.
         {
             step      = 4,
             priority  = 1,
@@ -591,10 +564,10 @@ RetroRuns_DataHorde[2070] = {
         -- Boralus Harbor segments entirely.
         --
         -- The flight may transit through other mapIDs mid-route, but
-        -- the BfD picker's strict-activeSeg model handles that
+        -- the strict-activeSeg picker handles that
         -- naturally: notes only advance when the player arrives on
         -- the next-expected seg's mapID. Mid-flight transit-mapIDs
-        -- that don't match seg N+1 are ignored. See Data/BfDPicker.lua.
+        -- that don't match seg N+1 are ignored. See Data/StrictPicker.lua.
         {
             step      = 7,
             priority  = 1,

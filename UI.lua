@@ -141,7 +141,14 @@ end)
 
 -- Logo
 panel.logo = panel:CreateTexture(nil, "ARTWORK")
-panel.logo:SetSize(34, 34)
+-- Logo size shrunk 34 -> 24 in v1.7 alongside the new minimize button
+-- to rebalance the title bar. The original 34px was sized when the logo
+-- was the only element competing with the close X for visual weight on
+-- the title row; with a minimize button now occupying the right side,
+-- 34 felt over-sized and the logo bulged below the title text. 24 is
+-- closer to the cap-height of the 12pt title font's OUTLINE rendering,
+-- so the logo sits as a peer to the text rather than dominating it.
+panel.logo:SetSize(24, 24)
 panel.logo:SetPoint("TOPLEFT", PAD_LEFT - 4, -10)
 panel.logo:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\LogoSquare")
 
@@ -184,9 +191,49 @@ panel.closeButton:SetScript("OnClick", function()
     end
 end)
 
--- Test-mode label
+-- Minimize / maximize button. Sits just left of the close button.
+-- Uses two custom TGA assets in Media/: MinimizeIcon (gold horizontal
+-- bar on red face with dark outline, shown when expanded) and
+-- MaximizeIcon (gold open square on red face with dark outline, shown
+-- when minimized). The icons are full-color TGAs (not white-source),
+-- so no vertex tinting is applied -- they render as painted.
+--
+-- Sized 22x22 to feel like a peer of the close X without competing
+-- with it visually. The close X is 32x32 from the UIPanelCloseButton
+-- template but its visible glyph (the red square + white X) occupies
+-- only the inner ~22px; the outer ~5px on each side is transparent
+-- texture padding. Sizing this button to 22 matches the close X's
+-- *visual* footprint, not its hit-area footprint. The dark outer
+-- outline on the icon art adds visual weight, so a smaller raw size
+-- still reads as a peer to the close button.
+--
+-- Position: TOPRIGHT -30,-4. Iterated empirically from earlier guesses
+-- that placed the button too far left and too low. Final placement:
+-- the button's top edge aligns with the close X's top edge (both at
+-- y=-4), and the button's right edge is 6px clear of the close X's
+-- frame left edge. The 22x22 button visually peers with the close X's
+-- visible glyph (which centers in its 32x32 frame) rather than the
+-- frame itself, so vertical-edge-aligning the two frames produces a
+-- "centered against the X glyph" look without further nudging.
+panel.minimizeButton = CreateFrame("Button", nil, panel)
+panel.minimizeButton:SetSize(22, 22)
+panel.minimizeButton:SetPoint("TOPRIGHT", -30, -4)
+
+panel.minimizeButton:SetNormalTexture("Interface\\AddOns\\RetroRuns\\Media\\MinimizeIcon")
+panel.minimizeButton:SetPushedTexture("Interface\\AddOns\\RetroRuns\\Media\\MinimizeIcon")
+panel.minimizeButton:SetHighlightTexture(
+    "Interface\\Buttons\\CheckButtonHilight", "ADD")
+-- OnClick wired further below, after UI.SetMinimized is defined --
+-- it needs to reference that function and SetMinimized in turn
+-- references panel internals defined later in this file.
+
+-- Test-mode label. Anchored to clear both the close button (TOPRIGHT
+-- -4,-4 occupying through right-36) AND the minimize button (22x22
+-- at TOPRIGHT -30,-4 occupying right-30 through right-52). Pushed
+-- to right-56 to give a small visual gap between the rightmost edge
+-- of the test-mode text and the minimize button's left edge.
 panel.mode = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-panel.mode:SetPoint("TOPRIGHT", -34, -14)
+panel.mode:SetPoint("TOPRIGHT", -56, -14)
 panel.mode:SetText("")
 
 -- Map / Tmog / Skips / Settings action buttons live in a row at the
@@ -1043,9 +1090,260 @@ function UI.ApplySettings()
     end
 end
 
+-- =============================================================================
+-- Minimize / maximize
+-- =============================================================================
+--
+-- Minimized mode renders the panel as a tiny title-bar (logo + RETRO RUNS
+-- text + minimize/close buttons), with all body fields and footer action
+-- buttons hidden. Toggle via the minimize button to the left of the close X.
+-- Persists across /reload via the `minimized` setting in RetroRunsDB.
+--
+-- The minimized panel height is fixed at MINIMIZED_PANEL_H. AutoSize is a
+-- no-op while minimized, so subsequent UI.Update calls don't override the
+-- fixed height. Maximizing flips the setting back, re-shows everything,
+-- and falls through to the normal AutoSize path.
+--
+-- Top-pin behavior matches AutoSize: the panel's top edge stays at the
+-- same screen position across the resize, so the panel doesn't visually
+-- jump when minimizing/maximizing -- it grows/shrinks downward from the
+-- title bar.
+
+-- Height of the minimized panel. The title bar is logo (34px) + small
+-- vertical padding above (10px) + below (~6px) = ~50px. We use 44px:
+-- the logo extends slightly below the panel's bottom edge by design,
+-- which makes the bar feel less cramped than a flush 50.
+local MINIMIZED_PANEL_H = 44
+
+function UI.IsMinimized()
+    return RR:GetSetting("minimized") and true or false
+end
+
+-- Inventory of panel.* elements that are body or footer (i.e. NOT the
+-- title bar). Built lazily on first call so it picks up forward-declared
+-- elements created later in this file. The title-bar inventory (logo,
+-- titleRetro, titleRuns, closeButton, minimizeButton, mode) stays
+-- visible regardless.
+local function GetBodyAndFooterElements()
+    local list = {
+        panel.raid, panel.pills, panel.progress, panel.next,
+        panel.travel, panel.encounter, panel.transmog,
+        panel.listHeader, panel.list,
+        panel.credit, panel.version,
+        panel.mapBtn, panel.tmogBtn, panel.achievesBtn,
+        panel.skipsBtn, panel.settingsBtn,
+    }
+    return list
+end
+
+-- Show or hide every body and footer element based on minimized state.
+-- Also walks the dynamic FontString arrays (idleListLines etc.) since
+-- those are populated by RefreshIdleList and need to follow the same
+-- visibility rule. Pool tables (idleListLinePool etc.) hold inactive
+-- frames that are already hidden by the pool mechanism, so we don't
+-- touch those.
+local function ApplyBodyVisibility(visible)
+    for _, fs in ipairs(GetBodyAndFooterElements()) do
+        if fs then
+            if visible then fs:Show() else fs:Hide() end
+        end
+    end
+    for _, fs in ipairs(panel.idleListLines or {}) do
+        if visible then fs:Show() else fs:Hide() end
+    end
+    for _, fs in ipairs(panel.idleListLegendLines or {}) do
+        if visible then fs:Show() else fs:Hide() end
+    end
+    for _, btn in ipairs(panel.expansionToggleButtons or {}) do
+        if visible then btn:Show() else btn:Hide() end
+    end
+    for _, btn in ipairs(panel.entranceButtons or {}) do
+        if visible then btn:Show() else btn:Hide() end
+    end
+end
+
+-- Update the minimize button's texture based on current minimized state.
+-- Two custom TGAs in Media/: MinimizeIcon (gold horizontal bar -- shown
+-- when expanded, click to minimize) and MaximizeIcon (gold open square
+-- -- shown when minimized, click to expand back). Texture swaps cover
+-- both Normal and Pushed states so the pressed-frame transition uses
+-- the same icon (no Blizzard-style "icon dimmed while pressed" effect
+-- needed for a momentary toggle).
+local function UpdateMinimizeIcon()
+    if not panel.minimizeButton then return end
+    local tex
+    if UI.IsMinimized() then
+        tex = "Interface\\AddOns\\RetroRuns\\Media\\MaximizeIcon"
+    else
+        tex = "Interface\\AddOns\\RetroRuns\\Media\\MinimizeIcon"
+    end
+    panel.minimizeButton:SetNormalTexture(tex)
+    panel.minimizeButton:SetPushedTexture(tex)
+end
+
+-- Compute the panel width needed to display just the title bar content
+-- (logo + RETRO RUNS text + minimize button + close button) when
+-- minimized. Read at apply-time rather than baked in as a constant
+-- because the title text's rendered width depends on the font face
+-- and OUTLINE flag, which could change via Settings or future
+-- redesigns.
+--
+-- Returns nil if the title text hasn't yet been rendered (GetRight()
+-- returns nil for un-rendered FontStrings). Caller should fall back
+-- to a sensible default in that case.
+local function ComputeMinimizedPanelW()
+    if not panel.titleRuns then return nil end
+    local titleRightAbs = panel.titleRuns:GetRight()
+    local panelLeftAbs  = panel:GetLeft()
+    if not titleRightAbs or not panelLeftAbs then return nil end
+    -- Title's right edge in panel-local coords (distance from panel left)
+    local titleRightLocal = titleRightAbs - panelLeftAbs
+    -- Layout from the panel right edge:
+    --   close button right edge at right-4 (TOPRIGHT -4,-4)
+    --   close button visible glyph extends ~22px to its left = right-26
+    --   minimize button at TOPRIGHT -30,-4 = right-30 to right-52
+    -- So the buttons need ~52px of width on the right side.
+    -- We want a small visual gap between the title text and the
+    -- minimize button: 12px reads as compact but not crowded.
+    local rightSideWidth   = 52
+    local titleToButtonGap = 12
+    return math.ceil(titleRightLocal + titleToButtonGap + rightSideWidth)
+end
+
+-- Default width to use if ComputeMinimizedPanelW can't measure (text
+-- not yet rendered at first-call time after a fresh reload). 240px is
+-- a reasonable fit for the current "RETRO RUNS" text at 12pt OUTLINE
+-- with the standard font; close enough for a one-frame fallback before
+-- the next UI.Update call (which fires within 1 second on the
+-- heartbeat) re-measures and applies the precise width.
+local MINIMIZED_PANEL_W_FALLBACK = 240
+
+-- Apply the panel's height and visibility to match the current minimized
+-- setting. The actual setting flip is done by SetMinimized below; this
+-- helper just acts on whatever the setting currently says, so it can
+-- also be called at restore-time (after /reload, when the saved setting
+-- is loaded but the panel state hasn't been touched yet).
+--
+-- Called from UI.Update on every refresh (heartbeat + events). The
+-- iteration covers ~25 elements; trivial cost at 1Hz. We don't
+-- short-circuit on "state hasn't changed" because RefreshIdleList
+-- (called later in UI.Update) acquires NEW FontStrings into
+-- idleListLines that need to inherit the current minimized visibility,
+-- and a short-circuit would leave them visible when we're minimized.
+function UI.ApplyMinimizedState()
+    local minimized = UI.IsMinimized()
+    UpdateMinimizeIcon()
+    ApplyBodyVisibility(not minimized)
+
+    if minimized then
+        -- Capture top + left edges before resize so we can re-anchor
+        -- the panel to keep BOTH edges at the same screen position.
+        -- Same pattern as AutoSize's TOP-PIN extended to also pin LEFT:
+        -- SetHeight + SetWidth on a CENTER-anchored frame redistributes
+        -- both deltas equally on each side, so without this the panel
+        -- would visually jump in two directions when minimizing.
+        local oldH = panel:GetHeight() or MINIMIZED_PANEL_H
+        local oldW = panel:GetWidth() or PANEL_W
+        local newH = MINIMIZED_PANEL_H
+        local newW = ComputeMinimizedPanelW() or MINIMIZED_PANEL_W_FALLBACK
+        local heightChanged = math.abs(newH - oldH) > 0.5
+        local widthChanged  = math.abs(newW - oldW) > 0.5
+        if heightChanged or widthChanged then
+            local oldTop  = panel:GetTop()
+            local oldLeft = panel:GetLeft()
+            local fscale  = panel:GetEffectiveScale()
+            local pscale  = UIParent:GetEffectiveScale()
+            local pcx, pcy = UIParent:GetCenter()
+            if heightChanged then panel:SetHeight(newH) end
+            if widthChanged  then panel:SetWidth(newW)  end
+            if oldTop and oldLeft and pcx and pcy then
+                -- Compute new CENTER-anchor offsets that keep the old
+                -- top edge AND old left edge at the same screen
+                -- position. Both math derivations from the
+                -- CENTER-anchor identity:
+                --   panel.top  = panel.center.y + height/2
+                --   panel.left = panel.center.x - width/2
+                -- Solve for new center given old edge values + new
+                -- dimensions. All in panel-local scaled units.
+                local newCenterY = oldTop  - (newH / 2)
+                local newCenterX = oldLeft + (newW / 2)
+                -- Convert from panel-local screen pixels back to the
+                -- ANCHORED frame's scaled coord system that SetPoint
+                -- offsets use (NOT UIParent's, per Wowpedia "UI scaling")
+                -- by dividing by fscale, not pscale.
+                local y = (newCenterY * fscale - pcy * pscale) / fscale
+                local x = (newCenterX * fscale - pcx * pscale) / fscale
+                panel:ClearAllPoints()
+                panel:SetPoint("CENTER", UIParent, "CENTER", x, y)
+                RR:SetSetting("panelX", math.floor(x + 0.5))
+                RR:SetSetting("panelY", math.floor(y + 0.5))
+            end
+        end
+        -- If both dimensions are already at minimized values (steady-
+        -- state per-heartbeat call after minimize completed), skip
+        -- the resize entirely to keep the per-tick cost bounded.
+    else
+        -- Maximize-side: restore full width if we were minimized.
+        -- Width handling is symmetric to the minimize path's LEFT-pin
+        -- so the panel grows back rightward from its current left edge,
+        -- not from center. Without this, a previously-minimized panel
+        -- maximizing on the LEFT half of the screen would jump rightward
+        -- as the center stayed fixed and the right edge expanded.
+        local oldW = panel:GetWidth() or PANEL_W
+        if math.abs(PANEL_W - oldW) > 0.5 then
+            local oldLeft = panel:GetLeft()
+            local fscale  = panel:GetEffectiveScale()
+            local pscale  = UIParent:GetEffectiveScale()
+            local pcx, _  = UIParent:GetCenter()
+            panel:SetWidth(PANEL_W)
+            if oldLeft and pcx then
+                local newCenterX = oldLeft + (PANEL_W / 2)
+                local x = (newCenterX * fscale - pcx * pscale) / fscale
+                -- Re-apply X anchor; preserve Y by reading current Y
+                -- offset from settings (AutoSize will overwrite Y next
+                -- via its own TOP-pin path).
+                local y = RR:GetSetting("panelY", 0)
+                panel:ClearAllPoints()
+                panel:SetPoint("CENTER", UIParent, "CENTER", x, y)
+                RR:SetSetting("panelX", math.floor(x + 0.5))
+            end
+        end
+        -- Falling through to AutoSize handles the maximize-side height
+        -- resize. AutoSize does the same TOP-PIN math when the height
+        -- changes, so the visual top-edge stability still applies.
+        UI.AutoSize()
+    end
+end
+
+-- Public toggle entry point. Used by the minimize button's OnClick.
+-- Could also be called from a slash command in a future enhancement.
+--
+-- After flipping the setting, runs a full UI.Update so body-content
+-- visibility state (e.g. encounter/transmog being explicitly Hide()'d
+-- in idle state at the end of UI.Update) is re-asserted correctly when
+-- maximizing. Without the explicit Update, ApplyBodyVisibility(true)
+-- would briefly un-hide elements that should stay hidden in idle, and
+-- they'd flicker until the next heartbeat tick (~1 second).
+function UI.SetMinimized(value)
+    RR:SetSetting("minimized", value and true or false)
+    UI.Update()
+end
+
+-- Wire up the minimize button's OnClick now that SetMinimized exists.
+panel.minimizeButton:SetScript("OnClick", function()
+    UI.SetMinimized(not UI.IsMinimized())
+end)
+
 -- Resizes the main panel (and ancillary frames) to fit their current
 -- content. Safe to call at any time; idempotent.
 function UI.AutoSize()
+    -- When minimized, the panel uses a fixed height set in
+    -- UI.ApplyMinimizedState. AutoSize otherwise runs on every UI.Update
+    -- and on font/scale changes; without this early-return it would
+    -- override the fixed minimized height as soon as anything triggered
+    -- a normal-mode resize calculation.
+    if UI.IsMinimized() then return end
+
     -- MAIN PANEL -----------------------------------------------------------
     -- The top-down layout ends at either:
     --   (a) panel.list (in-raid boss-progress checklist) -- when the
@@ -1183,12 +1481,22 @@ function UI.AutoSize()
         local lineHeight = fontSize + 4
         local textH      = lines * lineHeight
 
+        -- Sanctum vendor line (Castle Nathria) lives on its own
+        -- FontString below the main content. When shown, it adds one
+        -- line of text plus the 8px gap from the BOTTOMLEFT anchor.
+        -- Hidden -- which is the case for every non-CN raid and every
+        -- CN boss that doesn't drop weapon tokens -- contributes 0.
+        local sanctumH = 0
+        if tmogWindow.sanctumLine and tmogWindow.sanctumLine:IsShown() then
+            sanctumH = lineHeight + 8
+        end
+
         -- Popup chrome: dropdown stack + title bar + margins.
         local chrome = 32      -- title bar
                      + 3 * 32  -- three dropdowns
                      + 10      -- gap between dropdowns and text
                      + 14      -- bottom margin
-        local desired = chrome + textH
+        local desired = chrome + textH + sanctumH
         local clamped = math.max(POPUP_CONTENT_MIN,
                                  math.min(POPUP_CONTENT_CEILING, desired))
         tmogWindow:SetHeight(clamped)
@@ -1947,12 +2255,13 @@ local function BuildTravelText(step)
     local function compute()
         local mapID = GetBestMapForStep(step)
 
-        -- BfD-isolated picker dispatch (v1.6+): instanceID 2070 routes
-        -- through the activeSeg-based picker in Data/BfDPicker.lua. Other
-        -- raids fall through to the existing layered-gate logic below.
-        -- See BfDPicker.lua header for the model rationale.
-        if RR.currentRaid and RR.currentRaid.instanceID == RR.BFD_INSTANCE_ID then
-            local seg = RR:PickBfDNoteSeg(step, mapID)
+        -- Strict-activeSeg picker dispatch: raids that opt in via
+        -- `useStrictActiveSegPicker = true` route through the
+        -- activeSeg-based picker in Data/StrictPicker.lua. Other raids
+        -- fall through to the existing layered-gate logic below.
+        -- See StrictPicker.lua header for the model rationale.
+        if RR:UsesStrictActiveSegPicker() then
+            local seg = RR:PickStrictNoteSeg(step, mapID)
             if seg and seg.note then
                 return prefix .. HighlightNames(seg.note)
             end
@@ -2653,6 +2962,34 @@ local function SpecialCollectionStateForItem(item)
         if not fn then return "missing" end
         local ok, completed = pcall(fn, item.questID)
         return (ok and completed) and "collected" or "missing"
+
+    elseif item.kind == "illusion" then
+        -- Weapon-enchant illusions are tracked separately from item
+        -- transmog appearances. The collection-state lookup is by
+        -- the illusion's sourceID (NOT itemID). Schema requires
+        -- item.sourceID; without it we can't probe and return
+        -- missing.
+        --
+        -- Two-tier defensive lookup. The 11.x API exposes
+        -- C_TransmogCollection.GetIllusions() which returns a
+        -- TransmogIllusionInfo[] where each entry has sourceID,
+        -- visualID, and isCollected (verified in v1.7 EN bring-up
+        -- via /run dump). We iterate and match by sourceID, which
+        -- works regardless of whether GetIllusionInfo(sourceID)
+        -- exists as a single-item probe. Cost is O(N) over ~64
+        -- illusions which is trivial.
+        if not item.sourceID then return "missing" end
+        if not C_TransmogCollection or not C_TransmogCollection.GetIllusions then
+            return "missing"
+        end
+        local ok, list = pcall(C_TransmogCollection.GetIllusions)
+        if not ok or type(list) ~= "table" then return "missing" end
+        for _, info in ipairs(list) do
+            if info.sourceID == item.sourceID then
+                return info.isCollected and "collected" or "missing"
+            end
+        end
+        return "missing"
 
     elseif item.kind == "decor" then
         -- C_HousingCatalog landed in 11.2.7 (Dec 2025). On earlier
@@ -3487,6 +3824,71 @@ local function ParseTokenFamily(name)
     return nil
 end
 
+-- Builds the Covenant Sanctum vendor hint line for the Tmog browser
+-- popup. Lives on its own FontString below the main text so the Flight
+-- button can anchor to it cleanly (rather than overlay-positioned over
+-- a line of concatenated text, which has the well-known stride-drift
+-- failure modes documented in PositionExpansionToggleButton).
+--
+-- Returns four values:
+--   text         -- formatted, colored string for the FontString, OR
+--                   nil if this boss shouldn't show a sanctum line
+--                   (raid has no weaponVendors at all, OR this boss
+--                   doesn't drop weapon tokens). Caller hides the
+--                   FontString and the Flight button when nil.
+--   raid, covID  -- forwarded to RR:NavigateToSanctum on Flight click.
+--                   covID is 0 if no covenant is detected.
+--   vendorInfo   -- the weaponVendors[covID] entry, OR nil if the
+--                   player has no covenant (covID == 0). Caller uses
+--                   `vendorInfo` presence to decide whether to render
+--                   the Flight button (need real coords to route to).
+--
+-- Arrow: plain "->" ASCII rather than U+2192 "→" because WoW's default
+-- UI font (Friz Quadrata QT) doesn't carry a glyph for U+2192 -- it
+-- renders as an empty box.
+local function BuildSanctumLine(raid, boss)
+    if not raid or not raid.weaponVendors or not boss then
+        return nil
+    end
+    -- Boss must actually drop weapon tokens for the sanctum line to
+    -- be relevant. Mirrors the gate in BuildTransmogDetail that wraps
+    -- the token-section emit.
+    local tokenSources = raid.tierSets and raid.tierSets.tokenSources
+    if not tokenSources then return nil end
+    local bossDropsTokens = false
+    for _, bossIdxVal in pairs(tokenSources) do
+        if type(bossIdxVal) == "table" then
+            for _, bidx in ipairs(bossIdxVal) do
+                if bidx == boss.index then
+                    bossDropsTokens = true
+                    break
+                end
+            end
+        elseif bossIdxVal == boss.index then
+            bossDropsTokens = true
+        end
+        if bossDropsTokens then break end
+    end
+    if not bossDropsTokens then return nil end
+
+    local covID = 0
+    if C_Covenants and C_Covenants.GetActiveCovenantID then
+        covID = C_Covenants.GetActiveCovenantID() or 0
+    end
+    local vendorInfo = raid.weaponVendors[covID]
+    local text
+    if vendorInfo then
+        local cc = vendorInfo.covenantColor or "ffffffff"
+        text = ("|cff888888  -> Redeem at |r|c%s%s|r|cff888888 vendor: |r|c%s%s|r|cff888888 (|r|cffffffff%s|r|cff888888)|r"):format(
+            cc, vendorInfo.covenantName,
+            cc, vendorInfo.zoneMain,
+            vendorInfo.zoneSub)
+    else
+        text = "|cffff9333  -> No covenant detected|r|cff888888 -- align to redeem weapon tokens.|r"
+    end
+    return text, raid, covID, vendorInfo
+end
+
 -- Renders the transmog detail body for either a routing step (current-boss
 -- hover flow) or a boss object directly (browser flow). Accepts a table
 -- with either a `boss` or `bossIndex` field.
@@ -3834,41 +4236,10 @@ BuildTransmogDetail = function(stepOrCtx)
                 table.insert(lines, row)
             end
 
-            -- Vendor hint line. Covenant detection via C_Covenants (same
-            -- pattern /rr vendorscan uses). If no covenant is active,
-            -- emit a covenant-agnostic nudge instead.
-            --
-            -- Rendering:
-            --   Covenant name + zoneMain are in the covenant's theme
-            --   color (Kyrian blue, Venthyr red, Night Fae purple,
-            --   Necrolord green -- see Data/CastleNathria.lua
-            --   weaponVendors). zoneSub (Elysian Hold, Sinfall, etc.)
-            --   stays white for visual contrast. Static framing text
-            --   ("-> Visit your", "weapon vendor in", parens) in soft
-            --   gray so the named pieces stand out.
-            --
-            -- Arrow: plain "->" ASCII rather than U+2192 "→" because
-            -- WoW's default UI font (Friz Quadrata QT) doesn't carry
-            -- a glyph for U+2192 -- it renders as an empty box. Same
-            -- constraint that forced the ReadyCheck textures elsewhere
-            -- (see HANDOFF trap list).
-            local covID = 0
-            if C_Covenants and C_Covenants.GetActiveCovenantID then
-                covID = C_Covenants.GetActiveCovenantID() or 0
-            end
-            local vendors = raid.weaponVendors
-            local vendorInfo = vendors and vendors[covID]
-            if vendorInfo then
-                local cc = vendorInfo.covenantColor or "ffffffff"
-                table.insert(lines,
-                    ("|cff888888  -> Redeem at |r|c%s%s|r|cff888888 vendor: |r|c%s%s|r|cff888888 (|r|cffffffff%s|r|cff888888)|r"):format(
-                        cc, vendorInfo.covenantName,
-                        cc, vendorInfo.zoneMain,
-                        vendorInfo.zoneSub))
-            else
-                table.insert(lines,
-                    "|cffff9333  -> No covenant detected|r|cff888888 -- align to redeem weapon tokens.|r")
-            end
+            -- Vendor hint line is rendered separately as its own
+            -- FontString below the main text, with a Flight button
+            -- anchored to it (see BuildSanctumLine and the
+            -- sanctumLine widget on tmogWindow). Skipped here.
         end
     end
 
@@ -4361,6 +4732,40 @@ GetOrCreateTmogWindow = function()
 
     f.contentText = text
 
+    -- Sanctum vendor line. Lives on its own FontString below the
+    -- main content text so the Flight button can anchor cleanly
+    -- against rendered text width (no overlay positioning, no
+    -- stride-drift bugs -- same lesson PositionEntranceButton
+    -- encodes for the idle list). Width matches the main text so
+    -- wrapping behaves consistently. Hidden when BuildSanctumLine
+    -- returns nil (boss doesn't drop weapon tokens, or raid has no
+    -- weaponVendors -- non-CN raids).
+    local sanctumLine = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    sanctumLine:SetPoint("TOPLEFT",  text, "BOTTOMLEFT",  0, -8)
+    sanctumLine:SetPoint("TOPRIGHT", f,    "TOPRIGHT",   -14, 0)   -- width only
+    sanctumLine:SetJustifyH("LEFT")
+    sanctumLine:SetJustifyV("TOP")
+    sanctumLine:SetWordWrap(true)
+    sanctumLine:Hide()
+    f.sanctumLine = sanctumLine
+
+    -- Flight button anchored against the sanctum line's RENDERED text
+    -- width (GetStringWidth, not the FontString's frame width which
+    -- spans the popup). Same FlightMaster minimap-tracking texture as
+    -- the entrance buttons in the idle list. Hidden by default;
+    -- RefreshContent decides whether to show it based on whether the
+    -- player's covenant has a vendor entry with concrete coords.
+    local sanctumBtn = CreateFrame("Button", nil, f)
+    sanctumBtn:RegisterForClicks("LeftButtonUp")
+    sanctumBtn:SetFrameLevel((f:GetFrameLevel() or 0) + 10)
+    sanctumBtn:SetNormalTexture("Interface\\Minimap\\Tracking\\FlightMaster")
+    sanctumBtn:SetHighlightTexture(
+        "Interface\\Minimap\\Tracking\\FlightMaster", "ADD")
+    sanctumBtn:Hide()
+    sanctumBtn:HookScript("OnEnter", CancelTmogHide)
+    sanctumBtn:HookScript("OnLeave", ScheduleTmogHide)
+    f.sanctumButton = sanctumBtn
+
     tmogWindow = f
 
     -- Dropdown initializers (defined after f exists so they can reference it).
@@ -4439,12 +4844,96 @@ GetOrCreateTmogWindow = function()
     end
 
     f.RefreshContent = function(self)
-        local _, boss = GetBrowserSelection()
+        local raid, boss = GetBrowserSelection()
         local detail = boss and BuildTransmogDetail({ boss = boss })
                               or "Select a raid and boss."
         text:SetText(detail or "")
         local fontSize = RR:GetSetting("fontSize", 12)
         text:SetFont(STANDARD_TEXT_FONT, fontSize - 1, "")
+
+        -- Sanctum vendor line + Flight button. BuildSanctumLine returns
+        -- nil for any boss that doesn't drop weapon tokens or any raid
+        -- without weaponVendors (so non-CN raids automatically hide
+        -- both widgets, no special-casing needed at this site). When
+        -- vendorInfo is nil but text is non-nil, the player has no
+        -- covenant -- we show the "no covenant detected" line but
+        -- hide the Flight button (no real coords to route to).
+        local sanctumText, sanctumRaid, sanctumCovID, sanctumVendor =
+            BuildSanctumLine(raid, boss)
+        if sanctumText then
+            sanctumLine:SetFont(STANDARD_TEXT_FONT, fontSize - 1, "")
+            sanctumLine:SetText(sanctumText)
+            sanctumLine:Show()
+            if sanctumVendor then
+                -- Anchor the button against the rendered text width
+                -- (GetStringWidth) so it sits snug against the actual
+                -- end of the line regardless of how long the vendor /
+                -- zone names are. Same trick PositionEntranceButton
+                -- uses for the idle list.
+                --
+                -- Defer positioning by one frame: GetStringWidth is
+                -- lazy after SetFont (same WoW UI measurement quirk
+                -- documented in AutoSize for GetStringHeight). If we
+                -- read it immediately, it returns 0 or a stale value
+                -- and the button anchors on top of the text -- which
+                -- renders invisibly at small font sizes where the
+                -- button is entirely covered by the line. The idle
+                -- list's PositionEntranceButton gets away without
+                -- this deferral because RefreshIdleList re-runs every
+                -- heartbeat tick and self-corrects on the next pass;
+                -- RefreshContent only fires on dropdown changes, so
+                -- the first measurement has to be right.
+                local btnSize = math.floor(fontSize * 1.4)
+                sanctumBtn:SetSize(btnSize, btnSize)
+                sanctumBtn:ClearAllPoints()
+                sanctumBtn:SetPoint("LEFT", sanctumLine, "LEFT",
+                    (sanctumLine:GetStringWidth() or 0) + 4, 0)
+                if C_Timer and C_Timer.After then
+                    C_Timer.After(0, function()
+                        if sanctumBtn:IsShown() then
+                            sanctumBtn:ClearAllPoints()
+                            sanctumBtn:SetPoint("LEFT", sanctumLine, "LEFT",
+                                (sanctumLine:GetStringWidth() or 0) + 4, 0)
+                        end
+                    end)
+                end
+                sanctumBtn:SetScript("OnClick", function()
+                    RR:NavigateToSanctum(sanctumRaid, sanctumCovID)
+                end)
+                sanctumBtn:SetScript("OnEnter", function(selfBtn)
+                    CancelTmogHide()
+                    GameTooltip:SetOwner(selfBtn, "ANCHOR_RIGHT")
+                    GameTooltip:SetText(
+                        ("Travel to %s"):format(
+                            sanctumVendor.vendorName or "Sanctum vendor"),
+                        1, 1, 1)
+                    GameTooltip:AddLine(
+                        ("%s -- %s"):format(
+                            sanctumVendor.zoneSub or "",
+                            sanctumVendor.zoneMain or ""),
+                        0.7, 0.7, 0.7, true)
+                    GameTooltip:Show()
+                end)
+                sanctumBtn:SetScript("OnLeave", function()
+                    GameTooltip:Hide()
+                    ScheduleTmogHide()
+                end)
+                sanctumBtn:Show()
+            else
+                sanctumBtn:Hide()
+                sanctumBtn:SetScript("OnClick", nil)
+                sanctumBtn:SetScript("OnEnter", CancelTmogHide)
+                sanctumBtn:SetScript("OnLeave", ScheduleTmogHide)
+            end
+        else
+            sanctumLine:Hide()
+            sanctumLine:SetText("")
+            sanctumBtn:Hide()
+            sanctumBtn:SetScript("OnClick", nil)
+            sanctumBtn:SetScript("OnEnter", CancelTmogHide)
+            sanctumBtn:SetScript("OnLeave", ScheduleTmogHide)
+        end
+
         -- The "Show all class tier" checkbox's enabled state depends on
         -- whether the currently-selected boss drops tier tokens. Refresh
         -- it here (not in RefreshAll) so it stays in sync with the boss
@@ -5802,14 +6291,13 @@ function UI.Update()
             -- step == nil branch: either the player has cleared every
             -- boss in this lockout (genuine run-complete) OR the raid
             -- is loaded but doesn't have routing data for every boss
-            -- (in-development bring-ups; currently affects Horde-side
-            -- BfD during the recorder pass where steps land
-            -- incrementally). Distinguish by comparing routing length
-            -- to boss count: if every boss has a step authored, an
-            -- empty GetAvailableSteps means "all killed/blocked"
-            -- (genuine complete); if routing is shorter than bosses,
-            -- some bosses don't have steps yet and we shouldn't show
-            -- the green "Run complete!" -- the user might have killed
+            -- (in-development bring-ups where steps land incrementally).
+            -- Distinguish by comparing routing length to boss count:
+            -- if every boss has a step authored, an empty
+            -- GetAvailableSteps means "all killed/blocked" (genuine
+            -- complete); if routing is shorter than bosses, some
+            -- bosses don't have steps yet and we shouldn't show the
+            -- green "Run complete!" -- the user might have killed
             -- all the steps that exist and still have more boss work
             -- ahead of them per the bosses[] count.
             local routingCount = (RR.currentRaid
@@ -5938,7 +6426,11 @@ function UI.Update()
 
     -- Content size can change significantly between states (in-raid vs idle,
     -- different boss counts, longer strings). Re-fit after content is set.
-    UI.AutoSize()
+    -- ApplyMinimizedState handles BOTH the minimized-fixed-height path AND
+    -- (via delegation when not minimized) the AutoSize path, so a single
+    -- call here covers both cases. It also catches new FontStrings just
+    -- acquired by RefreshIdleList above and hides them when minimized.
+    UI.ApplyMinimizedState()
 end
 
 -- ============================================================================
