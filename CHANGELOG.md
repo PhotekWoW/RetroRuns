@@ -2,6 +2,16 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [1.7.1] - 2026-05-11
+
+### Added
+
+- **Trial of Valor** is now fully supported — Legion's 3-boss mini-raid bridging Emerald Nightmare and Nighthold. Walk-along routes for Odyn, Guarm, and Helya in their strict-linear order, with verbatim travel notes covering the escalator-up approach to Odyn, the post-Odyn dialog teleport into Helheim, and the path through The Eternal Battlefield to Helya. Per-difficulty transmog tracking on all 27 armor drops. Boss-feat achievement callouts with soloability ratings — "Boneafide Tri Tip" (Guarm) and "Patient Zero" (Helya) are both trivially soloable; "You Runed Everything!" (Odyn) is rated soloable-with-caveats (RNG-heavy and benefits from a movement class or pet for object control). Includes Helya's solo tip for the intermission tentacle phase.
+
+### Fixed
+
+- The "+" expansion toggles on the supported-raids list (in idle and run-complete states) now respond consistently to clicks. Previously, the UI's once-per-second refresh tick would rebuild the toggle buttons during user clicks, causing clicks that straddled a refresh to silently fail. Symptom: spam-clicking a "+" toggle would only expand the list intermittently. The refresh now skips the rebuild when nothing has changed, eliminating the race.
+
 ## [1.7.0] - 2026-05-10
 
 ### Added

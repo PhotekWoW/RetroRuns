@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "1.7.0"
+local VERSION    = "1.7.1"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -2137,6 +2137,310 @@ function RR:TravelDebug()
 end
 
 -------------------------------------------------------------------------------
+-- Toggle-probe diagnostic (dev-only; not user-facing)
+--
+-- Bug 2026-05-11: in "Run complete!" state the expansion-toggle "+" buttons
+-- in the supported-raids list are dead to clicks (work fine in idle state).
+-- First fix attempt: added panel.transmog:EnableMouse(false) to the
+-- run-complete branch (parity with idle). Result: "somewhat working but
+-- mostly not" -- partial improvement, not full resolution. So there's at
+-- least one more frame intercepting clicks, or a timing-of-state issue.
+--
+-- This probe dumps everything needed to identify the culprit:
+--   1. Each panel.expansionToggleButtons[i] -- IsShown / IsMouseEnabled /
+--      OnClick script set / FrameLevel / anchor point / size
+--   2. Body-element frames that could overlap (encounter, transmog, list,
+--      listHeader, etc.) -- IsShown / IsMouseEnabled / FrameLevel / size
+--   3. GetMouseFocus() at the moment the probe runs -- so the user can
+--      hover a + glyph and run /rr toggleprobe to see what frame the
+--      mouse is actually over (the toggle button, or something else?)
+--
+-- All output goes to ShowCopyWindow per Section 0 rule H. Run via
+-- /rr toggleprobe.
+-------------------------------------------------------------------------------
+function RR:ToggleProbe()
+    local out = {}
+    local function add(s) table.insert(out, s or "") end
+
+    add("toggleprobe: expansion-toggle button + intercepting-frame state")
+    add("Hover the + glyph BEFORE running this for GetMouseFocus to be useful.")
+    add("")
+
+    -- Resolve panel via UI namespace's known reference
+    local panel = _G.RetroRunsMainFrame
+    if not panel then
+        add("ERROR: _G.RetroRunsMainFrame not found.")
+        self:ShowCopyWindow(
+            "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaa/rr toggleprobe|r",
+            table.concat(out, "\n"))
+        return
+    end
+
+    add(("Panel: shown=%s, FrameLevel=%s, strata=%s"):format(
+        tostring(panel:IsShown()),
+        tostring(panel:GetFrameLevel()),
+        tostring((panel.GetFrameStrata and panel:GetFrameStrata()) or "n/a")))
+    do
+        local pL, pB = panel:GetLeft(), panel:GetBottom()
+        local pW, pH = panel:GetWidth() or 0, panel:GetHeight() or 0
+        if pL and pB then
+            add(("Panel screen: L%.0f B%.0f W%.0f H%.0f (top=%.0f, right=%.0f)"):format(
+                pL, pB, pW, pH, pB + pH, pL + pW))
+        end
+    end
+    -- Cursor position. If the user hovered a + before running the probe,
+    -- this tells us exactly where on screen the mouse was, which we can
+    -- cross-reference against the toggle buttons' screen rectangles to
+    -- see whether the click hit area is where the visible glyph is.
+    if GetCursorPosition then
+        local cx, cy = GetCursorPosition()
+        if cx and cy then
+            local scale = UIParent and UIParent:GetEffectiveScale() or 1
+            add(("Cursor: raw=(%d,%d) UIParent-scaled=(%.0f,%.0f)"):format(
+                cx, cy, cx / scale, cy / scale))
+        end
+    end
+    add("")
+
+    -- Section 1: Expansion toggle buttons
+    add("=== panel.expansionToggleButtons ===")
+    local toggles = panel.expansionToggleButtons or {}
+    add(("Count: %d"):format(#toggles))
+    for i, btn in ipairs(toggles) do
+        local pt, relTo, relPt, x, y = btn:GetPoint(1)
+        local relName = "?"
+        if relTo and relTo.GetName then relName = relTo:GetName() or "(unnamed)" end
+        if relTo and not (relTo.GetName and relTo:GetName()) then
+            local rl, rb, rw, rh = relTo:GetLeft(), relTo:GetBottom(),
+                                   relTo:GetWidth() or 0, relTo:GetHeight() or 0
+            if rl and rb then
+                relName = ("FS(L=%.0f B=%.0f W=%.0f H=%.0f)"):format(
+                    rl, rb, rw, rh)
+            else
+                relName = "FS(off-screen-or-nil-coords)"
+            end
+        end
+        local hasOnClick     = (btn:GetScript("OnClick")     ~= nil)
+        local hasOnMouseDown = (btn:GetScript("OnMouseDown") ~= nil)
+        local hasOnMouseUp   = (btn:GetScript("OnMouseUp")   ~= nil)
+        local hasOnEnter     = (btn:GetScript("OnEnter")     ~= nil)
+        local isEnabled      = btn.IsEnabled and btn:IsEnabled()
+        local L, B = btn:GetLeft(), btn:GetBottom()
+        local W, H = btn:GetWidth() or 0, btn:GetHeight() or 0
+        local screenInfo
+        if L and B then
+            screenInfo = ("screen=L%.0f,B%.0f,W%.0f,H%.0f (top=%.0f,right=%.0f)"):format(
+                L, B, W, H, B + H, L + W)
+        else
+            screenInfo = "screen=NIL-COORDS"
+        end
+        local strata = (btn.GetFrameStrata and btn:GetFrameStrata()) or "n/a"
+        -- GetButtonState: "NORMAL" / "PUSHED" / "DISABLED"
+        local btnState = "n/a"
+        if btn.GetButtonState then btnState = btn:GetButtonState() end
+        -- GetRegisteredClickTypes returns nil on older clients; use pcall
+        -- to defensively check whether it's available. Fall back to a
+        -- reasonable label if not.
+        local regClicks = "?"
+        if btn.GetRegisteredClickTypes then
+            local ok, rc = pcall(btn.GetRegisteredClickTypes, btn)
+            if ok and rc then regClicks = tostring(rc) end
+        end
+        add(("  [%d] shown=%s mouse=%s enabled=%s state=%s onclick=%s mdn=%s mup=%s onent=%s strata=%s level=%s regClicks=%s"):format(
+            i,
+            tostring(btn:IsShown()),
+            tostring(btn:IsMouseEnabled()),
+            tostring(isEnabled),
+            btnState,
+            tostring(hasOnClick),
+            tostring(hasOnMouseDown),
+            tostring(hasOnMouseUp),
+            tostring(hasOnEnter),
+            strata,
+            tostring(btn:GetFrameLevel()),
+            regClicks))
+        add(("       anchor=%s->%s:%s(%g,%g)"):format(
+            tostring(pt), relName, tostring(relPt), x or 0, y or 0))
+        add(("       %s"):format(screenInfo))
+    end
+    add("")
+
+    -- Section 1.5: All Frame children of the panel, sorted by FrameLevel.
+    -- If there's an invisible overlay frame at FrameLevel >= 11 covering
+    -- the button area but with mouse=true and no visible texture, it
+    -- would intercept clicks while leaving hover/push textures on the
+    -- button below untouched (since those track screen mouse position
+    -- directly via the button's enter/leave region scripts, not via
+    -- click dispatch).
+    add("=== Panel child Frames (by FrameLevel descending) ===")
+    -- Build a reverse-lookup table mapping known panel members to a
+    -- human-readable name. When we walk panel:GetChildren() we'll
+    -- check each child against this table and surface the friendly
+    -- name. Helps identify the "unnamed" 392x1 button that only
+    -- exists in run-complete state.
+    local memberName = {
+        [panel.closeButton or 0]    = "panel.closeButton",
+        [panel.minimizeButton or 0] = "panel.minimizeButton",
+        [panel.encounter or 0]      = "panel.encounter",
+        [panel.transmog or 0]       = "panel.transmog",
+        [panel.mapBtn or 0]         = "panel.mapBtn",
+        [panel.tmogBtn or 0]        = "panel.tmogBtn",
+        [panel.achievesBtn or 0]    = "panel.achievesBtn",
+        [panel.skipsBtn or 0]       = "panel.skipsBtn",
+        [panel.settingsBtn or 0]    = "panel.settingsBtn",
+    }
+    -- Also tag every active expansion-toggle and entrance button
+    for i, b in ipairs(panel.expansionToggleButtons or {}) do
+        memberName[b] = ("toggle[%d]"):format(i)
+    end
+    for i, b in ipairs(panel.entranceButtons or {}) do
+        memberName[b] = ("entrance[%d]"):format(i)
+    end
+    -- And pool entries (these are inactive but still parented to panel)
+    for i, b in ipairs(panel.expansionToggleButtonPool or {}) do
+        memberName[b] = ("togglePool[%d]"):format(i)
+    end
+    for i, b in ipairs(panel.entranceButtonPool or {}) do
+        memberName[b] = ("entrancePool[%d]"):format(i)
+    end
+
+    local children = { panel:GetChildren() }
+    local childList = {}
+    for _, c in ipairs(children) do
+        if c.GetFrameLevel then
+            table.insert(childList, {
+                tag = memberName[c] or "(unidentified)",
+                level = c:GetFrameLevel(),
+                shown = c:IsShown(),
+                mouse = c.IsMouseEnabled and c:IsMouseEnabled() or false,
+                L = c:GetLeft(), B = c:GetBottom(),
+                W = c:GetWidth() or 0, H = c:GetHeight() or 0,
+                otype = (c.GetObjectType and c:GetObjectType()) or "?",
+                frame = c,
+            })
+        end
+    end
+    table.sort(childList, function(a, b) return a.level > b.level end)
+    add(("Total children: %d"):format(#childList))
+    for _, c in ipairs(childList) do
+        local screen = "no-coords"
+        if c.L and c.B then
+            screen = ("L%.0f,B%.0f,W%.0f,H%.0f"):format(c.L, c.B, c.W, c.H)
+        end
+        add(("  level=%-3d type=%-8s shown=%-5s mouse=%-5s %s   <- %s"):format(
+            c.level, c.otype,
+            tostring(c.shown), tostring(c.mouse), screen, c.tag))
+    end
+    add("")
+
+    -- Section 2: Potentially intercepting body frames. Anything that's a
+    -- Button child of panel and could overlap the toggle button area is
+    -- a candidate. We list known suspects explicitly with their full state.
+    add("=== Potentially intercepting body frames ===")
+    local suspects = {
+        { name = "panel.encounter",  frame = panel.encounter  },
+        { name = "panel.transmog",   frame = panel.transmog   },
+        { name = "panel.next",       frame = panel.next       },
+        { name = "panel.travel",     frame = panel.travel     },
+        { name = "panel.progress",   frame = panel.progress   },
+        { name = "panel.raid",       frame = panel.raid       },
+        { name = "panel.pills",      frame = panel.pills      },
+        { name = "panel.listHeader", frame = panel.listHeader },
+        { name = "panel.list",       frame = panel.list       },
+    }
+    for _, s in ipairs(suspects) do
+        local f = s.frame
+        if not f then
+            add(("  %s: nil"):format(s.name))
+        else
+            local mouseEnabled = "n/a"
+            if f.IsMouseEnabled then
+                mouseEnabled = tostring(f:IsMouseEnabled())
+            end
+            local frameLevel = "n/a"
+            if f.GetFrameLevel then
+                frameLevel = tostring(f:GetFrameLevel())
+            end
+            add(("  %s: shown=%s mouse=%s level=%s size=%dx%d"):format(
+                s.name,
+                tostring(f:IsShown()),
+                mouseEnabled,
+                frameLevel,
+                math.floor((f.GetWidth and f:GetWidth()) or 0),
+                math.floor((f.GetHeight and f:GetHeight()) or 0)))
+        end
+    end
+    add("")
+
+    -- Section 2.5: State + render-path diagnostic. The OnClick handler
+    -- writes to RR.state.expandedExpansions; BuildIdleListRows reads
+    -- from it. Dump the current state so we can see (a) whether clicks
+    -- are landing on the state at all, and (b) what state the render
+    -- path is seeing.
+    add("=== RR.state.expandedExpansions ===")
+    local exp = RR.state and RR.state.expandedExpansions
+    if not exp then
+        add("  RR.state.expandedExpansions is nil or RR.state is nil")
+    elseif next(exp) == nil then
+        add("  {} (empty -- no expansion is currently marked expanded)")
+    else
+        for k, v in pairs(exp) do
+            add(("  [%s] = %s"):format(tostring(k), tostring(v)))
+        end
+    end
+    add("")
+
+    -- Section 3: GetMouseFocus -- what frame is the mouse over right now?
+    add("=== GetMouseFocus() at probe time ===")
+    local focus = GetMouseFocus and GetMouseFocus()
+    if not focus then
+        add("  GetMouseFocus() returned nil. (No frame under cursor, or cursor")
+        add("  over a non-mouse-enabled area. Hover a + glyph first, then run")
+        add("  /rr toggleprobe again.)")
+    else
+        local focusName = (focus.GetName and focus:GetName()) or "(unnamed)"
+        add(("  Focus frame name: %s"):format(focusName))
+        add(("  Focus frame type: %s"):format(focus.GetObjectType and focus:GetObjectType() or "?"))
+        if focus.GetFrameLevel then
+            add(("  Focus frame level: %s"):format(tostring(focus:GetFrameLevel())))
+        end
+        -- Check if focus is one of our toggle buttons
+        local matchedToggle = false
+        for i, btn in ipairs(toggles) do
+            if focus == btn then
+                add(("  -> Focus IS panel.expansionToggleButtons[%d] (the toggle button itself)"):format(i))
+                matchedToggle = true
+                break
+            end
+        end
+        if not matchedToggle then
+            -- Check known suspects
+            for _, s in ipairs(suspects) do
+                if focus == s.frame then
+                    add(("  -> Focus is %s (intercepting the click)"):format(s.name))
+                    break
+                end
+            end
+        end
+        -- Walk parent chain so we see frame hierarchy context
+        add("  Parent chain:")
+        local p = focus.GetParent and focus:GetParent()
+        local depth = 0
+        while p and depth < 10 do
+            local pname = (p.GetName and p:GetName()) or "(unnamed)"
+            add(("    -> %s"):format(pname))
+            p = p.GetParent and p:GetParent()
+            depth = depth + 1
+        end
+    end
+
+    self:ShowCopyWindow(
+        "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaa/rr toggleprobe|r",
+        table.concat(out, "\n"))
+    self:Print("toggleprobe snapshot opened.")
+end
+
+-------------------------------------------------------------------------------
 -- Yell-debug diagnostic (dev-only; not user-facing)
 --
 -- One-shot capture tool for designing the v1.2 yell-trigger framework.
@@ -2814,6 +3118,14 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- travel pane showing the wrong segment's note?" One-shot dump
         -- rather than per-update, so chat doesn't get spammed.
         RR:TravelDebug()
+
+    elseif cmd == "toggleprobe" then
+        -- Diagnostic for the run-complete-state dead-toggle-button bug
+        -- (2026-05-11). Dumps each expansion-toggle button's state,
+        -- every body frame that could be intercepting clicks, and
+        -- GetMouseFocus() at probe time so the user can hover the +
+        -- glyph and see what frame is actually under the cursor.
+        RR:ToggleProbe()
 
     elseif cmd == "specialtest" then
         -- Probe a single itemID against every special-loot detection API

@@ -936,6 +936,7 @@ function UI.ApplySettings()
     -- be a true no-op pre-init rather than apply default scale/font on
     -- the un-initialized panel.)
     if not RetroRunsDB then return end
+
     local scale = RR:GetSetting("windowScale", 1.0)
     panel:SetScale(scale)
 
@@ -1857,6 +1858,10 @@ local function BuildSettingsPanel()
         if not RetroRunsDB then return end
         RR:SetSetting("fontSize", math.floor(value + 0.5))
         self:RefreshLabel()
+        -- Font size affects how idle-list rows render even though the
+        -- row DATA is unchanged -- invalidate the cache so the next
+        -- RefreshIdleList actually rebuilds at the new size.
+        if UI.InvalidateIdleListCache then UI.InvalidateIdleListCache() end
         UI.ApplySettings()
     end)
 
@@ -1864,6 +1869,7 @@ local function BuildSettingsPanel()
         if not RetroRunsDB then return end
         RR:SetSetting("windowScale", value / 100)
         self:RefreshLabel()
+        if UI.InvalidateIdleListCache then UI.InvalidateIdleListCache() end
         UI.ApplySettings()
     end)
 
@@ -5972,6 +5978,50 @@ end
 -- Shared between the idle and run-complete branches of UI.Update so
 -- both states get the same click behavior (both states render the
 -- supported-raids list, both need the toggles to work).
+-- Last-rendered fingerprint for the idle list. Used to short-circuit
+-- RefreshIdleList when no state change has occurred since the last
+-- render (typically heartbeat-driven UI.Update calls in run-complete
+-- or idle states). The previous unconditional rebuild had a click-
+-- race bug: heartbeat fires every 1s, ReleaseExpansionToggleButtons
+-- does btn:Hide() on every toggle, and a user click whose OnMouseDown
+-- landed before the heartbeat but OnMouseUp would have landed after
+-- got eaten -- the button vanished mid-click and OnClick never fired.
+-- Symptom: inconsistent toggle-button responsiveness in run-complete
+-- and idle states, with the bug correlated to heartbeat tick timing.
+-- Diagnosed 2026-05-11 via OnMouseDown/OnMouseUp/OnClick instrumentation
+-- showing OnMouseDown firing without the matching OnMouseUp.
+local lastIdleListFingerprint = nil
+
+-- Public hook: callers that need to force a rebuild (e.g. font-size
+-- changes that affect line stride and button anchor positions) can
+-- invalidate the cached fingerprint, ensuring the next RefreshIdleList
+-- actually rebuilds. Without this, a font-size slider change wouldn't
+-- visually take effect on the idle list until something else mutated
+-- the row contents.
+function UI.InvalidateIdleListCache()
+    lastIdleListFingerprint = nil
+end
+
+-- Serialize a row list to a stable string. Used as the cache key. Only
+-- includes fields that affect the rendered output -- skips internal
+-- raid table references etc. Cheap: ~25 rows * a few fields each =
+-- ~100 string ops per heartbeat in the common case (vs releasing and
+-- re-acquiring ~25 widgets in the unfingerprinted path).
+local function FingerprintIdleRows(rows)
+    local parts = {}
+    for i, row in ipairs(rows) do
+        -- kind + text covers most rows; expansionHeader adds expanded
+        -- flag (toggle glyph state); raidName / pillRow include their
+        -- rendered text which captures kill counts via the pill string.
+        local k = row.kind or "?"
+        local t = row.text or ""
+        local e = (row.expanded == true) and "1" or "0"
+        local exp = row.exp or ""
+        parts[i] = ("%s|%s|%s|%s"):format(k, e, exp, t)
+    end
+    return table.concat(parts, "\n")
+end
+
 RefreshIdleList = function()
     -- panel.list is the multi-line FontString used by the in-raid
     -- boss-progress checklist. It also used to hold the supported-raids
@@ -5979,13 +6029,31 @@ RefreshIdleList = function()
     -- avoid stale text peeking through.
     if panel.list then panel.list:SetText("") end
 
+    -- Build the rows first (cheap, pure-data pass) so we can fingerprint
+    -- before touching any widgets. If the fingerprint matches the last
+    -- render, skip the Release+rebuild entirely -- the existing widgets
+    -- on screen are still correct and a tear-down/rebuild would only
+    -- introduce the click-race bug described in the
+    -- lastIdleListFingerprint comment above.
+    local rows = BuildIdleListRows()
+    local fp = FingerprintIdleRows(rows)
+    if fp == lastIdleListFingerprint
+        and #panel.idleListLines > 0 then
+        -- Same content as last render AND we have an actual rendered
+        -- batch on screen. The second guard handles the first-call
+        -- case where lastIdleListFingerprint is nil and #idleListLines
+        -- is 0 -- without it, comparing nil == nil would short-circuit
+        -- the very first render and the list would never appear.
+        return
+    end
+    lastIdleListFingerprint = fp
+
     -- Recycle previously-active line FontStrings and toggle Buttons
     -- before this frame's batch is created.
     ReleaseIdleListLines()
     ReleaseExpansionToggleButtons()
     ReleaseEntranceButtons()
 
-    local rows = BuildIdleListRows()
     local fontSize = RR:GetSetting("fontSize", 12)
 
     -- Vertical gap between rows. Conservative -- gives breathing room
@@ -6340,6 +6408,17 @@ function UI.Update()
             panel.encounter:EnableMouse(false)
             panel.encounter:Hide()
             panel.transmog:SetText("")
+            -- panel.transmog has its own RegisterForClicks + OnClick
+            -- handler (toggles the tmog browser when in-progress). When
+            -- transitioning from in-progress to run-complete, this branch
+            -- runs but doesn't reset transmog's mouse-enabled state set
+            -- by the in-progress branch at line 6338. The idle branch
+            -- below has the parallel EnableMouse(false); this branch
+            -- needs it too. Without it, transmog retains mouse=true
+            -- AFTER the heartbeat-fingerprint cache short-circuits
+            -- subsequent UI.Update calls -- the in-progress -> run-
+            -- complete transition's mouse state persists.
+            panel.transmog:EnableMouse(false)
             panel.transmog:Hide()
 
             -- Map button does nothing in the run-complete state (no
