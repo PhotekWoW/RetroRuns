@@ -1862,6 +1862,8 @@ local function BuildSettingsPanel()
         -- row DATA is unchanged -- invalidate the cache so the next
         -- RefreshIdleList actually rebuilds at the new size.
         if UI.InvalidateIdleListCache then UI.InvalidateIdleListCache() end
+        -- Same reasoning for the achievements window's row table.
+        if UI.InvalidateAchievementsCache then UI.InvalidateAchievementsCache() end
         UI.ApplySettings()
     end)
 
@@ -2854,6 +2856,7 @@ local SPECIAL_KIND_LABEL = {
     toy        = "Toy",
     decor      = "Decor",
     manuscript = "Manuscript",
+    illusion   = "Illusion",
 }
 local SPECIAL_KIND_COLOR = {
     mount      = "ff8080ff",   -- light blue
@@ -2861,6 +2864,7 @@ local SPECIAL_KIND_COLOR = {
     toy        = "ffffcc66",   -- light amber
     decor      = "ffd4a373",   -- warm cream/tan (evokes housing/home)
     manuscript = "ff7fffd4",   -- aquamarine (evokes dragonriding sky/scale)
+    illusion   = "ffc8a2ff",   -- pale violet (evokes arcane weapon-enchant glow)
 }
 
 -- Colors for the state indicator:
@@ -3223,32 +3227,25 @@ BuildSpecialLootSection = function(boss)
             -- icon); uncollected = gray letter "X". See the glyph constants
             -- above for why we don't use Unicode U+2713 / U+2717.
             --
-            -- Name color follows the achievement renderer's "done = gray"
-            -- precedent. For UNCOLLECTED items, render the itemLink with
-            -- its native quality color (rarity is informative -- "is this
-            -- worth grabbing?") and clickable tooltip. For COLLECTED items,
-            -- render the plain-text name wrapped in SPECIAL_UNCOLLECTED gray
-            -- to visually de-emphasize "stop looking here."
+            -- Render the itemLink (with its native quality color) in BOTH
+            -- collected and uncollected states so the row is clickable
+            -- either way. Players still want to inspect an item they
+            -- already own (preview the appearance, check stats, link it
+            -- to chat). The [check] vs [X] state indicator + state-colored
+            -- glyph on the left already disambiguates collection state
+            -- visually -- the name text doesn't also need to gray out.
             --
-            -- Why plain-text instead of stripping the itemLink's color: WoW
-            -- auto-colors item hyperlinks by underlying item quality at
-            -- render time, regardless of surrounding |cff...|r context.
-            -- Stripping the link's outer color wrapper alone (the trick
-            -- the achievement renderer uses) doesn't suppress that auto-
-            -- coloring -- the link still renders in its quality color.
-            -- Achievement hyperlinks don't have this auto-color behavior,
-            -- which is why the strip-and-rewrap trick works for them.
-            -- Tradeoff: collected items lose click-to-tooltip. Acceptable
-            -- because the player already owns the item -- the tooltip's
-            -- value (item stats / appearance preview) is much lower than
-            -- for an uncollected item being evaluated.
-            local nameRender
-            if isCollected then
-                local plainName = item.name or ("Item "..tostring(item.id))
-                nameRender = ("|c%s%s|r"):format(SPECIAL_UNCOLLECTED, plainName)
-            else
-                nameRender = display
-            end
+            -- Prior behavior (collected rows rendered as plain gray text)
+            -- de-emphasized "stop looking here" but stripped click-to-
+            -- tooltip, which was a real loss for illusions/decor/toys
+            -- where players continue to want quick access to the tooltip
+            -- (e.g. checking the appearance preview again before placing
+            -- a decor, or linking an illusion to a friend in chat).
+            -- Reversed 2026-05-11. The auto-color-by-quality behavior of
+            -- itemLinks (which is why a strip-and-rewrap gray didn't work
+            -- here previously) is now a feature rather than a bug:
+            -- collected items keep their quality color and stay clickable.
+            local nameRender = display
 
             table.insert(lines,
                 ("|cff777777[ |r|c%s%s|r|cff777777 ]|r %s |c%s(%s)|r"):format(
@@ -3542,7 +3539,7 @@ local function BuildTransmogSummary(step)
         local n, s, t = CountBossLootAcrossDifficulties(boss, DIFFS_FOR_SUMMARY)
         if not t then return nil end
         if n == 0 and s == 0 then
-            return header .. " |cff00ff00All appearances collected!|r"
+            return header .. " |cffF259C7All appearances collected!|r"
         end
         return header .. "\n- " .. FormatStatsFragment(n, s) .. "  " .. clickHnt
     end
@@ -3551,7 +3548,7 @@ local function BuildTransmogSummary(step)
     local curDone = (curNeeded == 0 and curShared == 0)
     local othDone = (not othTotal) or (othNeeded == 0 and othShared == 0)
     if curDone and othDone then
-        return header .. " |cff00ff00All appearances collected!|r"
+        return header .. " |cffF259C7All appearances collected!|r"
     end
 
     -- Header + two dash lines, matching the Achievements section format.
@@ -6738,6 +6735,58 @@ local function BuildAchievementRows(raid)
     return rows
 end
 
+-- Last-rendered fingerprint for the achievements window's row table.
+-- Used to short-circuit f.RefreshContent when no state change has occurred
+-- since the last render. Same root-cause class as the idle-list click-race
+-- bug fixed 2026-05-11: UI.Update calls UpdateAchievementsWindow on every
+-- 1Hz heartbeat, which calls RefreshContent, which calls HideAllAchSlots()
+-- -- hiding the per-row wowhead "?" buttons on every tick. A user click
+-- whose OnMouseDown landed before a heartbeat but OnMouseUp would have
+-- landed after got eaten: the button vanished mid-click and OnClick never
+-- fired. Symptom: intermittent unresponsiveness of the wowhead-column
+-- buttons, with the bug correlated to heartbeat tick timing. Mirrors the
+-- lastIdleListFingerprint pattern documented earlier in this file.
+local lastAchRowsFingerprint = nil
+
+-- Public hook: callers that need to force a rebuild (font-size changes
+-- that affect row rendering) can invalidate the cached fingerprint so
+-- the next RefreshContent call actually rebuilds. Mirrors
+-- UI.InvalidateIdleListCache.
+function UI.InvalidateAchievementsCache()
+    lastAchRowsFingerprint = nil
+end
+
+-- Serialize the row list + current-boss highlight key to a stable string.
+-- Only includes fields that affect the rendered output. currentBossName
+-- is included because it drives the per-row highlight band independently
+-- of row content -- route progress shifts which boss is highlighted
+-- without changing any row data, and without including it here the
+-- highlight would freeze on whichever boss was current at last render.
+local function FingerprintAchRows(rows, currentBossName)
+    local parts = {}
+    for i, row in ipairs(rows) do
+        local k = row.kind or "?"
+        if k == "glory" then
+            parts[i] = ("G|%s|%s|%s|%s|%s"):format(
+                tostring(row.id), tostring(row.name),
+                tostring(row.completed),
+                tostring(row.done), tostring(row.total))
+        elseif k == "achRow" then
+            parts[i] = ("A|%s|%s|%s|%s|%s|%s"):format(
+                tostring(row.bossName), tostring(row.achievementID),
+                tostring(row.achievementName), tostring(row.completed),
+                tostring(row.soloable), tostring(row.meta))
+        elseif k == "naRow" then
+            parts[i] = ("N|%s"):format(tostring(row.bossName))
+        else
+            -- spacer, header: no per-row state beyond kind
+            parts[i] = k
+        end
+    end
+    parts[#parts + 1] = "CB|" .. tostring(currentBossName or "")
+    return table.concat(parts, "\n")
+end
+
 -- Initialize achState with empty fields. Filled by EnsureAchDefaults() on
 -- first open, then maintained by dropdown clicks. Boss-level selection was
 -- removed when the window switched to a full-raid table; only Expansion
@@ -7136,20 +7185,6 @@ GetOrCreateAchievementsWindow = function()
     -- Rebuilds the table content, positions all row widgets, sizes the
     -- window. Same shape as RefreshSkipsContent.
     f.RefreshContent = function(self)
-        HideAllAchSlots()
-
-        -- Defensively hide the persistent header FontStrings too. They get
-        -- :Show()'d again when the "header" row renders below, which is
-        -- always for non-empty raids -- but if a future code path renders
-        -- a raid with no rows, hiding here ensures the previous raid's
-        -- headers don't leak through visually.
-        f.gloryLine:Hide()
-        f.rewardLine:Hide()
-        f.hdrStatus:Hide()
-        f.hdrAch:Hide()
-        f.hdrBoss:Hide()
-        f.hdrWowhead:Hide()
-
         local raid = achState.raidKey and RR:GetRaidByInstanceID(achState.raidKey) or nil
         local rows = BuildAchievementRows(raid)
 
@@ -7166,6 +7201,35 @@ GetOrCreateAchievementsWindow = function()
                 if boss then currentBossName = boss.name end
             end
         end
+
+        -- Fingerprint-gate the rebuild. Heartbeats with no state change
+        -- (the common case once the window is open) skip the entire
+        -- HideAllAchSlots + widget churn below, which would otherwise
+        -- vanish the wowhead "?" buttons mid-click. See
+        -- lastAchRowsFingerprint comment for the full rationale.
+        -- The second guard handles the first-call case where the
+        -- fingerprint is nil and the window has never rendered -- we
+        -- need the very first render to proceed even though "no diff"
+        -- is technically true.
+        local fp = FingerprintAchRows(rows, currentBossName)
+        if fp == lastAchRowsFingerprint and f.hdrStatus:IsShown() then
+            return
+        end
+        lastAchRowsFingerprint = fp
+
+        HideAllAchSlots()
+
+        -- Defensively hide the persistent header FontStrings too. They get
+        -- :Show()'d again when the "header" row renders below, which is
+        -- always for non-empty raids -- but if a future code path renders
+        -- a raid with no rows, hiding here ensures the previous raid's
+        -- headers don't leak through visually.
+        f.gloryLine:Hide()
+        f.rewardLine:Hide()
+        f.hdrStatus:Hide()
+        f.hdrAch:Hide()
+        f.hdrBoss:Hide()
+        f.hdrWowhead:Hide()
 
         local fontSize   = RR:GetSetting("fontSize", 12)
         -- Row content renders one point smaller than the user-facing

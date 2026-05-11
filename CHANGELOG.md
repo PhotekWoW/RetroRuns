@@ -2,7 +2,21 @@
 
 All notable changes to RetroRuns are documented here.
 
-## [1.7.1] - 2026-05-11
+## [1.8.0] - 2026-05-11
+
+### Added
+
+- **The Nighthold** is now fully supported — walk-along routes for all 10 bosses through Suramar's most opulent palace, with the canonical solo run order: Skorpyron, Chronomatic Anomaly, Trilliax, and Spellblade Aluriel in strict order, then Star Augur, High Botanist Tel'arn, Tichondrius, and Krosus through the four-wing middle, finishing with Grand Magistrix Elisande and Gul'dan. Includes the Suramar Portal teleport segments to The Nightspire (Elisande) and The Font of Night (Gul'dan), per-difficulty transmog tracking across 132 armor pieces plus all 60 Legion-tier pieces (5 bosses × 12 class-restricted variants), achievement callouts for all 10 boss-feat achievements with soloability ratings (Cage Rematch, Grand Opening, Gluten Free, A Change In Scenery, Not For You, Burning Bridges, Fruit of All Evil, Elementalry!, Infinitesimal, I've Got My Eyes On You — every one of them a Glory of the Legion Raider contributor), and account-wide skip detection on "The Nighthold: Talisman of the Shal'dorei" — the Elisande-kill skip that bypasses bosses 1-8 once you've earned it.
+- **Illusion: Chronos tracking on Chronomatic Anomaly.** The weapon-enchant illusion that drops from the time-warping arcane fight now appears in his encounter card with a collected/missing indicator pulled from your transmog collection — same treatment Xavius's Illusion: Nightmare got in v1.7.0.
+- **Toy and decor tracking on Gul'dan and Spellblade Aluriel.** Two toys drop from Gul'dan and aren't surfaced in the in-game Adventure Guide — Golden Hearthstone Card: Lord Jaraxxus (all difficulties, all classes) and Skull of Corruption (Demon Hunter only). Both now appear in Gul'dan's Special Loot section with collection state. The Nighthold also drops Magistrix's Garden Fountain from Spellblade Aluriel — a housing decor item added in the 11.2.7 patch — and that's now surfaced too.
+
+### Fixed
+
+- **Wowhead `?` buttons on the Achievements window now respond consistently to clicks.** Same dispatch race that affected the `+` expansion toggles in v1.7.1, on a different surface. The Achievements window was rebuilding every row on the once-per-second UI tick — clicks that straddled a rebuild got eaten as the button vanished mid-click. The window now skips the rebuild when nothing has changed.
+- **Special Loot items you've already collected stay clickable.** Previously, collecting a mount, pet, toy, illusion, or decor would gray out its name in the Special Loot section and remove the click-to-tooltip behavior. The item link is now preserved — collected items render in their quality color (same as uncollected) and stay clickable, so you can still preview the appearance, link it to chat, or check stats. The `[check]` glyph on the left is now the sole visual signal that the item is collected.
+- **Weapon-enchant illusions in the Special Loot section now show with a proper "Illusion" label and a distinct color.** Previously rendered as lowercase `(illusion)` in a neutral fallback gray; now reads as `(Illusion)` in a pale violet, matching the color-coded conventions for mounts, pets, toys, decor, and manuscripts.
+
+
 
 ### Added
 

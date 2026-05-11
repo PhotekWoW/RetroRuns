@@ -86,9 +86,10 @@ end
 
 -- Sets the activeSeg for a step. Persists to RetroRunsDB. Idempotent: setting
 -- to the current value is a no-op write (RetroRunsDB-shape side-effects
--- are minor enough we don't bother to early-return). Monotonicity is
--- enforced by callers (AdvanceStrictActiveSeg only ever increments by 1, and
--- SeedStrictActiveSeg only ever increases the existing value, never decreases).
+-- are minor enough we don't bother to early-return). Monotonicity for
+-- mid-step advancement is enforced by callers (AdvanceStrictActiveSeg only
+-- ever increments by 1). SeedStrictActiveSeg resets unconditionally on
+-- step transitions, treating each new step as a clean slate.
 --
 -- Faction-scoped: BfD's seg counts differ between Alliance and Horde
 -- (Alliance step 4 has 2 segs, Horde step 4 has 4 segs, etc.). Storing
@@ -187,6 +188,26 @@ end
 --
 -- Only fires for the active step. Other steps' activeSegs stay at whatever
 -- they were last set to (typically 1 for unstarted steps).
+--
+-- Idempotent across redundant call sites: the event-driven HLC handler and
+-- the heartbeat poll BOTH fire Advance for the same physical mapID transition
+-- (HLC immediately on the event, poll up to 1s later on the next tick).
+-- Without the lastAdvancedMapID guard, both calls would land for transitions
+-- where TWO consecutive segs share a mapID -- the first Advance moves
+-- activeSeg N -> N+1, then the second Advance sees that segs[N+2] also
+-- matches and advances N+1 -> N+2, skipping seg N+1's note entirely.
+-- Tracking the last mapID we advanced on and short-circuiting if Advance
+-- is called again with the same value closes that gap. The guard resets
+-- when the activeStep changes (via ResetStrictAdvanceGuard, called from
+-- OnActiveStepChanged), so each new step gets a fresh single-advance budget.
+local lastAdvancedMapID = nil
+local lastAdvancedStep  = nil
+
+function RR:ResetStrictAdvanceGuard()
+    lastAdvancedMapID = nil
+    lastAdvancedStep  = nil
+end
+
 function RR:AdvanceStrictActiveSeg(currentMapID)
     if not self:UsesStrictActiveSegPicker() then
         return
@@ -195,10 +216,20 @@ function RR:AdvanceStrictActiveSeg(currentMapID)
     if not step or not step.segments then return end
     local stepIndex = step.step or step.priority or 0
     if stepIndex == 0 then return end
+    -- Idempotency guard. If we already advanced on this exact (step, mapID)
+    -- pair, the call is redundant -- either the heartbeat poll racing
+    -- the HLC handler, or a re-entrant Update flow. Short-circuit so a
+    -- single physical mapID transition never advances more than one seg
+    -- even when consecutive segs share a mapID.
+    if lastAdvancedStep == stepIndex and lastAdvancedMapID == currentMapID then
+        return
+    end
     local activeSeg = self:GetStrictActiveSeg(stepIndex)
     local nextSeg = step.segments[activeSeg + 1]
     if nextSeg and nextSeg.mapID == currentMapID then
         self:SetStrictActiveSeg(stepIndex, activeSeg + 1)
+        lastAdvancedStep  = stepIndex
+        lastAdvancedMapID = currentMapID
         if self.ZoneLog then
             self:ZoneLog(("strict activeSeg advance: step %d %d -> %d (mapID=%d)")
                 :format(stepIndex, activeSeg, activeSeg + 1, currentMapID))
@@ -208,13 +239,22 @@ end
 
 -- Called when a step becomes active (post-boss-kill advancement, /reload
 -- restoration, fresh login). Seeds the activeSeg to the highest seg index
--- whose mapID matches the player's current mapID. If no seg matches,
--- leaves the activeSeg at its current value (defaults to 1 for never-touched
--- steps, or whatever was persisted).
+-- whose mapID matches the player's current mapID, or 1 if no seg matches.
 --
--- Only INCREASES the activeSeg; never decreases. Protects against legitimate
--- mid-step retrace where the player has activeSeg=3 and is currently on
--- seg[1].mapID -- we wouldn't want to seed activeSeg back to 1.
+-- Resets unconditionally: a step transition is a clean slate. The hook
+-- this gets called from (Navigation.lua's OnActiveStepChanged) only fires
+-- when the active step actually changes, so any prior activeSeg value
+-- belongs to a different step and must not carry over. The picker's
+-- per-step state is keyed by step number; raids with multiple routing
+-- entries at the same step number (DAG-middle siblings like Nighthold's
+-- step 5: Star Augur / Tel'arn / Tichondrius / Krosus, walked in route-
+-- defined order one boss at a time) need this reset so the second
+-- sibling's activeSeg doesn't inherit the first sibling's terminal
+-- value.
+--
+-- Monotonic-advance protection still applies to AdvanceStrictActiveSeg,
+-- which fires on player mapID transitions WITHIN a step -- that's the
+-- correct place to guard against transit-flash and mid-step retrace.
 function RR:SeedStrictActiveSeg(step)
     if not self:UsesStrictActiveSegPicker() then
         return
@@ -224,19 +264,18 @@ function RR:SeedStrictActiveSeg(step)
     if stepIndex == 0 then return end
     local playerMapID = C_Map and C_Map.GetBestMapForUnit
         and C_Map.GetBestMapForUnit("player")
-    if not playerMapID then return end
     local highestMatch = 0
-    for i, seg in ipairs(step.segments) do
-        if seg.mapID == playerMapID then highestMatch = i end
-    end
-    if highestMatch == 0 then return end
-    local current = self:GetStrictActiveSeg(stepIndex)
-    if highestMatch > current then
-        self:SetStrictActiveSeg(stepIndex, highestMatch)
-        if self.ZoneLog then
-            self:ZoneLog(("strict activeSeg seed: step %d %d -> %d (playerMapID=%d)")
-                :format(stepIndex, current, highestMatch, playerMapID))
+    if playerMapID then
+        for i, seg in ipairs(step.segments) do
+            if seg.mapID == playerMapID then highestMatch = i end
         end
+    end
+    local seed = (highestMatch > 0) and highestMatch or 1
+    local current = self:GetStrictActiveSeg(stepIndex)
+    self:SetStrictActiveSeg(stepIndex, seed)
+    if self.ZoneLog then
+        self:ZoneLog(("strict activeSeg seed: step %d %d -> %d (playerMapID=%s)")
+            :format(stepIndex, current, seed, tostring(playerMapID or "nil")))
     end
 end
 

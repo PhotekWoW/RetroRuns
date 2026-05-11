@@ -331,6 +331,7 @@ function RR:OnActiveStepChanged(prevStep, newStep)
     -- function is predicated internally, so it's a no-op for raids that
     -- don't opt in via useStrictActiveSegPicker. See Data/StrictPicker.lua.
     if newStep then
+        self:ResetStrictAdvanceGuard()
         self:SeedStrictActiveSeg(newStep)
     end
 end
@@ -396,12 +397,6 @@ function RR:GetProgressLines()
         table.insert(lines, ("|c%s%s %s|r"):format(color, marker, boss.name))
     end
     return lines
-end
-
-function RR:GetDisplayBossNumber(step, boss)
-    if step and step.displayIndex then return step.displayIndex end
-    if step and step.step         then return step.step end
-    return (boss and boss.index) or (step and step.bossIndex) or 0
 end
 
 -------------------------------------------------------------------------------

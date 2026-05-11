@@ -29,13 +29,11 @@ RetroRuns_Data[1861] = {
     patch             = "8.0.1",
 
     -- Entrance is at the base of the titan pyramid in central Nazmir
-    -- (uiMapID 863), under the Heart of Darkness in the southeastern
-    -- part of the Altar of Rot. Coords from dungeon.guide; cross-
-    -- corroborated by Wowpedia's textual description.
+    -- (uiMapID 863), in the Heart of Darkness sub-area.
     entrance = {
         mapID = 863,
-        x     = 0.515,
-        y     = 0.459,
+        x     = 0.539,
+        y     = 0.627,
     },
 
     maps = {
