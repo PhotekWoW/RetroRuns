@@ -989,7 +989,7 @@ end
 local ejMapCache = {}
 
 local function GetEJMapForJournalInstance(journalInstanceID)
-    if not journalInstanceID then return nil end
+    if not journalInstanceID or journalInstanceID == 0 then return nil end
     local cached = ejMapCache[journalInstanceID]
     if cached then return cached end
 
@@ -1029,6 +1029,14 @@ local function GetEJMapForJournalInstance(journalInstanceID)
         ejMapCache[journalInstanceID] = jeToDe
     end
     return jeToDe
+end
+
+-- Expose on the RR namespace so other files (Navigation.lua's
+-- locale-independent ENCOUNTER_END resolver) can build the same
+-- journalEncounterID -> dungeonEncounterID lookup without
+-- duplicating the EJ_SelectInstance dance.
+function RR:GetEJMapForJournalInstance(journalInstanceID)
+    return GetEJMapForJournalInstance(journalInstanceID)
 end
 
 -- Compute per-difficulty kill counts for ANY raid (not just the
@@ -1253,7 +1261,9 @@ function RR:GetSupportedRaid()
         if info.name then
             local needle = self:NormalizeName(info.name)
             for _, raid in pairs(RetroRuns_DataHorde) do
-                if self:NormalizeName(raid.name) == needle then
+                if raid.instanceID ~= 0
+                    and self:NormalizeName(raid.name) == needle
+                then
                     return raid
                 end
             end
@@ -1269,7 +1279,9 @@ function RR:GetSupportedRaid()
         if info.name then
             local needle = self:NormalizeName(info.name)
             for _, raid in pairs(RetroRuns_Data) do
-                if self:NormalizeName(raid.name) == needle then
+                if raid.instanceID ~= 0
+                    and self:NormalizeName(raid.name) == needle
+                then
                     return raid
                 end
             end
@@ -4495,9 +4507,10 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         end
 
     elseif event == "ENCOUNTER_END" then
-        local _, encounterName, _, _, success = ...
-        RR:ZoneLog(("ENCOUNTER_END fired: name=%q success=%s testMode=%s loadedKey=%s currentKey=%s")
-            :format(tostring(encounterName), tostring(success),
+        local encounterID, encounterName, _, _, success = ...
+
+        RR:ZoneLog(("ENCOUNTER_END fired: id=%s name=%q success=%s testMode=%s loadedKey=%s currentKey=%s")
+            :format(tostring(encounterID), tostring(encounterName), tostring(success),
                     tostring(RR.state.testMode),
                     tostring(RR.state.loadedRaidKey),
                     tostring(RR:GetRaidContextKey())))
@@ -4512,7 +4525,18 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
             and RR.currentRaid
             and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
             if success == 1 then
-                RR:MarkBossKilledByEncounterName(encounterName)
+                -- Prefer the locale-independent ID-based path. The
+                -- name-based path is kept as a fallback so raids with
+                -- incomplete journalEncounterID coverage in the data
+                -- still resolve. On non-English clients the name path
+                -- can't match (boss.name is English in our data), so
+                -- the ID path is the only thing that lets Boss Progress
+                -- update in real time. UPDATE_INSTANCE_INFO will still
+                -- eventually update the saved-instance cache, but only
+                -- the ID path is real-time.
+                if not RR:MarkBossKilledByEncounterID(encounterID) then
+                    RR:MarkBossKilledByEncounterName(encounterName)
+                end
                 RR.UI.Update()
                 if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
             else

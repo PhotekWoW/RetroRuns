@@ -2,7 +2,7 @@
 
 This is a forward-looking document: what's coming next, what's planned, and what's still in idea form. For what's already shipped and historical context, see [CHANGELOG.md](CHANGELOG.md).
 
-## Current Version: 1.8.0
+## Current Version: 1.9.0
 
 ---
 
@@ -11,7 +11,6 @@ This is a forward-looking document: what's coming next, what's planned, and what
 Work targeted for the next release.
 
 ### Raid Support
-- **Legion: Tomb of Sargeras** — 9 bosses, Pantheon trinkets, the Sisters / Mistress / Avatar of Sargeras / Kil'jaeden chain.
 - **Legion: Antorus, the Burning Throne** — 11 bosses, the final Legion raid, Argus the Unmaker.
 
 ---
@@ -19,6 +18,9 @@ Work targeted for the next release.
 ## 📋 Planned
 
 Committed for a future release, not yet started.
+
+### Alternative Navigation Arrow
+Replace the existing FlightMaster silhouette on the entrance-route button (and the Castle Nathria Sanctum weapon-vendor route button) with a custom cyan chevron arrow. The FlightMaster icon over-promises "flight master" specifically; the new art communicates "navigate to a destination" without implying a transport mode. Asset already in repo at `Media/RouteArrow.tga` (64×64 RGBA). Five call sites in `UI.lua` to swap (lines 609, 611, 4764, 4766, and the `ENTRANCE_MARKER` inline glyph at 5129); existing `SetVertexColor` blue-tinting may need to drop or be reworked since the new art is already colored. Suggested by AzerothWaypoint's developer.
 
 ### Boss Progress section collapse
 Add `+` / `-` collapse treatment to the Boss Progress section in the main panel, mirroring the existing Boss Encounter section's collapse behavior. Persist state across `/reload`. Pairs with a tightening pass on the blank space between the last boss row and the action button row (`UI.lua`'s `AutoSize` has a hardcoded 50px cushion that should shrink or scale to content).

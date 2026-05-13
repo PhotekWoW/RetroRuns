@@ -2,11 +2,21 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [1.9.0] - 2026-05-13
+
+### Added
+
+- **Tomb of Sargeras** is now fully supported — walk-along routes for all 9 bosses across the Broken Shore raid. Per-difficulty transmog tracking with full Tier 20 coverage (6-piece sets, the second six-piece tier in WoW history after Black Temple's T6), with achievement callouts and soloability ratings. Notable routing: the Maiden-of-Vigilance step's canonical suicide-jump-respawn shortcut that drops you back to Chamber of the Moon. Special loot: Mistress Sassz'ine's Abyss Worm mount.
+
+### Fixed
+
+- **Boss kill detection now works on non-English clients.** Kills register in the Boss Progress column in real time on all locales, not just English.
+
 ## [1.8.0] - 2026-05-11
 
 ### Added
 
-- **The Nighthold** is now fully supported — walk-along routes for all 10 bosses through Suramar's most opulent palace, with the canonical solo run order: Skorpyron, Chronomatic Anomaly, Trilliax, and Spellblade Aluriel in strict order, then Star Augur, High Botanist Tel'arn, Tichondrius, and Krosus through the four-wing middle, finishing with Grand Magistrix Elisande and Gul'dan. Includes the Suramar Portal teleport segments to The Nightspire (Elisande) and The Font of Night (Gul'dan), per-difficulty transmog tracking across 132 armor pieces plus all 60 Legion-tier pieces (5 bosses × 12 class-restricted variants), achievement callouts for all 10 boss-feat achievements with soloability ratings (Cage Rematch, Grand Opening, Gluten Free, A Change In Scenery, Not For You, Burning Bridges, Fruit of All Evil, Elementalry!, Infinitesimal, I've Got My Eyes On You — every one of them a Glory of the Legion Raider contributor), and account-wide skip detection on "The Nighthold: Talisman of the Shal'dorei" — the Elisande-kill skip that bypasses bosses 1-8 once you've earned it.
+- **The Nighthold** is now fully supported — walk-along routes for all 10 bosses through Suramar's most opulent palace. Per-difficulty transmog tracking with full Legion-tier coverage, with achievement callouts and soloability ratings. Notable routing: Suramar Portal teleport segments to The Nightspire (Elisande) and The Font of Night (Gul'dan).
 - **Illusion: Chronos tracking on Chronomatic Anomaly.** The weapon-enchant illusion that drops from the time-warping arcane fight now appears in his encounter card with a collected/missing indicator pulled from your transmog collection — same treatment Xavius's Illusion: Nightmare got in v1.7.0.
 - **Toy and decor tracking on Gul'dan and Spellblade Aluriel.** Two toys drop from Gul'dan and aren't surfaced in the in-game Adventure Guide — Golden Hearthstone Card: Lord Jaraxxus (all difficulties, all classes) and Skull of Corruption (Demon Hunter only). Both now appear in Gul'dan's Special Loot section with collection state. The Nighthold also drops Magistrix's Garden Fountain from Spellblade Aluriel — a housing decor item added in the 11.2.7 patch — and that's now surfaced too.
 
@@ -16,21 +26,21 @@ All notable changes to RetroRuns are documented here.
 - **Special Loot items you've already collected stay clickable.** Previously, collecting a mount, pet, toy, illusion, or decor would gray out its name in the Special Loot section and remove the click-to-tooltip behavior. The item link is now preserved — collected items render in their quality color (same as uncollected) and stay clickable, so you can still preview the appearance, link it to chat, or check stats. The `[check]` glyph on the left is now the sole visual signal that the item is collected.
 - **Weapon-enchant illusions in the Special Loot section now show with a proper "Illusion" label and a distinct color.** Previously rendered as lowercase `(illusion)` in a neutral fallback gray; now reads as `(Illusion)` in a pale violet, matching the color-coded conventions for mounts, pets, toys, decor, and manuscripts.
 
-
+## [1.7.1] - 2026-05-10
 
 ### Added
 
-- **Trial of Valor** is now fully supported — Legion's 3-boss mini-raid bridging Emerald Nightmare and Nighthold. Walk-along routes for Odyn, Guarm, and Helya in their strict-linear order, with verbatim travel notes covering the escalator-up approach to Odyn, the post-Odyn dialog teleport into Helheim, and the path through The Eternal Battlefield to Helya. Per-difficulty transmog tracking on all 27 armor drops. Boss-feat achievement callouts with soloability ratings — "Boneafide Tri Tip" (Guarm) and "Patient Zero" (Helya) are both trivially soloable; "You Runed Everything!" (Odyn) is rated soloable-with-caveats (RNG-heavy and benefits from a movement class or pet for object control). Includes Helya's solo tip for the intermission tentacle phase.
+- **Trial of Valor** is now fully supported — walk-along routes for Legion's 3-boss mini-raid bridging Emerald Nightmare and Nighthold. Per-difficulty transmog tracking, with achievement callouts and soloability ratings. Notable routing: the canonical post-Odyn dialog teleport into Helheim.
 
 ### Fixed
 
-- The "+" expansion toggles on the supported-raids list (in idle and run-complete states) now respond consistently to clicks. Previously, the UI's once-per-second refresh tick would rebuild the toggle buttons during user clicks, causing clicks that straddled a refresh to silently fail. Symptom: spam-clicking a "+" toggle would only expand the list intermittently. The refresh now skips the rebuild when nothing has changed, eliminating the race.
+- The "+" expansion toggles on the supported-raids list now respond consistently to clicks. Previously, spam-clicking a toggle would only expand the list intermittently due to a UI refresh race; the refresh now skips redundant rebuilds.
 
 ## [1.7.0] - 2026-05-10
 
 ### Added
 
-- **The Emerald Nightmare** is now fully supported — walk-along routes for all 7 bosses with hub-and-spoke routing through the central Core of the Nightmare. Bosses 2-5 (Ursoc, Dragons of Nightmare, Elerethe Renferal, Il'gynoth) can be killed in any order; Cenarius unlocks after all four of those wings are clear, and Xavius unlocks after Cenarius. The addon recognizes the parallel-middle structure and surfaces whichever wing you walk toward first. Includes per-boss solo tips where relevant, achievement callouts for the seven Glory of the Legion Raider boss criteria with soloability ratings (some are pet-class only, flagged accordingly), and account-wide skip detection on "The Emerald Nightmare: Piercing the Veil" — the post-Nythendra skip to Cenarius offered by Malfurion at the Nightmare Iris.
+- **The Emerald Nightmare** is now fully supported — walk-along routes for all 7 bosses, with achievement callouts and soloability ratings. Per-difficulty transmog tracking.
 - **Illusion: Nightmare tracking on Xavius.** The weapon-enchant illusion that drops from Xavius now appears in his encounter card with a collected/missing indicator pulled from your transmog collection — same treatment mounts, pets, and toys get on other bosses. Reflects whether you've personally collected the illusion (account-wide).
 - **Minimize button on the main panel.** A small `-` button just left of the close X collapses the panel down to its title bar — logo, RETRO RUNS text, and the close + minimize buttons. The body content (raid info, route note, supported-raids list) and the action-button row (Map, Tmog, Achieves, Skips, Settings) hide when minimized; click the `+` button to expand back. The panel's top edge stays put across the resize, so it grows downward from the title bar rather than shifting up. Minimized state persists across `/reload` — if you logged out minimized, the panel comes back up minimized next session.
 - **Flight to the Castle Nathria covenant weapon vendor.** When viewing the transmog details for a Castle Nathria boss that drops weapon tokens, a small flight-master button appears next to the "Redeem at..." vendor hint. Click it to drop a waypoint directly on the Mythic Nathrian Weaponsmith for your active covenant (Battlemaster Endios in Elysian Hold for Kyrian, Vorpalia in Sinfall for Venthyr, Sulanoom in Heart of the Forest for Night Fae, or Odious Gwor in Seat of the Primus for Necrolord). Uses the same waypoint cascade as the raid-entrance buttons — AzerothWaypoint, Zygor, Mapzeroth, TomTom, or the Blizzard map pin — picking the routing-capable one you have installed. Hover for a tooltip showing which vendor you're being sent to. The button doesn't appear if you haven't picked a covenant yet.
@@ -43,7 +53,7 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Battle of Dazar'alor** is now fully supported — walk-along routes for all 9 bosses with full faction-asymmetric handling. Alliance and Horde have different physical entrances, fight bosses 2 and 3 in opposite orders against different NPCs, and take meaningfully different paths through the same nine boss rooms. The addon detects your faction and serves the right route, encounter notes, achievement attribution, and entrance coordinate automatically. The panel also appends a small bracketed faction marker to the Raid: line — blue `[A]` for Alliance, red `[H]` for Horde — so it's obvious at a glance which side's route you're being shown. Includes the per-boss solo tips you'd expect, achievement callouts for the Glory of the Dazar'alor Raider meta and its nine boss criteria, special loot tracking for two mounts (Glacial Tidestorm from Jaina on Mythic, G.M.O.D. from Mekkatorque) and three Conclave-of-the-Chosen pets (Enchanted Talon of Pa'ku, Spawn of Krag'wa, Thundering Scale of Akunda), and account-wide skip detection on the "Mythic: Lady Jaina Proudmoore" achievement (which gates BfD's Mythic-only skip-to-Jaina at the entrance NPC) — informational only, the addon doesn't modify your encounter selection.
+- **Battle of Dazar'alor** is now fully supported — walk-along routes for all 9 bosses with full faction-asymmetric handling. Alliance and Horde have different entrances, different boss orders, and different paths through the same nine rooms; the addon detects your faction and serves the right route, with a small `[A]` or `[H]` faction marker in the panel. Per-difficulty transmog tracking, with achievement callouts and soloability ratings. Special loot: Jaina's Glacial Tidestorm mount and the Conclave-of-the-Chosen pets.
 - **AzerothWaypoint integration on the entrance buttons.** If you have AWP installed, clicking a raid entrance routes through AWP's planner, which gives you full step-by-step routing if you also have Zygor, Mapzeroth, or Farstrider installed alongside it. Without a backend, AWP behaves like a single TomTom waypoint. The footer pill bar now reads `[ AWP | Zygor | Mapzeroth ]` with each pill lit in its brand color when that addon is loaded and dimmed to gray otherwise.
 
 ### Changed
@@ -86,8 +96,8 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Crucible of Storms** is now fully supported — walk-along routes for both bosses (The Restless Cabal in the Shrine of Shadows, Uu'nat in the Tendril of Corruption), encounter notes, and per-boss feat achievement callouts. First raid to ship with a housing decor item in its loot table — Restless Cabal's Crucible Votive Rack appears in the Special Loot section with collection state, alongside the existing mount / pet / toy support.
-- **Uldir** is now fully supported — walk-along routes for all 8 bosses across the three wings (Halls of Containment, Crimson Descent, Heart of Corruption), encounter notes, and Glory of the Uldir Raider feat callouts. The parallel-three middle (Fetid Devourer / Vectis / Zek'voz can be killed in any order, all required to unlock Zul) routes geographically through the Ring of Containment hub. Brann Bronzebeard's and MOTHER's voicelines advance the travel pane through the Titan Console / kill-the-adds / proceed-to-MOTHER sequence so the on-screen instructions track the in-fight action without you needing to manually advance.
+- **Crucible of Storms** is now fully supported — walk-along routes for both bosses (The Restless Cabal in the Shrine of Shadows, Uu'nat in the Tendril of Corruption), with achievement callouts. Special loot: Restless Cabal's Crucible Votive Rack, the first housing decor item to ship in Special Loot.
+- **Uldir** is now fully supported — walk-along routes for all 8 bosses across the three wings, with achievement callouts and soloability ratings. Notable routing: Brann Bronzebeard's and MOTHER's voicelines advance the travel pane through the Titan Console sequence so on-screen instructions track in-fight action.
 
 ### Changed
 
@@ -101,7 +111,7 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **The Eternal Palace** is now fully supported — walk-along routes for all 8 bosses across the underwater Nazjatar palace (Dais of Eternity, Halls of the Chosen, Darkest Depths, The Traverse, The Hatchery, The Queen's Court, Precipice of Dreams, The Last Prison), encounter notes, and achievement callouts. Special loot tracking for the four Storm's Wake pets dropped by Behemoth (Mindlost Bloodfrenzy), Ashvane (Lightless Ambusher), Za'qul (Nameless Octopode), and Azshara (Zanj'ir Poker). The two Font of Power orb gates between Behemoth and Ashvane are detected via First Arcanist Thalyssra's voicelines, so the route advances correctly after each orb click instead of stalling at the orb's coords. The Traverse — Orgozoa's teleport-pad room — uses a numbered-waypoint rendering instead of polylines, since the pads jump you between landing spots and a connecting line would misrepresent the movement.
+- **The Eternal Palace** is now fully supported — walk-along routes for all 8 bosses across the underwater Nazjatar palace, with achievement callouts and soloability ratings. Notable routing: the two Font of Power orb gates between Behemoth and Ashvane detect First Arcanist Thalyssra's voicelines so the route advances correctly after each orb click; Orgozoa's teleport-pad room uses numbered-waypoint rendering instead of polylines. Special loot: four Storm's Wake pets.
 - **Panel opacity slider in Settings.** Drag the new "Panel Opacity" slider to dim the dark backdrop on every RetroRuns window — main panel, transmog browser, raid skips, and settings itself — anywhere from 100% (default, fully opaque) down to 20%. Text and icons stay fully readable; only the background tint changes. Useful if you want the panel less visually intrusive while you've got it parked over your raid frames or world map.
 
 ### Changed
@@ -118,7 +128,7 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Ny'alotha, the Waking City** is now fully supported — walk-along routes for all 12 bosses across the three mid-raid wings (Halls of Devotion, Gift of Flesh, The Waking Dream), encounter notes (with multi-phase callouts on Carapace of N'Zoth and N'Zoth the Corruptor), achievement callouts including the Glory of the Ny'alotha Raider meta, and special loot tracking for the Ny'alotha Allseer mount and all five raid pets (Muar, Aqir Hivespawn, Ra'kim, Void-Scarred Anubisath, Eye of Corruption). Account-wide MOTHER's Guidance skip detection works the same way as the Shadowlands raids — once any character on your account has unlocked the per-difficulty skip, the skip indicators appear for all your alts.
+- **Ny'alotha, the Waking City** is now fully supported — walk-along routes for all 12 bosses across the three mid-raid wings, with achievement callouts and soloability ratings (including multi-phase callouts on Carapace of N'Zoth and N'Zoth the Corruptor). Special loot: the Ny'alotha Allseer mount and all five raid pets.
 
 ### Changed
 
@@ -154,7 +164,7 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Amirdrassil, the Dream's Hope** is now fully supported — walk-along routes for all 9 bosses, encounter notes, achievement callouts, and Drakewatcher Manuscript tracking for Fyrakk's Highland Drake: Embodiment of the Blazing. The raid introduces two new routing patterns: branching priority routes (Volcoross and Council of Dreams can be cleared in either order after Igira) and POI markers (a map pin marks the fire portal on Fyrakk's platform).
+- **Amirdrassil, the Dream's Hope** is now fully supported — walk-along routes for all 9 bosses, with achievement callouts and soloability ratings. Notable routing: branching priority routes (Volcoross and Council of Dreams can be cleared in either order after Igira) and POI markers (a map pin marks the fire portal on Fyrakk's platform). Special loot: Drakewatcher Manuscript tracking for Fyrakk's Highland Drake: Embodiment of the Blazing.
 - **Tmog browser button on the main panel.** A dedicated "Tmog" button sits in the panel header and opens the transmog browser for the current raid at any time, regardless of whether you're actively in a boss encounter.
 - **Collapsible expansion sections in the supported-raids list.** Each expansion header on the idle panel now has a `[+]` / `[-]` toggle that expands or collapses the raids beneath it. All expansions start collapsed at login or reload, so the panel boots compact and you expand only what you want to see. Clicking the toggle resizes the panel automatically.
 - **Encounter notes disclaimer.** Hovering over the Boss Encounter section now surfaces a tooltip noting that encounter notes assume Mythic difficulty. Mechanics that no longer apply (or apply differently) on lower difficulties won't be flagged separately.
@@ -178,7 +188,7 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Aberrus, the Shadowed Crucible** is now fully supported — walk-along routes for all 9 bosses, encounter notes, achievement callouts, and Drakewatcher Manuscript tracking for Sarkareth's Highland Drake: Embodiment of the Hellforged.
+- **Aberrus, the Shadowed Crucible** is now fully supported — walk-along routes for all 9 bosses, with achievement callouts and soloability ratings. Special loot: Drakewatcher Manuscript tracking for Sarkareth's Highland Drake: Embodiment of the Hellforged.
 - **Sarkareth Void-Touched Curio note in the transmog browser.** A small footnote on Sarkareth's transmog view calls out that the omnitoken exists but isn't tracked by the addon (it exchanges for any tier slot of the player's choice, which doesn't fit the per-slot tracking model).
 
 ### Changed
@@ -214,7 +224,7 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Vault of the Incarnates** is now fully supported — walk-along routes for all 8 bosses, encounter notes, achievement callouts, and Iskaara Trader's Ottuk mount tracking.
+- **Vault of the Incarnates** is now fully supported — walk-along routes for all 8 bosses, with achievement callouts. Special loot: Iskaara Trader's Ottuk barter-mount tracking.
 - **Per-difficulty kill counts in the panel header.** New pill row `[ LFR | N | H | M ]` shows X/Y kill counts per difficulty. Your active difficulty renders in white, others in gray. Updates instantly on boss kill.
 - **Collapsible Boss Encounter section.** Encounter notes line now reads `Boss Encounter: Standard` for routine fights or `Boss Encounter: view special note` (clickable) for fights with custom guidance. One global toggle expands/collapses across all bosses, persisted across `/reload`.
 
@@ -264,7 +274,7 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Castle Nathria** (Shadowlands) raid support with weapon-token tracking and covenant-aware vendor hints.
+- **Castle Nathria** is now fully supported — Shadowlands' first raid with weapon-token tracking and covenant-aware vendor hints.
 - MIT License. RetroRuns is now formally licensed and free to use, modify, and redistribute under the MIT terms.
 
 ### Changed

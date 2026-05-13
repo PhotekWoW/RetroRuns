@@ -200,6 +200,18 @@ end
 -- is called again with the same value closes that gap. The guard resets
 -- when the activeStep changes (via ResetStrictAdvanceGuard, called from
 -- OnActiveStepChanged), so each new step gets a fresh single-advance budget.
+-- Predicate: is this segment a "gate" that must complete before later
+-- segs in the same step can become active? A gate is any seg with an
+-- `advanceOn` block -- by definition that's a segment whose completion
+-- is conditional on an external trigger (yell, kill, etc.), not on
+-- mapID transitions. Object-click pois (Hammer of Khaz'goroth,
+-- Tidestone of Golganneth, Tears of Elune) are the canonical case.
+-- Defined here at file scope so both AdvanceStrictActiveSeg (below)
+-- and SeedStrictActiveSeg (further below) can use it.
+local function IsGateSegment(seg)
+    return seg and seg.advanceOn ~= nil
+end
+
 local lastAdvancedMapID = nil
 local lastAdvancedStep  = nil
 
@@ -225,6 +237,22 @@ function RR:AdvanceStrictActiveSeg(currentMapID)
         return
     end
     local activeSeg = self:GetStrictActiveSeg(stepIndex)
+    -- Gate-respect: if the current activeSeg is an uncompleted gate (has
+    -- advanceOn, not yet marked complete in completedSegments), refuse
+    -- to advance. The gate's trigger (yell/kill/etc) is what completes
+    -- it, and once it's marked complete the yell-trigger handler also
+    -- bumps activeSeg via the same code path that completes it -- so
+    -- this check pairs with that to keep activeSeg locked on the gate
+    -- until the trigger fires. Same defensive logic as the seeder in
+    -- SeedStrictActiveSeg; without it the seeder's gate-respect is
+    -- undone by the very next heartbeat poll (player still on the
+    -- gate's mapID, segs[activeSeg+1] also matches, advance fires).
+    local activeSegObj = step.segments[activeSeg]
+    if IsGateSegment(activeSegObj)
+        and not self:IsSegmentCompleted(stepIndex, activeSeg)
+    then
+        return
+    end
     local nextSeg = step.segments[activeSeg + 1]
     if nextSeg and nextSeg.mapID == currentMapID then
         self:SetStrictActiveSeg(stepIndex, activeSeg + 1)
@@ -239,7 +267,8 @@ end
 
 -- Called when a step becomes active (post-boss-kill advancement, /reload
 -- restoration, fresh login). Seeds the activeSeg to the highest seg index
--- whose mapID matches the player's current mapID, or 1 if no seg matches.
+-- whose mapID matches the player's current mapID, capped at the first
+-- uncompleted gate seg if one exists earlier in the list.
 --
 -- Resets unconditionally: a step transition is a clean slate. The hook
 -- this gets called from (Navigation.lua's OnActiveStepChanged) only fires
@@ -251,6 +280,18 @@ end
 -- defined order one boss at a time) need this reset so the second
 -- sibling's activeSeg doesn't inherit the first sibling's terminal
 -- value.
+--
+-- Gate-respect: if a seg with `advanceOn` exists earlier in the segment
+-- list and is NOT yet marked complete in completedSegments, the seed
+-- caps at that seg's index. This prevents the seeder from jumping past
+-- gating pois that share a mapID with later path segs -- the case that
+-- drove the v1.9 Tomb of Sargeras fix (Hammer of Khaz'goroth click sits
+-- on the same mapID 850 as the path leading away from it, and the
+-- pre-fix seeder picked the path seg over the Hammer seg). Once the
+-- gate is marked complete (via the yell-trigger handler in
+-- Navigation.lua), subsequent re-seeds (e.g. after /reload mid-step)
+-- walk past it normally and pick the highest matching same-mapID seg
+-- as before.
 --
 -- Monotonic-advance protection still applies to AdvanceStrictActiveSeg,
 -- which fires on player mapID transitions WITHIN a step -- that's the
@@ -264,18 +305,41 @@ function RR:SeedStrictActiveSeg(step)
     if stepIndex == 0 then return end
     local playerMapID = C_Map and C_Map.GetBestMapForUnit
         and C_Map.GetBestMapForUnit("player")
-    local highestMatch = 0
-    if playerMapID then
-        for i, seg in ipairs(step.segments) do
-            if seg.mapID == playerMapID then highestMatch = i end
+
+    -- First pass: find the lowest-index uncompleted gate seg (if any).
+    -- That's the ceiling: the seed must not exceed it, because the
+    -- gate's advanceOn trigger has to fire before later segs can
+    -- legitimately become active.
+    local gateCeiling = nil
+    for i, seg in ipairs(step.segments) do
+        if IsGateSegment(seg) and not self:IsSegmentCompleted(stepIndex, i) then
+            gateCeiling = i
+            break
         end
     end
-    local seed = (highestMatch > 0) and highestMatch or 1
+
+    -- Second pass: highest matching mapID up to the ceiling (or end of
+    -- segments if no ceiling -- the original behaviour). Fallback when
+    -- no mapID match: the gate ceiling itself, or seg 1.
+    local highestMatch = 0
+    if playerMapID then
+        local upper = gateCeiling or #step.segments
+        for i = 1, upper do
+            if step.segments[i].mapID == playerMapID then
+                highestMatch = i
+            end
+        end
+    end
+    local seed = (highestMatch > 0) and highestMatch
+        or (gateCeiling or 1)
+
     local current = self:GetStrictActiveSeg(stepIndex)
     self:SetStrictActiveSeg(stepIndex, seed)
     if self.ZoneLog then
-        self:ZoneLog(("strict activeSeg seed: step %d %d -> %d (playerMapID=%s)")
-            :format(stepIndex, current, seed, tostring(playerMapID or "nil")))
+        self:ZoneLog(("strict activeSeg seed: step %d %d -> %d (playerMapID=%s gateCeiling=%s)")
+            :format(stepIndex, current, seed,
+                    tostring(playerMapID or "nil"),
+                    tostring(gateCeiling or "none")))
     end
 end
 

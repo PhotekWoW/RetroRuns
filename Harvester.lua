@@ -147,6 +147,11 @@ local TIER_INVSLOTS = {
     { id = INVSLOT_CHEST,    slot = "Chest"    },
     { id = INVSLOT_HAND,     slot = "Hands"    },
     { id = INVSLOT_LEGS,     slot = "Legs"     },
+    -- 6-piece tier (Legion T20 Tomb of Sargeras and the classic T6
+    -- Black Temple set) adds Back as a 6th slot. Other 5-piece tier
+    -- raids return no Back source from C_TransmogSets.GetSourcesForSlot
+    -- so probing the extra slot is a no-op for them.
+    { id = INVSLOT_BACK,     slot = "Back"     },
 }
 
 -- Tier-group prefix -> set of class IDs that wear that group's tier.

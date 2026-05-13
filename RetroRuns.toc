@@ -2,7 +2,7 @@
 ## Title: RetroRuns
 ## Notes: Solo legacy raid navigator — routing, tips, and achievement tracking
 ## Author: Photek
-## Version: 1.8.0
+## Version: 1.9.0
 ## X-License: MIT
 ## SavedVariables: RetroRunsDB, RetroRunsDebug
 ## IconTexture: Interface\AddOns\RetroRuns\Media\MinimapIcon
@@ -24,6 +24,7 @@ Data\AmirdrassilTheDreamsHope.lua
 Data\EmeraldNightmare.lua
 Data\TrialOfValor.lua
 Data\Nighthold.lua
+Data\TombOfSargeras.lua
 
 # ── Core ──────────────────────────────────────────────────────────────────────
 Core.lua

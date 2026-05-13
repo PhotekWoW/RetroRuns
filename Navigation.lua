@@ -41,6 +41,63 @@ function RR:ResolveBoss(name)
     return self:GetBossByName(name) or self:GetBossByNormalizedName(name)
 end
 
+-- Locale-independent boss lookup by dungeonEncounterID. ENCOUNTER_END's
+-- first event arg (encounterID) is the same numeric ID space as
+-- IsEncounterComplete's dungeonEncounterID. Our data stores bosses by
+-- journalEncounterID (a different, also-numeric ID space), so we bridge
+-- via Core.lua's cached journalEncounterID -> dungeonEncounterID map.
+--
+-- Returns nil if no current raid, the EJ map isn't available yet (rare
+-- transient case during raid load), or this encounterID doesn't belong
+-- to any boss in our data. Callers should fall back to name-based
+-- resolution when this returns nil, so older raid data without proper
+-- journalEncounterID coverage still works.
+function RR:GetBossByEncounterID(encounterID)
+    if not self.currentRaid or not encounterID then return nil end
+    local journalInstanceID = self.currentRaid.journalInstanceID
+    if not journalInstanceID then return nil end
+
+    local jeToDe = self:GetEJMapForJournalInstance(journalInstanceID)
+    if not jeToDe then return nil end
+
+    -- Walk our bosses, find the one whose journalEncounterID maps to
+    -- the dungeonEncounterID the game just gave us. Linear scan; raids
+    -- are 8-12 bosses so this is trivial.
+    for _, boss in ipairs(self.currentRaid.bosses) do
+        if boss.journalEncounterID and jeToDe[boss.journalEncounterID] == encounterID then
+            return boss
+        end
+    end
+    return nil
+end
+
+-- Thin wrapper for ENCOUNTER_END's preferred locale-independent path.
+-- Returns true if the encounterID resolved to a boss and the kill was
+-- marked, false otherwise. The caller is expected to fall back to the
+-- name-based path on false so we don't regress raids whose data
+-- predates the journalEncounterID-coverage requirement.
+function RR:MarkBossKilledByEncounterID(encounterID)
+    if not self.currentRaid or not encounterID then return false end
+    local boss = self:GetBossByEncounterID(encounterID)
+    if boss then
+        if self.ZoneLog then
+            self:ZoneLog((
+                "MarkBossKilledByEncounterID: resolved encounterID %d -> bossIndex %d (%s)"
+            ):format(encounterID, boss.index, boss.name))
+        end
+        self:MarkBossKilled(boss)
+        self:ComputeNextStep()
+        return true
+    else
+        if self.ZoneLog then
+            self:ZoneLog((
+                "MarkBossKilledByEncounterID: NO MATCH for encounterID=%d (will try name fallback)"
+            ):format(encounterID))
+        end
+        return false
+    end
+end
+
 -------------------------------------------------------------------------------
 -- Kill state
 -------------------------------------------------------------------------------
@@ -918,6 +975,27 @@ local function YellTriggerHandler(_, event, ...)
                         RR:ZoneLog(("YellTrigger: matched seg %d (npc=%q match=%q); marking seg %d complete")
                             :format(segIndex, trig.npc, trig.match, toMark))
                         RR:MarkSegmentCompleted(stepIndex, toMark)
+
+                        -- Strict-picker only: bump activeSeg past the
+                        -- just-completed seg if it's currently parked
+                        -- there. The default picker computes the
+                        -- "current" seg from completedSegments on each
+                        -- render so it advances automatically; the
+                        -- strict picker holds activeSeg in state and
+                        -- only the seeder / AdvanceStrictActiveSeg /
+                        -- explicit bumps modify it. Without this,
+                        -- self-completing gate segs (Hammer, Tidestone,
+                        -- Tears) would stay rendered as the current
+                        -- directive even after being clicked.
+                        if RR.UsesStrictActiveSegPicker and RR:UsesStrictActiveSegPicker() then
+                            local cur = RR:GetStrictActiveSeg(stepIndex)
+                            if cur == toMark and step.segments[toMark + 1] then
+                                RR:SetStrictActiveSeg(stepIndex, toMark + 1)
+                                RR:ZoneLog(("YellTrigger: bumped strict activeSeg %d -> %d"):format(
+                                    cur, toMark + 1))
+                            end
+                        end
+
                         RR.UI.Update()
                         if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
                     end
