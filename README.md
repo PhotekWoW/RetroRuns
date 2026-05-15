@@ -11,6 +11,7 @@ Currently supports:
 * Trial of Valor (7.1)
 * The Nighthold (7.1.5)
 * Tomb of Sargeras (7.2)
+* Antorus, the Burning Throne (7.3)
 
 **Battle for Azeroth**
 * Uldir (8.0)
