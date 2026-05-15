@@ -56,42 +56,26 @@ RetroRuns_Data[1676] = {
 
     -- mapID -> world-map dropdown label.
     --
-    -- The world-map dropdown surfaces 7 named sub-zones (per the
-    -- Step 4 screenshot): Chamber of the Moon, The Abyssal Throne,
-    -- Terrace of the Moon, The Guardian's Sanctum, Chamber of the
-    -- Avatar, Felstorm's Breach, The Twisting Nether. ATT's `maps`
-    -- field for inst(875) lists 8 mapIDs: {645, 850, 851, 852, 853,
-    -- 854, 855, 856}.
+    -- The world-map dropdown surfaces 7 named sub-zones: Chamber of
+    -- the Moon, The Abyssal Throne, Terrace of the Moon, The
+    -- Guardian's Sanctum, Chamber of the Avatar, Felstorm's Breach,
+    -- The Twisting Nether. ATT's `maps` field for inst(875) lists 8
+    -- mapIDs: {645, 850, 851, 852, 853, 854, 855, 856}.
     --
     -- Note on mapID 850: GetMapInfo() reports its engine name as
     -- "Tomb of Sargeras" (the raid's own name), but the dropdown
     -- label that highlights when standing on this mapID is "Chamber
-    -- of the Moon" (confirmed via Step 4 screenshot at the
-    -- entrance position). Engine map names and dropdown labels are
-    -- two different layers; raid.maps holds dropdown labels because
+    -- of the Moon". Engine map names and dropdown labels are two
+    -- different layers; raid.maps holds dropdown labels because
     -- that's what HighlightNames pattern-matches against in soloTip
     -- text. Goroth, Demonic Inquisition, and Harjatan are all on
-    -- mapID 850, with finer-grained recorder-reported subZones
-    -- "The Breach", "Chamber of the Moon", and "Conclave of
-    -- Torment" respectively.
+    -- mapID 850, with finer-grained sub-zones "The Breach", "Chamber
+    -- of the Moon", and "Conclave of Torment" respectively.
     --
-    -- Recorder ground-truth pairings established during the Step 6
-    -- pass via ENCOUNTER_END auto-stamps and subZone strings:
-    --   850 -> "Chamber of the Moon"     (Step 4 dropdown at entrance)
-    --   851 -> "The Abyssal Throne"      (Sassz'ine kill auto-stamp)
-    --   852 -> "Terrace of the Moon"     (Sisters kill auto-stamp)
-    --   853 -> "The Guardian's Sanctum"  (Maiden room subZone)
-    --   854 -> "Chamber of the Avatar"   (Fallen Avatar arena)
-    --   855 -> "Felstorm's Breach"      (recorder-confirmed at QA:
-    --                                     this is the mapID where
-    --                                     Fallen Avatar dies and the
-    --                                     FA->KJ slime corridor lives.
-    --                                     Recorder reports finer-
-    --                                     grained subZone "Chamber of
-    --                                     the Avatar" for the corridor;
-    --                                     dropdown surfaces parent
-    --                                     label "Felstorm's Breach".)
-    --   856 -> "The Twisting Nether"     (Kil'jaeden platform)
+    -- mapID 855 hosts the FA->KJ slime corridor. Its dropdown
+    -- parent is "Felstorm's Breach" but the corridor itself reports
+    -- the finer-grained sub-zone "Chamber of the Avatar" (shared
+    -- with mapID 854, the prior Fallen Avatar arena).
     maps = {
         [850] = "Chamber of the Moon",
         [851] = "The Abyssal Throne",
@@ -108,12 +92,25 @@ RetroRuns_Data[1676] = {
     },
 
     -- Raid skip quest: "Tomb of Sargeras: Aegwynn's Path" (one quest
-    -- per difficulty). The teleporter unlock and its boss-skip scope
-    -- pending Step 6 recorder walk; quest-flag IDs verified.
+    -- per difficulty). Completing the quest unlocks an in-raid
+    -- teleporter that bypasses the entry-wing bosses.
     skipQuests = {
         normal = 47725,
         heroic = 47726,
         mythic = 47727,
+    },
+
+    -- Glory meta-achievement for this raid. Completing all 9 per-boss
+    -- achievements below awards the Micronax Controller battle pet
+    -- and the "the Tomb Raider" character title.
+    gloryMeta = {
+        id   = 11763,
+        name = "Glory of the Tomb Raider",
+        rewardItemID       = 101426,
+        rewardMountSpellID = 249870,
+        rewardName         = "Micronax Controller",
+        rewardKind         = "pet",
+        rewardTitle        = "the Tomb Raider",
     },
 
     bosses = {
@@ -129,9 +126,8 @@ RetroRuns_Data[1676] = {
                 -- Cloak of Stifling Brimstone is a binary single-source
                 -- item -- one fixed appearance across all four difficulties.
                 -- Same pattern as Crucible of Storms' Trident of Deep Ocean
-                -- (a Legion-era Relic of Power); the harvester flagged it
-                -- as COLLAPSED, ATT cross-reference confirms the single
-                -- sourceID is correct.
+                -- (a Legion-era Relic of Power). ATT cross-reference confirms
+                -- the single sourceID is correct.
                 { id = 146984, slot = "Back",     name = "Cloak of Stifling Brimstone",     sources = { [17]=86903, [14]=86903, [15]=86903, [16]=86903 } },
                 { id = 147027, slot = "Chest",    name = "Spirebreaker Harness",            sources = { [17]=86599, [14]=86600, [15]=86601, [16]=86602 } },
                 { id = 146986, slot = "Feet",     name = "Emberscatter Treads",             sources = { [17]=86739, [14]=86740, [15]=86741, [16]=86742 } },
@@ -300,10 +296,9 @@ RetroRuns_Data[1676] = {
             loot = {
                 -- Tier 20 Chest (one per class). NOTE: third-party
                 -- sources (Wowpedia / Icy Veins / worldofmoudi) attribute
-                -- chest tier to Kil'jaeden, but in-game harvest of
-                -- C_TransmogSets data shows the chest pieces are
-                -- dropped by Maiden of Vigilance. Trust the live game
-                -- data over the third-party guides.
+                -- the chest tier to Kil'jaeden, but in-game data shows
+                -- the chest pieces drop from Maiden of Vigilance. Trust
+                -- the live game data over the third-party guides.
                 { id = 147149, slot = "Chest",    name = "Robes of the Arcane Tempest",     sources = { [17]=86215, [14]=86216, [15]=86217, [16]=86218 }, classes = { 8 } },
                 { id = 147127, slot = "Chest",    name = "Demonbane Harness",               sources = { [17]=86129, [14]=86130, [15]=86131, [16]=86132 }, classes = { 12 } },
                 { id = 147185, slot = "Chest",    name = "Diabolic Robe",                   sources = { [17]=86359, [14]=86360, [15]=86361, [16]=86362 }, classes = { 9 } },
@@ -321,6 +316,12 @@ RetroRuns_Data[1676] = {
                 { id = 147050, slot = "Head",     name = "Crown of Discarded Hope",         sources = { [17]=86559, [14]=86560, [15]=86561, [16]=86562 } },
                 { id = 146993, slot = "Legs",     name = "Leggings of Divine Portents",     sources = { [17]=86583, [14]=86584, [15]=86585, [16]=86586 } },
                 { id = 146999, slot = "Waist",    name = "Strife-Riddled Cinch",            sources = { [17]=86759, [14]=86760, [15]=86761, [16]=86762 } },
+                -- Hammer of Vigilance: 1H mace cosmetic. Drops on all
+                -- 4 difficulties from Maiden but is not exposed by the
+                -- Encounter Journal. One sourceID across all four
+                -- difficulties (binary shape). Found via GetSourceInfo
+                -- brute-force scan.
+                { id = 151524, slot = "Weapon",   name = "Hammer of Vigilance",             sources = { [17]=89458, [14]=89458, [15]=89458, [16]=89458 } },
             },
         },
         {
@@ -379,10 +380,9 @@ RetroRuns_Data[1676] = {
 
     routing = {
         -- 1. Goroth
-        -- Single segment on mapID 850 (recorder reports sub-zone
-        -- "The Breach", a finer-grained label than any of the 7
-        -- world-map dropdown entries). Straight-line approach from
-        -- the entrance portal.
+        -- Single segment on mapID 850 (sub-zone "The Breach", a
+        -- finer-grained label than any of the 7 world-map dropdown
+        -- entries). Straight-line approach from the entrance portal.
         {
             step      = 1,
             priority  = 1,
@@ -404,11 +404,11 @@ RetroRuns_Data[1676] = {
         },
 
         -- 2. Demonic Inquisition
-        -- Single segment on mapID 850 (same parent area as Goroth, but
-        -- recorder reports sub-zone "Chamber of the Moon" here vs
-        -- "The Breach" for the Goroth approach -- mapID 850 spans
-        -- multiple finer-grained sub-areas in the Gates of Hell wing).
-        -- Path heads forward past trash NPCs and up the stairs.
+        -- Single segment on mapID 850 (same parent map as Goroth, but
+        -- here the sub-zone is "Chamber of the Moon" vs "The Breach"
+        -- for the Goroth approach -- mapID 850 spans multiple
+        -- finer-grained sub-areas in the Gates of Hell wing). Path
+        -- heads forward past trash NPCs and up the stairs.
         {
             step      = 2,
             priority  = 2,
@@ -508,7 +508,7 @@ RetroRuns_Data[1676] = {
         -- extended into the abyssal area), with Sisters of the Moon
         -- and Desolate Host reached separately through a different
         -- wing (Wailing Halls). Boss data preserves EJ display order
-        -- so the Boss Progress checklist matches the in-game journal;
+        -- so the Boss Progress panel matches the in-game journal;
         -- routing uses walk order.
         {
             step      = 4,
@@ -616,13 +616,12 @@ RetroRuns_Data[1676] = {
         },
 
         -- 6. The Desolate Host. Single segment on mapID 852
-        -- (sub-zone "Terrace of the Moon", which the auto-stamp log
-        -- confirms is the canonical dropdown label for this mapID).
-        -- Path winds east then descends northwest to the Desolate
-        -- Host arena. The hazard warning for purple-circle stun
-        -- traps was moved upstream to Sisters of the Moon seg 3 so
-        -- players read it before entering the affected areas
-        -- rather than at the corridor's last segment.
+        -- (sub-zone "Terrace of the Moon", the dropdown label for
+        -- this mapID). Path winds east then descends northwest to
+        -- the Desolate Host arena. The hazard warning for purple-
+        -- circle stun traps was moved upstream to Sisters of the
+        -- Moon seg 3 so players read it before entering the
+        -- affected areas rather than at the corridor's last segment.
         {
             step      = 6,
             priority  = 6,
@@ -671,9 +670,7 @@ RetroRuns_Data[1676] = {
         --          from the respawn position forward to a stairwell
         --          behind a group of NPCs.
         --   seg 4: path on mapID 853 (sub-zone "The Guardian's
-        --          Sanctum" -- the third confirmed dropdown label
-        --          mapping from the recorder pass). Cross the room
-        --          to engage Maiden.
+        --          Sanctum"). Cross the room to engage Maiden.
         {
             step      = 7,
             priority  = 7,
@@ -733,15 +730,13 @@ RetroRuns_Data[1676] = {
         -- 8. Fallen Avatar. Two segments:
         --   seg 1: teleport -- click the Teleportation Pad in Maiden's
         --          room (mapID 853 / The Guardian's Sanctum). Carries
-        --          the player to mapID 854. Matches the Amirdrassil
-        --          teleport precedent (kind="teleport", destination
-        --          field set); advance is implicit when the player's
-        --          mapID changes to the next segment's mapID.
-        --   seg 2: path on mapID 854 -- the 4th dropdown label
-        --          confirmed by the recorder, "Chamber of the Avatar".
-        --          Forward across the room, killing trash to open the
-        --          door, then a dialog plays before the encounter is
-        --          engageable.
+        --          the player to mapID 854. kind="teleport" with
+        --          destination field set; advance is implicit when
+        --          the player's mapID changes to the next segment's.
+        --   seg 2: path on mapID 854 (sub-zone "Chamber of the
+        --          Avatar"). Forward across the room, killing trash
+        --          to open the door, then a dialog plays before the
+        --          encounter is engageable.
         {
             step      = 8,
             priority  = 8,
@@ -773,15 +768,15 @@ RetroRuns_Data[1676] = {
         },
 
         -- 9. Kil'jaeden. Two segments:
-        --   seg 1: path on mapID 855 (sub-zone "Chamber of the Avatar"
-        --          -- a transit corridor that shares the dropdown
-        --          label of mapID 854, the prior Fallen Avatar arena).
-        --          Cross slime to a map exit portal labeled "The
-        --          Twisting Nether" and step through.
-        --   seg 2: path on mapID 856 (sub-zone "The Twisting Nether",
-        --          confirmed dropdown label). Long traverse from west
-        --          (x=0.158) to east (x=0.700) killing trash all the
-        --          way to Kil'jaeden's encounter platform.
+        --   seg 1: path on mapID 855 (sub-zone "Chamber of the
+        --          Avatar" -- a transit corridor that shares the
+        --          dropdown label of mapID 854, the prior Fallen
+        --          Avatar arena). Cross slime to a map exit portal
+        --          labeled "The Twisting Nether" and step through.
+        --   seg 2: path on mapID 856 (sub-zone "The Twisting
+        --          Nether"). Long traverse from west to east,
+        --          killing trash all the way to Kil'jaeden's
+        --          encounter platform.
         {
             step      = 9,
             priority  = 9,

@@ -51,7 +51,7 @@ RetroRuns_DataHorde[2070] = {
         [1354] = "Loa's Sanctum",          -- shared with Alliance file
         [1356] = "Walk of Kings",          -- shared with Alliance file
         [1357] = "The Heart of the Empire", -- shared with Alliance file
-        [1358] = "The Zocalo",             -- Horde-only; recorder verified
+        [1358] = "The Zocalo",             -- Horde-only
     },
 
     tierSets = {
@@ -60,8 +60,7 @@ RetroRuns_DataHorde[2070] = {
     },
 
     -- Faction-shared with Alliance: account-wide achievement-gated
-    -- Mythic-only skip via Otoye (Horde NPC). See Alliance file for
-    -- the full architectural rationale.
+    -- Mythic-only skip via Otoye (Horde NPC).
     skipAchievement = {
         mythic = 13314,
     },
@@ -400,16 +399,10 @@ RetroRuns_DataHorde[2070] = {
         --
         -- The "jump in the hole" transition from seg 3 (mapID 1352) to
         -- seg 4 (mapID 1353) physically passes through 1357's airspace
-        -- (The Heart of the Empire), AND the player can deliberately
-        -- retrace back through the 1357 tunnel after reaching 1352.
-        -- Both cases are handled cleanly by the strict-activeSeg picker's
-        -- strict-activeSeg model: notes only advance when the player
-        -- arrives on the next-expected seg's mapID, and never retreat.
-        -- Mid-flight transit through 1357's airspace doesn't match seg
-        -- 4's expected mapID 1353, so the picker holds on seg 3.
-        -- Retrace back to 1357 doesn't match seg N+1's mapID either,
-        -- so the picker holds on whatever activeSeg currently points
-        -- at. See Data/StrictPicker.lua for the model.
+        -- (The Heart of the Empire), and the player can also retrace
+        -- back through the 1357 tunnel after reaching 1352. The
+        -- segments are mapID-tagged so the displayed instruction
+        -- stays correct in both cases.
         {
             step      = 4,
             priority  = 1,
@@ -562,12 +555,6 @@ RetroRuns_DataHorde[2070] = {
         -- (875), then Boralus Harbor (1367), then back to 1352 for
         -- final approach -- four segments. Horde skips the BoK and
         -- Boralus Harbor segments entirely.
-        --
-        -- The flight may transit through other mapIDs mid-route, but
-        -- the strict-activeSeg picker handles that
-        -- naturally: notes only advance when the player arrives on
-        -- the next-expected seg's mapID. Mid-flight transit-mapIDs
-        -- that don't match seg N+1 are ignored. See Data/StrictPicker.lua.
         {
             step      = 7,
             priority  = 1,

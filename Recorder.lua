@@ -105,6 +105,19 @@ RR.recorder = {
 -- dropped FIFO-style when the cap is exceeded.
 local MAX_SESSION_LOG_ENTRIES = 2000
 
+-- Persistence key for the per-character session-log bucket. The session
+-- log is scoped per character so a debug session on one alt doesn't
+-- pollute the diagnostic view on another. Realm is included to keep
+-- distinct same-named characters on different realms separate.
+--
+-- Exposed on the RR namespace so Core.lua's load-time restore can
+-- read the same key shape that LogSession writes with.
+function RR:GetCharacterKey()
+    local name  = UnitName and UnitName("player") or "unknown"
+    local realm = GetRealmName and GetRealmName() or ""
+    return realm ~= "" and (name .. "-" .. realm) or name
+end
+
 -- Append a timestamped entry to the session log AND persist to
 -- RetroRunsDB so /reload doesn't lose context. Caps the log at
 -- MAX_SESSION_LOG_ENTRIES, dropping oldest entries first.
@@ -133,11 +146,13 @@ local function LogSession(rec, kind, fields)
     while #rec.sessionLog > MAX_SESSION_LOG_ENTRIES do
         table.remove(rec.sessionLog, 1)
     end
-    -- Write-through to RetroRunsDB. Lazy-init the table since we may
-    -- log before the addon-load init runs. Pointer-shared with the
-    -- recorder's in-memory copy is fine -- they're the same table.
+    -- Write-through to RetroRunsDB, scoped per character so different
+    -- alts maintain independent diagnostic logs. The in-memory
+    -- rec.sessionLog stays a flat array; only the persistence shape is
+    -- keyed by character.
     if RetroRunsDB then
-        RetroRunsDB.recorderSessionLog = rec.sessionLog
+        RetroRunsDB.recorderSessionLog = RetroRunsDB.recorderSessionLog or {}
+        RetroRunsDB.recorderSessionLog[RR:GetCharacterKey()] = rec.sessionLog
     end
 end
 
@@ -881,7 +896,8 @@ function RR:ResetRecording()
     rec.pendingEvent = nil
     rec.controlLostMapID = nil
     if RetroRunsDB then
-        RetroRunsDB.recorderSessionLog = rec.sessionLog
+        RetroRunsDB.recorderSessionLog = RetroRunsDB.recorderSessionLog or {}
+        RetroRunsDB.recorderSessionLog[RR:GetCharacterKey()] = rec.sessionLog
         RetroRunsDB.recorderPendingEvent = nil
     end
     self:Print("Recorder reset (session log cleared).")

@@ -88,6 +88,19 @@ RetroRuns_Data[1520] = {
         mythic = 44285,
     },
 
+    -- Glory meta-achievement covering both Emerald Nightmare and The
+    -- Nighthold. Completing the listed per-boss achievements across
+    -- both raids awards the Grove Defiler mount. The same gloryMeta
+    -- block appears in Nighthold.lua so the entry surfaces in either
+    -- raid's achievements pane with shared progress.
+    gloryMeta = {
+        id   = 11180,
+        name = "Glory of the Legion Raider",
+        rewardItemID       = 141216,
+        rewardMountSpellID = 193007,
+        rewardName         = "Grove Defiler",
+    },
+
     -- Dragons of Nightmare is a multi-NPC encounter -- four dragons
     -- (Ysondre, Lethon, Taerar, Emeriss) are alive simultaneously,
     -- modeled as a single encounter (journalEncounterID 1704) covering
@@ -240,6 +253,23 @@ RetroRuns_Data[1520] = {
                 { id = 139189, slot = "Head",     name = "Hood of Darkened Visions",       sources = { [17]=81157, [14]=80490, [15]=81155, [16]=81156 } },
                 { id = 139216, slot = "Legs",     name = "Disjointed Linkage Leggings",    sources = { [17]=81230, [14]=80517, [15]=81228, [16]=81229 } },
                 { id = 139203, slot = "Legs",     name = "Repulsive Leathery Pants",       sources = { [17]=81181, [14]=80504, [15]=81179, [16]=81180 } },
+                -- The First Satyr's Spaulders: leather shoulders, drops on
+                -- Heroic and Mythic only (per EJ inspection -- not on LFR
+                -- or Normal). C_TransmogCollection.GetItemInfo(itemID)
+                -- returns nil for this item, and the EJ's
+                -- GetLootInfoByIndex returns the row with a nil link.
+                -- Sources 93947 and 93948 both exist for this item (found
+                -- via GetSourceInfo brute-force scan); both grant the
+                -- same appearance (visualID 31252).
+                --
+                -- Encoded as binary shape (one sourceID cloned across all
+                -- four buckets) so the renderer treats it like the
+                -- legendary pattern -- a single bracketed indicator rather
+                -- than a 4-dot strip. The H/M-only drop limitation isn't
+                -- visually represented in the data shape; the appearance-
+                -- collection check via GetAllAppearanceSources resolves
+                -- correctly regardless of which bucket we read.
+                { id = 141006, slot = "Shoulder", name = "The First Satyr's Spaulders",    sources = { [17]=93947, [14]=93947, [15]=93947, [16]=93947 } },
                 { id = 139232, slot = "Shoulder", name = "Midnight Herald's Pauldrons",    sources = { [17]=81281, [14]=80532, [15]=81279, [16]=81280 } },
                 { id = 139228, slot = "Waist",    name = "Eon-Tempered Waistplate",        sources = { [17]=81266, [14]=80528, [15]=81264, [16]=81265 } },
                 { id = 139222, slot = "Wrist",    name = "Manacles of the Nightmare Colossus", sources = { [17]=81257, [14]=80523, [15]=81255, [16]=81256 } },

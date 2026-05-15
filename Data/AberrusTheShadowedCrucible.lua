@@ -357,7 +357,20 @@ RetroRuns_Data[2569] = {
                 },
             },
             loot = {
-                { id=204465, slot="Back",     name="Voice of the Silent Star",         sources={ [17]=186700, [14]=186698, [15]=186699, [16]=185606 } },
+                -- Voice of the Silent Star: 3-unique partial shape.
+                -- Per EJ probe at all 4 difficulties:
+                --   LFR    -> 186700  (unique)
+                --   Normal -> 186698  (unique)
+                --   Heroic -> 186699  (shared with Mythic)
+                --   Mythic -> 186699  (shared with Heroic)
+                -- The shared H/M sourceID is intentional, not a data
+                -- error -- the EJ canonicalizes Heroic and Mythic on
+                -- the same source. This trips tmogverify's "partial
+                -- source duplication" WRN (3 unique / 4 buckets) but
+                -- is the correct encoding. Previously shipped with
+                -- Mythic=185606 (a sibling source); EJ moved
+                -- canonical to 186699 between earlier audit and now.
+                { id=204465, slot="Back",     name="Voice of the Silent Star",         sources={ [17]=186700, [14]=186698, [15]=186699, [16]=186699 } },
                 { id=202599, slot="Chest",    name="Sarkareth's Abyssal Embrace",      sources={ [17]=186685, [14]=184572, [15]=186683, [16]=186684 } },
                 { id=204424, slot="Feet",     name="Crechebound Soldier's Boots",      sources={ [17]=186558, [14]=185582, [15]=186556, [16]=186557 } },
                 { id=202587, slot="Hands",    name="Oathbreaker's Obsessive Gauntlets", sources={ [17]=186628, [14]=184560, [15]=186626, [16]=186627 } },

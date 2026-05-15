@@ -294,7 +294,13 @@ RetroRuns_Data[2450] = {
                 -- source cloned across all difficulty buckets) so the
                 -- UI renders them as a single-state `[ check ]` pair
                 -- matching the Wardrobe's representation.
-                { id = 186414, slot = "Ranged", name = "Rae'shalare, Death's Whisper", sources = { [17]=145986, [14]=145986, [15]=145986, [16]=145986 } },
+                --
+                -- Rae'shalare specifically has two sibling sourceIDs that
+                -- both grant the same appearance: 145985 and 145986. The
+                -- EJ canonicalizes on 145985, so that's the sourceID
+                -- used here. Collection detection works either way
+                -- (GetAllAppearanceSources walks both siblings).
+                { id = 186414, slot = "Ranged", name = "Rae'shalare, Death's Whisper", sources = { [17]=145985, [14]=145985, [15]=145985, [16]=145985 } },
                 { id = 186342, slot = "Shoulder", name = "Epaulets of the Master Ranger", sources = { [17]=145813, [14]=145812, [15]=145814, [16]=145815 } },
                 { id = 186349, slot = "Shoulder", name = "Spires of Broken Hope", sources = { [17]=145841, [14]=145840, [15]=145842, [16]=145843 } },
                 { id = 186332, slot = "Waist", name = "Windrunner's Baldric", sources = { [17]=145773, [14]=145772, [15]=145774, [16]=145775 } },

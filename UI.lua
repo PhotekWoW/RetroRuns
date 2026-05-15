@@ -276,67 +276,92 @@ panel.progress  = AddField(panel.pills,    "TOPLEFT", "BOTTOMLEFT", -6,  BODY_WI
 panel.next      = AddField(panel.progress, "TOPLEFT", "BOTTOMLEFT", -8,  BODY_WIDTH, "GameFontNormal")
 panel.travel    = AddField(panel.next,     "TOPLEFT", "BOTTOMLEFT", -12, BODY_WIDTH)
 
--- Boss Encounter section. Was a plain FontString; converted 2026-04-25
--- to a Button so the section can be clicked to expand/collapse the
--- soloTip and Achievements content. Default state is collapsed for
--- bosses with custom notes (player clicks to view); for bosses with
--- no custom note ("Standard Nuke" or empty), the line reads "Standard"
--- and isn't clickable. Single global expand/collapse state stored in
--- RetroRunsDB.encounterExpanded; one click affects all bosses for the
--- rest of the session, but the value is reset to false on each
+-- Boss Encounter section. A Button (not a plain FontString) so the
+-- section can be clicked to expand/collapse the soloTip and
+-- Achievements content. Default state is collapsed for bosses with
+-- custom notes (player clicks to view); for bosses with no custom
+-- note ("Standard Nuke" or empty), the line reads "Standard" and
+-- isn't clickable. Single global expand/collapse state stored in
+-- RetroRunsDB.encounterExpanded; one click affects all bosses for
+-- the rest of the session, but the value is reset to false on each
 -- PLAYER_LOGIN (Core.lua) so every session begins collapsed regardless
 -- of prior expand history.
-panel.encounter = CreateFrame("Button", nil, panel)
+-- panel.encounter is a wrapper Frame containing three independent
+-- sub-widgets stacked vertically:
+--
+--   1. .header        - Button. Shows the "Boss Encounter: ..." line.
+--                       OnClick toggles the soloTip expand/collapse.
+--                       This is the ONLY toggle target.
+--   2. .achievements  - Frame with hyperlinks enabled. Shows the
+--                       achievements block. NO OnClick handler -- clicks
+--                       that don't land on a hyperlink fall through.
+--                       This is what makes achievement-link clicks work
+--                       reliably regardless of the soloTip state.
+--   3. .specialLoot   - Frame with hyperlinks enabled. Shows the
+--                       special-loot block. Same pattern as achievements.
+--
+-- The wrapper itself has no click handling and no FontString. Each
+-- sub-widget owns its own FontString and sizes to its content. The
+-- wrapper resizes to the sum of children's heights each render so
+-- downstream anchors (panel.transmog -> panel.encounter:BOTTOMLEFT)
+-- stay valid.
+--
+-- This isolates the previous bug: a single Button covering the whole
+-- encounter content area would intercept clicks meant for hyperlinks
+-- when the hyperlink hit-test was pixel-imprecise. By splitting the
+-- click-toggle target (header only) from the hyperlink targets
+-- (achievements, special loot) into separate widgets, the click
+-- competition disappears entirely.
+panel.encounter = CreateFrame("Frame", nil, panel)
 panel.encounter:SetPoint("TOPLEFT", panel.travel, "BOTTOMLEFT", 0, -8)
 panel.encounter:SetSize(BODY_WIDTH, 14)
-panel.encounter.label = panel.encounter:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-panel.encounter.label:SetPoint("TOPLEFT", 0, 0)
-panel.encounter.label:SetWidth(BODY_WIDTH)
-panel.encounter.label:SetJustifyH("LEFT")
-panel.encounter.label:SetWordWrap(true)
-panel.encounter.label:SetNonSpaceWrap(true)
--- Proxy SetText/GetHeight to the label for compatibility with anchor
--- callers (panel.transmog anchors to panel.encounter's BOTTOMLEFT).
-panel.encounter.SetText   = function(self, t) self.label:SetText(t) end
-panel.encounter.GetHeight = function(self) return self.label:GetHeight() end
 
--- Hover and click. Hover effect (gold tint) only applies when the
--- button is currently in clickable state (custom note exists) -- this
--- is signalled by panel.encounter.clickable being set true by the
--- render path. When false, hover is a no-op. Click toggles the
--- global expand/collapse state and forces a UI refresh.
---
--- Hyperlinks (achievements) need their own routing because converting
--- panel.encounter from a plain FontString to a Button broke the
--- bubble-to-panel path the achievement-click handler used to rely on.
--- The Button now owns hyperlinks directly via SetHyperlinksEnabled +
--- an OnHyperlinkClick script that routes to SetItemRef. A flag
--- (clickFromLink) is set when a hyperlink is clicked and consumed by
--- OnClick so the expand/collapse toggle doesn't also fire. WoW dispatches
--- OnHyperlinkClick before OnClick, which is what makes the flag pattern
--- work.
-panel.encounter.clickable = false
-panel.encounter:SetHyperlinksEnabled(true)
-panel.encounter:SetScript("OnHyperlinkClick", function(self, link, text, button)
-    self.clickFromLink = true
-    SetItemRef(link, text, button)
-end)
--- Hover handlers removed per user request (2026-05-05). The encounter
--- widget previously gold-tinted its label on OnEnter and showed a
--- "Notes assume Mythic difficulty" tooltip cursor-anchored. Both gone
--- now -- the widget is click-only. Label color stays at the default
--- white set at creation; no OnLeave reset needed because nothing tints
--- it on hover anymore.
-panel.encounter:RegisterForClicks("LeftButtonUp")
-panel.encounter:SetScript("OnClick", function(self)
-    if self.clickFromLink then
-        self.clickFromLink = nil
-        return
-    end
+-- Header sub-widget: the toggle target.
+panel.encounter.header = CreateFrame("Button", nil, panel.encounter)
+panel.encounter.header:SetPoint("TOPLEFT", 0, 0)
+panel.encounter.header:SetSize(BODY_WIDTH, 14)
+panel.encounter.header.label = panel.encounter.header:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+panel.encounter.header.label:SetPoint("TOPLEFT", 0, 0)
+panel.encounter.header.label:SetWidth(BODY_WIDTH)
+panel.encounter.header.label:SetJustifyH("LEFT")
+panel.encounter.header.label:SetWordWrap(true)
+panel.encounter.header.label:SetNonSpaceWrap(true)
+panel.encounter.header:RegisterForClicks("LeftButtonUp")
+panel.encounter.header:SetScript("OnClick", function(self)
     if not self.clickable then return end
     local now = RR:GetSetting("encounterExpanded")
     RR:SetSetting("encounterExpanded", not now)
     UI.Update()
+end)
+
+-- Achievements sub-widget: hyperlinks-only, no toggle.
+panel.encounter.achievements = CreateFrame("Frame", nil, panel.encounter)
+panel.encounter.achievements:SetPoint("TOPLEFT", panel.encounter.header, "BOTTOMLEFT", 0, -4)
+panel.encounter.achievements:SetSize(BODY_WIDTH, 1)
+panel.encounter.achievements.label = panel.encounter.achievements:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+panel.encounter.achievements.label:SetPoint("TOPLEFT", 0, 0)
+panel.encounter.achievements.label:SetWidth(BODY_WIDTH)
+panel.encounter.achievements.label:SetJustifyH("LEFT")
+panel.encounter.achievements.label:SetWordWrap(true)
+panel.encounter.achievements.label:SetNonSpaceWrap(true)
+panel.encounter.achievements:SetHyperlinksEnabled(true)
+panel.encounter.achievements:SetScript("OnHyperlinkClick", function(_, link, text, button)
+    SetItemRef(link, text, button)
+end)
+
+-- Special loot sub-widget: hyperlinks-only, no toggle.
+panel.encounter.specialLoot = CreateFrame("Frame", nil, panel.encounter)
+panel.encounter.specialLoot:SetPoint("TOPLEFT", panel.encounter.achievements, "BOTTOMLEFT", 0, -4)
+panel.encounter.specialLoot:SetSize(BODY_WIDTH, 1)
+panel.encounter.specialLoot.label = panel.encounter.specialLoot:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+panel.encounter.specialLoot.label:SetPoint("TOPLEFT", 0, 0)
+panel.encounter.specialLoot.label:SetWidth(BODY_WIDTH)
+panel.encounter.specialLoot.label:SetJustifyH("LEFT")
+panel.encounter.specialLoot.label:SetWordWrap(true)
+panel.encounter.specialLoot.label:SetNonSpaceWrap(true)
+panel.encounter.specialLoot:SetHyperlinksEnabled(true)
+panel.encounter.specialLoot:SetScript("OnHyperlinkClick", function(_, link, text, button)
+    SetItemRef(link, text, button)
 end)
 
 -- Forward declarations for transmog popup (defined later in file)
@@ -496,9 +521,9 @@ panel.entranceButtonPool = {}
 -- the click landed on empty space.
 --
 -- One-piece design: the button IS the glyph. They cannot desync
--- because they're the same widget. Per Photek's suggestion -- "anchor
--- the + button to the left of the raid name so it doesn't matter how
--- big it is or where it ends up" -- which is exactly this.
+-- because they're the same widget. The button anchors to the left
+-- of the raid name so its placement is independent of how the name
+-- renders.
 local function AcquireExpansionToggleButton()
     local btn = table.remove(panel.expansionToggleButtonPool)
     if btn then return btn end
@@ -951,7 +976,9 @@ function UI.ApplySettings()
         { panel.progress,   14, "OUTLINE" },
         { panel.next,       14, "OUTLINE" },
         { panel.travel,     12, ""        },
-        { panel.encounter.label, 12, ""    },
+        { panel.encounter.header.label,       12, ""    },
+        { panel.encounter.achievements.label, 12, ""    },
+        { panel.encounter.specialLoot.label,  12, ""    },
         { panel.transmog.label, 12, ""    },
         { panel.listHeader, 12, "OUTLINE" },
         { panel.list,       12, ""        },
@@ -1412,14 +1439,12 @@ function UI.AutoSize()
         local parentTop      = panel:GetTop()
         local listHeaderBot  = panel.listHeader and panel.listHeader:GetBottom()
         if parentTop and listHeaderBot then
-            -- COORDINATE-SYSTEM NOTE (corrected 2026-04-21, third time
-            -- through this code; getting it right is harder than it
-            -- looks): per Wowpedia "UI scaling", GetTop/GetBottom/
-            -- GetHeight all return values in the FRAME's own scaled
-            -- coordinate system, which is also what SetHeight expects.
-            -- No division by scale needed for `desired`. The only
-            -- scale conversion is for `maxH` since UIParent has a
-            -- different effective scale than panel.
+            -- COORDINATE-SYSTEM NOTE: per Wowpedia "UI scaling",
+            -- GetTop/GetBottom/GetHeight all return values in the
+            -- FRAME's own scaled coordinate system, which is also what
+            -- SetHeight expects. No division by scale needed for
+            -- `desired`. The only scale conversion is for `maxH` since
+            -- UIParent has a different effective scale than panel.
             local scale          = panel:GetScale() or 1
             local topToListTop   = (parentTop - listHeaderBot) + 4
             local desired        = topToListTop + listH + footerReserve
@@ -2573,9 +2598,8 @@ end
 --        - "view special note"   (custom soloTip, collapsed)
 --        - <full soloTip text>   (custom soloTip, expanded)
 --   2. Achievements block (if any) -- ALWAYS rendered, independent of
---      the encounter expand state. Achievements were previously
---      bundled with the encounter expand toggle; decoupled 2026-04-25
---      so each section can have its own collapse behaviour later.
+--      the encounter expand state. Decoupled from the encounter expand
+--      toggle so each section can have its own collapse behaviour later.
 --   3. Special Loot block (if any) -- ALWAYS rendered.
 local function BuildEncounterText(step)
     local prefix = ("|cff%sBoss Encounter:|r "):format(C_LABEL)
@@ -2614,21 +2638,16 @@ local function BuildEncounterText(step)
     end
 
     -- Achievements + Special Loot render unconditionally below.
-    local lines = { headerLine }
-    local achBlock = BuildAchievementsBlock(boss)
-    if achBlock ~= "" then
-        table.insert(lines, "")
-        table.insert(lines, achBlock)
-    end
+    local achBlock = BuildAchievementsBlock(boss) or ""
+    local specialBlock = ""
     if boss then
         local special = BuildSpecialLootSection(boss)
         if special then
-            table.insert(lines, "")
-            table.insert(lines, special)
+            specialBlock = special
         end
     end
 
-    return table.concat(lines, "\n"), clickable
+    return headerLine, achBlock, specialBlock, clickable
 end
 
 -- Slots that have no transmog value -- exclude from display entirely
@@ -2920,8 +2939,7 @@ local SPECIAL_GLYPH_UNCOLLECTED = "X"
 local SPECIAL_GLYPH_PARTIAL     = "|TInterface\\RaidFrame\\ReadyCheck-Waiting:14:14|t"
 
 -- Returns "collected" or "missing" for a specialLoot item. Branches on
--- item.kind. Each API path here is documented in HANDOFF Section 6 under
--- the Special Loot design sketch.
+-- item.kind.
 local function SpecialCollectionStateForItem(item)
     if not item or not item.id or not item.kind then return "missing" end
 
@@ -3235,16 +3253,16 @@ BuildSpecialLootSection = function(boss)
             -- glyph on the left already disambiguates collection state
             -- visually -- the name text doesn't also need to gray out.
             --
-            -- Prior behavior (collected rows rendered as plain gray text)
-            -- de-emphasized "stop looking here" but stripped click-to-
-            -- tooltip, which was a real loss for illusions/decor/toys
-            -- where players continue to want quick access to the tooltip
-            -- (e.g. checking the appearance preview again before placing
-            -- a decor, or linking an illusion to a friend in chat).
-            -- Reversed 2026-05-11. The auto-color-by-quality behavior of
-            -- itemLinks (which is why a strip-and-rewrap gray didn't work
-            -- here previously) is now a feature rather than a bug:
-            -- collected items keep their quality color and stay clickable.
+            -- Earlier iterations rendered collected rows as plain gray
+            -- text to de-emphasize "stop looking here," but that stripped
+            -- click-to-tooltip access -- a real loss for illusions / decor
+            -- / toys where players still want quick tooltip access (e.g.
+            -- checking the appearance preview before placing a decor, or
+            -- linking an illusion to a friend in chat). The auto-color-
+            -- by-quality behavior of itemLinks (which is why a strip-and-
+            -- rewrap gray approach didn't work) is now a feature rather
+            -- than a bug: collected items keep their quality color and
+            -- stay clickable.
             local nameRender = display
 
             table.insert(lines,
@@ -3305,7 +3323,7 @@ end
 -- Earlier implementation checked ONLY the player's active difficulty,
 -- which produced false "All appearances collected!" summaries when a
 -- Mythic-zoned player had all Mythic sources collected but was missing
--- LFR/N/H sources. Switched to strict per-difficulty rollup 2026-04-21.
+-- LFR/N/H sources. Now uses a strict per-difficulty rollup.
 local DIFFS_FOR_SUMMARY = { 17, 14, 15, 16 }
 local function ItemSummaryState(item)
     if not item.sources then
@@ -3591,12 +3609,12 @@ end
 --     strip with each letter colored per that difficulty's state.
 --
 -- Shape is intrinsic to the item's data -- no schema annotation needed.
--- Sanctum's actual distribution (from 2026-04-20 ATT-driven rewrite):
--- 96 per-difficulty items, 1 binary (Edge of Night), 1 partial
--- (Rae'shalare, stored in ATT as bonusID variants our batch rewrite
--- didn't handle -- left under-modeled, renders sensibly). Sylvanas's
--- loot is per-difficulty despite earlier notes suggesting otherwise.
--- Future raids auto-dispatch without per-boss flags.
+-- Sanctum's actual distribution: 96 per-difficulty items, 1 binary
+-- (Edge of Night), 1 partial (Rae'shalare, stored in ATT as bonusID
+-- variants our batch rewrite didn't handle -- left under-modeled,
+-- renders sensibly). Sylvanas's loot is per-difficulty despite
+-- earlier notes suggesting otherwise. Future raids auto-dispatch
+-- without per-boss flags.
 -------------------------------------------------------------------------------
 
 -- Count unique non-nil values in the sources table. Returns 0 if sources
@@ -3630,20 +3648,22 @@ end
 -- transmog items (appearance owned via another item entirely).
 --
 -- BRACKET WIDTH NOTE: the ReadyCheck texture renders as a 14px-wide image
--- via the |T...:14:14|t markup, while single text characters ("X", "+")
--- are narrower in WoW's default font (Friz Quadrata QT). To keep brackets
--- visually aligned across rows, the text glyphs are padded with extra
--- spaces so "[ X ]" and "[ + ]" occupy the same horizontal space as the
--- "[ check-texture ]" row. The padding is part of the glyph string so the
--- color-wrapper code doesn't need to know about it.
+-- via the |T...:14:14|t markup, while single text characters ("X") are
+-- narrower in WoW's default font (Friz Quadrata QT). To keep brackets
+-- visually aligned across rows, the text glyph is padded with extra
+-- spaces so "[ X ]" occupies the same horizontal space as the texture
+-- variants. The padding is part of the glyph string so the color-wrapper
+-- code doesn't need to know about it.
 --
--- VERTICAL-CENTERING NOTE: Friz Quadrata QT renders "~" near the top of
--- the line box (tilde sits high in most fonts), making "[ ~ ]" look
--- top-aligned inside the bracket. "+" sits mid-line-height just like "X",
--- so the two text glyphs line up with each other and with the centered
--- texture.
+-- SHARED-STATE TINT: the shared glyph uses Blizzard's UI-CheckBox-Check
+-- texture (a grayscale checkmark from the standard checkbox widget)
+-- tinted gold via the extended |Tpath:h:w:ox:oy:cropX1:cropX2:cropY1:
+-- cropY2:r:g:b|t markup. We can't tint ReadyCheck-Ready directly
+-- because its native color is green -- multiplicative tint can darken
+-- the green but can't shift it to gold. UI-CheckBox-Check is grayscale
+-- so the rgb params produce true gold (DOT_SHARED amber, 191/144/0).
 local BINARY_GLYPH_COLLECTED = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
-local BINARY_GLYPH_SHARED    = " + "
+local BINARY_GLYPH_SHARED    = "|TInterface\\Buttons\\UI-CheckBox-Check:14:14:0:0:32:32:0:32:0:32:255:215:0|t"
 local BINARY_GLYPH_MISSING   = " X "
 
 -- Color/glyph for the binary row's single state indicator. Reuses Special
@@ -4100,9 +4120,7 @@ BuildTransmogDetail = function(stepOrCtx)
     --   over-counted denominator, we collapse to a 3-state indicator
     --   that's honest at the coarse grain ("engage this boss for weapon
     --   transmog progress, visit your vendor to redeem") without lying
-    --   about specific collection math. See HANDOFF for the full
-    --   investigation trail (2026-04-22 session, multiple vendorscan
-    --   rounds across Kyrian + Necrolord covenants).
+    --   about specific collection math.
     --
     -- Row shape:
     --   Main-Hand Weapons:   [some collected]
@@ -5227,8 +5245,7 @@ local function BuildEntranceLegend()
         -- without a routing backend (FarstriderLib / Zygor /
         -- Mapzeroth) is functionally equivalent to no routing addon
         -- at all, since AWP itself is a meta-router not a routing
-        -- engine. See HANDOFF "Lessons captured" v1.5 entry on AWP
-        -- being a meta-router.
+        -- engine.
         --
         -- Line 2 indent uses leading spaces to approximate alignment
         -- under the line-1 text (past the "🛩 = " marker). Line 2
@@ -5265,10 +5282,10 @@ end
 -- Heroic + Normal listed; Heroic completion -> Heroic + Normal; etc.)
 --
 -- Why a framed window instead of the copy window: this is a USER-FACING
--- feature, not a diagnostic. Per Section 0, the copy window is for
--- diagnostic dumps where the user copies text out; permanent UI surfaces
--- belong in proper framed windows. Format/alignment problems also go
--- away because we control the layout per-row instead of dumping plain
+-- feature, not a diagnostic. The copy window is for diagnostic dumps
+-- where the user copies text out; permanent UI surfaces belong in
+-- proper framed windows. Format/alignment problems also go away
+-- because we control the layout per-row instead of dumping plain
 -- text into a proportional-font editbox.
 -- ----------------------------------------------------------------------------
 
@@ -5300,6 +5317,15 @@ local SKIPS_COL_NORMAL_X   = 360
 -- is the multiplier (rendered line-height = fontSize * SKIPS_LINE_GAP).
 local SKIPS_LINE_GAP       = 1.7
 
+-- Divider offset from the row's bottom edge. Positive value moves the
+-- divider UP into the row band (toward the text). Tuned empirically
+-- so the row text + glyphs sit visually centered between two
+-- consecutive dividers. With SKIPS_LINE_GAP = 1.7 and fontSize=12,
+-- lineHeight is ~20px; the FontString has a few px of internal
+-- top-padding, so the divider needs to sit a few px above the bottom
+-- of the band to make the text appear centered.
+local SKIPS_ROW_DIVIDER_INSET = 5
+
 -- Glyphs for difficulty cells. Reuse the existing visual vocabulary
 -- (ReadyCheck-Ready / plain X) so the meaning is consistent with how
 -- collected/uncollected appearances are rendered elsewhere in the
@@ -5329,6 +5355,13 @@ local GetOrCreateSkipsWindow
 -- Build a structured row list for the skips window. Each row is one of:
 --   { kind = "expansionHeader", text = "Dragonflight" }
 --   { kind = "raidRow", name = "Aberrus...", mythic = bool, heroic = bool, normal = bool }
+--   { kind = "raidNameRow", name = "Antorus..." }
+--     -- Multi-chain raid parent row: name only, no cells. The chain
+--     -- sub-rows that follow render their own cells underneath.
+--   { kind = "chainSubRow", label = "Imonar", mythic = bool, heroic = bool, normal = bool, isLast = bool }
+--     -- Indented chain row under a raidNameRow. isLast=true on the
+--     -- last chain triggers the row-divider so chain rows group
+--     -- visually under their parent.
 --   { kind = "spacer" }
 --   { kind = "message", text = "..." }   -- empty-state and error messages
 --
@@ -5409,33 +5442,79 @@ local function BuildSkipsRows()
             -- a "(no skip data)" row, but that just clutters the table
             -- for raids the player can't skip into anyway.
             if sk or sa then
-                local ceiling = RR:GetRaidSkipUnlockedCeiling(raid)
                 local cascading = RR:RaidSkipIsCascading(raid)
                 -- Three-state cells: true = unlocked, false = locked,
                 -- "na" = not applicable for this raid (only Mythic exists).
-                -- Cascade-down for standard skipQuests: ceiling N means
-                -- difficulties <= N are unlocked. For non-cascading
-                -- (BfD), only the exact ceiling difficulty unlocks; the
-                -- others are "na", not "locked".
-                local mCell, hCell, nCell
-                if cascading then
-                    mCell = ceiling and ceiling >= 16 or false
-                    hCell = ceiling and ceiling >= 15 or false
-                    nCell = ceiling and ceiling >= 14 or false
+
+                -- Multi-chain raids (skipQuests array of chains, e.g.
+                -- Antorus's Imonar + Aggramar) get a parent name-only row
+                -- followed by one indented chainSubRow per chain. Each
+                -- chain has its own cells, so the player sees which
+                -- chain unlocks at which difficulty.
+                local perChain = RR:GetSkipChainCeilings(raid)
+                local isMultiChain = perChain and #perChain > 1
+
+                if isMultiChain then
+                    -- Parent name row (cells suppressed).
+                    table.insert(expRows, {
+                        kind = "raidNameRow",
+                        name = raid.name or "?",
+                    })
+                    -- One sub-row per chain. Each chain cascades
+                    -- independently (Imonar progress doesn't unlock
+                    -- Aggramar and vice versa), so each row computes
+                    -- its own per-difficulty cells from its own ceiling.
+                    for idx, c in ipairs(perChain) do
+                        local mCell, hCell, nCell
+                        if cascading then
+                            mCell = c.ceiling and c.ceiling >= 16 or false
+                            hCell = c.ceiling and c.ceiling >= 15 or false
+                            nCell = c.ceiling and c.ceiling >= 14 or false
+                        else
+                            mCell = c.ceiling == 16
+                            hCell = "na"
+                            nCell = "na"
+                        end
+                        table.insert(expRows, {
+                            kind     = "chainSubRow",
+                            label    = c.label or ("Skip " .. idx),
+                            mythic   = mCell,
+                            heroic   = hCell,
+                            normal   = nCell,
+                            -- Last chain in this raid gets the divider;
+                            -- intermediate chains don't, so the chain
+                            -- rows feel grouped under their parent name.
+                            isLast   = (idx == #perChain),
+                        })
+                    end
                 else
-                    -- Non-cascading: BfD-only. Mythic is the only real
-                    -- column; Normal/Heroic render as N/A.
-                    mCell = ceiling == 16
-                    hCell = "na"
-                    nCell = "na"
+                    -- Single-chain raid: existing flat row shape.
+                    -- Cascade-down for standard skipQuests: ceiling N
+                    -- means difficulties <= N are unlocked. For
+                    -- non-cascading (BfD), only the exact ceiling
+                    -- difficulty unlocks; the others are "na", not
+                    -- "locked".
+                    local ceiling = RR:GetRaidSkipUnlockedCeiling(raid)
+                    local mCell, hCell, nCell
+                    if cascading then
+                        mCell = ceiling and ceiling >= 16 or false
+                        hCell = ceiling and ceiling >= 15 or false
+                        nCell = ceiling and ceiling >= 14 or false
+                    else
+                        -- Non-cascading: BfD-only. Mythic is the only
+                        -- real column; Normal/Heroic render as N/A.
+                        mCell = ceiling == 16
+                        hCell = "na"
+                        nCell = "na"
+                    end
+                    table.insert(expRows, {
+                        kind   = "raidRow",
+                        name   = raid.name or "?",
+                        mythic = mCell,
+                        heroic = hCell,
+                        normal = nCell,
+                    })
                 end
-                table.insert(expRows, {
-                    kind   = "raidRow",
-                    name   = raid.name or "?",
-                    mythic = mCell,
-                    heroic = hCell,
-                    normal = nCell,
-                })
             end
         end
 
@@ -5591,11 +5670,77 @@ local function RefreshSkipsContent()
 
             -- Subtle row divider at bottom of this row's vertical span,
             -- inset from each frame edge so it visually frames the table
-            -- rather than running edge-to-edge.
+            -- rather than running edge-to-edge. Vertically, the divider
+            -- is pulled up into the band by SKIPS_ROW_DIVIDER_INSET so
+            -- the row text + glyphs read as centered between two
+            -- consecutive dividers (text has internal top-padding that
+            -- shifts its visual midpoint upward).
             slot.divider:ClearAllPoints()
-            slot.divider:SetPoint("TOPLEFT",  w, "TOPLEFT",  SKIPS_COL_NAME_X, y - lineHeight + 1)
-            slot.divider:SetPoint("TOPRIGHT", w, "TOPRIGHT", -14, y - lineHeight + 1)
+            slot.divider:SetPoint("TOPLEFT",  w, "TOPLEFT",  SKIPS_COL_NAME_X, y - lineHeight + SKIPS_ROW_DIVIDER_INSET)
+            slot.divider:SetPoint("TOPRIGHT", w, "TOPRIGHT", -14, y - lineHeight + SKIPS_ROW_DIVIDER_INSET)
             slot.divider:Show()
+
+            y = y - lineHeight
+
+        elseif row.kind == "raidNameRow" then
+            -- Multi-chain raid parent row: name only, no cells, no
+            -- divider. The chain sub-rows that follow each carry their
+            -- own cells, and the last one carries the divider.
+            slot.name:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+            slot.name:SetText("|cffffffff  " .. row.name .. "|r")
+            slot.name:ClearAllPoints()
+            slot.name:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y)
+            slot.name:SetWidth(SKIPS_COL_MYTHIC_X - SKIPS_COL_NAME_X - 8)
+            slot.name:Show()
+
+            y = y - lineHeight
+
+        elseif row.kind == "chainSubRow" then
+            -- Indented chain row under a multi-chain raid. The label
+            -- ("Imonar" / "Aggramar") gets an extra ~16px indent under
+            -- the raid name, in a dimmer color to read as secondary.
+            slot.name:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+            slot.name:SetText("|cffaaaaaa      " .. row.label .. "|r")
+            slot.name:ClearAllPoints()
+            slot.name:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y)
+            slot.name:SetWidth(SKIPS_COL_MYTHIC_X - SKIPS_COL_NAME_X - 8)
+            slot.name:Show()
+
+            -- Same cell renderer as raidRow.
+            local function cellText(v)
+                if v == "na" then return SKIPS_CELL_NA end
+                if v then return SKIPS_CELL_UNLOCKED end
+                return SKIPS_CELL_LOCKED
+            end
+
+            slot.cellM:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+            slot.cellM:SetText(cellText(row.mythic))
+            slot.cellM:ClearAllPoints()
+            slot.cellM:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_MYTHIC_X, y)
+            slot.cellM:Show()
+
+            slot.cellH:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+            slot.cellH:SetText(cellText(row.heroic))
+            slot.cellH:ClearAllPoints()
+            slot.cellH:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_HEROIC_X, y)
+            slot.cellH:Show()
+
+            slot.cellN:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+            slot.cellN:SetText(cellText(row.normal))
+            slot.cellN:ClearAllPoints()
+            slot.cellN:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_NORMAL_X, y)
+            slot.cellN:Show()
+
+            -- Only the LAST chain sub-row in a multi-chain group gets a
+            -- divider, so the chain rows visually group together under
+            -- their raid name. Vertical inset matches raidRow's divider
+            -- for visual consistency.
+            if row.isLast then
+                slot.divider:ClearAllPoints()
+                slot.divider:SetPoint("TOPLEFT",  w, "TOPLEFT",  SKIPS_COL_NAME_X, y - lineHeight + SKIPS_ROW_DIVIDER_INSET)
+                slot.divider:SetPoint("TOPRIGHT", w, "TOPRIGHT", -14, y - lineHeight + SKIPS_ROW_DIVIDER_INSET)
+                slot.divider:Show()
+            end
 
             y = y - lineHeight
 
@@ -5985,8 +6130,8 @@ end
 -- got eaten -- the button vanished mid-click and OnClick never fired.
 -- Symptom: inconsistent toggle-button responsiveness in run-complete
 -- and idle states, with the bug correlated to heartbeat tick timing.
--- Diagnosed 2026-05-11 via OnMouseDown/OnMouseUp/OnClick instrumentation
--- showing OnMouseDown firing without the matching OnMouseUp.
+-- Diagnosed via OnMouseDown/OnMouseUp/OnClick instrumentation showing
+-- OnMouseDown firing without the matching OnMouseUp.
 local lastIdleListFingerprint = nil
 
 -- Public hook: callers that need to force a rebuild (e.g. font-size
@@ -6315,16 +6460,51 @@ function UI.Update()
             -- the prefix label white so the boss-name color is unchanged.
             panel.next:SetText("|cffffffffBoss:|r " .. (boss and boss.name or "Unknown"))
             panel.travel:SetText(BuildTravelText(step))
-            local encText, encClickable = BuildEncounterText(step)
-            panel.encounter:SetText(encText)
-            panel.encounter.clickable = encClickable
-            panel.encounter:EnableMouse(encClickable)
-            -- Size the click frame to match rendered text height (same
-            -- pattern used by panel.transmog below). Without this, the
-            -- hit area stays at the 14px construction default and a
-            -- multi-line expanded soloTip's lower lines wouldn't be
-            -- clickable.
-            panel.encounter:SetHeight(math.max(14, panel.encounter.label:GetStringHeight()))
+            local headerText, achText, specialText, encClickable = BuildEncounterText(step)
+
+            -- Header sub-widget: shows the Boss Encounter line; OnClick
+            -- toggles soloTip expand/collapse when clickable is true.
+            panel.encounter.header.label:SetText(headerText or "")
+            panel.encounter.header.clickable = encClickable
+            panel.encounter.header:EnableMouse(encClickable)
+            local headerH = math.max(14, panel.encounter.header.label:GetStringHeight())
+            panel.encounter.header:SetHeight(headerH)
+
+            -- Achievements sub-widget: hyperlinks-only, no toggle. Hidden
+            -- entirely when empty so the layout collapses naturally.
+            if achText and achText ~= "" then
+                panel.encounter.achievements.label:SetText(achText)
+                panel.encounter.achievements:Show()
+                local achH = math.max(1, panel.encounter.achievements.label:GetStringHeight())
+                panel.encounter.achievements:SetHeight(achH)
+            else
+                panel.encounter.achievements.label:SetText("")
+                panel.encounter.achievements:SetHeight(1)
+                panel.encounter.achievements:Hide()
+            end
+
+            -- Special loot sub-widget: hyperlinks-only, no toggle.
+            if specialText and specialText ~= "" then
+                panel.encounter.specialLoot.label:SetText(specialText)
+                panel.encounter.specialLoot:Show()
+                local specH = math.max(1, panel.encounter.specialLoot.label:GetStringHeight())
+                panel.encounter.specialLoot:SetHeight(specH)
+            else
+                panel.encounter.specialLoot.label:SetText("")
+                panel.encounter.specialLoot:SetHeight(1)
+                panel.encounter.specialLoot:Hide()
+            end
+
+            -- Resize the wrapper to sum-of-children-heights so the
+            -- downstream anchor (panel.transmog -> panel.encounter
+            -- BOTTOMLEFT) lands at the visual bottom of the content.
+            -- The 4+4 accounts for the two 4px gaps between the three
+            -- child sub-widgets. Hidden children contribute their 1px
+            -- placeholder height + 4px gap; effectively negligible.
+            local totalH = headerH
+                         + 4 + (panel.encounter.achievements:GetHeight() or 1)
+                         + 4 + (panel.encounter.specialLoot:GetHeight() or 1)
+            panel.encounter:SetHeight(math.max(14, totalH))
             local tmog = BuildTransmogSummary(step)
             panel.transmog:SetText(tmog or "")
             panel.transmog:SetShown(tmog ~= nil)
@@ -6374,8 +6554,7 @@ function UI.Update()
             local hasRouting = bossCount > 0 and routingCount >= bossCount
 
             -- Run-complete state. The user has cleared every boss in
-            -- this lockout. Layout goal: tight, informative, points at
-            -- "what to do next." Per Photek 2026-04-26:
+            -- this lockout. Layout goals:
             --   1. Drop the "Traveling: This lockout is complete." line
             --      -- panel.pills at the top already shows the lockout's
             --      complete state, the line was redundant.
@@ -6400,9 +6579,13 @@ function UI.Update()
                 panel.next:SetText("|cffff9333Routing data not yet captured for this raid.|r")
             end
             panel.travel:SetText("")
-            panel.encounter:SetText("")
-            panel.encounter.clickable = false
-            panel.encounter:EnableMouse(false)
+            panel.encounter.header.label:SetText("")
+            panel.encounter.header.clickable = false
+            panel.encounter.header:EnableMouse(false)
+            panel.encounter.achievements.label:SetText("")
+            panel.encounter.achievements:Hide()
+            panel.encounter.specialLoot.label:SetText("")
+            panel.encounter.specialLoot:Hide()
             panel.encounter:Hide()
             panel.transmog:SetText("")
             -- panel.transmog has its own RegisterForClicks + OnClick
@@ -6459,9 +6642,13 @@ function UI.Update()
         end
 
         panel.travel:SetText("")
-        panel.encounter:SetText("")
-        panel.encounter.clickable = false
-        panel.encounter:EnableMouse(false)
+        panel.encounter.header.label:SetText("")
+        panel.encounter.header.clickable = false
+        panel.encounter.header:EnableMouse(false)
+        panel.encounter.achievements.label:SetText("")
+        panel.encounter.achievements:Hide()
+        panel.encounter.specialLoot.label:SetText("")
+        panel.encounter.specialLoot:Hide()
         panel.transmog:SetText("")
         panel.transmog:EnableMouse(false)
         -- Re-anchor listHeader directly below "Travel to..." (panel.progress)
@@ -6700,6 +6887,7 @@ local function BuildAchievementRows(raid)
             rewardSpellID = meta.rewardMountSpellID,
             rewardItemID  = meta.rewardItemID,
             rewardName    = meta.rewardName,
+            rewardTitle   = meta.rewardTitle,
         })
         table.insert(rows, { kind = "spacer" })
     end
@@ -6738,13 +6926,13 @@ end
 -- Last-rendered fingerprint for the achievements window's row table.
 -- Used to short-circuit f.RefreshContent when no state change has occurred
 -- since the last render. Same root-cause class as the idle-list click-race
--- bug fixed 2026-05-11: UI.Update calls UpdateAchievementsWindow on every
--- 1Hz heartbeat, which calls RefreshContent, which calls HideAllAchSlots()
--- -- hiding the per-row wowhead "?" buttons on every tick. A user click
--- whose OnMouseDown landed before a heartbeat but OnMouseUp would have
--- landed after got eaten: the button vanished mid-click and OnClick never
--- fired. Symptom: intermittent unresponsiveness of the wowhead-column
--- buttons, with the bug correlated to heartbeat tick timing. Mirrors the
+-- bug: UI.Update calls UpdateAchievementsWindow on every 1Hz heartbeat,
+-- which calls RefreshContent, which calls HideAllAchSlots() -- hiding the
+-- per-row wowhead "?" buttons on every tick. A user click whose
+-- OnMouseDown landed before a heartbeat but OnMouseUp would have landed
+-- after got eaten: the button vanished mid-click and OnClick never fired.
+-- Symptom: intermittent unresponsiveness of the wowhead-column buttons,
+-- with the bug correlated to heartbeat tick timing. Mirrors the
 -- lastIdleListFingerprint pattern documented earlier in this file.
 local lastAchRowsFingerprint = nil
 
@@ -6871,12 +7059,12 @@ local ACH_LINE_GAP         = 1.7
 
 -- Row dividers and the bottom edge of the current-boss highlight band
 -- both sit at this y-offset above the row's nominal bottom (y -
--- lineHeight). Bumped from 1 to 5 (2026-05-05) so the divider hugs the
--- text from below instead of leaving extra space below the glyphs --
--- with the highlight band drawn, that extra space made the text look
--- top-aligned within its band. Higher value moves the divider/highlight
--- bottom UP toward the text. Tune carefully: too high and the divider
--- cuts into text descenders; too low and text looks top-heavy again.
+-- lineHeight). Tuned to hug the text from below instead of leaving
+-- extra space below the glyphs -- with the highlight band drawn,
+-- extra space makes the text look top-aligned within its band.
+-- Higher value moves the divider/highlight bottom UP toward the text.
+-- Tune carefully: too high and the divider cuts into text descenders;
+-- too low and text looks top-heavy again.
 local ACH_ROW_BOTTOM_INSET = 5
 
 -- Glyphs reused from the encounter renderer / skips table for visual
@@ -7065,9 +7253,10 @@ GetOrCreateAchievementsWindow = function()
 
     f.ddExp, f.ddRaid = ddExp, ddRaid
 
-    -- Glory header section (above the column-header row). Two FontStrings
+    -- Glory header section (above the column-header row). Three FontStrings
     -- repositioned by RefreshContent based on whether the raid has a
-    -- gloryMeta. Hidden entirely when there's no Glory.
+    -- gloryMeta. titleLine renders only when the Glory rewards a title
+    -- (e.g. "the Tomb Raider"). Hidden entirely when there's no Glory.
     f.gloryLine = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     f.gloryLine:SetJustifyH("LEFT")
     f.gloryLine:SetWordWrap(false)
@@ -7075,6 +7264,10 @@ GetOrCreateAchievementsWindow = function()
     f.rewardLine = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.rewardLine:SetJustifyH("LEFT")
     f.rewardLine:SetWordWrap(false)
+
+    f.titleLine = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.titleLine:SetJustifyH("LEFT")
+    f.titleLine:SetWordWrap(false)
 
     -- Column-header FontStrings. Persistent (positioned by RefreshContent
     -- based on whether Glory is present) and shown for every non-empty
@@ -7226,6 +7419,7 @@ GetOrCreateAchievementsWindow = function()
         -- headers don't leak through visually.
         f.gloryLine:Hide()
         f.rewardLine:Hide()
+        f.titleLine:Hide()
         f.hdrStatus:Hide()
         f.hdrAch:Hide()
         f.hdrBoss:Hide()
@@ -7331,7 +7525,10 @@ GetOrCreateAchievementsWindow = function()
             f.gloryLine:Show()
             y = y - (fontSize + 6)
 
-            -- Reward line.
+            -- Reward line. The line shows a state glyph indicating whether
+            -- the player has collected the Glory's reward (mount or pet),
+            -- then the resolved spell/item link. Glyph vocabulary matches
+            -- Special Loot (green check for collected, plain X otherwise).
             local rewardText
             if g.rewardSpellID and C_Spell and C_Spell.GetSpellLink then
                 rewardText = C_Spell.GetSpellLink(g.rewardSpellID)
@@ -7345,6 +7542,7 @@ GetOrCreateAchievementsWindow = function()
                           and ("|cffffffff%s|r"):format(g.rewardName)
                           or  "|cffffffff(Reward)|r"
             end
+
             f.rewardLine:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
             f.rewardLine:SetText(("|cff9d9d9dReward:|r %s"):format(rewardText))
             f.rewardLine:ClearAllPoints()
@@ -7352,6 +7550,23 @@ GetOrCreateAchievementsWindow = function()
             f.rewardLine:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, y)
             f.rewardLine:Show()
             y = y - lineHeight
+
+            -- Title line. Some Glory metas (Tomb, etc.) award a character
+            -- title in addition to the mount/pet. Rendered as a plain
+            -- informational line below the reward; no collection-state
+            -- query since the title-knowledge API surface is awkward and
+            -- the value to the player is just knowing it exists.
+            if g.rewardTitle then
+                f.titleLine:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+                f.titleLine:SetText(("|cff9d9d9dTitle:|r |cffffffff%s|r"):format(g.rewardTitle))
+                f.titleLine:ClearAllPoints()
+                f.titleLine:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
+                f.titleLine:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, y)
+                f.titleLine:Show()
+                y = y - lineHeight
+            else
+                f.titleLine:Hide()
+            end
 
             -- Skip the glory row in the data-row loop below; the spacer
             -- row that follows still applies its half-line gap.

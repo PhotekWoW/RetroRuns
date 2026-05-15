@@ -54,10 +54,8 @@ RetroRuns_Data[1530] = {
         subZone = "Sanctum Depths",
     },
 
-    -- mapID -> world-map dropdown label.
-    -- Pairing pending recorder walk; mapIDs are confirmed but
-    -- which label maps to which mapID has not yet been verified
-    -- in-game.
+    -- mapID -> world-map dropdown label. The label for mapID 766
+    -- has not yet been verified in-game.
     maps = {
         [764] = "The Nightwell",
         [765] = "The Nighthold",
@@ -89,6 +87,19 @@ RetroRuns_Data[1530] = {
         normal = 45381,
         heroic = 45382,
         mythic = 45383,
+    },
+
+    -- Glory meta-achievement covering both Emerald Nightmare and The
+    -- Nighthold. Completing the listed per-boss achievements across
+    -- both raids awards the Grove Defiler mount. The same gloryMeta
+    -- block appears in EmeraldNightmare.lua so the entry surfaces in
+    -- either raid's achievements pane with shared progress.
+    gloryMeta = {
+        id   = 11180,
+        name = "Glory of the Legion Raider",
+        rewardItemID       = 141216,
+        rewardMountSpellID = 193007,
+        rewardName         = "Grove Defiler",
     },
 
     bosses = {
@@ -334,14 +345,11 @@ RetroRuns_Data[1530] = {
             specialLoot = {
                 -- The two toys below are NOT listed in the in-game
                 -- Encounter Journal -- Blizzard never tagged them in
-                -- the EJ data. Both are real drops from Gul'dan
-                -- though, sourced via ATT cross-reference and
-                -- confirmed by Wowhead/Wowpedia. The Golden
-                -- Hearthstone Card was being farmed during the July
-                -- 2025 Collector's Bounty event (Icy Veins coverage),
-                -- so it is current as of this writing. Same harvester
-                -- gap pattern as Illusion: Chronos on Chronomatic
-                -- Anomaly and most other non-gear collectibles.
+                -- the EJ data. Both are real drops from Gul'dan,
+                -- sourced via ATT cross-reference and confirmed by
+                -- Wowhead/Wowpedia. Same pattern as Illusion: Chronos
+                -- on Chronomatic Anomaly and most other non-gear
+                -- collectibles in this raid.
                 { id = 119211, kind = "toy", name = "Golden Hearthstone Card: Lord Jaraxxus" },
                 { id = 143544, kind = "toy", name = "Skull of Corruption", classes = { 12 } },
                 { id = 137575, kind = "mount", name = "Fiendish Hellfire Core" },
@@ -372,10 +380,8 @@ RetroRuns_Data[1530] = {
     routing = {
 
         -- 1. Skorpyron
-        -- Single segment on mapID 764 (sub-zone label "Arcing Depths"
-        -- per recorder; pending dropdown walk to confirm). Path runs
-        -- from the zone-in spawn, forward then bears left to reach
-        -- Skorpyron.
+        -- Single segment on mapID 764 (sub-zone "Arcing Depths"). Path
+        -- runs from the zone-in spawn, forward then bears left.
         {
             step      = 1,
             priority  = 1,
@@ -400,8 +406,7 @@ RetroRuns_Data[1530] = {
         },
 
         -- 2. Chronomatic Anomaly
-        -- Single segment on mapID 764 (sub-zone label "Crystal Breach"
-        -- per recorder; pending dropdown walk to confirm). After
+        -- Single segment on mapID 764 (sub-zone "Crystal Breach"). After
         -- Skorpyron, raid takes the new southeast exit up the ramp.
         -- Trash must be cleared en route to open the door to CA.
         {
@@ -426,9 +431,8 @@ RetroRuns_Data[1530] = {
         },
 
         -- 3. Trilliax
-        -- Single segment on mapID 764 (sub-zone label "The Nightwell"
-        -- per recorder; pending dropdown walk to confirm). Path runs
-        -- from CA's room up the stairwell on the northwest side.
+        -- Single segment on mapID 764 (sub-zone "The Nightwell"). Path
+        -- runs from CA's room up the stairwell on the northwest side.
         -- Slimes in the boss room must be cleared to engage Trilliax.
         {
             step      = 3,
@@ -453,15 +457,12 @@ RetroRuns_Data[1530] = {
 
         -- 4. Spellblade Aluriel
         -- Three-segment approach crossing mapIDs 764 -> 765 -> 766.
-        -- Seg 1: spiral staircase from Trilliax's room (mapID 764,
-        --   recorder reported no subZone label at the stairs).
+        -- Seg 1: spiral staircase from Trilliax's room (mapID 764).
         -- Seg 2: gate at top of stairs, around the path to another
-        --   set of stairs (mapID 765, label "Arcing Depths" per
-        --   recorder -- pending dropdown walk to confirm; same label
-        --   the recorder gave Skorpyron's mapID-764 room earlier in
-        --   the run, which may or may not be a coincidence).
+        --   set of stairs (mapID 765, sub-zone "Arcing Depths" -- same
+        --   sub-zone label appears in Skorpyron's mapID-764 room).
         -- Seg 3: into the main courtyard where Aluriel patrols (mapID
-        --   766, no subZone label captured).
+        --   766).
         {
             step      = 4,
             priority  = 1,
@@ -515,11 +516,9 @@ RetroRuns_Data[1530] = {
         --    Tichondrius, Krosus, Tel'arn -- all gated by Aluriel.)
         -- Two-segment approach crossing mapIDs 766 -> 769.
         -- Seg 1: northeast building from Aluriel's courtyard (mapID
-        --   766, no subZone label captured -- same situation as
-        --   Aluriel's seg 3 on this map).
+        --   766).
         -- Seg 2: through the door, up the stairs to Star Augur
-        --   (mapID 769, label "Astromancer's Rise" per recorder --
-        --   pending dropdown walk to confirm).
+        --   (mapID 769, sub-zone "Astromancer's Rise").
         {
             step      = 5,
             priority  = 1,
@@ -553,13 +552,12 @@ RetroRuns_Data[1530] = {
         },
 
         -- 7. High Botanist Tel'arn  (DAG middle sibling at step 5.)
-        -- Three-segment approach 769 -> 766 -> 767. The Star Augur
-        -- ENCOUNTER_END auto-stamp surfaced a new label for mapID 769:
-        -- "Eternal Observatory" (Star Augur's fight room, distinct
-        -- from the "Astromancer's Rise" approach label on the same
-        -- mapID). Seg 2's subZone "Astromancer's Rise" on mapID 766
-        -- is the second sub-zone label echo we've seen across
-        -- mapIDs (Arcing Depths was the first, on 764/765).
+        -- Three-segment approach 769 -> 766 -> 767. Star Augur's fight
+        -- room and the approach to it share mapID 769 but use different
+        -- sub-zone labels: "Eternal Observatory" inside the room,
+        -- "Astromancer's Rise" on the approach. mapID 766 also surfaces
+        -- "Astromancer's Rise" as its sub-zone here -- the same label
+        -- name reused across two distinct mapIDs.
         {
             step      = 5,
             priority  = 2,
@@ -607,11 +605,10 @@ RetroRuns_Data[1530] = {
 
         -- 5. Tichondrius  (DAG middle sibling at step 5.)
         -- Three-segment approach 767 -> 766 -> 768. First time mapID
-        -- 768 surfaces in the route; recorder captured no subZone
-        -- label there (pending dropdown walk to resolve).
-        -- The "Captain's Quarters" mentioned in seg 2's note is an
-        -- in-game place name the recorder did not assign as a
-        -- subZone label -- it stays as navigation prose.
+        -- 768 surfaces in the route. The "Captain's Quarters" mentioned
+        -- in seg 2's note is an in-game place name that the navigation
+        -- prose references; it doesn't appear as a sub-zone label on
+        -- this segment.
         {
             step      = 5,
             priority  = 3,
@@ -667,14 +664,12 @@ RetroRuns_Data[1530] = {
         },
 
         -- 6. Krosus  (DAG middle sibling at step 5, closes the wing.)
-        -- Two-segment approach 768 -> 766. The recorder pinned a
-        -- label "Captain's Quarters" on mapID 768 this time (Tich
-        -- seg 3 captured no label there), confirming that's the
-        -- in-game name for the interior. Seg 2 on mapID 766 also
-        -- surfaces "Captain's Quarters" -- a NEW label on this mapID
-        -- (Aluriel/Tel'arn/Tich each captured a different label for
-        -- 766). Confirms 766 hosts multiple subzones at different
-        -- player positions; dropdown walk will disambiguate.
+        -- Two-segment approach 768 -> 766. Both segments use the
+        -- sub-zone "Captain's Quarters" -- the interior of mapID 768
+        -- and a distinct region of mapID 766 share that label
+        -- (mapID 766 hosts multiple sub-zones depending on player
+        -- position: Aluriel, Tel'arn, Tichondrius, and Krosus each
+        -- traverse different parts of the courtyard).
         {
             step      = 5,
             priority  = 4,
@@ -720,16 +715,13 @@ RetroRuns_Data[1530] = {
         --    ascent through The Nightspire.)
         -- Two-segment approach: 766 -> 770.
         -- Seg 1: backtrack from Krosus across the courtyard to the
-        --   Suramar Portal, then on through the post-teleport landing
-        --   area up to the boss room entrance. The teleport itself
-        --   produces no client-visible signal (no mapID change, no
-        --   control loss, no spell cast on the player); the landing
-        --   area is also on mapID 766, so the picker has no way to
-        --   distinguish "approaching the portal" from "after landing."
-        --   The two phases ship as one seg with a combined note that
-        --   walks the player through both halves.
+        --   Suramar Portal, then through the post-teleport landing
+        --   area up to the boss room entrance. The teleport produces
+        --   no mapID change (the landing area is also on mapID 766),
+        --   so the approach and post-landing walk ship as a single
+        --   segment with a combined note covering both halves.
         -- Seg 2: inside The Nightspire, clear trash to engage
-        --   Elisande (mapID 770, label "The Nightspire").
+        --   Elisande (mapID 770, sub-zone "The Nightspire").
         {
             step      = 6,
             priority  = 1,
@@ -768,10 +760,7 @@ RetroRuns_Data[1530] = {
         -- Seg 2: kind="poi" not "path" -- Gul'dan is right at the
         --   teleport destination, so a single waypoint near the boss
         --   is sufficient and no traversal line is drawn (mapID 772,
-        --   label "The Font of Night").
-        -- Note: mapID 771 never surfaced in any routing segment;
-        --   either an unused tower floor or a non-routing connector.
-        --   Still in maps[] for the dropdown walk to resolve.
+        --   sub-zone "The Font of Night").
         {
             step      = 7,
             priority  = 1,

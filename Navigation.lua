@@ -141,9 +141,8 @@ function RR:MarkBossKilled(boss)
     -- walk progress is only useful for the active step (where the
     -- player is currently routing to); once a boss is killed, that
     -- step's segments are no longer relevant and shouldn't carry
-    -- across sessions to confuse the next walk-through. See HANDOFF
-    -- 2026-04-26 stale-persistence investigation -- the second-pass
-    -- fix that addresses the within-lockout staleness case.
+    -- across sessions to confuse the next walk-through. Addresses
+    -- the within-lockout staleness case.
     if killedStepIndex
         and self.currentRaid and self.currentRaid.instanceID
         and RetroRunsDB and RetroRunsDB.completedSegments
@@ -249,9 +248,7 @@ function RR:MarkSegmentCompleted(stepIndex, segIndex)
     -- so without persistence, /reload mid-route loses progress and
     -- the renderer's earliest-incomplete picker shows the wrong
     -- segment when multiple segments share a mapID. Restore happens
-    -- in LoadCurrentRaid via RestorePersistedSegments. See HANDOFF
-    -- 2026-04-25 (initial persistence) and 2026-04-26 (lockout-reset
-    -- staleness fix) for context.
+    -- in LoadCurrentRaid via RestorePersistedSegments.
     --
     -- Schema includes lockoutId so the restore path can detect when
     -- the weekly reset has rolled a fresh lockout and the stored
@@ -424,15 +421,15 @@ function RR:GetProgressLines()
     --
     -- Earlier versions distinguished "available but not active" (white)
     -- from "not yet available, prereqs unmet" (gray). The white state
-    -- was removed 2026-04-22 because the visual was misleading: in
-    -- raids like Castle Nathria with branching DAGs (Sun King's
-    -- prereq is Shriekwing, but our recorded solo-clear route visits
-    -- Sun King after Altimor/Destroyer/Inerva), a player seeing a
-    -- white boss name reads it as "you can fight this next if you
-    -- want" -- and going off-route breaks the guide's segment-by-
-    -- segment navigation. Now every non-killed, non-active boss is
-    -- uniformly "pending" (gray), regardless of prereq state. The
-    -- player's only CTA is the yellow active boss.
+    -- was removed because the visual was misleading: in raids like
+    -- Castle Nathria with branching DAGs (Sun King's prereq is
+    -- Shriekwing, but our recorded solo-clear route visits Sun King
+    -- after Altimor/Destroyer/Inerva), a player seeing a white boss
+    -- name reads it as "you can fight this next if you want" -- and
+    -- going off-route breaks the guide's segment-by-segment navigation.
+    -- Now every non-killed, non-active boss is uniformly "pending"
+    -- (gray), regardless of prereq state. The player's only CTA is
+    -- the yellow active boss.
     --
     -- Killed marker uses Blizzard's ReadyCheck-Ready texture (green
     -- check) to match the Special Loot section's "collected" glyph.
@@ -721,8 +718,7 @@ function RR:GetRelevantSegmentsForMap(step, mapID)
         -- effectively dead code inside instances. Picking matches[#matches]
         -- here would surface a later segment (e.g. Eranog's "After
         -- killing Volcanius..." instead of the dragon flyover) on
-        -- fresh zone-in, which is exactly what was reported by
-        -- Photek 2026-04-25.
+        -- fresh zone-in, which is a known regression mode.
         table.insert(results, matches[1].seg)
         return results
     end
@@ -1021,6 +1017,92 @@ function RR:InitYellTriggers()
     yellTriggerFrame:RegisterEvent("CHAT_MSG_MONSTER_YELL")
     yellTriggerFrame:RegisterEvent("CHAT_MSG_MONSTER_SAY")
     yellTriggerFrame:RegisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
+end
+
+-------------------------------------------------------------------------------
+-- SubZone-trigger advancement  (segment advanceOn = { kind="subZone", ... })
+-------------------------------------------------------------------------------
+-- Mirrors the yell-trigger pattern for cases where two consecutive segments
+-- share a mapID but differ in subZone -- e.g. Antorus's Imonar step 3 has
+-- seg 2 ("click a warframe to be flown to the next area") on mapID 909 with
+-- no subZone, and seg 3 ("after landing, click the beacon") on mapID 909
+-- with subZone "Broken Cliffs". The mapID-only AdvanceStrictActiveSeg never
+-- fires across this transition because mapID doesn't change; the picker
+-- gets stuck on seg 2 until /reload.
+--
+-- Data shape:
+--     {
+--         mapID    = 909,
+--         subZone  = "Broken Cliffs",
+--         note     = "After landing, ...",
+--         advanceOn = { kind = "subZone", subZone = "Broken Cliffs" },
+--         points   = {...},
+--     }
+--
+-- The advanceOn-tagged seg is the one the player is WAITING TO REACH.
+-- When the player enters the named subZone, we mark the PREVIOUS seg
+-- complete (the seg whose note was instructing the player to undertake
+-- the transit), which causes the advanceOn-tagged seg to render as the
+-- new "current" instruction. Identical semantics to YellTriggerHandler.
+--
+-- Idempotent: the IsSegmentCompleted check prevents double-firing across
+-- subZone flicker (engine briefly reports "" between two reads of the
+-- same subZone name during transit -- see Antorus warframe landing).
+-- First fire completes the gate; later flicker reads find the gate
+-- already completed and short-circuit.
+--
+-- Called from Core.lua's HandleLocationChange, which already runs on
+-- both mapID-change AND subZone-change events (the HLC dispatch fires
+-- on PLAYER_ENTERING_WORLD, ZONE_CHANGED, ZONE_CHANGED_INDOORS, and
+-- ZONE_CHANGED_NEW_AREA -- the last three cover subZone transitions).
+-- No new event subscription needed.
+function RR:CheckSubZoneTriggers(subZoneText)
+    if not subZoneText or subZoneText == "" then return end
+    local step = self.state and self.state.activeStep
+    if not step or not step.segments then return end
+    local stepIndex = step.step or step.priority or 0
+    if stepIndex == 0 then return end
+
+    for segIndex, seg in ipairs(step.segments) do
+        if seg.advanceOn
+            and seg.advanceOn.kind == "subZone"
+            and not self:IsSegmentCompleted(stepIndex, segIndex)
+        then
+            local trig = seg.advanceOn
+            if trig.subZone and trig.subZone == subZoneText then
+                -- Mark the PREVIOUS seg complete (the seg that was
+                -- instructing the player to traverse INTO this subZone).
+                -- If this IS seg 1 (no previous), mark seg 1 itself --
+                -- same self-completing-trigger fallback the yell handler
+                -- uses.
+                local toMark = segIndex > 1 and (segIndex - 1) or segIndex
+                if not self:IsSegmentCompleted(stepIndex, toMark) then
+                    self:ZoneLog(("SubZoneTrigger: matched seg %d (subZone=%q); marking seg %d complete")
+                        :format(segIndex, trig.subZone, toMark))
+                    self:MarkSegmentCompleted(stepIndex, toMark)
+
+                    -- Strict-picker only: bump activeSeg past the just-
+                    -- completed seg if currently parked there. Same
+                    -- bookkeeping as the yell handler. Without this,
+                    -- the strict picker's activeSeg pointer stays
+                    -- behind on the now-completed seg and the picker
+                    -- continues rendering its note.
+                    if self.UsesStrictActiveSegPicker and self:UsesStrictActiveSegPicker() then
+                        local cur = self:GetStrictActiveSeg(stepIndex)
+                        if cur == toMark and step.segments[toMark + 1] then
+                            self:SetStrictActiveSeg(stepIndex, toMark + 1)
+                            self:ZoneLog(("SubZoneTrigger: bumped strict activeSeg %d -> %d"):format(
+                                cur, toMark + 1))
+                        end
+                    end
+
+                    self.UI.Update()
+                    if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
+                end
+                return
+            end
+        end
+    end
 end
 
 function RR:IsPanelAllowed()

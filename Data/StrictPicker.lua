@@ -253,6 +253,70 @@ function RR:AdvanceStrictActiveSeg(currentMapID)
     then
         return
     end
+    -- SubZone-respect guard: if the current activeSeg has a `subZone`
+    -- defined and the player is still in that subZone, refuse to advance.
+    -- This protects against in-zone mapID flicker that the heartbeat poll
+    -- would otherwise interpret as a real transition.
+    --
+    -- Canonical refuse case (Antorus Eonar): seg 1 has subZone "Elarian
+    -- Sanctuary" and mapID 913; the in-room Surge of Life ability flies
+    -- the player across open space, momentarily flickering the resolved
+    -- mapID 913 -> 909 while subZone stays "Elarian Sanctuary". Without
+    -- this guard, the heartbeat poll catches the flicker and advances
+    -- seg 1 -> seg 2 even though the player hasn't actually progressed.
+    -- The legitimate orb-click teleport DOES change subZone away from
+    -- "Elarian Sanctuary", so the guard correctly allows the advance
+    -- when the player actually leaves.
+    --
+    -- Escape clause (path-only): if activeSeg's kind is "path" AND the
+    -- next seg's declared mapID matches the new currentMapID, allow the
+    -- advance even though subZone still matches. The data author has
+    -- explicitly declared "the next step happens on mapID Y" -- when the
+    -- player arrives at mapID Y, that IS the transition, regardless of
+    -- whether subZone has caught up to it yet. Canonical allow case
+    -- (Antorus Hasabel elevator drop): seg 1 has subZone "Gaze of the
+    -- Legion" and mapID 910 (top platform); seg 2 has mapID 909 (bottom).
+    -- Jumping down the hatch produces a real 910->909 mapID transition,
+    -- but subZone stays "Gaze of the Legion" on both sides of the
+    -- threshold while the WoW client catches up.
+    --
+    -- Why path-only: poi/teleport/star segs represent "stop here and
+    -- interact" gates. The Eonar orb seg is `kind = "poi"` with mapID
+    -- 913 and subZone "Elarian Sanctuary"; the next seg's mapID is 909.
+    -- Without the path-only restriction, in-room Surge of Life flickers
+    -- (mid-encounter, hasn't clicked the orb yet) would slip through the
+    -- escape clause because currentMapID transiently reads 909 -- the
+    -- exact same value nextSeg declares. Path segs represent continuous
+    -- traversal where mid-segment mapID changes reflect real movement;
+    -- non-path segs require an explicit player action and shouldn't
+    -- advance via the escape.
+    --
+    -- Safety: the escape clause never advances across multi-step
+    -- boundaries (we only check the NEXT seg in the same step, not future
+    -- steps) and never bypasses an `advanceOn` gate (the gate check at
+    -- the top of this function fires first and short-circuits).
+    if activeSegObj and activeSegObj.subZone and GetSubZoneText then
+        local currentSubZone = GetSubZoneText() or ""
+        if currentSubZone == activeSegObj.subZone then
+            local nextSegPeek = step.segments[activeSeg + 1]
+            local escapeOK = activeSegObj.kind == "path"
+                         and nextSegPeek
+                         and nextSegPeek.mapID == currentMapID
+            if escapeOK then
+                if self.ZoneLog then
+                    self:ZoneLog(("strict activeSeg advance ALLOWED via mapID-match escape: subZone %q still matches but nextSeg.mapID=%d == currentMapID (step %d seg %d)")
+                        :format(currentSubZone, currentMapID, stepIndex, activeSeg))
+                end
+                -- Fall through to the normal advance path below.
+            else
+                if self.ZoneLog then
+                    self:ZoneLog(("strict activeSeg advance REFUSED: still in subZone %q (step %d seg %d, mapID=%d)")
+                        :format(currentSubZone, stepIndex, activeSeg, currentMapID))
+                end
+                return
+            end
+        end
+    end
     local nextSeg = step.segments[activeSeg + 1]
     if nextSeg and nextSeg.mapID == currentMapID then
         self:SetStrictActiveSeg(stepIndex, activeSeg + 1)
@@ -261,6 +325,12 @@ function RR:AdvanceStrictActiveSeg(currentMapID)
         if self.ZoneLog then
             self:ZoneLog(("strict activeSeg advance: step %d %d -> %d (mapID=%d)")
                 :format(stepIndex, activeSeg, activeSeg + 1, currentMapID))
+        end
+    else
+        if self.ZoneLog then
+            local nextMapStr = nextSeg and tostring(nextSeg.mapID) or "(no next seg)"
+            self:ZoneLog(("Advance no-op: nextSeg.mapID=%s != currentMapID=%d (step=%d activeSeg=%d)")
+                :format(nextMapStr, currentMapID, stepIndex, activeSeg))
         end
     end
 end
@@ -284,14 +354,12 @@ end
 -- Gate-respect: if a seg with `advanceOn` exists earlier in the segment
 -- list and is NOT yet marked complete in completedSegments, the seed
 -- caps at that seg's index. This prevents the seeder from jumping past
--- gating pois that share a mapID with later path segs -- the case that
--- drove the v1.9 Tomb of Sargeras fix (Hammer of Khaz'goroth click sits
--- on the same mapID 850 as the path leading away from it, and the
--- pre-fix seeder picked the path seg over the Hammer seg). Once the
--- gate is marked complete (via the yell-trigger handler in
--- Navigation.lua), subsequent re-seeds (e.g. after /reload mid-step)
--- walk past it normally and pick the highest matching same-mapID seg
--- as before.
+-- gating pois that share a mapID with later path segs (e.g. the Hammer
+-- of Khaz'goroth click in Tomb of Sargeras sits on mapID 850, same as
+-- the path leading away from it). Once the gate is marked complete
+-- (via the yell-trigger handler in Navigation.lua), subsequent re-seeds
+-- (e.g. after /reload mid-step) walk past it normally and pick the
+-- highest matching same-mapID seg as before.
 --
 -- Monotonic-advance protection still applies to AdvanceStrictActiveSeg,
 -- which fires on player mapID transitions WITHIN a step -- that's the
@@ -307,14 +375,36 @@ function RR:SeedStrictActiveSeg(step)
         and C_Map.GetBestMapForUnit("player")
 
     -- First pass: find the lowest-index uncompleted gate seg (if any).
-    -- That's the ceiling: the seed must not exceed it, because the
-    -- gate's advanceOn trigger has to fire before later segs can
-    -- legitimately become active.
+    -- Initially this seg is the ceiling: the seed must not exceed it,
+    -- because the gate's advanceOn trigger has to fire before later
+    -- segs can legitimately become active. EXCEPTION below: if the
+    -- player has visibly progressed past the gate (their current
+    -- mapID matches a seg index > gateCeiling), treat the gate as
+    -- already-traversed for seeding purposes. The cross-mapID transit
+    -- to the post-gate seg's mapID is the proof of progression.
     local gateCeiling = nil
     for i, seg in ipairs(step.segments) do
         if IsGateSegment(seg) and not self:IsSegmentCompleted(stepIndex, i) then
             gateCeiling = i
             break
+        end
+    end
+
+    -- Visible-past-gate detection: if any post-gate seg matches the
+    -- player's mapID, the player has physically crossed past the gate
+    -- (e.g. Antorus Imonar step 3: gate is seg 3 on mapID 909/Broken
+    -- Cliffs, post-gate seg 4 is on mapID 914/The Exhaust; if the
+    -- player /reloads while on mapID 914, they've already used the
+    -- Lightforged Beacon to teleport past Broken Cliffs and the gate
+    -- shouldn't cap their seed). Without this check the seeder would
+    -- snap them back to the gate's index and the strict picker would
+    -- park on the pre-Beacon "click the Beacon" instruction.
+    if gateCeiling and playerMapID then
+        for i = gateCeiling + 1, #step.segments do
+            if step.segments[i].mapID == playerMapID then
+                gateCeiling = nil
+                break
+            end
         end
     end
 
@@ -335,6 +425,25 @@ function RR:SeedStrictActiveSeg(step)
 
     local current = self:GetStrictActiveSeg(stepIndex)
     self:SetStrictActiveSeg(stepIndex, seed)
+
+    -- Re-baseline the heartbeat poll's last-seen mapID to match the
+    -- seed's playerMapID. The 1Hz heartbeat in Core.lua fires
+    -- AdvanceStrictActiveSeg(nowMapID) whenever nowMapID differs from
+    -- RR.state.lastPolledMapID; without this re-baseline, a step
+    -- transition that seeds at mapID X with the poll's baseline still
+    -- holding pre-seed value Y can fire a spurious advance on the
+    -- next tick when the poll "discovers" a phantom X->Y delta even
+    -- though the player hasn't moved. Antorus Eonar->Imonar is the
+    -- documented case: post-ENCOUNTER_END the player's mapID can
+    -- briefly resolve 913->909 around the kill (parent-map
+    -- resolution flicker), and without this sync the heartbeat
+    -- snaps activeSeg from 1 (the "talk to Essence of Eonar" orb)
+    -- to 2 (the "click the warframe" post-orb instruction) before
+    -- the player has actually clicked the orb.
+    if RR.state then
+        RR.state.lastPolledMapID = playerMapID
+    end
+
     if self.ZoneLog then
         self:ZoneLog(("strict activeSeg seed: step %d %d -> %d (playerMapID=%s gateCeiling=%s)")
             :format(stepIndex, current, seed,

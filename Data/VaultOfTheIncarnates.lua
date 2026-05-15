@@ -13,11 +13,11 @@
 --    bosses[] which stays EJ-ordered for transmog-lookup purposes.
 --
 -- 2. Routing segments often share a mapID within a single step. Vault
---    is the first raid where this happens; the renderer
---    (GetRelevantSegmentsForMap in Navigation.lua) handles it by
---    picking the earliest incomplete segment when player position
---    is unavailable (always the case inside raid instances per
---    Blizzard's C_Map.GetPlayerMapPosition restriction).
+--    is the first raid where this happens, and the addon handles it
+--    by picking the earliest incomplete segment within the player's
+--    current mapID. Player position can't be queried inside raid
+--    instances (a Blizzard restriction), so the earliest-incomplete
+--    rule is what advances the route as the player moves.
 -------------------------------------------------------------------------------
 
 RetroRuns_Data = RetroRuns_Data or {}
@@ -427,13 +427,11 @@ RetroRuns_Data[2522] = {
             -- are mine to control!" at the end of the flight just as the
             -- player lands.
             --
-            -- Post-landing the dragon stub disappears and two color-coded
-            -- numbered lines (1)/(2) appear for the walk to Volcanius and
-            -- onward to Eranog. Volcanius is a mini-boss along the path,
-            -- not a registered raid encounter, so there's no detectable
-            -- moment to swap between the two lines mid-walk -- they stay
-            -- on the map together and the player self-paces between the
-            -- two kills.
+            -- Post-landing, two color-coded numbered lines (1)/(2) appear
+            -- for the walk to Volcanius and onward to Eranog. Volcanius is
+            -- a mini-boss along the path, not a registered raid encounter,
+            -- so both lines render together for the entire walk and the
+            -- player self-paces between the two kills.
             renderAllSegments = true,
             segments  = {
                 {

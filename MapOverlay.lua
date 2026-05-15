@@ -435,17 +435,6 @@ function overlay:DrawAllSegmentsForMap(mapID)
     local labelIdx   = 1
     local chevronIdx = 1
 
-    -- Per-segment color palette, cycled by render order on this map
-    -- (see renderNum below). Three high-contrast colors that read
-    -- against the World Map's textured background. Indexed mod 3 so a
-    -- hypothetical 4-segment render would reuse seg 1's color for
-    -- seg 4, but adjacent segments are always different.
-    local SEG_COLORS = {
-        { 1.0, 0.95, 0.30 },  -- yellow   (1st rendered, 4th, 7th...)
-        { 0.30, 0.85, 1.00 },  -- cyan    (2nd rendered, 5th, 8th...)
-        { 1.00, 0.40, 0.85 },  -- magenta (3rd rendered, 6th, 9th...)
-    }
-
     -- Label number reflects the seg's position among segs ACTUALLY
     -- DRAWN ON THIS MAP, not its absolute segIndex within step.segments.
     -- This way, instruction-only segs (no points), segs on a different
@@ -485,7 +474,6 @@ function overlay:DrawAllSegmentsForMap(mapID)
             and RR:IsSegmentRevealed(stepIndex, seg) then
             local pts = seg.points
             renderNum = renderNum + 1
-            local color = SEG_COLORS[((renderNum - 1) % #SEG_COLORS) + 1]
 
             -- Start dot. Skipped for single-point segments: with no
             -- path to "start," the start dot would just stack under
@@ -503,14 +491,17 @@ function overlay:DrawAllSegmentsForMap(mapID)
                 end
             end
 
-            -- Polyline (color varies per segment so overlapping lines
-            -- from different segments stay visually distinguishable)
+            -- Polyline. Pink {0.95, 0.35, 0.78} matches the single-segment
+            -- render path so multi-segment maps stay visually consistent
+            -- with the rest of the addon. Disambiguation between segments
+            -- on the same map is carried by the numbered (1)/(2)/(3)
+            -- labels placed at each segment's endpoint, not by line color.
             for i = 2, #pts do
                 local ln = self.lines[lineIdx]
                 if ln then
                     local p, c = pts[i-1], pts[i]
                     ln:SetThickness(5)
-                    ln:SetColorTexture(color[1], color[2], color[3], 1.0)
+                    ln:SetColorTexture(0.95, 0.35, 0.78, 1.0)
                     ln:SetStartPoint("TOPLEFT", p[1] * W, -p[2] * H)
                     ln:SetEndPoint  ("TOPLEFT", c[1] * W, -c[2] * H)
                     ln:Show()

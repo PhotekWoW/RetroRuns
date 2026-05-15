@@ -22,7 +22,7 @@ local RR = RetroRuns
 -- window where state.bossesKilled is empty during the iteration, which
 -- caused panel-flicker on every zone-change event because ComputeNextStep
 -- would briefly pick a different active step before the re-population
--- completed. See HANDOFF 2026-04-25 flicker investigation.
+-- completed.
 function RR:SyncFromSavedRaidInfo(requestRaidInfo)
     if self.state.testMode then
         self:ComputeNextStep()
@@ -70,8 +70,7 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
     --     disappears from the cache for one read, then reappears on the
     --     next). Reject these. Real lockout resets happen on raid load
     --     when state is wiped first, so we never need to honor a
-    --     mid-session removal. See HANDOFF 2026-04-25 flicker
-    --     investigation for the diagnostic capture that proved this.
+    --     mid-session removal.
     local hasAddition = false
     for k in pairs(newKilled) do
         if not self.state.bossesKilled[k] then

@@ -2,7 +2,7 @@
 
 This is a forward-looking document: what's coming next, what's planned, and what's still in idea form. For what's already shipped and historical context, see [CHANGELOG.md](CHANGELOG.md).
 
-## Current Version: 1.9.0
+## Current Version: 1.10.0
 
 ---
 
@@ -11,7 +11,7 @@ This is a forward-looking document: what's coming next, what's planned, and what
 Work targeted for the next release.
 
 ### Raid Support
-- **Legion: Antorus, the Burning Throne** — 11 bosses, the final Legion raid, Argus the Unmaker.
+- _No raids currently in active development._
 
 ---
 
@@ -54,6 +54,8 @@ Snap backdrop alpha to full opacity when the mouse enters any of the four backdr
 
 ### Color theme options
 Alternate color palettes for the panel and map overlay (the current pink/cyan brand is fixed). Would need to define which surfaces are themed (logo + map lines + headers + accents) vs which stay neutral.
+
+### Transmog tracking for BoE appearances
 
 ---
 

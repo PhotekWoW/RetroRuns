@@ -2,6 +2,19 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [1.10.0] - 2026-05-15
+
+### Added
+
+- **Antorus, the Burning Throne** is now fully supported — walk-along routes for all 11 bosses across the Legion finale raid. Per-difficulty transmog tracking with full Tier 21 coverage, with achievement callouts and soloability ratings. Notable routing: the post-Antoran-High-Command elevator suicide-jump shortcut, the Eonar orb-teleport back to Antorus, and the Lightforged Beacon transition to The Burning Throne. Special loot: the Antoran Charhound mount from Felhounds of Sargeras.
+- **Glory meta-achievement tracking for Legion raids.** The Achievements pane now shows Glory progress and the mount/pet/title reward for Emerald Nightmare, The Nighthold, Tomb of Sargeras, and Antorus — joining the existing tracking for BfA, Shadowlands, and Dragonflight raids.
+- **Cosmetic weapon and armor appearances now tracked on several Legion bosses.** Aggramar drops Taeshalach (2H sword), Argus drops Scythe of the Unmaker (2H polearm, blue and red color variants), and Xavius drops The First Satyr's Spaulders (leather shoulders). These appearances aren't surfaced by the in-game Adventure Guide; they now appear in their boss's transmog list with collection state.
+
+### Fixed
+
+- **Achievement names in the encounter pane now reliably open the achievement window when clicked on bosses with solo tips.** Previously, clicks could fall through to the soloTip expand/collapse toggle instead of opening the achievement detail. The encounter pane has been restructured so the toggle and the achievement links no longer compete for the same click region.
+- **Travel notes no longer get stuck after certain map transitions.** Some routes (the Antoran High Command-to-Hasabel elevator drop being the canonical example) involved a map change where the in-game sub-zone label took a moment to catch up. The addon now recognizes these as real transitions and advances the travel note correctly.
+
 ## [1.9.0] - 2026-05-13
 
 ### Added
@@ -180,7 +193,7 @@ All notable changes to RetroRuns are documented here.
 
 ### Fixed
 
-- **Tier resolver now correctly attributes class-restricted tier tokens.** The harvester previously used the first available source for each tier token regardless of class restriction. It now matches each token to the correct class by reading the in-game tooltip, preventing silent misattribution when a boss's tier pieces span multiple armor types.
+- **Tier resolver now correctly attributes class-restricted tier tokens.** Tier tokens previously used the first available source regardless of class restriction. They now match each token to the correct class by reading the in-game tooltip, preventing silent misattribution when a boss's tier pieces span multiple armor types.
 - **Legendary item orange no longer requires two reloads to appear.** Item appearances for legendary drops (Rae'shalare, Nasz'uro, Fyr'alath) are now pre-fetched when you zone into a raid. The first render after zoning in shows the orange correctly without a second reload.
 - **Browser items resolve correctly on first open.** The transmog browser previously needed a second open to render some items in their correct color and name (a side effect of the game's asynchronous item-info cache). The browser now warms the cache when you open it and refreshes itself as items resolve, so the first view is the correct one.
 

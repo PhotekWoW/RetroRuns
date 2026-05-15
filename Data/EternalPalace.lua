@@ -236,6 +236,17 @@ RetroRuns_Data[2164] = {
                 { id = 168337, slot = "Chest",    name = "Vestments of Creeping Terror",    sources = { [17]=104373, [14]=104370, [15]=104371, [16]=104372 } },
                 { id = 168349, slot = "Head",     name = "Shroud of Unmooring Whispers",    sources = { [17]=104421, [14]=104418, [15]=104419, [16]=104420 } },
                 { id = 169588, slot = "Shoulder", name = "Gardbrace of Fractured Reality",  sources = { [17]=105158, [14]=105155, [15]=105156, [16]=105157 } },
+                -- Pauldrons of Za'qul: binary-shape cosmetic shoulder,
+                -- drops on Heroic and Mythic only (per Wowhead; same
+                -- pattern as First Satyr's Spaulders -- a "vanity"
+                -- shoulder version of the boss model's own shoulders).
+                -- One sourceID (104678) covers the appearance across
+                -- both difficulties. Encoded here as binary (single
+                -- sourceID cloned across all four buckets), so the
+                -- renderer shows a single bracket indicator rather than
+                -- a 4-dot strip; the unused LFR/Normal buckets resolve
+                -- to the same appearance as H/M, so detection still works.
+                { id = 168868, slot = "Shoulder", name = "Pauldrons of Za'qul",            sources = { [17]=104678, [14]=104678, [15]=104678, [16]=104678 } },
                 { id = 168902, slot = "Weapon",   name = "Dream's End",                     sources = { [17]=104790, [14]=104787, [15]=104788, [16]=104789 } },
                 { id = 168301, slot = "Weapon",   name = "Sever, Edge of Madness",          sources = { [17]=105046, [14]=104357, [15]=105044, [16]=105045 } },
                 { id = 168884, slot = "Wrist",    name = "Bindings of the Herald",          sources = { [17]=104745, [14]=104742, [15]=104743, [16]=104744 } },

@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "1.8.0"
+local VERSION    = "1.10.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -33,6 +33,16 @@ RetroRuns = {
         currentDifficultyName = nil,
         isReloadingUi         = false, -- captured from PLAYER_ENTERING_WORLD
         zoneLog               = {},   -- ring buffer of zone-change debug lines, viewable via /rr zonelog
+        -- Last mapID observed by the strict-activeSeg heartbeat poll
+        -- (Core.lua's 1Hz ticker, AdvanceStrictActiveSeg trigger). The
+        -- poll only fires AdvanceStrictActiveSeg when nowMapID differs
+        -- from this baseline, so it must be kept in sync with the
+        -- seed's playerMapID; otherwise a step transition that seeds at
+        -- mapID X with the poll's last-seen mapID at Y can immediately
+        -- fire a spurious advance on the next tick when the poll
+        -- "discovers" the X->Y delta even though the player never
+        -- moved. SeedStrictActiveSeg writes here when it seeds.
+        lastPolledMapID       = nil,
     },
 
     -- SavedVariable defaults; user values are preserved via MergeDefaults
@@ -577,9 +587,8 @@ local function CollectRaidDataIssues(scopeFilter)
     end
 
     -- Strings flagged in raid.maps[] that mean "this name has not been
-    -- in-game-verified" -- per the HANDOFF Section 6 maps-provenance
-    -- rule. Linted as warnings so they don't block a run but are easy
-    -- to find for follow-up verification.
+    -- in-game-verified." Linted as warnings so they don't block a run
+    -- but are easy to find for follow-up verification.
     local UNVERIFIED_MAP_MARKERS = { "??", "unverified", "inferred" }
     local function looksUnverified(s)
         if type(s) ~= "string" then return false end
@@ -676,9 +685,8 @@ local function CollectRaidDataIssues(scopeFilter)
             -- Maps-table linting: warn on entries flagged unverified
             -- (matches "??", "unverified", or "inferred" anywhere in
             -- the value). These are intentional placeholders awaiting
-            -- in-game verification per Section 6's maps-provenance
-            -- rule, but we want them visible so they don't get
-            -- forgotten.
+            -- in-game verification, but we want them visible so they
+            -- don't get forgotten.
             if type(raid.maps) == "table" then
                 for mapID, mapName in pairs(raid.maps) do
                     if looksUnverified(mapName) then
@@ -882,8 +890,22 @@ function RR:InitializeDB()
     -- NOT survive reload -- those are per-session-attempt and should
     -- start clean on each addon load. Only the long-lived log is
     -- restored for cross-reload diagnostic continuity.
-    if RetroRunsDB.recorderSessionLog and self.recorder then
-        self.recorder.sessionLog = RetroRunsDB.recorderSessionLog
+    --
+    -- Scoped per character: each character has its own bucket so an
+    -- alt's debug session doesn't pollute the main's diagnostic view.
+    -- Old single-flat-list shape (pre per-character) is discarded on
+    -- first load -- the array marker is RetroRunsDB.recorderSessionLog[1]
+    -- being a non-nil table; character keys never index as integers.
+    if RetroRunsDB.recorderSessionLog
+        and RetroRunsDB.recorderSessionLog[1] ~= nil then
+        RetroRunsDB.recorderSessionLog = nil
+    end
+    if self.recorder then
+        local bucket = RetroRunsDB.recorderSessionLog
+                   and RetroRunsDB.recorderSessionLog[self:GetCharacterKey()]
+        if bucket then
+            self.recorder.sessionLog = bucket
+        end
     end
     -- Restore pending auto-stamp event (queued ENCOUNTER_END or
     -- PLAYER_CONTROL_GAINED that fired while recording was inactive).
@@ -966,8 +988,7 @@ end
 -- on /reload (since the cache lives in module-level state, not in
 -- SavedVariables).
 --
--- Two non-obvious requirements, both confirmed by in-game diagnostic
--- on 2026-05-07 during the v1.5 pill-regression debug:
+-- Two non-obvious requirements, both confirmed by in-game diagnostic:
 --
 --   1. EJ_GetEncounterInfoByIndex(i, journalInstanceID) without a
 --      prior EJ_SelectInstance call silently returns nothing on
@@ -1149,6 +1170,71 @@ end
 -- difficulty is unlocked, and (by cascade) every difficulty below.
 -- The walk from highest to lowest gives us the ceiling directly.
 
+-- Normalize raid.skipQuests into an array of chain descriptors. Returns
+-- nil if the raid has no skipQuests configured.
+--
+-- The schema supports two shapes:
+--
+--   Single-chain (legacy, most raids):
+--     skipQuests = { normal = N, heroic = H, mythic = M }
+--
+--   Multi-chain (Antorus and any future raid with parallel skip chains):
+--     skipQuests = {
+--         { label = "Imonar",   normal = N1, heroic = H1, mythic = M1 },
+--         { label = "Aggramar", normal = N2, heroic = H2, mythic = M2 },
+--     }
+--
+-- This helper detects which shape is in use and returns the multi-chain
+-- form in both cases -- the legacy single-chain raids are wrapped as a
+-- one-element array with no label. Downstream consumers always iterate
+-- the array and can assume the normalized shape.
+--
+-- Shape detection: in the multi-chain shape, indices [1] / [2] / ...
+-- exist and are tables. In the legacy shape, raid.skipQuests.normal /
+-- heroic / mythic exist directly.
+local function NormalizeSkipChains(raid)
+    if not raid or not raid.skipQuests then return nil end
+    local sq = raid.skipQuests
+    -- Multi-chain shape: numeric-indexed array of chain tables.
+    if sq[1] and type(sq[1]) == "table" then
+        return sq
+    end
+    -- Legacy single-chain shape: wrap as one-element array. Preserve
+    -- whatever fields are present; missing fields stay nil (the chain
+    -- accessor handles that).
+    return { { normal = sq.normal, heroic = sq.heroic, mythic = sq.mythic } }
+end
+
+-- Returns the ceiling (highest unlocked difficulty ID) for one chain
+-- descriptor. Returns nil if no flag in the chain is set or the quest-
+-- log API isn't available. Difficulty IDs match GetRaidSkipUnlockedCeiling:
+-- 16 = Mythic, 15 = Heroic, 14 = Normal.
+local function CeilingForChain(chain)
+    if not chain then return nil end
+    local fn = C_QuestLog and C_QuestLog.IsQuestFlaggedCompletedOnAccount
+    if not fn then return nil end
+    if chain.mythic and fn(chain.mythic) then return 16 end
+    if chain.heroic and fn(chain.heroic) then return 15 end
+    if chain.normal and fn(chain.normal) then return 14 end
+    return nil
+end
+
+-- Returns a normalized array of per-chain ceiling descriptors:
+--   { { label = "...", ceiling = 16 | 15 | 14 | nil }, ... }
+-- One entry per chain in raid.skipQuests. Single-chain raids return a
+-- one-element array; the legacy shape's lack of a label means
+-- result[1].label is nil. Returns nil if the raid has no skipQuests
+-- (use skipAchievement-aware accessors for that case).
+function RR:GetSkipChainCeilings(raid)
+    local chains = NormalizeSkipChains(raid)
+    if not chains then return nil end
+    local out = {}
+    for _, chain in ipairs(chains) do
+        table.insert(out, { label = chain.label, ceiling = CeilingForChain(chain) })
+    end
+    return out
+end
+
 -- Returns the highest difficulty for which the skip is unlocked on the
 -- account, or nil if no flag is set or the raid has neither skipQuests
 -- nor skipAchievement configured. Returned values are WoW raid difficulty
@@ -1160,21 +1246,30 @@ end
 --   * skipQuests: standard post-Shadowlands quest-flag cascade. Per
 --     difficulty, with downward cascade (mythic implies heroic implies
 --     normal) handled by the consumer (IsRaidSkipAvailableAtDifficulty).
+--     May be single-chain (most raids) or multi-chain (Antorus); see
+--     NormalizeSkipChains for the shape detection.
 --   * skipAchievement: BfD-only sibling field. Mythic-only, gated by an
 --     achievement ID. The achievement's per-account "completed" boolean
 --     is the 4th return of GetAchievementInfo (since 11.0.5, this is
 --     account-wide for any cross-realm earned achievement).
+--
+-- For multi-chain raids, returns the MAX ceiling across all chains. The
+-- ceiling-per-chain detail (needed by the Skips UI to render two rows)
+-- lives in GetSkipChainCeilings.
 function RR:GetRaidSkipUnlockedCeiling(raid)
     if not raid then return nil end
 
     -- Standard quest-flag cascade.
     if raid.skipQuests then
-        local fn = C_QuestLog and C_QuestLog.IsQuestFlaggedCompletedOnAccount
-        if not fn then return nil end
-        if raid.skipQuests.mythic and fn(raid.skipQuests.mythic) then return 16 end
-        if raid.skipQuests.heroic and fn(raid.skipQuests.heroic) then return 15 end
-        if raid.skipQuests.normal and fn(raid.skipQuests.normal) then return 14 end
-        return nil
+        local perChain = self:GetSkipChainCeilings(raid)
+        if not perChain then return nil end
+        local maxCeiling
+        for _, c in ipairs(perChain) do
+            if c.ceiling and (not maxCeiling or c.ceiling > maxCeiling) then
+                maxCeiling = c.ceiling
+            end
+        end
+        return maxCeiling
     end
 
     -- BfD-only achievement-gated skip. Mythic-only -- the cascade-down
@@ -1339,8 +1434,7 @@ end
 
 -- Restore from persisted SavedVariable IF the lockout matches. Wipes
 -- persisted state if the lockout has changed (weekly reset since last
--- save) so stale segment marks don't survive into a fresh lockout. See
--- HANDOFF 2026-04-26 stale-persistence investigation for context.
+-- save) so stale segment marks don't survive into a fresh lockout.
 --
 -- Schema: RetroRunsDB.completedSegments[instanceID] = {
 --     lockoutId = <number>,
@@ -1453,7 +1547,7 @@ StaticPopupDialogs["RETRORUNS_LOAD_RAID"] = {
     text = "|cffF259C7RETRO|r|cff4DCCFFRUNS|r\n\n"
         .. "Route data found for:\n|cffffff00%s|r\n\n"
         .. "Load navigation?\n\n"
-        .. "|cffc0c0c0Designed for max-level characters running legacy content.|r",
+        .. "|cffc0c0c0This addon is in early development.\nPlease report bugs if you encounter issues!|r",
     button1        = "Load",
     button2        = "Not Now",
     OnAccept       = function() RetroRuns:LoadCurrentRaid() end,
@@ -1602,14 +1696,6 @@ function RR:HandleLocationChange()
     end
 
     if currentMapID and previousMapID and currentMapID ~= previousMapID then
-        -- Strict-activeSeg advancement hook (v1.6+, generalized in
-        -- v1.7): for raids opting in via useStrictActiveSegPicker,
-        -- the activeSeg-based picker advances on mapID transitions.
-        -- The function itself is predicated internally via
-        -- UsesStrictActiveSegPicker, so this hook is a no-op for
-        -- legacy raids. See Data/StrictPicker.lua for the model.
-        self:AdvanceStrictActiveSeg(currentMapID)
-
         local step = self.state.activeStep
         if step and step.segments then
             local stepIndex = step.step or step.priority or 0
@@ -1642,6 +1728,16 @@ function RR:HandleLocationChange()
             -- through a parent-zone-fallback portion), the completion
             -- is deferred to the second loop below, which fires on
             -- sub-zone-change events.
+            --
+            -- ORDERING NOTE: this completion loop runs BEFORE
+            -- AdvanceStrictActiveSeg (below) so the strict advancer
+            -- sees updated completedSegments state. Critical for the
+            -- gate-seg case: AdvanceStrictActiveSeg refuses to advance
+            -- past an uncompleted gate seg (advanceOn predicate), and
+            -- the cross-mapID transit IS what completes that gate seg.
+            -- If the strict advancer ran first, it would see the gate
+            -- uncompleted, short-circuit, and the activeSeg pointer
+            -- would never advance past the gate.
             for segIndex, seg in ipairs(step.segments) do
                 local completed = self:IsSegmentCompleted(stepIndex, segIndex)
                 local segSubZone = seg.subZone or "(none)"
@@ -1666,6 +1762,16 @@ function RR:HandleLocationChange()
         else
             self:ZoneLog("mapID changed but no active step or no segments")
         end
+
+        -- Strict-activeSeg advancement hook (v1.6+, generalized in
+        -- v1.7): for raids opting in via useStrictActiveSegPicker,
+        -- the activeSeg-based picker advances on mapID transitions.
+        -- The function itself is predicated internally via
+        -- UsesStrictActiveSegPicker, so this hook is a no-op for
+        -- legacy raids. See Data/StrictPicker.lua for the model.
+        -- Runs AFTER the cross-mapID completion loop so gate-seg
+        -- completion is visible to the advancer's gate-respect check.
+        self:AdvanceStrictActiveSeg(currentMapID)
     end
 
     -- Deferred-completion path: fires on sub-zone change WITHIN the
@@ -1705,6 +1811,23 @@ function RR:HandleLocationChange()
             end
         end
     end
+
+    -- SubZone-trigger advancement (segments with advanceOn=subZone).
+    -- Independent from the requiresSubZone / deferred-completion path
+    -- above: requiresSubZone gates a PRIOR seg's completion on subZone
+    -- match (the seg you're leaving needs subZone to be right before
+    -- being marked complete). advanceOn=subZone is the inverse: it
+    -- triggers advancement TO a seg whose mapID matches the player's
+    -- but isn't reachable via mapID-change advancement because the
+    -- previous seg shares the mapID. Imonar's warframe-fly seg 2
+    -- (mapID 909, no subZone) -> seg 3 (mapID 909, subZone "Broken
+    -- Cliffs") is the canonical case.
+    --
+    -- Called unconditionally; the function self-gates on "is there
+    -- an active step with an advanceOn=subZone seg matching the
+    -- current subZone?" so the call is cheap for raids/steps without
+    -- this pattern.
+    self:CheckSubZoneTriggers(subZoneText)
 
     if currentMapID then
         self.state.lastPlayerMapID = currentMapID
@@ -1751,10 +1874,10 @@ function RR:HandleLocationChange()
             -- inherit bossesKilled and completedSegments from the
             -- previous raid -- which are bossIndex-keyed without raid
             -- scoping, so they collide. SyncFromSavedRaidInfo's
-            -- removal-rejection guard (added 2026-04-25 to defeat
-            -- saved-instance cache hiccups mid-session) would
-            -- otherwise refuse to clear the stale data when the new
-            -- raid's cache reports no kills.
+            -- removal-rejection guard (defeats saved-instance cache
+            -- hiccups mid-session) would otherwise refuse to clear
+            -- the stale data when the new raid's cache reports no
+            -- kills.
             --
             -- This wipes IN-MEMORY state only -- SavedVariable
             -- (RetroRunsDB.completedSegments) persists across raid
@@ -1900,7 +2023,7 @@ end
 -- Print a one-shot summary of the current state to a copy window.
 -- Useful for quickly checking what raid is loaded, what step you're on,
 -- and which bosses have been marked killed, without having to open the
--- UI. Pasteable so Photek can share it during debugging.
+-- UI. Pasteable for sharing during debugging.
 function RR:PrintStatus()
     local lines = {}
     local function add(s) table.insert(lines, s) end
@@ -2151,12 +2274,11 @@ end
 -------------------------------------------------------------------------------
 -- Toggle-probe diagnostic (dev-only; not user-facing)
 --
--- Bug 2026-05-11: in "Run complete!" state the expansion-toggle "+" buttons
--- in the supported-raids list are dead to clicks (work fine in idle state).
--- First fix attempt: added panel.transmog:EnableMouse(false) to the
--- run-complete branch (parity with idle). Result: "somewhat working but
--- mostly not" -- partial improvement, not full resolution. So there's at
--- least one more frame intercepting clicks, or a timing-of-state issue.
+-- Diagnoses the "Run complete!" + button click bug: in that state the
+-- expansion-toggle "+" buttons in the supported-raids list go dead to
+-- clicks (work fine in idle state). The fix path needs to identify
+-- whether something is intercepting clicks or whether the buttons
+-- themselves are misconfigured.
 --
 -- This probe dumps everything needed to identify the culprit:
 --   1. Each panel.expansionToggleButtons[i] -- IsShown / IsMouseEnabled /
@@ -2167,8 +2289,7 @@ end
 --      hover a + glyph and run /rr toggleprobe to see what frame the
 --      mouse is actually over (the toggle button, or something else?)
 --
--- All output goes to ShowCopyWindow per Section 0 rule H. Run via
--- /rr toggleprobe.
+-- Output goes to ShowCopyWindow. Run via /rr toggleprobe.
 -------------------------------------------------------------------------------
 function RR:ToggleProbe()
     local out = {}
@@ -2607,6 +2728,743 @@ end
 function RR:IsYellDebugActive()
     return yellDebug.active == true
 end
+
+-------------------------------------------------------------------------------
+-- VerifyOneRaid: run the tmogverify pipeline (E1-E7 + special-loot checks +
+-- async EJ-driven coverage pass) on a single raid table. Async because the
+-- coverage pass requires driving the EJ at each difficulty per boss.
+--
+-- Parameters:
+--   raid    : a raid entry from RetroRuns_Data (must have .bosses, .journalInstanceID)
+--   opts    : {
+--       verbose = bool,  -- emit per-boss + per-item [OK]/[ERR] rows (default true)
+--       banner  = bool,  -- emit "warming..." / "starting coverage..." Print() lines
+--                          to chat (default true; turn off in batch mode to keep
+--                          chat quiet during /rr tmogverifyall)
+--   }
+--   onDone  : function(lines, T) callback. lines is the accumulated output
+--             text (array of strings ready for table.concat). T is the counter
+--             table tallying findings.
+--
+-- Extracted from the /rr tmogverify dispatcher branch in v1.10.0 so the same
+-- pipeline can be reused by /rr tmogverifyall without code duplication. See
+-- the tmogverify docblock above the dispatcher for the per-check semantics.
+-------------------------------------------------------------------------------
+function RR:VerifyOneRaid(raid, opts, onDone)
+    opts = opts or {}
+    local verbose = opts.verbose
+    if verbose == nil then verbose = true end
+    if not raid or not raid.bosses then
+        if onDone then onDone({}, {}) end
+        return
+    end
+
+    -- Cache-warm pass, same rationale as tmogaudit: GetSourceInfo
+    -- and friends depend on item data being loaded. Walking the
+    -- whole raid cold can under-report.
+    for _, boss in ipairs(raid.bosses) do
+        if boss.loot then
+            for _, it in ipairs(boss.loot) do
+                if it.id then GetItemInfo(it.id) end
+            end
+        end
+        if boss.specialLoot then
+            for _, it in ipairs(boss.specialLoot) do
+                if it.id then GetItemInfo(it.id) end
+            end
+        end
+    end
+
+    if opts and opts.banner then RR:Print("tmogverify: warming item cache, please wait 1s...") end
+
+    C_Timer.After(1.0, function()
+        local lines = {}
+        local function add(s) table.insert(lines, s) end
+
+        -- Aggregate counters reported at the end. Each finding
+        -- bumps one bucket; a clean item bumps `ok`.
+        local T = {
+            ok              = 0,   -- item had no findings
+            fatal_nil       = 0,   -- source returned nil via every API we tried
+            item_mismatch   = 0,   -- E2: sourceID's itemID disagrees with our item.id
+            bucket_mismatch = 0,   -- E5: sourceID lives in wrong difficulty slot per its itemLink's itemContext
+            coverage_gap    = 0,   -- E6: EJ exposes more sourceIDs for this item-at-this-diff than we shipped
+            missing_item    = 0,   -- E7: EJ exposes an item at this boss that's not in our data
+            e5_checked      = 0,   -- diagnostic: how many bucket slots actually got the E5 itemContext check
+            e5_skipped      = 0,   -- diagnostic: how many slots E5 skipped (no link, or unknown context)
+            -- E4: source-duplication shape classification (descriptive,
+            -- not error-severity -- binary and perdiff are both fine).
+            shape_binary    = 0,   -- 1 unique source cloned across 2+ buckets (single-variant item)
+            shape_perdiff   = 0,   -- N unique sources in N buckets (per-difficulty item)
+            shape_partial   = 0,   -- 2-3 unique sources in 4 buckets (WRN: half-harvested?)
+            shape_outlier   = 0,   -- E3 visualID: 3+1 pattern (one bucket odd one out)
+            shape_mixed     = 0,   -- E3 visualID: 2+2 / 2+1+1 mixed
+            no_visual       = 0,   -- E3: could not resolve visualID at all
+            special_kind_mismatch = 0, -- S2
+            special_item_unknown  = 0, -- S1
+        }
+        local DIFFS = { 17, 14, 15, 16 }
+        local DIFF_NAME = { [17]="LFR", [14]="N", [15]="H", [16]="M" }
+
+        if verbose then add(("tmogverify: raid=%s"):format(tostring(raid.name or "?"))) end
+        if verbose then add("Data-integrity check: every sourceID in the data file is") end
+        if verbose then add("validated against the live Blizzard API.") end
+        add("")
+        if verbose then add("Severity tags:") end
+        if verbose then add("  [ERR] definite data bug -- fix before next release") end
+        if verbose then add("  [WRN] suspicious, may be legit -- manual review") end
+        if verbose then add("  [--] informational (shape/structure notes)") end
+        add("")
+
+        for _, boss in ipairs(raid.bosses) do
+            if verbose then
+                add(("=== Boss %d: %s ==="):format(
+                boss.index or 0, boss.name or "?"))
+            end
+
+            -- Regular loot
+            if boss.loot and #boss.loot > 0 then
+                -- Sort alphabetically so the dump is stable across
+                -- runs (matches tmogaudit's ordering).
+                local sorted = {}
+                for _, it in ipairs(boss.loot) do
+                    table.insert(sorted, it)
+                end
+                table.sort(sorted, function(a, b)
+                    return (a.name or "") < (b.name or "")
+                end)
+
+                for _, item in ipairs(sorted) do
+                    local findings = {}
+
+                    -- Walk each difficulty bucket. Collect the
+                    -- sourceID, the API's reported itemID, and the
+                    -- resolved visualID for each. Fan out into per-
+                    -- bucket checks first; shape/dedup checks happen
+                    -- once we have all 4.
+                    local perBucket = {}  -- [diffID] = {src, apiItemID, visualID, apiNil, itemLink}
+                    for _, diffID in ipairs(DIFFS) do
+                        local src = item.sources and item.sources[diffID]
+                        if src then
+                            local info = C_TransmogCollection.GetSourceInfo(src)
+                            local apiItemID, visualID, apiNil, itemLink
+                            if info then
+                                apiItemID = info.itemID
+                                itemLink  = info.itemLink
+                            end
+                            -- Resolve visualID via the proven
+                            -- GetAppearanceInfoBySource path (the
+                            -- struct field on GetSourceInfo is
+                            -- unreliable on retail -- UI.lua notes
+                            -- this in detail).
+                            if C_TransmogCollection.GetAppearanceInfoBySource then
+                                local ai = C_TransmogCollection.GetAppearanceInfoBySource(src)
+                                if ai then visualID = ai.appearanceID end
+                            end
+                            -- Fallback: GetAppearanceSourceInfo
+                            -- positional (2nd return = visualID).
+                            -- Useful for cross-class tier where
+                            -- GetAppearanceInfoBySource sometimes
+                            -- returns nil but the positional API
+                            -- still resolves.
+                            if not visualID and C_TransmogCollection.GetAppearanceSourceInfo then
+                                local _, v = C_TransmogCollection.GetAppearanceSourceInfo(src)
+                                visualID = v
+                            end
+                            apiNil = (not info) and (not visualID)
+                            perBucket[diffID] = {
+                                src = src, apiItemID = apiItemID,
+                                visualID = visualID, apiNil = apiNil,
+                                itemLink = itemLink,
+                            }
+                        end
+                    end
+
+                    -- [E1] Fatal-nil per bucket.
+                    for _, diffID in ipairs(DIFFS) do
+                        local b = perBucket[diffID]
+                        if b and b.apiNil then
+                            table.insert(findings, ("[ERR] %s src=%d: API returned nil (invalid sourceID?)"):format(
+                                DIFF_NAME[diffID], b.src))
+                            T.fatal_nil = T.fatal_nil + 1
+                        end
+                    end
+
+                    -- [E2] itemID mismatch per bucket.
+                    -- apiItemID==nil while visualID is non-nil is
+                    -- tolerable (GetSourceInfo can be nil for cross-
+                    -- class items while the positional API still
+                    -- works). Only flag when we got an apiItemID
+                    -- and it's wrong.
+                    for _, diffID in ipairs(DIFFS) do
+                        local b = perBucket[diffID]
+                        if b and b.apiItemID and b.apiItemID ~= item.id then
+                            table.insert(findings, ("[ERR] %s src=%d: API itemID=%d, expected %d"):format(
+                                DIFF_NAME[diffID], b.src, b.apiItemID, item.id))
+                            T.item_mismatch = T.item_mismatch + 1
+                        end
+                    end
+
+                    -- [E5] Difficulty-bucket mismatch via itemContext.
+                    --
+                    -- Each EJ-generated item link carries an
+                    -- itemContext value (the 12th option in the
+                    -- hyperlink). The harvester uses this as its
+                    -- primary signal to decide which difficulty
+                    -- bucket a sourceID belongs to. So if a source
+                    -- in our `[16]=N` (Mythic) slot has an itemLink
+                    -- whose itemContext maps to LFR, that's a
+                    -- bucket-assignment bug -- the source is in
+                    -- the wrong slot.
+                    --
+                    -- Caveats:
+                    --  - Only checked when info.itemLink was non-nil
+                    --    AND ParseItemContextFromLink yielded a
+                    --    recognized context. Items with no link
+                    --    or context=0 (UNKNOWN) get skipped silently
+                    --    -- not actionable, just unverifiable.
+                    --  - Some items legitimately have ambiguous
+                    --    itemContexts (very old raids may use modID
+                    --    instead). Those skip silently rather than
+                    --    flag false positives.
+                    if RR.ParseItemContextFromLink and RR.ITEM_CONTEXT_TO_DIFFICULTY then
+                        for _, diffID in ipairs(DIFFS) do
+                            local b = perBucket[diffID]
+                            if b and b.itemLink then
+                                local ctx = RR.ParseItemContextFromLink(b.itemLink)
+                                local apiDiff = RR.ITEM_CONTEXT_TO_DIFFICULTY[ctx]
+                                if apiDiff then
+                                    T.e5_checked = T.e5_checked + 1
+                                    if apiDiff ~= diffID then
+                                        table.insert(findings, ("[ERR] %s src=%d: itemContext=%d says difficulty=%s, but lives in %s slot"):format(
+                                            DIFF_NAME[diffID], b.src, ctx,
+                                            DIFF_NAME[apiDiff] or tostring(apiDiff),
+                                            DIFF_NAME[diffID]))
+                                        T.bucket_mismatch = (T.bucket_mismatch or 0) + 1
+                                    end
+                                else
+                                    T.e5_skipped = T.e5_skipped + 1
+                                end
+                            elseif b then
+                                T.e5_skipped = T.e5_skipped + 1
+                            end
+                        end
+                    end
+
+                    -- [E4] Source-duplication shape analysis.
+                    --
+                    -- Duplicate sourceIDs across difficulty buckets
+                    -- are NOT automatically a bug -- they're the
+                    -- established encoding for single-variant items
+                    -- (binary shape in UI.lua terms). UI.lua's
+                    -- BuildDotRow detects 1-unique-source items via
+                    -- CountUniqueSources and renders them as a single
+                    -- bracketed `[ check ]` indicator rather than a
+                    -- 4-dot strip. So an item with `{L=X, N=X, H=X,
+                    -- M=X}` is intentional, not broken.
+                    --
+                    -- The real red flag is PARTIAL duplication:
+                    -- 2 or 3 unique sources across 4 buckets. That
+                    -- pattern suggests a harvest that half-resolved
+                    -- (known example: Rae'shalare,
+                    -- {L=new, N=old, H=old, M=old}, because ATT
+                    -- stores it as bonusID variants that our batch
+                    -- rewrite didn't handle). Flag as WRN for manual
+                    -- review; most cases will be legit documented
+                    -- exceptions but new occurrences deserve a look.
+                    local srcCounts = {}  -- src -> count
+                    local uniqueCount = 0
+                    local totalBuckets = 0
+                    for _, diffID in ipairs(DIFFS) do
+                        local b = perBucket[diffID]
+                        if b then
+                            totalBuckets = totalBuckets + 1
+                            if not srcCounts[b.src] then
+                                srcCounts[b.src] = 0
+                                uniqueCount = uniqueCount + 1
+                            end
+                            srcCounts[b.src] = srcCounts[b.src] + 1
+                        end
+                    end
+
+                    local shapeTag
+                    if totalBuckets == 0 then
+                        -- No sources at all. Handled by E1 already.
+                        shapeTag = "empty"
+                    elseif uniqueCount == 1 and totalBuckets >= 2 then
+                        -- Binary shape: one source cloned across
+                        -- buckets. Intentional; the UI renders this
+                        -- as a single bracketed indicator.
+                        shapeTag = "binary"
+                        T.shape_binary = (T.shape_binary or 0) + 1
+                    elseif uniqueCount == totalBuckets and totalBuckets >= 2 then
+                        -- Full per-difficulty shape.
+                        shapeTag = "perdiff"
+                        T.shape_perdiff = (T.shape_perdiff or 0) + 1
+                    else
+                        -- Partial: 2 or 3 unique sources. Suspicious.
+                        shapeTag = "partial"
+                        T.shape_partial = (T.shape_partial or 0) + 1
+                        -- Build a compact description of which
+                        -- buckets share which source.
+                        local clusters = {}  -- src -> list of diff names
+                        for _, diffID in ipairs(DIFFS) do
+                            local b = perBucket[diffID]
+                            if b then
+                                clusters[b.src] = clusters[b.src] or {}
+                                table.insert(clusters[b.src], DIFF_NAME[diffID])
+                            end
+                        end
+                        local parts = {}
+                        for src, diffs in pairs(clusters) do
+                            table.insert(parts, ("src=%d->{%s}"):format(
+                                src, table.concat(diffs, ",")))
+                        end
+                        table.sort(parts)
+                        table.insert(findings, ("[WRN] partial source duplication (%d unique across %d buckets): %s"):format(
+                            uniqueCount, totalBuckets, table.concat(parts, " ")))
+                    end
+
+                    -- [E3] visualID shape analysis.
+                    -- Count visualID frequencies across buckets. Use
+                    -- only buckets we have data for (all 4 if item
+                    -- has full sources; fewer otherwise).
+                    local vCounts = {}       -- visualID -> count
+                    local vDistinct = 0       -- number of unique visualIDs
+                    local vTotal = 0         -- number of buckets with a visualID
+                    local vMissing = 0       -- buckets with src but no resolvable visual
+                    for _, diffID in ipairs(DIFFS) do
+                        local b = perBucket[diffID]
+                        if b then
+                            if b.visualID then
+                                if not vCounts[b.visualID] then
+                                    vDistinct = vDistinct + 1
+                                    vCounts[b.visualID] = 0
+                                end
+                                vCounts[b.visualID] = vCounts[b.visualID] + 1
+                                vTotal = vTotal + 1
+                            else
+                                vMissing = vMissing + 1
+                            end
+                        end
+                    end
+
+                    if vMissing > 0 then
+                        table.insert(findings, ("[WRN] %d bucket(s) have a sourceID but no resolvable visualID"):format(vMissing))
+                        T.no_visual = T.no_visual + vMissing
+                    end
+
+                    -- Describe the shape.
+                    if vTotal >= 2 then
+                        if vDistinct == 1 then
+                            -- All buckets share one visualID (Sepulcher-shape). Clean.
+                        elseif vDistinct == vTotal then
+                            -- All buckets have distinct visualIDs (Sanctum-shape). Clean.
+                        else
+                            -- Mixed. Figure out the pattern.
+                            -- Common suspicious case: 3 match + 1 odd one out.
+                            local maxCount = 0
+                            local maxVisual
+                            for v, c in pairs(vCounts) do
+                                if c > maxCount then
+                                    maxCount = c
+                                    maxVisual = v
+                                end
+                            end
+                            if vTotal == 4 and maxCount == 3 then
+                                -- Find the outlier bucket.
+                                local outlier
+                                for _, diffID in ipairs(DIFFS) do
+                                    local b = perBucket[diffID]
+                                    if b and b.visualID and b.visualID ~= maxVisual then
+                                        outlier = diffID
+                                        break
+                                    end
+                                end
+                                table.insert(findings, ("[WRN] shape outlier: 3 buckets visualID=%d, %s bucket differs (visualID=%d)"):format(
+                                    maxVisual,
+                                    outlier and DIFF_NAME[outlier] or "?",
+                                    outlier and perBucket[outlier].visualID or 0))
+                                T.shape_outlier = T.shape_outlier + 1
+                            else
+                                -- Build a compact "visualID=count" summary.
+                                local parts = {}
+                                for v, c in pairs(vCounts) do
+                                    table.insert(parts, ("%d=%dx"):format(v, c))
+                                end
+                                table.sort(parts)
+                                table.insert(findings, ("[WRN] shape mixed (%d unique visualIDs across %d buckets): %s"):format(
+                                    vDistinct, vTotal, table.concat(parts, " ")))
+                                T.shape_mixed = T.shape_mixed + 1
+                            end
+                        end
+                    end
+
+                    -- Per-item row. Always emit one line so the
+                    -- output is greppable by itemID, even for
+                    -- clean items.
+                    local classTag = ""
+                    if item.classes and item.classes[1] then
+                        classTag = (" (tier classID=%d)"):format(item.classes[1])
+                    end
+                    if #findings == 0 then
+                        if verbose then
+                            add(("  [OK]  %-7d  %s%s"):format(
+                            item.id, item.name or "?", classTag))
+                        end
+                        T.ok = T.ok + 1
+                    else
+                        add(("        %-7d  %s%s"):format(
+                            item.id, item.name or "?", classTag))
+                        for _, f in ipairs(findings) do
+                            add(("           %s"):format(f))
+                        end
+                    end
+                end
+            else
+                if verbose then add("  (no regular loot)") end
+            end
+
+            -- Special loot
+            if boss.specialLoot and #boss.specialLoot > 0 then
+                add("")
+                if verbose then add("  -- Special Loot --") end
+                local sortedSp = {}
+                for _, it in ipairs(boss.specialLoot) do
+                    table.insert(sortedSp, it)
+                end
+                table.sort(sortedSp, function(a, b)
+                    return (a.name or "") < (b.name or "")
+                end)
+                for _, sp in ipairs(sortedSp) do
+                    local findings = {}
+                    -- [S1] itemID resolves?
+                    local itemName = sp.id and GetItemInfo(sp.id)
+                    if not itemName then
+                        table.insert(findings, ("[WRN] GetItemInfo(%d) returned nil (cache cold or invalid itemID?)"):format(sp.id or 0))
+                        T.special_item_unknown = T.special_item_unknown + 1
+                    end
+                    -- [S2] kind-vs-API sanity.
+                    if sp.kind == "mount" then
+                        local ok = C_MountJournal
+                            and C_MountJournal.GetMountFromItem
+                            and C_MountJournal.GetMountFromItem(sp.id)
+                        if not ok then
+                            table.insert(findings, ("[ERR] kind=mount but C_MountJournal.GetMountFromItem(%d) returned nil"):format(sp.id or 0))
+                            T.special_kind_mismatch = T.special_kind_mismatch + 1
+                        end
+                    elseif sp.kind == "pet" then
+                        local ok = C_PetJournal
+                            and C_PetJournal.GetPetInfoByItemID
+                            and C_PetJournal.GetPetInfoByItemID(sp.id)
+                        if not ok then
+                            table.insert(findings, ("[ERR] kind=pet but C_PetJournal.GetPetInfoByItemID(%d) returned nil"):format(sp.id or 0))
+                            T.special_kind_mismatch = T.special_kind_mismatch + 1
+                        end
+                    elseif sp.kind == "toy" then
+                        local ok = C_ToyBox
+                            and C_ToyBox.GetToyInfo
+                            and C_ToyBox.GetToyInfo(sp.id)
+                        if not ok then
+                            table.insert(findings, ("[WRN] kind=toy but C_ToyBox.GetToyInfo(%d) returned nil (or cold cache)"):format(sp.id or 0))
+                            T.special_kind_mismatch = T.special_kind_mismatch + 1
+                        end
+                    elseif sp.kind == "illusion" then
+                        -- For illusions, item.id is the itemID
+                        -- (used by GetItemInfo for name/icon)
+                        -- and item.sourceID is the illusion's
+                        -- visual source identifier (separate
+                        -- ID space). Validate against
+                        -- C_TransmogCollection.GetIllusionInfo
+                        -- which takes sourceID and returns the
+                        -- TransmogIllusionInfo struct (visualID,
+                        -- isCollected, sourceID, icon, etc.).
+                        --
+                        -- Earlier Wowpedia docs referenced a
+                        -- GetIllusionSourceInfo function, but
+                        -- that doesn't exist on the live 11.x
+                        -- client (verified by /api search and
+                        -- direct call attempts during v1.7 EN
+                        -- bring-up). GetIllusionInfo is the
+                        -- canonical name now.
+                        if not sp.sourceID then
+                            table.insert(findings, "[ERR] kind=illusion missing sourceID field")
+                            T.special_kind_mismatch = T.special_kind_mismatch + 1
+                        else
+                            local info = nil
+                            if C_TransmogCollection and C_TransmogCollection.GetIllusionInfo then
+                                info = C_TransmogCollection.GetIllusionInfo(sp.sourceID)
+                            end
+                            if not info then
+                                table.insert(findings, ("[ERR] kind=illusion but C_TransmogCollection.GetIllusionInfo(%d) returned nil"):format(sp.sourceID))
+                                T.special_kind_mismatch = T.special_kind_mismatch + 1
+                            end
+                        end
+                    end
+                    local mythicTag = sp.mythicOnly and " [Mythic only]" or ""
+                    if #findings == 0 then
+                        if verbose then
+                            add(("  [OK]  %-7d  (%s) %s%s"):format(
+                            sp.id or 0, sp.kind or "?",
+                            sp.name or "?", mythicTag))
+                        end
+                    else
+                        add(("        %-7d  (%s) %s%s"):format(
+                            sp.id or 0, sp.kind or "?",
+                            sp.name or "?", mythicTag))
+                        for _, f in ipairs(findings) do
+                            add(("           %s"):format(f))
+                        end
+                    end
+                end
+            end
+            add("")
+        end
+
+        -- ---------------------------------------------------------
+        -- Coverage pass (E6 / E7): drive the EJ at each difficulty
+        -- per boss, compare the EJ-exposed sourceIDs and items
+        -- against what we shipped. Async because each
+        -- EJ_SelectEncounter requires a settle wait. See the
+        -- E6/E7 entries in the docblock above for full rationale.
+        -- ---------------------------------------------------------
+        if verbose then
+            add("=== Coverage Pass (E6 / E7) ===")
+            add("Driving the EJ at every difficulty and comparing exposed")
+            add("sourceIDs + items against shipped data. This catches the")
+            add("harvester-skip class of bug that E1-E5 cannot see.")
+            add("")
+        end
+
+        if opts and opts.banner then
+            RR:Print(("tmogverify: starting coverage pass (~%ds, %d boss(es))..."):format(
+                (#raid.bosses) * 4, #raid.bosses))
+        end
+
+        local DIFFS_LIST = { 17, 14, 15, 16 }
+        local bossIdx    = 0
+
+        local function FinishSummary()
+            add("=== Summary ===")
+            add(("Clean items:              %d"):format(T.ok))
+            add("")
+            add("Shape distribution (informational, not errors):")
+            add(("  binary (1 unique src):         %d"):format(T.shape_binary))
+            add(("  per-difficulty (N unique):     %d"):format(T.shape_perdiff))
+            add(("  partial (2-3 unique, WRN):     %d"):format(T.shape_partial))
+            add("")
+            add("Findings:")
+            add(("  [ERR] API-nil buckets:         %d"):format(T.fatal_nil))
+            add(("  [ERR] itemID mismatches:       %d"):format(T.item_mismatch))
+            add(("  [ERR] bucket-slot mismatches:  %d (E5 checked %d slot(s), skipped %d)"):format(
+                T.bucket_mismatch, T.e5_checked, T.e5_skipped))
+            add(("  [ERR] coverage gaps (E6):      %d"):format(T.coverage_gap))
+            add(("  [ERR] missing items (E7):      %d"):format(T.missing_item))
+            add(("  [ERR] special kind mismatches: %d"):format(T.special_kind_mismatch))
+            add(("  [WRN] shape outliers (3+1):    %d"):format(T.shape_outlier))
+            add(("  [WRN] shape mixed (2+2/2+1+1): %d"):format(T.shape_mixed))
+            add(("  [WRN] buckets w/o visualID:    %d"):format(T.no_visual))
+            add(("  [WRN] special item unknown:    %d"):format(T.special_item_unknown))
+            add("")
+            add("Interpretation:")
+            add("  ERR = actionable data bug. Investigate each row and")
+            add("        correct the data file.")
+            add("  WRN = may be legit (e.g. class-restricted visibility")
+            add("        for cross-class tier; cold cache for toys;")
+            add("        documented bonusID items like Rae'shalare /")
+            add("        Edge of Night for Sanctum). Run /rr tmogverify")
+            add("        again after warming by opening the tmog browser")
+            add("        once; remaining WRNs need a look.")
+            add("  E5 'checked N, skipped M': checked = itemContext was")
+            add("        present and decoded; skipped = no itemLink or")
+            add("        unknown context. A clean bucket_mismatch=0 with")
+            add("        e5_checked=0 means E5 never had data to verify")
+            add("        against (binary-shape items can't trigger E5).")
+            add("  E6 / E7 require driving the EJ at each difficulty;")
+            add("        E6 catches items where EJ exposes sourceIDs we")
+            add("        didn't ship (harvester missed sources). E7")
+            add("        catches items present in EJ loot but absent")
+            add("        from our data.")
+            add("  Binary-shape items are rendered by the UI as a single")
+            add("  bracketed indicator (not a 4-dot strip); the cloned-")
+            add("  across-buckets encoding in the data file is the")
+            add("  established convention for single-variant items.")
+
+            RetroRunsDebug = RetroRunsDebug or {}
+            RetroRunsDebug.tmogverify = table.concat(lines, "\n")
+
+            -- Driver mode: caller passed an onDone callback (e.g.
+            -- tmogverifyall). Hand results off via callback and let
+            -- the caller own presentation. Otherwise (single-raid
+            -- /rr tmogverify), open the copy window ourselves.
+            if onDone then
+                onDone(lines, T)
+            else
+                RR:ShowCopyWindow(
+                    ("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug: tmogverify|r"),
+                    table.concat(lines, "\n"))
+                RR:Print("tmogverify complete. Copy window opened.")
+            end
+        end
+
+        local function ProcessNextBoss()
+            bossIdx = bossIdx + 1
+            if bossIdx > #raid.bosses then
+                FinishSummary()
+                return
+            end
+
+            local boss = raid.bosses[bossIdx]
+            local journalID = boss.journalEncounterID
+            if not journalID or not boss.loot or #boss.loot == 0 then
+                -- Nothing to coverage-check.
+                if opts and opts.progress then
+                    RR:Print(("    boss %d/%d %s: skipped (no loot)"):format(
+                        bossIdx, #raid.bosses, boss.name or "?"))
+                end
+                C_Timer.After(0, ProcessNextBoss)
+                return
+            end
+
+            if opts and opts.progress then
+                RR:Print(("    boss %d/%d %s..."):format(
+                    bossIdx, #raid.bosses, boss.name or "?"))
+            end
+
+            -- Build lookup: shipped sourceIDs per (itemID, diffID).
+            -- (itemID, diffID) -> shipped sourceID.
+            local shippedByKey = {}
+            -- itemID -> our row reference (for name lookup, e7 detection).
+            local shippedByItem = {}
+            for _, it in ipairs(boss.loot) do
+                shippedByItem[it.id] = it
+                if it.sources then
+                    for _, d in ipairs(DIFFS_LIST) do
+                        local src = it.sources[d]
+                        if src then
+                            shippedByKey[it.id .. ":" .. d] = src
+                        end
+                    end
+                end
+            end
+
+            -- EJ-exposed data: (itemID, diffID) -> srcID, and a set
+            -- of all itemIDs seen across all difficulties.
+            local ejByKey   = {}
+            local ejByItem  = {}
+
+            local diffIdx = 0
+            local function NextDiff()
+                diffIdx = diffIdx + 1
+                if diffIdx > #DIFFS_LIST then
+                    -- Done with this boss's 4 passes. Compare and
+                    -- accumulate E6 / E7 findings.
+                    local bossHeader = ("--- E6/E7 for Boss %d: %s ---"):format(
+                        boss.index or 0, boss.name or "?")
+                    local bossFindings = {}
+
+                    -- E6: for each item/diff we shipped, did EJ
+                    -- expose a different sourceID? (Mismatch = our
+                    -- sourceID is wrong.) AND: for each item/diff
+                    -- EJ exposes a sourceID for, did we ship one?
+                    -- (Missing per-diff bucket = harvester gap.)
+                    for _, it in ipairs(boss.loot) do
+                        for _, d in ipairs(DIFFS_LIST) do
+                            local key      = it.id .. ":" .. d
+                            local shipped  = shippedByKey[key]
+                            local ejSrc    = ejByKey[key]
+                            if ejSrc and not shipped then
+                                table.insert(bossFindings, ("[ERR] E6 %d %s %s: EJ exposes src=%d but our [%d] bucket is empty"):format(
+                                    it.id, DIFF_NAME[d] or tostring(d), it.name or "?", ejSrc, d))
+                                T.coverage_gap = T.coverage_gap + 1
+                            elseif ejSrc and shipped and ejSrc ~= shipped then
+                                table.insert(bossFindings, ("[ERR] E6 %d %s %s: EJ exposes src=%d, we shipped src=%d"):format(
+                                    it.id, DIFF_NAME[d] or tostring(d), it.name or "?", ejSrc, shipped))
+                                T.coverage_gap = T.coverage_gap + 1
+                            end
+                        end
+                    end
+
+                    -- E7: items EJ exposes for this boss at any
+                    -- difficulty that aren't in our data at all.
+                    for itemID, _ in pairs(ejByItem) do
+                        if not shippedByItem[itemID] then
+                            local name = GetItemInfo(itemID) or "?"
+                            table.insert(bossFindings, ("[ERR] E7 %d %s: EJ exposes this item, not in our data"):format(
+                                itemID, name))
+                            T.missing_item = T.missing_item + 1
+                        end
+                    end
+
+                    if #bossFindings > 0 then
+                        add(bossHeader)
+                        for _, f in ipairs(bossFindings) do
+                            add("  " .. f)
+                        end
+                        add("")
+                    end
+
+                    C_Timer.After(0, ProcessNextBoss)
+                    return
+                end
+
+                local diffID = DIFFS_LIST[diffIdx]
+                EJ_SetDifficulty(diffID)
+                EJ_SelectInstance(raid.journalInstanceID or 0)
+                EJ_ResetLootFilter()
+                C_Timer.After(0.2, function()
+                    pcall(EJ_SelectEncounter, journalID)
+                    if C_EncounterJournal and C_EncounterJournal.ResetSlotFilter then
+                        C_EncounterJournal.ResetSlotFilter()
+                    end
+                    EJ_SetDifficulty(diffID)
+
+                    RR:WaitForEJLootSettled(1000, 10000, function(numLoot)
+                        for i = 1, numLoot do
+                            local info = C_EncounterJournal.GetLootInfoByIndex(i)
+                            if info and info.itemID and info.encounterID == journalID then
+                                -- Filter to transmog-eligible items.
+                                -- C_TransmogCollection.GetItemInfo(itemID)
+                                -- returns nil for quest items, relics,
+                                -- crafting materials, etc. -- we'd
+                                -- false-positive E7 on every quest item
+                                -- the EJ exposes if we didn't filter.
+                                local hasAppearance = false
+                                if info.itemID then
+                                    local apID = C_TransmogCollection.GetItemInfo(info.itemID)
+                                    hasAppearance = (apID ~= nil)
+                                end
+
+                                if hasAppearance then
+                                    ejByItem[info.itemID] = true
+
+                                    -- Resolve per-difficulty sourceID
+                                    -- via the link form (carries the
+                                    -- itemContext bonus needed for the
+                                    -- right per-difficulty variant).
+                                    -- Some EJ rows have nil .link --
+                                    -- guard before calling.
+                                    if info.link then
+                                        local _, srcID = C_TransmogCollection.GetItemInfo(info.link)
+                                        if srcID then
+                                            ejByKey[info.itemID .. ":" .. diffID] = srcID
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        C_Timer.After(0.2, NextDiff)
+                    end)
+                end)
+            end
+
+            NextDiff()
+        end
+
+        ProcessNextBoss()
+    end) -- C_Timer.After callback closer
+end
+
 
 
 
@@ -3122,6 +3980,150 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- the wrong sourceIDs in this tier row?" diagnosis.
         RR:TierProbe(args[2])
 
+    elseif cmd == "probelockout" then
+        -- Probe GetSavedInstanceEncounterInfo's return shape on retail.
+        -- Wowpedia documents the signature as:
+        --   bossName, fileDataID, isKilled, unknown4 = GetSavedInstanceEncounterInfo(i, e)
+        -- but labels the 4th return as "unknown4". This probe dumps all
+        -- four returns for every encounter of every saved instance so we
+        -- can verify whether unknown4 is the dungeonEncounterID (which
+        -- would let us close the lockout-cache locale-independence gap)
+        -- or something else entirely.
+        --
+        -- For currently-loaded raid context: we also cross-reference
+        -- each unknown4 value against the EJ map (journalEncounterID ->
+        -- dungeonEncounterID) for the same raid. A match across all
+        -- encounters confirms unknown4 IS the dungeonEncounterID.
+        --
+        -- Output: ShowCopyWindow, since chat truncation would shred the
+        -- per-encounter table.
+        local lines = {}
+        local function add(s) table.insert(lines, s) end
+
+        add("probelockout: dumping all four returns of GetSavedInstanceEncounterInfo")
+        add("for every saved instance, for every encounter.")
+        add("")
+        add("Wowpedia signature:")
+        add("  bossName, fileDataID, isKilled, unknown4 = GetSavedInstanceEncounterInfo(i, e)")
+        add("")
+        add("Goal: identify what 'unknown4' actually contains. If it matches")
+        add("the dungeonEncounterID (cross-referenced with the EJ map for")
+        add("the currently-loaded raid), we can use it as the primary kill-")
+        add("resolution key in SyncFromSavedRaidInfo and close the locale-")
+        add("independence gap that bit us on Eonar.")
+        add("")
+
+        local numSaved = GetNumSavedInstances() or 0
+        add(("GetNumSavedInstances() = %d"):format(numSaved))
+        add("")
+
+        if numSaved == 0 then
+            add("No saved instances. Zone into a raid and complete at least one")
+            add("boss to populate the lockout cache, then re-run this probe.")
+        else
+            -- Build EJ map for the currently-loaded raid (if any) for
+            -- cross-referencing unknown4 values.
+            local jeToDe, deToJe
+            if RR.currentRaid and RR.currentRaid.journalInstanceID then
+                jeToDe = RR:GetEJMapForJournalInstance(RR.currentRaid.journalInstanceID)
+                if jeToDe then
+                    deToJe = {}
+                    for je, de in pairs(jeToDe) do
+                        deToJe[de] = je
+                    end
+                    add(("EJ map for currently-loaded raid '%s' (journalInstanceID=%d):"):format(
+                        RR.currentRaid.name or "?",
+                        RR.currentRaid.journalInstanceID))
+                    -- Sort journalEncounterIDs by boss index for stable output
+                    local rows = {}
+                    for _, b in ipairs(RR.currentRaid.bosses or {}) do
+                        if b.journalEncounterID and jeToDe[b.journalEncounterID] then
+                            table.insert(rows, {
+                                idx = b.index or 0,
+                                name = b.name or "?",
+                                je   = b.journalEncounterID,
+                                de   = jeToDe[b.journalEncounterID],
+                            })
+                        end
+                    end
+                    table.sort(rows, function(a, b) return a.idx < b.idx end)
+                    for _, r in ipairs(rows) do
+                        add(("  [%d] %s: journalEncounterID=%d -> dungeonEncounterID=%d"):format(
+                            r.idx, r.name, r.je, r.de))
+                    end
+                    add("")
+                end
+            else
+                add("No currently-loaded raid; skipping EJ cross-reference.")
+                add("Re-run from inside a supported raid for a complete check.")
+                add("")
+            end
+
+            for i = 1, numSaved do
+                local name, _, _, difficultyId, _, _, _, isRaid,
+                      _, difficultyName, numEncounters, _, _, instanceID = GetSavedInstanceInfo(i)
+                add(("=== Saved instance %d ==="):format(i))
+                add(("  name=%s"):format(tostring(name)))
+                add(("  instanceID=%s  difficultyId=%s  difficultyName=%s"):format(
+                    tostring(instanceID), tostring(difficultyId), tostring(difficultyName)))
+                add(("  isRaid=%s  numEncounters=%s"):format(
+                    tostring(isRaid), tostring(numEncounters)))
+
+                if numEncounters and numEncounters > 0 then
+                    for e = 1, numEncounters do
+                        -- Capture ALL returns (Lua's variadic select is the
+                        -- safest way; we don't know how many returns the
+                        -- current client actually emits).
+                        local r1, r2, r3, r4, r5, r6 = GetSavedInstanceEncounterInfo(i, e)
+                        local crossRef = ""
+                        if deToJe and type(r4) == "number" then
+                            local je = deToJe[r4]
+                            if je then
+                                crossRef = (" [unknown4 matches dungeonEncounterID for journalEncounterID=%d]"):format(je)
+                            else
+                                crossRef = " [unknown4 not in EJ map for current raid]"
+                            end
+                        elseif deToJe then
+                            crossRef = (" [unknown4 type=%s, not numeric]"):format(type(r4))
+                        end
+                        add(("  enc[%d]: bossName=%q  fileDataID=%s  isKilled=%s  unknown4=%s%s"):format(
+                            e,
+                            tostring(r1),
+                            tostring(r2),
+                            tostring(r3),
+                            tostring(r4),
+                            crossRef))
+                        -- Defensive: capture r5/r6 in case the client emits
+                        -- additional returns we don't know about.
+                        if r5 ~= nil or r6 ~= nil then
+                            add(("            extra returns: r5=%s  r6=%s"):format(
+                                tostring(r5), tostring(r6)))
+                        end
+                    end
+                end
+                add("")
+            end
+        end
+
+        add("=== Probe complete ===")
+        add("")
+        add("Interpretation:")
+        add("  If 'unknown4 matches dungeonEncounterID...' fires for every")
+        add("  encounter of the currently-loaded raid, then unknown4 IS the")
+        add("  dungeonEncounterID and SyncFromSavedRaidInfo can use it as")
+        add("  the primary kill-match key (with name as fallback).")
+        add("")
+        add("  If unknown4 is nil or otherwise unrelated, we stick with")
+        add("  name-based matching plus aliases for known event-name")
+        add("  mismatches (Eonar pattern).")
+
+        RetroRunsDebug = RetroRunsDebug or {}
+        RetroRunsDebug.probelockout = table.concat(lines, "\n")
+        RR:ShowCopyWindow(
+            ("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug: probelockout|r"),
+            table.concat(lines, "\n"))
+        RR:Print("probelockout complete. Copy window opened.")
+
     elseif cmd == "traveldebug" then
         -- Snapshot of the inputs the travel-pane renderer is using right
         -- now: player mapID, world-map mapID, the mapID the renderer
@@ -3132,11 +4134,11 @@ SlashCmdList["RETRORUNS"] = function(input)
         RR:TravelDebug()
 
     elseif cmd == "toggleprobe" then
-        -- Diagnostic for the run-complete-state dead-toggle-button bug
-        -- (2026-05-11). Dumps each expansion-toggle button's state,
-        -- every body frame that could be intercepting clicks, and
-        -- GetMouseFocus() at probe time so the user can hover the +
-        -- glyph and see what frame is actually under the cursor.
+        -- Diagnostic for the run-complete-state dead-toggle-button bug.
+        -- Dumps each expansion-toggle button's state, every body frame
+        -- that could be intercepting clicks, and GetMouseFocus() at
+        -- probe time so the user can hover the + glyph and see what
+        -- frame is actually under the cursor.
         RR:ToggleProbe()
 
     elseif cmd == "specialtest" then
@@ -3630,6 +4632,33 @@ SlashCmdList["RETRORUNS"] = function(input)
         --                               half-resolved. Rae'shalare is a
         --                               known instance (bonusID variants
         --                               ATT stores differently than modID).
+        --   [E5] Difficulty-bucket mismatch via itemContext. Each sourceID's
+        --        live itemLink carries an itemContext (the 12th option in
+        --        the hyperlink) that names which difficulty it was
+        --        generated at. If the source in our `[16]=N` (Mythic) slot
+        --        has an itemLink whose itemContext maps to LFR, the source
+        --        is in the wrong bucket. Added post-v1.0.1 LFR/Mythic-swap
+        --        incident. Only fires when the data is per-difficulty
+        --        shape -- binary-shape items have identical sourceIDs
+        --        across all buckets and trigger no mismatch by design.
+        --
+        -- Coverage checks (require driving the EJ at each difficulty;
+        -- async pass that runs after the per-row metadata checks):
+        --   [E6] Coverage gap: EJ exposes more sourceIDs for this item at
+        --        this difficulty than we shipped. Catches the harvester-
+        --        skip class of bug (Antorus pre-v1.10.0): the harvester's
+        --        fast path returned one sourceID, the EJ-sweep would
+        --        have caught 4, the gate skipped the sweep, we shipped
+        --        binary. Without this check, tmogverify on binary-shape
+        --        data is clean but uninformative -- E1-E5 all pass on
+        --        valid binary data even when the items SHOULD be per-
+        --        difficulty.
+        --   [E7] Missing item: EJ exposes an item at this boss that's not
+        --        in our data file at all. Indicates a boss whose loot
+        --        table was never fully harvested, or an item added by
+        --        Blizzard post-harvest. Cross-difficulty: only flagged
+        --        if missing at every difficulty (so a Mythic-only item
+        --        that's also exposed at Normal won't false-positive).
         --
         -- Special-loot checks (kind = mount/pet/toy/decor):
         --   [S1] itemID resolves via GetItemInfo (non-nil name).
@@ -3684,493 +4713,138 @@ SlashCmdList["RETRORUNS"] = function(input)
                 RR:Print("  /rr tmogverify <raid name substring>")
             end
         else
-            -- Cache-warm pass, same rationale as tmogaudit: GetSourceInfo
-            -- and friends depend on item data being loaded. Walking the
-            -- whole raid cold can under-report.
-            for _, boss in ipairs(raid.bosses) do
-                if boss.loot then
-                    for _, it in ipairs(boss.loot) do
-                        if it.id then GetItemInfo(it.id) end
-                    end
-                end
-                if boss.specialLoot then
-                    for _, it in ipairs(boss.specialLoot) do
-                        if it.id then GetItemInfo(it.id) end
-                    end
-                end
-            end
-
-            RR:Print("tmogverify: warming item cache, please wait 1s...")
-
-            C_Timer.After(1.0, function()
-                local lines = {}
-                local function add(s) table.insert(lines, s) end
-
-                -- Aggregate counters reported at the end. Each finding
-                -- bumps one bucket; a clean item bumps `ok`.
-                local T = {
-                    ok              = 0,   -- item had no findings
-                    fatal_nil       = 0,   -- source returned nil via every API we tried
-                    item_mismatch   = 0,   -- E2: sourceID's itemID disagrees with our item.id
-                    bucket_mismatch = 0,   -- E5: sourceID lives in wrong difficulty slot per its itemLink's itemContext
-                    -- E4: source-duplication shape classification (descriptive,
-                    -- not error-severity -- binary and perdiff are both fine).
-                    shape_binary    = 0,   -- 1 unique source cloned across 2+ buckets (single-variant item)
-                    shape_perdiff   = 0,   -- N unique sources in N buckets (per-difficulty item)
-                    shape_partial   = 0,   -- 2-3 unique sources in 4 buckets (WRN: half-harvested?)
-                    shape_outlier   = 0,   -- E3 visualID: 3+1 pattern (one bucket odd one out)
-                    shape_mixed     = 0,   -- E3 visualID: 2+2 / 2+1+1 mixed
-                    no_visual       = 0,   -- E3: could not resolve visualID at all
-                    special_kind_mismatch = 0, -- S2
-                    special_item_unknown  = 0, -- S1
-                }
-                local DIFFS = { 17, 14, 15, 16 }
-                local DIFF_NAME = { [17]="LFR", [14]="N", [15]="H", [16]="M" }
-
-                add(("tmogverify: raid=%s"):format(tostring(raid.name or "?")))
-                add("Data-integrity check: every sourceID in the data file is")
-                add("validated against the live Blizzard API.")
-                add("")
-                add("Severity tags:")
-                add("  [ERR] definite data bug -- fix before next release")
-                add("  [WRN] suspicious, may be legit -- manual review")
-                add("  [--] informational (shape/structure notes)")
-                add("")
-
-                for _, boss in ipairs(raid.bosses) do
-                    add(("=== Boss %d: %s ==="):format(
-                        boss.index or 0, boss.name or "?"))
-
-                    -- Regular loot
-                    if boss.loot and #boss.loot > 0 then
-                        -- Sort alphabetically so the dump is stable across
-                        -- runs (matches tmogaudit's ordering).
-                        local sorted = {}
-                        for _, it in ipairs(boss.loot) do
-                            table.insert(sorted, it)
-                        end
-                        table.sort(sorted, function(a, b)
-                            return (a.name or "") < (b.name or "")
-                        end)
-
-                        for _, item in ipairs(sorted) do
-                            local findings = {}
-
-                            -- Walk each difficulty bucket. Collect the
-                            -- sourceID, the API's reported itemID, and the
-                            -- resolved visualID for each. Fan out into per-
-                            -- bucket checks first; shape/dedup checks happen
-                            -- once we have all 4.
-                            local perBucket = {}  -- [diffID] = {src, apiItemID, visualID, apiNil, itemLink}
-                            for _, diffID in ipairs(DIFFS) do
-                                local src = item.sources and item.sources[diffID]
-                                if src then
-                                    local info = C_TransmogCollection.GetSourceInfo(src)
-                                    local apiItemID, visualID, apiNil, itemLink
-                                    if info then
-                                        apiItemID = info.itemID
-                                        itemLink  = info.itemLink
-                                    end
-                                    -- Resolve visualID via the proven
-                                    -- GetAppearanceInfoBySource path (the
-                                    -- struct field on GetSourceInfo is
-                                    -- unreliable on retail -- UI.lua notes
-                                    -- this in detail).
-                                    if C_TransmogCollection.GetAppearanceInfoBySource then
-                                        local ai = C_TransmogCollection.GetAppearanceInfoBySource(src)
-                                        if ai then visualID = ai.appearanceID end
-                                    end
-                                    -- Fallback: GetAppearanceSourceInfo
-                                    -- positional (2nd return = visualID).
-                                    -- Useful for cross-class tier where
-                                    -- GetAppearanceInfoBySource sometimes
-                                    -- returns nil but the positional API
-                                    -- still resolves.
-                                    if not visualID and C_TransmogCollection.GetAppearanceSourceInfo then
-                                        local _, v = C_TransmogCollection.GetAppearanceSourceInfo(src)
-                                        visualID = v
-                                    end
-                                    apiNil = (not info) and (not visualID)
-                                    perBucket[diffID] = {
-                                        src = src, apiItemID = apiItemID,
-                                        visualID = visualID, apiNil = apiNil,
-                                        itemLink = itemLink,
-                                    }
-                                end
-                            end
-
-                            -- [E1] Fatal-nil per bucket.
-                            for _, diffID in ipairs(DIFFS) do
-                                local b = perBucket[diffID]
-                                if b and b.apiNil then
-                                    table.insert(findings, ("[ERR] %s src=%d: API returned nil (invalid sourceID?)"):format(
-                                        DIFF_NAME[diffID], b.src))
-                                    T.fatal_nil = T.fatal_nil + 1
-                                end
-                            end
-
-                            -- [E2] itemID mismatch per bucket.
-                            -- apiItemID==nil while visualID is non-nil is
-                            -- tolerable (GetSourceInfo can be nil for cross-
-                            -- class items while the positional API still
-                            -- works). Only flag when we got an apiItemID
-                            -- and it's wrong.
-                            for _, diffID in ipairs(DIFFS) do
-                                local b = perBucket[diffID]
-                                if b and b.apiItemID and b.apiItemID ~= item.id then
-                                    table.insert(findings, ("[ERR] %s src=%d: API itemID=%d, expected %d"):format(
-                                        DIFF_NAME[diffID], b.src, b.apiItemID, item.id))
-                                    T.item_mismatch = T.item_mismatch + 1
-                                end
-                            end
-
-                            -- [E5] Difficulty-bucket mismatch via itemContext.
-                            --
-                            -- Each EJ-generated item link carries an
-                            -- itemContext value (the 12th option in the
-                            -- hyperlink). The harvester uses this as its
-                            -- primary signal to decide which difficulty
-                            -- bucket a sourceID belongs to. So if a source
-                            -- in our `[16]=N` (Mythic) slot has an itemLink
-                            -- whose itemContext maps to LFR, that's a
-                            -- bucket-assignment bug -- the source is in
-                            -- the wrong slot.
-                            --
-                            -- Caveats:
-                            --  - Only checked when info.itemLink was non-nil
-                            --    AND ParseItemContextFromLink yielded a
-                            --    recognized context. Items with no link
-                            --    or context=0 (UNKNOWN) get skipped silently
-                            --    -- not actionable, just unverifiable.
-                            --  - Some items legitimately have ambiguous
-                            --    itemContexts (very old raids may use modID
-                            --    instead). Those skip silently rather than
-                            --    flag false positives.
-                            if RR.ParseItemContextFromLink and RR.ITEM_CONTEXT_TO_DIFFICULTY then
-                                for _, diffID in ipairs(DIFFS) do
-                                    local b = perBucket[diffID]
-                                    if b and b.itemLink then
-                                        local ctx = RR.ParseItemContextFromLink(b.itemLink)
-                                        local apiDiff = RR.ITEM_CONTEXT_TO_DIFFICULTY[ctx]
-                                        if apiDiff and apiDiff ~= diffID then
-                                            table.insert(findings, ("[ERR] %s src=%d: itemContext=%d says difficulty=%s, but lives in %s slot"):format(
-                                                DIFF_NAME[diffID], b.src, ctx,
-                                                DIFF_NAME[apiDiff] or tostring(apiDiff),
-                                                DIFF_NAME[diffID]))
-                                            T.bucket_mismatch = (T.bucket_mismatch or 0) + 1
-                                        end
-                                    end
-                                end
-                            end
-
-                            -- [E4] Source-duplication shape analysis.
-                            --
-                            -- Duplicate sourceIDs across difficulty buckets
-                            -- are NOT automatically a bug -- they're the
-                            -- established encoding for single-variant items
-                            -- (binary shape in UI.lua terms). UI.lua's
-                            -- BuildDotRow detects 1-unique-source items via
-                            -- CountUniqueSources and renders them as a single
-                            -- bracketed `[ check ]` indicator rather than a
-                            -- 4-dot strip. So an item with `{L=X, N=X, H=X,
-                            -- M=X}` is intentional, not broken.
-                            --
-                            -- The real red flag is PARTIAL duplication:
-                            -- 2 or 3 unique sources across 4 buckets. That
-                            -- pattern suggests a harvest that half-resolved
-                            -- (known example: Rae'shalare,
-                            -- {L=new, N=old, H=old, M=old}, because ATT
-                            -- stores it as bonusID variants that our batch
-                            -- rewrite didn't handle). Flag as WRN for manual
-                            -- review; most cases will be legit documented
-                            -- exceptions but new occurrences deserve a look.
-                            local srcCounts = {}  -- src -> count
-                            local uniqueCount = 0
-                            local totalBuckets = 0
-                            for _, diffID in ipairs(DIFFS) do
-                                local b = perBucket[diffID]
-                                if b then
-                                    totalBuckets = totalBuckets + 1
-                                    if not srcCounts[b.src] then
-                                        srcCounts[b.src] = 0
-                                        uniqueCount = uniqueCount + 1
-                                    end
-                                    srcCounts[b.src] = srcCounts[b.src] + 1
-                                end
-                            end
-
-                            local shapeTag
-                            if totalBuckets == 0 then
-                                -- No sources at all. Handled by E1 already.
-                                shapeTag = "empty"
-                            elseif uniqueCount == 1 and totalBuckets >= 2 then
-                                -- Binary shape: one source cloned across
-                                -- buckets. Intentional; the UI renders this
-                                -- as a single bracketed indicator.
-                                shapeTag = "binary"
-                                T.shape_binary = (T.shape_binary or 0) + 1
-                            elseif uniqueCount == totalBuckets and totalBuckets >= 2 then
-                                -- Full per-difficulty shape.
-                                shapeTag = "perdiff"
-                                T.shape_perdiff = (T.shape_perdiff or 0) + 1
-                            else
-                                -- Partial: 2 or 3 unique sources. Suspicious.
-                                shapeTag = "partial"
-                                T.shape_partial = (T.shape_partial or 0) + 1
-                                -- Build a compact description of which
-                                -- buckets share which source.
-                                local clusters = {}  -- src -> list of diff names
-                                for _, diffID in ipairs(DIFFS) do
-                                    local b = perBucket[diffID]
-                                    if b then
-                                        clusters[b.src] = clusters[b.src] or {}
-                                        table.insert(clusters[b.src], DIFF_NAME[diffID])
-                                    end
-                                end
-                                local parts = {}
-                                for src, diffs in pairs(clusters) do
-                                    table.insert(parts, ("src=%d->{%s}"):format(
-                                        src, table.concat(diffs, ",")))
-                                end
-                                table.sort(parts)
-                                table.insert(findings, ("[WRN] partial source duplication (%d unique across %d buckets): %s"):format(
-                                    uniqueCount, totalBuckets, table.concat(parts, " ")))
-                            end
-
-                            -- [E3] visualID shape analysis.
-                            -- Count visualID frequencies across buckets. Use
-                            -- only buckets we have data for (all 4 if item
-                            -- has full sources; fewer otherwise).
-                            local vCounts = {}       -- visualID -> count
-                            local vDistinct = 0       -- number of unique visualIDs
-                            local vTotal = 0         -- number of buckets with a visualID
-                            local vMissing = 0       -- buckets with src but no resolvable visual
-                            for _, diffID in ipairs(DIFFS) do
-                                local b = perBucket[diffID]
-                                if b then
-                                    if b.visualID then
-                                        if not vCounts[b.visualID] then
-                                            vDistinct = vDistinct + 1
-                                            vCounts[b.visualID] = 0
-                                        end
-                                        vCounts[b.visualID] = vCounts[b.visualID] + 1
-                                        vTotal = vTotal + 1
-                                    else
-                                        vMissing = vMissing + 1
-                                    end
-                                end
-                            end
-
-                            if vMissing > 0 then
-                                table.insert(findings, ("[WRN] %d bucket(s) have a sourceID but no resolvable visualID"):format(vMissing))
-                                T.no_visual = T.no_visual + vMissing
-                            end
-
-                            -- Describe the shape.
-                            if vTotal >= 2 then
-                                if vDistinct == 1 then
-                                    -- All buckets share one visualID (Sepulcher-shape). Clean.
-                                elseif vDistinct == vTotal then
-                                    -- All buckets have distinct visualIDs (Sanctum-shape). Clean.
-                                else
-                                    -- Mixed. Figure out the pattern.
-                                    -- Common suspicious case: 3 match + 1 odd one out.
-                                    local maxCount = 0
-                                    local maxVisual
-                                    for v, c in pairs(vCounts) do
-                                        if c > maxCount then
-                                            maxCount = c
-                                            maxVisual = v
-                                        end
-                                    end
-                                    if vTotal == 4 and maxCount == 3 then
-                                        -- Find the outlier bucket.
-                                        local outlier
-                                        for _, diffID in ipairs(DIFFS) do
-                                            local b = perBucket[diffID]
-                                            if b and b.visualID and b.visualID ~= maxVisual then
-                                                outlier = diffID
-                                                break
-                                            end
-                                        end
-                                        table.insert(findings, ("[WRN] shape outlier: 3 buckets visualID=%d, %s bucket differs (visualID=%d)"):format(
-                                            maxVisual,
-                                            outlier and DIFF_NAME[outlier] or "?",
-                                            outlier and perBucket[outlier].visualID or 0))
-                                        T.shape_outlier = T.shape_outlier + 1
-                                    else
-                                        -- Build a compact "visualID=count" summary.
-                                        local parts = {}
-                                        for v, c in pairs(vCounts) do
-                                            table.insert(parts, ("%d=%dx"):format(v, c))
-                                        end
-                                        table.sort(parts)
-                                        table.insert(findings, ("[WRN] shape mixed (%d unique visualIDs across %d buckets): %s"):format(
-                                            vDistinct, vTotal, table.concat(parts, " ")))
-                                        T.shape_mixed = T.shape_mixed + 1
-                                    end
-                                end
-                            end
-
-                            -- Per-item row. Always emit one line so the
-                            -- output is greppable by itemID, even for
-                            -- clean items.
-                            local classTag = ""
-                            if item.classes and item.classes[1] then
-                                classTag = (" (tier classID=%d)"):format(item.classes[1])
-                            end
-                            if #findings == 0 then
-                                add(("  [OK]  %-7d  %s%s"):format(
-                                    item.id, item.name or "?", classTag))
-                                T.ok = T.ok + 1
-                            else
-                                add(("        %-7d  %s%s"):format(
-                                    item.id, item.name or "?", classTag))
-                                for _, f in ipairs(findings) do
-                                    add(("           %s"):format(f))
-                                end
-                            end
-                        end
-                    else
-                        add("  (no regular loot)")
-                    end
-
-                    -- Special loot
-                    if boss.specialLoot and #boss.specialLoot > 0 then
-                        add("")
-                        add("  -- Special Loot --")
-                        local sortedSp = {}
-                        for _, it in ipairs(boss.specialLoot) do
-                            table.insert(sortedSp, it)
-                        end
-                        table.sort(sortedSp, function(a, b)
-                            return (a.name or "") < (b.name or "")
-                        end)
-                        for _, sp in ipairs(sortedSp) do
-                            local findings = {}
-                            -- [S1] itemID resolves?
-                            local itemName = sp.id and GetItemInfo(sp.id)
-                            if not itemName then
-                                table.insert(findings, ("[WRN] GetItemInfo(%d) returned nil (cache cold or invalid itemID?)"):format(sp.id or 0))
-                                T.special_item_unknown = T.special_item_unknown + 1
-                            end
-                            -- [S2] kind-vs-API sanity.
-                            if sp.kind == "mount" then
-                                local ok = C_MountJournal
-                                    and C_MountJournal.GetMountFromItem
-                                    and C_MountJournal.GetMountFromItem(sp.id)
-                                if not ok then
-                                    table.insert(findings, ("[ERR] kind=mount but C_MountJournal.GetMountFromItem(%d) returned nil"):format(sp.id or 0))
-                                    T.special_kind_mismatch = T.special_kind_mismatch + 1
-                                end
-                            elseif sp.kind == "pet" then
-                                local ok = C_PetJournal
-                                    and C_PetJournal.GetPetInfoByItemID
-                                    and C_PetJournal.GetPetInfoByItemID(sp.id)
-                                if not ok then
-                                    table.insert(findings, ("[ERR] kind=pet but C_PetJournal.GetPetInfoByItemID(%d) returned nil"):format(sp.id or 0))
-                                    T.special_kind_mismatch = T.special_kind_mismatch + 1
-                                end
-                            elseif sp.kind == "toy" then
-                                local ok = C_ToyBox
-                                    and C_ToyBox.GetToyInfo
-                                    and C_ToyBox.GetToyInfo(sp.id)
-                                if not ok then
-                                    table.insert(findings, ("[WRN] kind=toy but C_ToyBox.GetToyInfo(%d) returned nil (or cold cache)"):format(sp.id or 0))
-                                    T.special_kind_mismatch = T.special_kind_mismatch + 1
-                                end
-                            elseif sp.kind == "illusion" then
-                                -- For illusions, item.id is the itemID
-                                -- (used by GetItemInfo for name/icon)
-                                -- and item.sourceID is the illusion's
-                                -- visual source identifier (separate
-                                -- ID space). Validate against
-                                -- C_TransmogCollection.GetIllusionInfo
-                                -- which takes sourceID and returns the
-                                -- TransmogIllusionInfo struct (visualID,
-                                -- isCollected, sourceID, icon, etc.).
-                                --
-                                -- Earlier Wowpedia docs referenced a
-                                -- GetIllusionSourceInfo function, but
-                                -- that doesn't exist on the live 11.x
-                                -- client (verified by /api search and
-                                -- direct call attempts during v1.7 EN
-                                -- bring-up). GetIllusionInfo is the
-                                -- canonical name now.
-                                if not sp.sourceID then
-                                    table.insert(findings, "[ERR] kind=illusion missing sourceID field")
-                                    T.special_kind_mismatch = T.special_kind_mismatch + 1
-                                else
-                                    local info = nil
-                                    if C_TransmogCollection and C_TransmogCollection.GetIllusionInfo then
-                                        info = C_TransmogCollection.GetIllusionInfo(sp.sourceID)
-                                    end
-                                    if not info then
-                                        table.insert(findings, ("[ERR] kind=illusion but C_TransmogCollection.GetIllusionInfo(%d) returned nil"):format(sp.sourceID))
-                                        T.special_kind_mismatch = T.special_kind_mismatch + 1
-                                    end
-                                end
-                            end
-                            local mythicTag = sp.mythicOnly and " [Mythic only]" or ""
-                            if #findings == 0 then
-                                add(("  [OK]  %-7d  (%s) %s%s"):format(
-                                    sp.id or 0, sp.kind or "?",
-                                    sp.name or "?", mythicTag))
-                            else
-                                add(("        %-7d  (%s) %s%s"):format(
-                                    sp.id or 0, sp.kind or "?",
-                                    sp.name or "?", mythicTag))
-                                for _, f in ipairs(findings) do
-                                    add(("           %s"):format(f))
-                                end
-                            end
-                        end
-                    end
-                    add("")
-                end
-
-                add("=== Summary ===")
-                add(("Clean items:              %d"):format(T.ok))
-                add("")
-                add("Shape distribution (informational, not errors):")
-                add(("  binary (1 unique src):         %d"):format(T.shape_binary))
-                add(("  per-difficulty (N unique):     %d"):format(T.shape_perdiff))
-                add(("  partial (2-3 unique, WRN):     %d"):format(T.shape_partial))
-                add("")
-                add("Findings:")
-                add(("  [ERR] API-nil buckets:         %d"):format(T.fatal_nil))
-                add(("  [ERR] itemID mismatches:       %d"):format(T.item_mismatch))
-                add(("  [ERR] bucket-slot mismatches:  %d"):format(T.bucket_mismatch))
-                add(("  [ERR] special kind mismatches: %d"):format(T.special_kind_mismatch))
-                add(("  [WRN] shape outliers (3+1):    %d"):format(T.shape_outlier))
-                add(("  [WRN] shape mixed (2+2/2+1+1): %d"):format(T.shape_mixed))
-                add(("  [WRN] buckets w/o visualID:    %d"):format(T.no_visual))
-                add(("  [WRN] special item unknown:    %d"):format(T.special_item_unknown))
-                add("")
-                add("Interpretation:")
-                add("  ERR = actionable data bug. Investigate each row and")
-                add("        correct the data file.")
-                add("  WRN = may be legit (e.g. class-restricted visibility")
-                add("        for cross-class tier; cold cache for toys;")
-                add("        documented bonusID items like Rae'shalare /")
-                add("        Edge of Night for Sanctum). Run /rr tmogverify")
-                add("        again after warming by opening the tmog browser")
-                add("        once; remaining WRNs need a look.")
-                add("  Binary-shape items are rendered by the UI as a single")
-                add("  bracketed indicator (not a 4-dot strip); the cloned-")
-                add("  across-buckets encoding in the data file is the")
-                add("  established convention for single-variant items.")
-
+            -- The verification body has been extracted into RR:VerifyOneRaid
+            -- (see Core.lua just above the dispatcher). The dispatcher's job
+            -- here is just to resolve which raid to verify and render the
+            -- result. Cache-warm + the 1s wait both live inside VerifyOneRaid.
+            RR:VerifyOneRaid(raid, { verbose = true, banner = true }, function(lines, T)
                 RetroRunsDebug = RetroRunsDebug or {}
                 RetroRunsDebug.tmogverify = table.concat(lines, "\n")
-
                 RR:ShowCopyWindow(
                     ("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug: tmogverify|r"),
                     table.concat(lines, "\n"))
                 RR:Print("tmogverify complete. Copy window opened.")
-            end) -- C_Timer.After callback closer
+            end)
         end
+    elseif cmd == "tmogverifyall" then
+        -- Cross-raid audit: run tmogverify on every supported raid in
+        -- RetroRuns_Data, sequentially, and produce one compact summary
+        -- per raid in a single copy-window.
+        --
+        -- Compact-then-drill workflow: this command surfaces which raids
+        -- have findings; if any raid has non-zero ERR or WRN counters, the
+        -- STATUS line directs the user to re-run `/rr tmogverify <name>`
+        -- on that specific raid to see the per-item detail.
+        --
+        -- Cost: ~8s per boss typical (4 difficulties x ~2s typical
+        -- WaitForEJLootSettled), worst case ~40s/boss when every wait
+        -- hits its 10s ceiling. A typical 14-raid / ~120-boss sweep
+        -- takes ~15-20 minutes; worst case approaches an hour. Per-
+        -- boss progress prints fire on chat during the sweep to make
+        -- it obvious work is proceeding.
+        --
+        -- All raids verify from anywhere; the EJ-sweep uses
+        -- EJ_SelectInstance(journalInstanceID) which does not require the
+        -- player to physically be in the raid.
+        if not RetroRuns_Data then
+            RR:Print("tmogverifyall: RetroRuns_Data is not loaded.")
+        else
+            -- Collect the list of supported raids in a stable order.
+            local raids = {}
+            for _, r in pairs(RetroRuns_Data) do
+                if r and r.bosses and r.name then
+                    table.insert(raids, r)
+                end
+            end
+            table.sort(raids, function(a, b) return a.name < b.name end)
 
+            if #raids == 0 then
+                RR:Print("tmogverifyall: no supported raids found in RetroRuns_Data.")
+            else
+                -- Wall-time estimate: per boss the coverage pass walks 4
+                -- difficulties, each gated on WaitForEJLootSettled (up to
+                -- 10s timeout; typical ~1-2s). Realistic average ~8s/boss.
+                -- Worst case ~40s/boss if every wait times out.
+                local totalBosses = 0
+                for _, r in ipairs(raids) do
+                    totalBosses = totalBosses + #r.bosses
+                end
+                local estSeconds = totalBosses * 8
+                RR:Print(("tmogverifyall: %d raid(s), %d total bosses. Estimated wall-time ~%d minutes (worst case ~%d)."):format(
+                    #raids, totalBosses,
+                    math.ceil(estSeconds / 60),
+                    math.ceil(totalBosses * 40 / 60)))
+                RR:Print("Progress prints per boss; results land in a copy window at the end.")
+
+                -- Accumulator for the final report.
+                local report = {}
+                local function reportAdd(s) table.insert(report, s) end
+                reportAdd(("tmogverifyall: %d raid(s)"):format(#raids))
+                reportAdd("Cross-raid audit. Per-raid summary follows; STATUS=clean")
+                reportAdd("means no findings. STATUS=needs-review means at least one")
+                reportAdd("error or warning fired; re-run `/rr tmogverify <name>` on")
+                reportAdd("that raid for actionable per-item detail.")
+                reportAdd("")
+
+                local raidIdx = 0
+                local function ProcessNextRaid()
+                    raidIdx = raidIdx + 1
+                    if raidIdx > #raids then
+                        -- Done. Show consolidated copy window.
+                        RetroRunsDebug = RetroRunsDebug or {}
+                        RetroRunsDebug.tmogverifyall = table.concat(report, "\n")
+                        RR:ShowCopyWindow(
+                            ("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug: tmogverifyall|r"),
+                            table.concat(report, "\n"))
+                        RR:Print("tmogverifyall complete. Copy window opened.")
+                        return
+                    end
+
+                    local raid = raids[raidIdx]
+                    RR:Print(("  [%d/%d] %s..."):format(raidIdx, #raids, raid.name))
+
+                    RR:VerifyOneRaid(raid, { verbose = false, banner = false, progress = true }, function(_, T)
+                        -- Build compact summary for this raid.
+                        local errCount = (T.fatal_nil or 0)
+                                       + (T.item_mismatch or 0)
+                                       + (T.bucket_mismatch or 0)
+                                       + (T.coverage_gap or 0)
+                                       + (T.missing_item or 0)
+                                       + (T.special_kind_mismatch or 0)
+                        local wrnCount = (T.shape_outlier or 0)
+                                       + (T.shape_mixed or 0)
+                                       + (T.no_visual or 0)
+                                       + (T.special_item_unknown or 0)
+                                       + (T.shape_partial or 0)
+                        local status   = (errCount == 0 and wrnCount == 0)
+                                         and "clean"
+                                         or  ("needs-review (`/rr tmogverify " .. raid.name .. "`)")
+                        local totalItems = (T.ok or 0) + errCount
+
+                        reportAdd(("=== %s (journalInstanceID=%s) ==="):format(
+                            raid.name, tostring(raid.journalInstanceID or "?")))
+                        reportAdd(("  Items: %d (binary=%d, per-diff=%d, partial=%d)"):format(
+                            totalItems, T.shape_binary or 0, T.shape_perdiff or 0, T.shape_partial or 0))
+                        reportAdd(("  Findings: %d ERR / %d WRN"):format(errCount, wrnCount))
+                        reportAdd(("    fatal_nil=%d, item_mismatch=%d, bucket_mismatch=%d"):format(
+                            T.fatal_nil or 0, T.item_mismatch or 0, T.bucket_mismatch or 0))
+                        reportAdd(("    coverage_gap=%d (E6), missing_item=%d (E7)"):format(
+                            T.coverage_gap or 0, T.missing_item or 0))
+                        reportAdd(("  E5: checked=%d, skipped=%d"):format(
+                            T.e5_checked or 0, T.e5_skipped or 0))
+                        reportAdd(("  STATUS: %s"):format(status))
+                        reportAdd("")
+
+                        -- Yield to the engine briefly between raids; otherwise
+                        -- the cumulative EJ work in a single tick may run up
+                        -- against UI responsiveness limits.
+                        C_Timer.After(0.5, ProcessNextRaid)
+                    end)
+                end
+
+                ProcessNextRaid()
+            end
+        end
     elseif cmd == "ejdiff" then
         -- Diagnose the EJ's loot visibility per difficulty.
         --
@@ -4616,7 +5290,6 @@ end)
 -- explicitly requested via /rr debug -- otherwise it would flood the
 -- log buffer (60 entries per minute) and push useful entries out.
 local heartbeatTicks = 0
-local lastPolledMapID = nil
 C_Timer.NewTicker(1.0, function()
     if RR.currentRaid
         and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
@@ -4652,10 +5325,18 @@ C_Timer.NewTicker(1.0, function()
         -- UsesStrictActiveSegPicker, so this poll is safe to run
         -- unconditionally -- it's a no-op for raids that don't
         -- opt in.
+        --
+        -- RR.state.lastPolledMapID (not a module-local) is the
+        -- baseline so SeedStrictActiveSeg can re-sync it on step
+        -- transitions. Without that sync, post-ENCOUNTER_END map
+        -- flicker (e.g. Antorus Eonar success: player's mapID
+        -- briefly resolves 913->909 around the kill) can fire a
+        -- spurious advance from seg 1 to seg 2 even though the
+        -- player hasn't clicked the orb to return to Antorus yet.
         if C_Map and C_Map.GetBestMapForUnit then
             local nowMapID = C_Map.GetBestMapForUnit("player")
-            if nowMapID and nowMapID ~= lastPolledMapID then
-                lastPolledMapID = nowMapID
+            if nowMapID and nowMapID ~= RR.state.lastPolledMapID then
+                RR.state.lastPolledMapID = nowMapID
                 RR:AdvanceStrictActiveSeg(nowMapID)
             end
         end

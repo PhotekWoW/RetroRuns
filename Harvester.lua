@@ -185,8 +185,7 @@ local TIER_GROUPS = {
     --               doesn't hit it (it parses token names, not class IDs),
     --               but the per-class-tier-row rendering path will need a
     --               (classID, slot) re-keying before CN tier rows render
-    --               correctly. See HANDOFF.md session summary for the full
-    --               story.
+    --               correctly.
     ABOMINABLE   = { 6, 12, 9 },          -- DK, DH, Warlock (= CN's Dreadful-equivalent)
     APOGEE       = { 1, 2, 5, 10, 13 },   -- Warrior, Paladin, Priest, Monk, Evoker
     THAUMATURGIC = { 7, 8, 9, 11 },       -- Shaman, Mage, Warlock, Druid
@@ -264,11 +263,11 @@ local TOKEN_SLOT_KEYWORDS = {
 --
 -- IMPORTANT LIMITATION: this detection only catches manuscripts that
 -- Blizzard listed in the Encounter Journal. Some manuscripts are hidden
--- from EJ entirely (verified 2026-04-27 via /rr ejprobe 201790 on
--- Raszageth: itemID 201790 doesn't appear in GetLootInfoByIndex despite
--- being a real drop). For hidden manuscripts, hand-curate the
--- specialLoot entry from ATT's mm() data -- DetectManuscript can't help
--- since the item never reaches DetectSpecialKind in the first place.
+-- from EJ entirely (e.g. itemID 201790 on Raszageth doesn't appear in
+-- GetLootInfoByIndex despite being a real drop). For hidden manuscripts,
+-- hand-curate the specialLoot entry from ATT's mm() data -- DetectManuscript
+-- can't help since the item never reaches DetectSpecialKind in the first
+-- place.
 --
 -- To extend the questID map for a new EJ-listed manuscript:
 --   1. Run /rr ejprobe <itemID> on the raid's final boss with EJ open.
@@ -494,10 +493,9 @@ function RR:HarvestDiagnose()
     -- before doing a first run.
     --
     -- Source-of-truth: try EJ_GetSelectedInstance first, then fall back
-    -- to EJ_GetEncounterInfoByIndex(1)'s jinstID. Per Aberrus stub
-    -- session 2026-04-26, EJ_GetSelectedInstance can return nil even
-    -- when the EJ is visibly open on a raid -- the index-based API
-    -- reads the same underlying state more reliably.
+    -- to EJ_GetEncounterInfoByIndex(1)'s jinstID. EJ_GetSelectedInstance
+    -- can return nil even when the EJ is visibly open on a raid -- the
+    -- index-based API reads the same underlying state more reliably.
     add("=== EJ_GetInstanceInfo() for selected journal instance ===")
     local selectedEJ = EJ_GetSelectedInstance and EJ_GetSelectedInstance() or nil
     local source = "EJ_GetSelectedInstance"
@@ -1096,7 +1094,12 @@ end
 -- events from the new boss reset the timer.
 -------------------------------------------------------------------------------
 
-local function WaitForEJLootSettled(quietMs, maxWaitMs, onSettled)
+-- WaitForEJLootSettled: poll EJ_GetNumLoot until the count has been stable for
+-- quietMs milliseconds, or fail open after maxWaitMs. Public because it's also
+-- used by tmogverify's coverage pass; see Core.lua. The helper is harmless to
+-- call multiple times across other in-flight EJ work since it allocates its
+-- own listener frame.
+function RR:WaitForEJLootSettled(quietMs, maxWaitMs, onSettled)
     quietMs   = quietMs   or 2000   -- bumped from 1000 to absorb EJ late-bursts
     maxWaitMs = maxWaitMs or 10000
 
@@ -1138,6 +1141,12 @@ local function WaitForEJLootSettled(quietMs, maxWaitMs, onSettled)
     -- 1.5s, then delivers more items" pattern that's common on heavy bosses.
     listener:SetScript("OnEvent", function() lastChange = GetTime() end)
     listener:SetScript("OnUpdate", Poll)
+end
+
+-- Local alias preserved so existing harvester call sites work without
+-- diff churn. New callers should prefer RR:WaitForEJLootSettled directly.
+local function WaitForEJLootSettled(quietMs, maxWaitMs, onSettled)
+    return RR:WaitForEJLootSettled(quietMs, maxWaitMs, onSettled)
 end
 
 -- Test whether an itemID is a "token" -- i.e. an EJ loot item that grants no
@@ -1567,23 +1576,38 @@ local function CollectEncounterLoot(journalInstanceID, journalEncounterID,
 end
 
 -------------------------------------------------------------------------------
--- Per-difficulty enrichment fallback
+-- Per-difficulty enrichment (authoritative pass)
 --
--- Single-pass `ResolveSourcesForItem` (which enumerates GetAllAppearanceSources
--- and parses each variant's link) fails for Sepulcher-era loot because the
--- per-variant links don't carry context (modID=0 across the board, and the
--- enumerated source links are EJ-cache artifacts that lose itemContext).
+-- Single-pass `ResolveSourcesForItem` enumerates GetAllAppearanceSources for
+-- the item's primary appearance. This is fast and works for items whose
+-- per-difficulty variants share one appearance, but fails silently for raids
+-- where each difficulty has its own visual (and therefore its own appearance-
+-- ID that the primary's GetAllAppearanceSources can't reach). Sepulcher-era
+-- raids also break the fast path differently: per-variant links lose
+-- itemContext on retail (modID=0 across the board, EJ-cache artifacts).
 --
--- When that happens, we fall back to walking the EJ at each difficulty.
+-- The fix for both failure modes is the same: walk the EJ at each difficulty
+-- and read the per-difficulty sourceID directly from the per-difficulty link.
 -- EJ_SetDifficulty(diffID) makes GetLootInfoByIndex return links with the
 -- right context for THAT difficulty -- so the per-item sourceID we get from
--- C_TransmogCollection.GetItemInfo(itemID) at each difficulty pass IS the
+-- C_TransmogCollection.GetItemInfo(info.link) (link form, not itemID form;
+-- the latter returns the canonical sourceID regardless of EJ state) IS the
 -- correct per-difficulty sourceID.
 --
--- This is more expensive (~4x EJ passes per boss) but it's the only reliable
--- way to recover per-difficulty sources for Sepulcher-era content. We invoke
--- it conditionally: only if any item in the boss's non-tier loot list has
--- an empty `sources` table (i.e. only singleAppearanceSource is populated).
+-- This used to be a conditional "fallback when sources are empty" pass, but
+-- the gate silently mis-shaped any item that the fast path could give a
+-- single-source answer for, including the entire 133-item binary slice of
+-- Antorus. The pass now runs unconditionally for every encounter, on every
+-- item, every time. Items whose fast-path data happened to be correct get
+-- the same answer back; items the fast path missed get the right answer
+-- instead of a cloned single source. The pass overwrites prior values in
+-- the loop (~line 1735 below) -- that's intentional, the EJ-link-derived
+-- sourceID is authoritative.
+--
+-- Cost: 4 EJ passes per encounter, regardless of how the fast path performed.
+-- The fast path is no longer a shortcut around the sweep, but its bookkeeping
+-- of `singleAppearanceSource` remains useful as the final fallback at case
+-- (c) when the sweep ALSO can't resolve a per-difficulty source for an item.
 --
 -- items: list of items as produced by CollectEncounterLoot.
 -- onDone: callback() with no args; items are mutated in place.
@@ -1591,18 +1615,39 @@ end
 
 local function EnrichWithPerDifficultySources(journalInstanceID, journalEncounterID,
                                               items, onDone)
-    -- Quick-exit: if nothing needs enrichment, return immediately.
-    local needsEnrichment = false
+    -- Always run the EJ-sweep.
+    --
+    -- The earlier "quick-exit when no item needs enrichment" gate was a
+    -- silent correctness hazard. Items that came out of ResolveSourcesForItem
+    -- with a `singleAppearanceSource` (no per-difficulty `sources` table, but
+    -- one collected appearance source) used to bypass the EJ-sweep and got
+    -- cloned across all 4 buckets. That works when an item TRULY has one
+    -- visual across all difficulties, but it silently mis-shapes items whose
+    -- per-difficulty variants are visually distinct (and therefore have
+    -- separate appearanceIDs that GetAllAppearanceSources can't reach from
+    -- one appearance starting point). Antorus is the canonical example: most
+    -- of its items have a distinct visual per difficulty, but ResolveSources-
+    -- ForItem only sees the Normal appearance and reports one source, which
+    -- the old gate accepted as "no enrichment needed". The result was
+    -- shipping 133 binary-shape items that should have been per-difficulty.
+    --
+    -- The fix: run the sweep unconditionally. The 4 EJ_SetDifficulty passes
+    -- are the authoritative per-difficulty source; whatever the fast path
+    -- got was at best correct and at worst wrong, but never more accurate
+    -- than the sweep. The sweep overwrites prior values intentionally
+    -- (line ~1735 in the loop below) so items with pre-populated sources
+    -- still get refined to the difficulty-accurate sourceID. Items the
+    -- sweep can't resolve fall back to singleAppearanceSource via case (c)
+    -- normalization at the end of the loop.
+    --
+    -- Cost note: this is not a per-item cost multiplier. The sweep is already
+    -- bounded at 4 EJ passes per encounter; removing the gate just stops
+    -- skipping the sweep entirely for "looks fine" encounters. Total
+    -- raidcapture time is unchanged from the worst-case path the harvester
+    -- already takes.
     local itemsByID = {}
     for _, it in ipairs(items) do
         itemsByID[it.id] = it
-        if not it.sources or next(it.sources) == nil then
-            needsEnrichment = true
-        end
-    end
-    if not needsEnrichment then
-        onDone()
-        return
     end
 
     local PASSES = { 17, 14, 15, 16 }   -- LFR, Normal, Heroic, Mythic

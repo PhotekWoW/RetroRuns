@@ -614,9 +614,8 @@ RetroRuns_Data[2296] = {
             -- up to 13 armor items for this encounter -- those entries
             -- reflect pre-patch data that no longer matches the live EJ.
             -- The 4 items below are the complete armor drop set. The
-            -- ring, trinkets, conduits, and memories are not tracked
-            -- here because the schema currently only covers per-class
-            -- armor and weapons.
+            -- ring, trinkets, conduits, and memories aren't tracked here
+            -- because the addon only covers per-class armor and weapons.
             loot = {
                 { id = 182997, slot = "Head",     name = "Diadem of Imperious Desire", sources = { [17]=115242, [14]=114510, [15]=115243, [16]=115244 } },
                 { id = 182980, slot = "Head",     name = "Sadist's Sinister Mask",     sources = { [17]=115146, [14]=114493, [15]=115147, [16]=115148 } },
@@ -765,12 +764,11 @@ RetroRuns_Data[2296] = {
         -- `requires = { 6 }` (Lady Inerva) rather than `{ 1 }`
         -- (Shriekwing). Blizzard's encounter DAG only strictly gates
         -- Sun King on Shriekwing, but the Boss Progress panel colors
-        -- bosses based on available-vs-locked state: declaring `{ 1 }`
-        -- would mark Sun King as "available" (white) for the entire
-        -- Altimor -> Destroyer -> Inerva clear, which reads as "you're
-        -- forgetting a boss" to the player. `{ 6 }` encodes the actual
-        -- route order, so Sun King becomes the next target immediately
-        -- after Inerva.
+        -- bosses by available-vs-locked state: declaring `{ 1 }` would
+        -- mark Sun King as "available" for the entire Altimor ->
+        -- Destroyer -> Inerva clear, which is misleading. `{ 6 }`
+        -- encodes the route order, so Sun King becomes the next
+        -- target right after Inerva.
         {
             step      = 5,
             priority  = 5,

@@ -4,19 +4,27 @@ A solo legacy raid navigator for World of Warcraft retail.
 
 Zone into an old raid and RetroRuns lays out a styled panel with the next boss, turn-by-turn routing to reach it, solo-focused encounter notes, and transmog collection status for every drop. Kill a boss and the guide advances automatically.
 
-Currently supports three Legion raids, five Battle for Azeroth raids, all three Shadowlands raids, and all three Dragonflight raids:
+Currently supports:
 
+**Legion**
 * The Emerald Nightmare (7.0.3)
 * Trial of Valor (7.1)
 * The Nighthold (7.1.5)
+* Tomb of Sargeras (7.2)
+
+**Battle for Azeroth**
 * Uldir (8.0)
 * Battle of Dazar'alor (8.1)
 * Crucible of Storms (8.1.5)
 * The Eternal Palace (8.2)
 * Ny'alotha, the Waking City (8.3)
+
+**Shadowlands**
 * Castle Nathria (9.0)
 * Sanctum of Domination (9.1)
 * Sepulcher of the First Ones (9.2)
+
+**Dragonflight**
 * Vault of the Incarnates (10.0)
 * Aberrus, the Shadowed Crucible (10.1)
 * Amirdrassil, the Dream's Hope (10.2)
@@ -71,9 +79,7 @@ Main commands — type in chat:
 
 ## Status
 
-Version **1.8.0**
-
-Five Battle for Azeroth raids, all three Shadowlands raids, all three Dragonflight raids, and three Legion raids (The Emerald Nightmare, Trial of Valor, The Nighthold) are feature-complete with full routing, encounter notes, armor transmog tracking, weapon-token indicators (where applicable), and achievement callouts.
+Version **1.10.0**
 
 ## Reporting bugs / requesting features
 
