@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "1.10.0"
+local VERSION    = "1.10.1"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -727,54 +727,6 @@ local function CollectRaidDataIssues(scopeFilter)
                         if not seg.kind then
                             add("error", raidLabel,
                                 sp .. (" segment %d missing kind"):format(si))
-                        end
-
-                        -- subZone-near-miss check: if a seg's subZone
-                        -- string ALMOST matches an existing maps[]
-                        -- entry but isn't an exact match, it's likely
-                        -- a typo (e.g. "Heart of the Empire" when the
-                        -- maps[] entry is "The Heart of the Empire").
-                        -- Mismatches break the renderer's
-                        -- HighlightNames orange-coloring pass.
-                        --
-                        -- We don't warn on subZones that are simply
-                        -- absent from maps[] -- raid.maps holds top-
-                        -- level map names while sub-zones can be
-                        -- finer-grained, so an absent subZone is
-                        -- usually legitimate (e.g. "Pit of Volcoross"
-                        -- within the Amirdrassil parent map). The
-                        -- typo bug class only shows up as near-misses.
-                        if seg.subZone and type(raid.maps) == "table" then
-                            local exact = false
-                            local nearMiss = nil
-                            local sub = seg.subZone
-                            local subLower = sub:lower()
-                            for _, mapName in pairs(raid.maps) do
-                                if mapName == sub then
-                                    exact = true
-                                    break
-                                elseif type(mapName) == "string" then
-                                    -- Case-insensitive substring in
-                                    -- either direction is the
-                                    -- "almost-matches" signal: catches
-                                    -- "Heart of the Empire" vs "The
-                                    -- Heart of the Empire" (subZone
-                                    -- is a substring of mapName) AND
-                                    -- "The Heart of the Empire" vs
-                                    -- "Heart of the Empire" (mapName
-                                    -- is a substring of subZone).
-                                    local mLower = mapName:lower()
-                                    if subLower:find(mLower, 1, true)
-                                        or mLower:find(subLower, 1, true) then
-                                        nearMiss = mapName
-                                    end
-                                end
-                            end
-                            if not exact and nearMiss then
-                                add("warn", raidLabel,
-                                    sp .. (" segment %d subZone=%q is a near-miss for maps[] entry %q (typo?)"):format(
-                                        si, sub, nearMiss))
-                            end
                         end
 
                         -- Consecutive-duplicate mapID check: two segs
@@ -1520,6 +1472,7 @@ end
 -- the same state-rebuild sequence.
 function RR:RestoreRealRaidState()
     self:ClearBossState()
+    self:ResetStrictAdvanceGuard()
     self:SyncFromSavedRaidInfo(true)   -- request fresh server data
     self:RestorePersistedSegments()
     self:RestorePersistedStrictActiveSeg()
@@ -2063,12 +2016,11 @@ function RR:PrintStatus()
 
     -- Live map(s). Shows both the player's resolved mapID and -- if
     -- different -- the world-map-frame's current selection. Prefers
-    -- the raid.maps hand-authored name, which is the real dropdown
-    -- label from the world map frame. Blizzard's GetMapInfo API
-    -- returns the parent raid name for sub-zones in raids like
-    -- Sanctum, so the API alone is not useful here. Flags any
-    -- mapID not yet in raid.maps so we know which sub-zones still
-    -- need to be declared as routes get recorded.
+    -- the raid.maps hand-authored sub-zone name, since Blizzard's
+    -- GetMapInfo API returns the parent raid name for sub-zones in
+    -- raids like Sanctum and isn't useful here. Flags any mapID not
+    -- yet in raid.maps so we know which sub-zones still need to be
+    -- declared as routes get recorded.
     local function FormatMapLine(label, mapID)
         local info     = C_Map.GetMapInfo(mapID)
         local apiName  = (info and info.name) or "?"

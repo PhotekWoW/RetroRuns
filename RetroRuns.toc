@@ -2,7 +2,7 @@
 ## Title: RetroRuns
 ## Notes: Solo legacy raid navigator — routing, tips, and achievement tracking
 ## Author: Photek
-## Version: 1.10.0
+## Version: 1.10.1
 ## X-License: MIT
 ## SavedVariables: RetroRunsDB, RetroRunsDebug
 ## IconTexture: Interface\AddOns\RetroRuns\Media\MinimapIcon
@@ -26,11 +26,15 @@ Data\TrialOfValor.lua
 Data\Nighthold.lua
 Data\TombOfSargeras.lua
 Data\AntorusTheBurningThrone.lua
+# WoD raids (stubs only -- not loaded until routing data is complete):
+# Data\HellfireCitadel.lua
+# Data\BlackrockFoundry.lua
+# Data\Highmaul.lua
 
 # ── Core ──────────────────────────────────────────────────────────────────────
 Core.lua
 Navigation.lua
-Data\StrictPicker.lua
+StrictPicker.lua
 RaidState.lua
 Recorder.lua
 

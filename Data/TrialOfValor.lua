@@ -38,13 +38,17 @@ RetroRuns_Data[1648] = {
         subZone = "Gates of Valor",
     },
 
-    -- mapID -> world-map dropdown label.
     maps = {
         [807] = "Trial of Valor",   -- Odyn approach (escalator wing, "The Ephemeral Way" / "Hall of Glory")
         [806] = "Trial of Valor",   -- Guarm approach (post-Odyn-dialog teleport, "Field of Fallen Kings")
         [808] = "Helheim",          -- Guarm fight room and Helya wing ("The Eternal Battlefield")
     },
 
+    -- Empty by design: Trial of Valor was a Legion mini-raid using
+    -- the artifact-relic gearing path, not class tier sets. No tier
+    -- pieces to harvest, no class-restricted loot rows. The data shape
+    -- matches Emerald Nightmare (same relic-only Legion cohort) and
+    -- contrasts with Nighthold/Tomb/Antorus.
     tierSets = {
         labels       = {},
         tokenSources = {},
@@ -126,7 +130,7 @@ RetroRuns_Data[1648] = {
                     mapID   = 807,
                     kind    = "path",
                     subZone = "The Ephemeral Way",
-                    note    = "After zoning in, take the escalator all the way up to engage Odyn.",
+                    note    = "After zoning in, take the escalator all the way up to engage ^Odyn^.",
                     points  = {
                         { 0.514, 0.087 },
                         { 0.515, 0.784 },
@@ -146,7 +150,7 @@ RetroRuns_Data[1648] = {
                     mapID   = 807,
                     kind    = "poi",
                     subZone = "Hall of Glory",
-                    note    = "After defeating Odyn, talk to him and select the only dialog option available. You will be dropped into Helheim.",
+                    note    = "After defeating ^Odyn^, talk to him and select the only dialog option available. You will be dropped into ^Helheim^.",
                     points  = {
                         { 0.514, 0.892 },
                     },
@@ -155,7 +159,7 @@ RetroRuns_Data[1648] = {
                     mapID   = 806,
                     kind    = "path",
                     subZone = "Field of Fallen Kings",
-                    note    = "After landing down below, take the downhill path and kill trash as you walk through the Helheim portal at the bottom.",
+                    note    = "After landing down below, take the downhill path and kill trash as you walk through the ^Helheim^ portal at the bottom.",
                     points  = {
                         { 0.539, 0.588 },
                         { 0.695, 0.354 },
@@ -165,7 +169,7 @@ RetroRuns_Data[1648] = {
                     mapID   = 808,
                     kind    = "path",
                     subZone = "The Eternal Battlefield",
-                    note    = "Once you reach Helheim, follow the path around to find Guarm.",
+                    note    = "Once you reach ^Helheim^, follow the path around to find ^Guarm^.",
                     points  = {
                         { 0.638, 0.450 },
                         { 0.592, 0.399 },
@@ -187,7 +191,7 @@ RetroRuns_Data[1648] = {
                     mapID   = 808,
                     kind    = "path",
                     subZone = "The Eternal Battlefield",
-                    note    = "After killing Guarm, continue down the path to meet Helya. Kill the trash to start the encounter.",
+                    note    = "After killing ^Guarm^, continue down the path to meet ^Helya^. Kill the trash to start the encounter.",
                     points  = {
                         { 0.481, 0.319 },
                         { 0.385, 0.265 },

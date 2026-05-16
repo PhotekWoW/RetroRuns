@@ -391,7 +391,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2047,
                     kind   = "path",
-                    note   = "Follow the main path to Vigilant Guardian.",
+                    note   = "Follow the main path to ^Vigilant Guardian^.",
                     points = {
                         { 0.100, 0.516 },
                         { 0.243, 0.518 },
@@ -415,7 +415,7 @@ RetroRuns_Data[2481] = {
                     mapID       = 2047,
                     kind        = "teleport",
                     destination = "Ephemeral Plains Alpha",
-                    note        = "Head down the long hallway to the teleporter. Select Ephemeral Plains Alpha.",
+                    note        = "Head down the long hallway to the teleporter. Select ^Ephemeral Plains Alpha^.",
                     points      = {
                         { 0.503, 0.516 },
                         { 0.563, 0.516 },
@@ -425,7 +425,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2061,
                     kind   = "path",
-                    note   = "Follow the path down to Skolex. Kill the trash to spawn the boss.",
+                    note   = "Follow the path down to ^Skolex^. Kill the trash to spawn the boss.",
                     points = {
                         { 0.163, 0.377 },
                         { 0.191, 0.412 },
@@ -448,7 +448,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2061,
                     kind   = "path",
-                    note   = "Follow the ring path up and around to Artificer Xy'mox.",
+                    note   = "Follow the ring path up and around to ^Artificer Xy'mox^.",
                     points = {
                         { 0.163, 0.660 },
                         { 0.193, 0.584 },
@@ -474,7 +474,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2061,
                     kind   = "path",
-                    note   = "After killing both Skolex and Artificer Xy'mox, follow the path south to Halondrus.",
+                    note   = "After killing both ^Skolex^ and ^Artificer Xy'mox^, follow the path south to ^Halondrus^.",
                     points = {
                         { 0.362, 0.422 },
                         { 0.309, 0.420 },
@@ -497,7 +497,7 @@ RetroRuns_Data[2481] = {
                     mapID       = 2061,
                     kind        = "teleport",
                     destination = "Genesis Cradle Alpha",
-                    note        = "After killing Halondrus, continue down the path behind him to reach his loot chest. Activate the nearby teleporter and select Genesis Cradle Alpha.",
+                    note        = "After killing ^Halondrus^, continue down the path behind him to reach his loot chest. Activate the nearby teleporter and select ^Genesis Cradle Alpha^.",
                     points      = {
                         { 0.477, 0.770 },
                         { 0.630, 0.596 },
@@ -508,7 +508,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2048,
                     kind   = "path",
-                    note   = "Cross Genesis Cradle to Dausegne.",
+                    note   = "Cross ^Genesis Cradle^ to ^Dausegne^.",
                     points = {
                         { 0.254, 0.841 },
                         { 0.315, 0.757 },
@@ -536,7 +536,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2048,
                     kind   = "path",
-                    note   = "Continue past Dausegne toward the Endless Foundry entrance.",
+                    note   = "Continue past ^Dausegne^ toward ^the Endless Foundry^ entrance.",
                     points = {
                         { 0.543, 0.466 },
                         { 0.572, 0.510 },
@@ -548,7 +548,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2049,
                     kind   = "path",
-                    note   = "Follow the foundry floor to Prototype Pantheon.",
+                    note   = "Follow the foundry floor to ^Prototype Pantheon^.",
                     points = {
                         { 0.257, 0.807 },
                         { 0.305, 0.738 },
@@ -568,7 +568,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2049,
                     kind   = "path",
-                    note   = "Follow the path through The Endless Foundry, killing the trash on the way to Lihuvim.",
+                    note   = "Follow the path through ^The Endless Foundry^, killing the trash on the way to ^Lihuvim^.",
                     points = {
                         { 0.349, 0.663 },
                         { 0.621, 0.259 },
@@ -589,7 +589,7 @@ RetroRuns_Data[2481] = {
                     mapID       = 2049,
                     kind        = "teleport",
                     destination = "Domination's Grasp",
-                    note        = "Find the teleporter behind Lihuvim and select Domination's Grasp.",
+                    note        = "Find the teleporter behind ^Lihuvim^ and select ^Domination's Grasp^.",
                     points      = {
                         { 0.668, 0.187 },
                         { 0.682, 0.098 },
@@ -598,7 +598,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2050,
                     kind   = "path",
-                    note   = "Follow the bridge into Domination's Grasp to Anduin.",
+                    note   = "Follow the bridge into ^Domination's Grasp^ to ^Anduin^.",
                     points = {
                         { 0.161, 0.518 },
                         { 0.377, 0.520 },
@@ -619,7 +619,7 @@ RetroRuns_Data[2481] = {
                     mapID       = 2050,
                     kind        = "teleport",
                     destination = "The Grand Design",
-                    note        = "Cross the bridge behind Anduin to the teleporter. Select Proceed.",
+                    note        = "Cross the bridge behind ^Anduin^ to the teleporter. Select ^Proceed^.",
                     points      = {
                         { 0.435, 0.519 },
                         { 0.857, 0.517 },
@@ -628,7 +628,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2052,
                     kind   = "path",
-                    note   = "Follow the path through The Grand Design, killing trash on the way to Lords of Dread.",
+                    note   = "Follow the path through ^The Grand Design^, killing trash on the way to ^Lords of Dread^.",
                     points = {
                         { 0.484, 0.202 },
                         { 0.607, 0.204 },
@@ -650,7 +650,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2052,
                     kind   = "path",
-                    note   = "After killing Lords of Dread, you will find a teleporter behind them. Use it to take a shortcut back to the beginning of the room, and follow the path to Rygelon.",
+                    note   = "After killing ^Lords of Dread^, you will find a teleporter behind them. Use it to take a shortcut back to the beginning of the room, and follow the path to ^Rygelon^.",
                     points = {
                         { 0.607, 0.440 },
                         { 0.641, 0.340 },
@@ -680,7 +680,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2052,
                     kind   = "path",
-                    note   = "Follow the path behind Rygelon all the way to The Jailer.",
+                    note   = "Follow the path behind ^Rygelon^ all the way to ^The Jailer^.",
                     points = {
                         { 0.395, 0.545 },
                         { 0.425, 0.621 },
@@ -699,7 +699,7 @@ RetroRuns_Data[2481] = {
                 {
                     mapID  = 2051,
                     kind   = "path",
-                    note   = "Continue forward to The Jailer's platform.",
+                    note   = "Continue forward to ^The Jailer^'s platform and end this.",
                     points = {
                         { 0.500, 0.500 },
                     },

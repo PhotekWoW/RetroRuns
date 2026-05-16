@@ -37,9 +37,6 @@ RetroRuns_Data[2569] = {
         y     = 0.104,
     },
 
-    -- Sub-zone mapIDs for Aberrus's five wings. Names match the in-game
-    -- world-map dropdown verbatim. Used by the routing renderer to label
-    -- the active region in the panel header.
     maps = {
         [2166] = "Molten Crucible",
         [2167] = "Onyx Laboratory",
@@ -426,7 +423,7 @@ RetroRuns_Data[2569] = {
                     mapID   = 2166,
                     kind    = "path",
                     subZone = "Blazing Bulwark",
-                    note    = "After zoning in, go straight ahead and clear all trash to spawn Kazzara.",
+                    note    = "After zoning in, go straight ahead and clear all trash to spawn ^Kazzara^.",
                     points  = {
                         { 0.512, 0.934 },
                         { 0.512, 0.757 },
@@ -452,7 +449,7 @@ RetroRuns_Data[2569] = {
                     mapID   = 2166,
                     kind    = "path",
                     subZone = "Molten Crucible",
-                    note    = "After killing Kazzara, take the left path towards the exit labeled Onyx Laboratory.",
+                    note    = "After killing ^Kazzara^, take the left path towards the exit labeled ^Onyx Laboratory^.",
                     points  = {
                         { 0.512, 0.686 },
                         { 0.512, 0.617 },
@@ -466,7 +463,7 @@ RetroRuns_Data[2569] = {
                     mapID   = 2167,
                     kind    = "path",
                     subZone = "Onyx Laboratory",
-                    note    = "Continue down the path and clear the trash to spawn The Amalgamation Chamber.",
+                    note    = "Continue down the path and clear the trash to spawn ^The Amalgamation Chamber^.",
                     points  = {
                         { 0.557, 0.620 },
                         { 0.529, 0.637 },
@@ -493,7 +490,7 @@ RetroRuns_Data[2569] = {
                     mapID   = 2167,
                     kind    = "path",
                     subZone = "Onyx Laboratory",
-                    note    = "After killing The Amalgamation Chamber, follow the path north to reach some stairs leading to the Molten Crucible.",
+                    note    = "After killing ^The Amalgamation Chamber^, follow the path north to reach some stairs leading to the ^Molten Crucible^.",
                     points  = {
                         { 0.468, 0.632 },
                         { 0.485, 0.536 },
@@ -507,7 +504,7 @@ RetroRuns_Data[2569] = {
                     mapID   = 2166,
                     kind    = "path",
                     subZone = "Onyx Laboratory",
-                    note    = "Kill the slimes to spawn The Forgotten Experiments.",
+                    note    = "Kill the slimes to spawn ^The Forgotten Experiments^.",
                     points  = {
                         { 0.339, 0.198 },
                         { 0.371, 0.263 },
@@ -534,7 +531,7 @@ RetroRuns_Data[2569] = {
                     mapID   = 2166,
                     kind    = "path",
                     subZone = "Molten Crucible",
-                    note    = "After defeating The Forgotten Experiments, jump down behind them (under a chain) and take the path across the room to the exit labeled Defiant Ramparts.",
+                    note    = "After defeating ^The Forgotten Experiments^, jump down behind them (under a chain) and take the path across the room to the exit labeled ^Defiant Ramparts^.",
                     points  = {
                         { 0.372, 0.259 },
                         { 0.408, 0.293 },
@@ -547,7 +544,7 @@ RetroRuns_Data[2569] = {
                     mapID   = 2168,
                     kind    = "path",
                     subZone = "Defiant Ramparts",
-                    note    = "Inside Defiant Ramparts, follow the path to climb some stairs. Kill the last trash pack to spawn Assault of the Zaqali.",
+                    note    = "Inside ^Defiant Ramparts^, follow the path to climb some stairs. Kill the last trash pack to spawn ^Assault of the Zaqali^.",
                     points  = {
                         { 0.375, 0.685 },
                         { 0.560, 0.684 },
@@ -575,7 +572,7 @@ RetroRuns_Data[2569] = {
                     mapID   = 2168,
                     kind    = "path",
                     subZone = "Defiant Ramparts",
-                    note    = "After defeating the Assault of the Zaqali, enter the nearby room labeled Molten Crucible.",
+                    note    = "After defeating the ^Assault of the Zaqali^, enter the nearby room labeled ^Molten Crucible^.",
                     points  = {
                         { 0.450, 0.384 },
                         { 0.396, 0.391 },
@@ -585,7 +582,7 @@ RetroRuns_Data[2569] = {
                     mapID   = 2166,
                     kind    = "path",
                     subZone = "Aberrus, the Shadowed Crucible",
-                    note    = "Approach the boss, and kill the trash to engage Rashok.",
+                    note    = "Approach the boss, and kill the trash to engage ^Rashok^.",
                     points  = {
                         { 0.722, 0.143 },
                         { 0.695, 0.186 },
@@ -609,7 +606,7 @@ RetroRuns_Data[2569] = {
                     mapID   = 2166,
                     kind    = "path",
                     subZone = "Molten Crucible",
-                    note    = "After defeating Rashok, make your way up the chain behind him, and follow the path around to The Vigilant Steward, Zskarn.",
+                    note    = "After defeating ^Rashok^, make your way up the chain behind him, and follow the path around to ^The Vigilant Steward, Zskarn^.",
                     points  = {
                         { 0.660, 0.256 },
                         { 0.643, 0.279 },
@@ -641,7 +638,7 @@ RetroRuns_Data[2569] = {
                     mapID   = 2166,
                     kind    = "path",
                     subZone = "Molten Crucible",
-                    note    = "After defeating Zskarn, drop down into the hole behind Neltharion. Leap down again (across some lava), and make your way to the boss platform. Clear the trash to spawn Magmorax.",
+                    note    = "After defeating ^Zskarn^, drop down into the hole behind ^Neltharion^. Leap down again (across some lava), and make your way to the boss platform. Clear the trash to spawn ^Magmorax^.",
                     points  = {
                         { 0.489, 0.250 },
                         { 0.512, 0.310 },
@@ -668,7 +665,7 @@ RetroRuns_Data[2569] = {
                     mapID   = 2166,
                     kind    = "path",
                     subZone = "Aberrus, the Shadowed Crucible",
-                    note    = "After defeating Magmorax, swim across the lava to reach the southern exit labeled Neltharion's Sanctum. Jump down into the hole.",
+                    note    = "After defeating ^Magmorax^, swim across the lava to reach the southern exit labeled ^Neltharion's Sanctum^. Jump down into the hole.",
                     points  = {
                         { 0.514, 0.503 },
                         { 0.514, 0.574 },
@@ -678,7 +675,7 @@ RetroRuns_Data[2569] = {
                     mapID   = 2169,
                     kind    = "path",
                     subZone = "Neltharion's Sanctum",
-                    note    = "After you land, enter the room and clear the trash to spawn Echo of Neltharion.",
+                    note    = "After you land, enter the room and clear the trash to spawn ^Echo of Neltharion^.",
                     points  = {
                         { 0.507, 0.167 },
                         { 0.508, 0.252 },
@@ -703,7 +700,7 @@ RetroRuns_Data[2569] = {
                     mapID   = 2169,
                     kind    = "path",
                     subZone = "Neltharion's Sanctum",
-                    note    = "After defeating Echo of Neltharion, walk into the room behind him and jump into the purple circle to reach Edge of Oblivion.",
+                    note    = "After defeating ^Echo of Neltharion^, walk into the room behind him and jump into the purple circle to reach ^Edge of Oblivion^.",
                     points  = {
                         { 0.508, 0.318 },
                         { 0.507, 0.588 },
@@ -713,7 +710,7 @@ RetroRuns_Data[2569] = {
                     mapID   = 2170,
                     kind    = "path",
                     subZone = "Edge of Oblivion",
-                    note    = "After landing below, follow the path to reach Scalecommander Sarkareth.",
+                    note    = "After landing below, follow the path to reach ^Scalecommander Sarkareth^.",
                     points  = {
                         { 0.490, 0.254 },
                         { 0.490, 0.678 },

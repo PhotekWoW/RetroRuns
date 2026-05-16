@@ -2,6 +2,12 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [1.10.1] - 2026-05-16
+
+### Fixed
+
+- Fixed an issue with Blackwater Behemoth navigation steps in The Eternal Palace.
+
 ## [1.10.0] - 2026-05-15
 
 ### Added

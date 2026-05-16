@@ -304,7 +304,7 @@ RetroRuns_Data[2164] = {
                     mapID   = 1512,
                     kind    = "path",
                     subZone = "Dais of Eternity",
-                    note    = "After zoning in, follow the path straight ahead to engage Sivara.",
+                    note    = "After zoning in, follow the path straight ahead to engage ^Sivara^.",
                     points  = {
                         { 0.914, 0.487 },
                         { 0.523, 0.487 },
@@ -325,7 +325,7 @@ RetroRuns_Data[2164] = {
                     mapID   = 1512,
                     kind    = "path",
                     subZone = "Dais of Eternity",
-                    note    = "After defeating Sivara, continue past her towards the map exit labeled Halls of the Chosen. Take the underwater tunnel to reach the next area.",
+                    note    = "After defeating ^Sivara^, continue past her towards the map exit labeled ^Halls of the Chosen^. Take the underwater tunnel to reach the next area.",
                     points  = {
                         { 0.473, 0.487 },
                         { 0.463, 0.390 },
@@ -341,17 +341,7 @@ RetroRuns_Data[2164] = {
                     mapID   = 1513,
                     kind    = "path",
                     subZone = "Halls of the Chosen",
-                    -- The mapID 1512 -> 1513 transition fires the
-                    -- moment the player enters the underwater corridor,
-                    -- which is technically part of mapID 1513 but
-                    -- reports the parent raid name as its sub-zone.
-                    -- This seg waits until the player surfaces into
-                    -- the named "Halls of the Chosen" sub-zone, so
-                    -- the "After coming out of the water" instruction
-                    -- doesn't display while the player is still
-                    -- swimming.
-                    requiresSubZone = "Halls of the Chosen",
-                    note    = "After coming out of the water, take the path south towards the map exit labeled Darkest Depths.",
+                    note    = "After coming out of the water, take the path south towards the map exit labeled ^Darkest Depths^.",
                     points  = {
                         { 0.648, 0.708 },
                         { 0.626, 0.695 },
@@ -367,7 +357,7 @@ RetroRuns_Data[2164] = {
                     mapID   = 1514,
                     kind    = "path",
                     subZone = "Darkest Depths",
-                    note    = "Enter the water and click the Oxygen-Rich Membrane for swim speed and water breathing. You must kill the last trash pack in the tunnel to spawn Blackwater Behemoth.",
+                    note    = "Enter the water and click the ^Oxygen-Rich Membrane^ for swim speed and water breathing. You must kill the last trash pack in the tunnel to spawn ^Blackwater Behemoth^.",
                     points  = {
                         { 0.564, 0.176 },
                         { 0.561, 0.282 },
@@ -390,7 +380,7 @@ RetroRuns_Data[2164] = {
                     mapID   = 1514,
                     kind    = "path",
                     subZone = "Darkest Depths",
-                    note    = "After killing Behemoth, swim back out the way you came to the map exit labeled Halls of the Chosen.",
+                    note    = "After killing ^Behemoth^, swim back out the way you came to the map exit labeled ^Halls of the Chosen^.",
                     points  = {
                         { 0.373, 0.237 },
                         { 0.445, 0.289 },
@@ -409,7 +399,7 @@ RetroRuns_Data[2164] = {
                     -- sub-zone. This seg waits until the actual surface
                     -- arrival.
                     requiresSubZone = "Halls of the Chosen",
-                    note    = "After returning to the Halls of the Chosen, walk straight ahead to kill a couple Azsh'ari Channelers and click the orb (Font of Power).",
+                    note    = "After returning to the ^Halls of the Chosen^, walk straight ahead to kill a couple ^Azsh'ari Channelers^ and click the ^Font of Power^.",
                     points  = {
                         { 0.460, 0.883 },
                         { 0.475, 0.859 },
@@ -425,7 +415,7 @@ RetroRuns_Data[2164] = {
                     mapID   = 1513,
                     kind    = "path",
                     subZone = "Halls of the Chosen",
-                    note    = "After clicking the first orb, follow the path all the way north to kill Radiance of Azshara. Clear all the trash to start the encounter.",
+                    note    = "After clicking the first orb, follow the path all the way north to kill ^Radiance of Azshara^. Clear all the trash to start the encounter.",
                     advanceOn = {
                         kind  = "yell",
                         npc   = "First Arcanist Thalyssra",
@@ -462,7 +452,7 @@ RetroRuns_Data[2164] = {
                     mapID   = 1513,
                     kind    = "path",
                     subZone = "Halls of the Chosen",
-                    note    = "After defeating Radiance of Azshara, leave the room the way you came and find 2 more Azsh'ari Channelers guarding an orb. Kill them and click Orb #2.",
+                    note    = "After defeating ^Radiance of Azshara^, leave the room the way you came and find 2 more ^Azsh'ari Channelers^ guarding an orb. Kill them and click ^Font of Power^.",
                     points  = {
                         { 0.469, 0.226 },
                         { 0.428, 0.252 },
@@ -480,7 +470,7 @@ RetroRuns_Data[2164] = {
                     mapID   = 1513,
                     kind    = "path",
                     subZone = "Halls of the Chosen",
-                    note    = "After clicking the Orb, the path opens to fight Lady Ashvane.",
+                    note    = "After clicking the orb, the path opens to fight ^Lady Ashvane^.",
                     advanceOn = {
                         kind  = "yell",
                         npc   = "First Arcanist Thalyssra",
@@ -522,14 +512,14 @@ RetroRuns_Data[2164] = {
                     mapID   = 1513,
                     kind    = "path",
                     subZone = "Halls of the Chosen",
-                    note    = "After killing Lady Ashvane, jump through the hole in the middle of her boss room to land in The Traverse.",
+                    note    = "After killing ^Lady Ashvane^, jump through the hole in the middle of her boss room to land in ^The Traverse^.",
                     points  = {},
                 },
                 {
                     mapID   = 1516,
                     kind    = "path",
                     subZone = "The Traverse",
-                    note    = "After jumping through the hole into The Traverse, make your way to the bottom of the room by walking over a sequence of teleporting panels on the floor.",
+                    note    = "After landing in ^The Traverse^, make your way to the bottom of the room by walking over a sequence of teleporting panels on the floor.",
                     points  = {
                         { 0.542, 0.459 },
                     },
@@ -554,7 +544,7 @@ RetroRuns_Data[2164] = {
                     mapID   = 1517,
                     kind    = "path",
                     subZone = "The Hatchery",
-                    note    = "When you reach the bottom, simply follow the path to Orgozoa and kill him.",
+                    note    = "When you reach the bottom, simply follow the path to ^Orgozoa^ and kill him.",
                     points  = {
                         { 0.825, 0.367 },
                         { 0.795, 0.398 },
@@ -577,7 +567,7 @@ RetroRuns_Data[2164] = {
                     mapID   = 1517,
                     kind    = "path",
                     subZone = "The Hatchery",
-                    note    = "After killing Orgozoa, travel to the far west to reach the map exit labeled The Queen's Court. You will be swimming for a good portion of this journey.",
+                    note    = "After killing ^Orgozoa^, travel to the far west to reach the map exit labeled ^The Queen's Court^. You will be swimming for a good portion of this journey.",
                     points  = {
                         { 0.728, 0.468 },
                         { 0.699, 0.458 },
@@ -597,7 +587,7 @@ RetroRuns_Data[2164] = {
                     mapID   = 1518,
                     kind    = "path",
                     subZone = "The Queen's Court",
-                    note    = "After surfacing from the water, follow the path around to reach The Queen's Court.",
+                    note    = "After surfacing from the water, follow the path around to reach ^The Queen's Court^.",
                     points  = {
                         { 0.667, 0.482 },
                         { 0.474, 0.479 },
@@ -623,7 +613,7 @@ RetroRuns_Data[2164] = {
                     mapID   = 1518,
                     kind    = "path",
                     subZone = "The Queen's Court",
-                    note    = "After defeating The Queen's Court, head up some stairs towards the map exit labeled Precipice of Dreams.",
+                    note    = "After defeating ^The Queen's Court^, head up some stairs towards the map exit labeled ^Precipice of Dreams^.",
                     points  = {
                         { 0.312, 0.483 },
                         { 0.247, 0.420 },
@@ -635,7 +625,7 @@ RetroRuns_Data[2164] = {
                     mapID   = 1519,
                     kind    = "path",
                     subZone = "Precipice of Dreams",
-                    note    = "Inside the Precipice of Dreams, follow the path all the way west to kill Za'qul, Harbinger of Ny'alotha.",
+                    note    = "Inside the ^Precipice of Dreams^, follow the path all the way west to kill ^Za'qul, Harbinger of Ny'alotha^.",
                     points  = {
                         { 0.869, 0.512 },
                         { 0.696, 0.510 },
@@ -664,7 +654,7 @@ RetroRuns_Data[2164] = {
                     mapID   = 1519,
                     kind    = "path",
                     subZone = "Precipice of Dreams",
-                    note    = "After killing Za'qul, watch a brief dialog while waiting on a portal to spawn behind the boss. Take the portal, marked on the map as an exit labeled The Last Prison.",
+                    note    = "After killing ^Za'qul^, watch a brief dialog while waiting on a portal to spawn behind the boss. Take the portal, marked on the map as an exit labeled ^The Last Prison^.",
                     points  = {
                         { 0.155, 0.500 },
                         { 0.112, 0.471 },
@@ -677,7 +667,7 @@ RetroRuns_Data[2164] = {
                     mapID    = 1520,
                     kind     = "poi",
                     subZone  = "The Last Prison",
-                    note     = "After taking the portal into The Last Prison, you will watch some lengthy dialog then click the Titan Console in front of you to engage Queen Azshara.",
+                    note     = "After taking the portal into ^The Last Prison^, you will watch some lengthy dialog then click the ^Titan Console^ in front of you to engage ^Queen Azshara^.",
                     poiSize  = 35,
                     points   = {
                         { 0.580, 0.521 },

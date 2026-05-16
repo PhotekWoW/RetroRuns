@@ -49,8 +49,6 @@ RetroRuns_Data[1520] = {
         subZone = "Shaladrassil",
     },
 
-    -- mapID -> world-map dropdown label.
-    --
     -- Hub architecture: mapID 778 (Core of the Nightmare) is the
     -- central hub the player returns to between every boss. It has
     -- four outbound portals -- one per Wing 2 boss (Il'gynoth,
@@ -68,6 +66,15 @@ RetroRuns_Data[1520] = {
         [788] = "Rift of Aln",              -- Xavius wing (reached via portal behind Cenarius)
     },
 
+    -- Empty by design: Emerald Nightmare predates Legion's tier
+    -- reintroduction (patch 7.0.3, before tier-19 in 7.1.5). The class
+    -- gearing path here was the artifact-relic system, not tier sets.
+    -- The raid's per-class loot table contains no `classes = { N }`
+    -- rows because there are no class-restricted tier pieces to gate
+    -- on. Do not add labels here without a corresponding loot harvest;
+    -- the data shape matches Trial of Valor (same relic-only Legion
+    -- cohort) and contrasts with Nighthold/Tomb/Antorus (later Legion
+    -- raids that did ship tier sets).
     tierSets = {
         labels       = {},
         tokenSources = {},
@@ -310,7 +317,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 777,
                     kind    = "path",
                     subZone = "Clutch of Corruption",
-                    note    = "After zoning in, proceed forward and clear the slimes to begin the encounter with Nythendra.",
+                    note    = "After zoning in, proceed forward and clear the slimes to begin the encounter with ^Nythendra^.",
                     points  = {
                         { 0.446, 0.570 },
                         { 0.526, 0.523 },
@@ -330,7 +337,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 777,
                     kind    = "path",
                     subZone = "Clutch of Corruption",
-                    note    = "After defeating Nythendra, follow the path up and around towards the map exit labeled Core of the Nightmare.",
+                    note    = "After defeating ^Nythendra^, follow the path up and around towards the map exit labeled ^Core of the Nightmare^.",
                     points  = {
                         { 0.562, 0.460 },
                         { 0.698, 0.377 },
@@ -344,7 +351,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 778,
                     kind    = "path",
                     subZone = "Core of the Nightmare",
-                    note    = "Continue working your way towards the central hub. When you get there, take the first path on the left and take the portal to Grizzly Hills.",
+                    note    = "Continue working your way towards the central hub. When you get there, take the first path on the left and take the portal to ^Grizzly Hills^.",
                     points  = {
                         { 0.341, 0.831 },
                         { 0.221, 0.740 },
@@ -358,7 +365,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 786,
                     kind    = "path",
                     subZone = "Grizzly Hills",
-                    note    = "After walking through the portal into Grizzly Hills, follow the path around to find Ursoc.",
+                    note    = "After walking through the portal into ^Grizzly Hills^, follow the path around to find ^Ursoc^.",
                     points  = {
                         { 0.307, 0.668 },
                         { 0.466, 0.821 },
@@ -380,7 +387,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 786,
                     kind    = "path",
                     subZone = "Grizzly Hills",
-                    note    = "After killing Ursoc, go back the way you came and go back through the portal to Core of the Nightmare.",
+                    note    = "After killing ^Ursoc^, go back the way you came and go back through the portal to ^Core of the Nightmare^.",
                     points  = {
                         { 0.479, 0.333 },
                         { 0.495, 0.797 },
@@ -392,7 +399,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 778,
                     kind    = "path",
                     subZone = "Core of the Nightmare",
-                    note    = "After walking through the portal, continue on the path and walk through the second portal to The Emerald Nightmare.",
+                    note    = "After walking through the portal, continue on the path and walk through the second portal to ^The Emerald Nightmare^.",
                     points  = {
                         { 0.559, 0.216 },
                         { 0.544, 0.354 },
@@ -405,7 +412,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 781,
                     kind    = "path",
                     subZone = "The Emerald Dreamway",
-                    note    = "After arriving in The Emerald Nightmare, proceed forward to start the encounter with Dragons of Nightmare.",
+                    note    = "After arriving in ^The Emerald Nightmare^, proceed forward to start the encounter with ^Dragons of Nightmare^.",
                     points  = {
                         { 0.279, 0.790 },
                         { 0.300, 0.655 },
@@ -426,7 +433,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 781,
                     kind    = "path",
                     subZone = "The Emerald Dreamway",
-                    note    = "After defeating the Dragons of Nightmare, go back the way you came and return to Core of the Nightmare.",
+                    note    = "After defeating the ^Dragons of Nightmare^, go back the way you came and return to ^Core of the Nightmare^.",
                     points  = {
                         { 0.357, 0.513 },
                         { 0.305, 0.690 },
@@ -437,7 +444,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 778,
                     kind    = "path",
                     subZone = "Core of the Nightmare",
-                    note    = "After returning to the central hub, continue clockwise through the next portal to reach Mulgore.",
+                    note    = "After returning to the central hub, continue clockwise through the next portal to reach ^Mulgore^.",
                     points  = {
                         { 0.649, 0.372 },
                         { 0.601, 0.453 },
@@ -449,7 +456,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 779,
                     kind    = "path",
                     subZone = "Mulgore",
-                    note    = "Once inside Mulgore, follow the path around, and clear the trash on your way to Elerethe Renferal.",
+                    note    = "Once inside ^Mulgore^, follow the path around, and clear the trash on your way to ^Elerethe Renferal^.",
                     points  = {
                         { 0.881, 0.877 },
                         { 0.849, 0.948 },
@@ -473,7 +480,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 779,
                     kind    = "path",
                     subZone = "Mulgore",
-                    note    = "After defeating Elerethe, backtrack to the portal and return to Core of the Nightmare. You can jump off the ledge for a shortcut.",
+                    note    = "After defeating ^Elerethe^, backtrack to the portal and return to ^Core of the Nightmare^. You can jump off the ledge for a shortcut.",
                     points  = {
                         { 0.353, 0.660 },
                         { 0.395, 0.753 },
@@ -486,7 +493,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 778,
                     kind    = "path",
                     subZone = "Core of the Nightmare",
-                    note    = "When you're back in the central hub, take the final portal towards Un'goro Crater.",
+                    note    = "When you're back in the central hub, take the final portal towards ^Un'goro Crater^.",
                     points  = {
                         { 0.588, 0.520 },
                         { 0.583, 0.646 },
@@ -496,7 +503,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 780,
                     kind    = "path",
                     subZone = "Un'Goro Crater",
-                    note    = "When you reach Un'goro Crater, follow the linear path to the back and kill Il'gynoth.",
+                    note    = "When you reach ^Un'goro Crater^, follow the linear path to the back and kill ^Il'gynoth^.",
                     points  = {
                         { 0.654, 0.973 },
                         { 0.557, 0.760 },
@@ -517,7 +524,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 780,
                     kind    = "path",
                     subZone = "Un'Goro Crater",
-                    note    = "After killing Il'gynoth, return back the way you came, through the portal to Core of the Nightmare.",
+                    note    = "After killing ^Il'gynoth^, return back the way you came, through the portal to ^Core of the Nightmare^.",
                     points  = {
                         { 0.418, 0.400 },
                         { 0.567, 0.782 },
@@ -528,7 +535,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 778,
                     kind    = "path",
                     subZone = "Core of the Nightmare",
-                    note    = "After returning to the central hub, approach the middle of the room and interact with the Nightmare Iris to reach Moonglade.",
+                    note    = "After returning to the central hub, approach the middle of the room and interact with the ^Nightmare Iris^ to reach ^Moonglade^.",
                     points  = {
                         { 0.584, 0.645 },
                         { 0.586, 0.493 },
@@ -538,7 +545,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 787,
                     kind    = "path",
                     subZone = "Moonglade",
-                    note    = "Once inside Moonglade, work your way down to Cenarius and kill him.",
+                    note    = "Once inside ^Moonglade^, work your way down to ^Cenarius^ and kill him.",
                     points  = {
                         { 0.360, 0.840 },
                         { 0.471, 0.407 },
@@ -559,7 +566,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 787,
                     kind    = "path",
                     subZone = "Moonglade",
-                    note    = "After killing Cenarius, jump into the portal behind him to reach the Rift of Aln.",
+                    note    = "After killing ^Cenarius^, jump into the portal behind him to reach the ^Rift of Aln^.",
                     points  = {
                         { 0.627, 0.339 },
                         { 0.685, 0.363 },
@@ -569,7 +576,7 @@ RetroRuns_Data[1520] = {
                     mapID   = 788,
                     kind    = "path",
                     subZone = "Rift of Aln",
-                    note    = "After landing in Rift of Aln, start killing trash. They will continue coming in waves until finally, you will meet Xavius.",
+                    note    = "After landing in ^Rift of Aln^, start killing trash. They will continue coming in waves until finally, you will meet ^Xavius^.",
                     points  = {
                         { 0.374, 0.770 },
                         { 0.467, 0.528 },

@@ -34,20 +34,16 @@ RetroRuns_Data[2549] = {
     patch             = "10.2",
 
     -- Entrance is at the Wellspring of Life in northwestern Emerald
-    -- Dream (uiMapID 2200). Coords from Icy Veins/Warcraft Wiki.
-    -- Access requires completing the first two chapters of the
-    -- Guardians of the Dream campaign to unlock the Emerald Dream
-    -- portal in Valdrakken; library will fail to find a route for
-    -- characters who haven't unlocked the zone yet.
+    -- Dream (uiMapID 2200). Access requires completing the first two
+    -- chapters of the Guardians of the Dream campaign to unlock the
+    -- Emerald Dream portal in Valdrakken; library will fail to find a
+    -- route for characters who haven't unlocked the zone yet.
     entrance = {
         mapID = 2200,
         x     = 0.270,
         y     = 0.310,
     },
 
-    -- Sub-zone mapIDs for Amirdrassil's wings. Names match the in-game
-    -- world-map dropdown verbatim. Used by the routing renderer to label
-    -- the active region in the panel header.
     maps = {
         [2232] = "Wellspring Atrium",
         [2233] = "Throne of the Firelord",
@@ -435,7 +431,7 @@ RetroRuns_Data[2549] = {
                     mapID   = 2232,
                     kind    = "path",
                     subZone = "Wellspring Atrium",
-                    note    = "After zoning in, follow the path to Gnarlroot. Clear the trash around him to start the encounter.",
+                    note    = "After zoning in, follow the path to ^Gnarlroot^. Clear the trash around him to start the encounter.",
                     points  = {
                         { 0.507, 0.904 },
                         { 0.448, 0.817 },
@@ -463,7 +459,7 @@ RetroRuns_Data[2549] = {
                     mapID   = 2232,
                     kind    = "path",
                     subZone = "Wellspring Atrium",
-                    note    = "After killing Gnarlroot, continue forward and clear the trash pack to start the encounter with Igira the Cruel.",
+                    note    = "After killing ^Gnarlroot^, continue forward and clear the trash pack to start the encounter with ^Igira the Cruel^.",
                     points  = {
                         { 0.507, 0.368 },
                         { 0.506, 0.288 },
@@ -488,7 +484,7 @@ RetroRuns_Data[2549] = {
                     mapID   = 2232,
                     kind    = "path",
                     subZone = "Wellspring Atrium",
-                    note    = "After killing Igira, take the left exit to The Scorched Hall.",
+                    note    = "After killing ^Igira^, take the left exit to ^The Scorched Hall^.",
                     points  = {
                         { 0.486, 0.257 },
                         { 0.440, 0.211 },
@@ -498,7 +494,7 @@ RetroRuns_Data[2549] = {
                     mapID   = 2244,
                     kind    = "path",
                     subZone = "Pit of Volcoross",
-                    note    = "Follow the path to the boss area, and clear the trash to spawn Volcoross.",
+                    note    = "Follow the path to the boss area, and clear the trash to spawn ^Volcoross^.",
                     points  = {
                         { 0.768, 0.878 },
                         { 0.733, 0.803 },
@@ -525,7 +521,7 @@ RetroRuns_Data[2549] = {
                     mapID   = 2244,
                     kind    = "path",
                     subZone = "The Charred Arbor",
-                    note    = "After killing Volcoross, continue down the path behind him. Clear trash to start the encounter with Larodar, Keeper of the Flame.",
+                    note    = "After killing ^Volcoross^, continue down the path behind him. Clear trash to start the encounter with ^Larodar, Keeper of the Flame^.",
                     points  = {
                         { 0.528, 0.556 },
                         { 0.466, 0.470 },
@@ -554,7 +550,7 @@ RetroRuns_Data[2549] = {
                     kind        = "teleport",
                     subZone     = "The Charred Arbor",
                     destination = "Wellspring Atrium",
-                    note        = "After killing Larodar, interact with the seed to unlock a portal at the back of the room. Walk through the portal to arrive back at the Wellspring Atrium.",
+                    note        = "After killing ^Larodar^, interact with the ^Seed of Life^ to unlock a portal at the back of the room. Walk through the portal to arrive back at the ^Wellspring Atrium^.",
                     points      = {
                         { 0.345, 0.289 },
                         { 0.323, 0.331 },
@@ -566,7 +562,7 @@ RetroRuns_Data[2549] = {
                     mapID   = 2232,
                     kind    = "path",
                     subZone = "Wellspring Atrium",
-                    note    = "After taking the teleport, make your way for the right-most exit labeled Verdant Terrace.",
+                    note    = "After taking the teleport, make your way for the right-most exit labeled ^Verdant Terrace^.",
                     points  = {
                         { 0.422, 0.263 },
                         { 0.584, 0.218 },
@@ -576,7 +572,7 @@ RetroRuns_Data[2549] = {
                     mapID   = 2240,
                     kind    = "path",
                     subZone = "Sylvan Conservatory",
-                    note    = "Follow the path all the way back to meet the Council of Dreams. Click each of the illusions to start the fight.",
+                    note    = "Follow the path all the way back to meet the ^Council of Dreams^. Click each of the illusions to start the fight.",
                     points  = {
                         { 0.187, 0.939 },
                         { 0.223, 0.857 },
@@ -603,7 +599,7 @@ RetroRuns_Data[2549] = {
                     mapID   = 2240,
                     kind    = "path",
                     subZone = "The Dream's Tapestry",
-                    note    = "After killing Council of Dreams, follow the path behind them to reach Nymue, Weaver of the Cycle.",
+                    note    = "After killing ^Council of Dreams^, follow the path behind them to reach ^Nymue, Weaver of the Cycle^.",
                     points  = {
                         { 0.420, 0.579 },
                         { 0.420, 0.490 },
@@ -635,7 +631,7 @@ RetroRuns_Data[2549] = {
                     kind        = "teleport",
                     subZone     = "The Dream's Tapestry",
                     destination = "Wellspring Atrium",
-                    note        = "After killing Nymue, walk up the stairs behind her to interact with the Seed of Life. This opens a portal at the back of the room. Walk through the portal to return back to Wellspring Atrium.",
+                    note        = "After killing ^Nymue^, walk up the stairs behind her to interact with the ^Seed of Life^. This opens a portal at the back of the room. Walk through the portal to return back to ^Wellspring Atrium^.",
                     points      = {
                         { 0.643, 0.277 },
                         { 0.667, 0.238 },
@@ -645,7 +641,7 @@ RetroRuns_Data[2549] = {
                     mapID   = 2232,
                     kind    = "path",
                     subZone = "Wellspring Atrium",
-                    note    = "From Wellspring Atrium, take the final remaining exit labeled Throne of the Firelord. Click on the Formation Seed to construct a bridge to the next area.",
+                    note    = "From ^Wellspring Atrium^, take the final remaining exit labeled ^Throne of the Firelord^. Click on the ^Formation Seed^ to construct a bridge to the next area.",
                     points  = {
                         { 0.594, 0.272 },
                         { 0.508, 0.148 },
@@ -655,7 +651,7 @@ RetroRuns_Data[2549] = {
                     mapID   = 2233,
                     kind    = "path",
                     subZone = "Throne of the Firelord",
-                    note    = "As you cross the bridge, dodge fire so you don't get thrown over the edge. At the end of the bridge, you will find Smolderon.",
+                    note    = "As you cross the bridge, dodge fire so you don't get thrown over the edge. At the end of the bridge, you will find ^Smolderon^.",
                     points  = {
                         { 0.501, 0.941 },
                         { 0.502, 0.370 },
@@ -682,7 +678,7 @@ RetroRuns_Data[2549] = {
                     kind        = "teleport",
                     subZone     = "Throne of the Firelord",
                     destination = "The Blessed Boughs",
-                    note        = "After killing Smolderon, talk to the dragon to be flown to Tindral Sageswift, Seer of the Flame.",
+                    note        = "After killing ^Smolderon^, talk to the dragon to be flown to ^Tindral Sageswift, Seer of the Flame^.",
                     points      = {
                         { 0.504, 0.298 },
                         { 0.458, 0.338 },
@@ -692,7 +688,7 @@ RetroRuns_Data[2549] = {
                     mapID   = 2237,
                     kind    = "path",
                     subZone = "The Blessed Boughs",
-                    note    = "Approach Tindral to trigger the encounter.",
+                    note    = "Approach ^Tindral^ to trigger the encounter.",
                 },
             },
         },
@@ -716,7 +712,7 @@ RetroRuns_Data[2549] = {
                     mapID   = 2234,
                     kind    = "poi",
                     subZone = "The Blessed Boughs",
-                    note    = "After killing Tindral, mount up and fly into the fire-colored portal in the sky (marked with a |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t). This will teleport you to Heart of Amirdrassil.",
+                    note    = "After killing ^Tindral^, mount up and fly into the fire-colored portal in the sky (marked with a |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t). This will teleport you to ^Heart of Amirdrassil^.",
                     points  = {
                         { 0.565, 0.656 },
                     },
@@ -725,7 +721,7 @@ RetroRuns_Data[2549] = {
                     mapID   = 2238,
                     kind    = "path",
                     subZone = "Heart of Amirdrassil",
-                    note    = "After the teleport, you should be standing across from Fyrakk. Approach him to start the encounter.",
+                    note    = "After the teleport, you should be standing across from ^Fyrakk^. Approach him to start the encounter.",
                     points  = {
                         { 0.256, 0.537 },
                         { 0.537, 0.537 },

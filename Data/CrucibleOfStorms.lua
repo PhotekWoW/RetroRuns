@@ -24,9 +24,8 @@ RetroRuns_Data[2096] = {
 
     -- Entrance is on the Precipice of Oblivion, a small island east
     -- of the Shrine of the Storm in Stormsong Valley (uiMapID 942).
-    -- Coords from Warcraft Wiki / dungeon.guide. Note: the area
-    -- requires curving fly approach from the Shrine flight path
-    -- because direct flight triggers a drowsy-and-port-back debuff.
+    -- The area requires a curving fly approach from the Shrine flight
+    -- path because direct flight triggers a drowsy-and-port-back debuff.
     entrance = {
         mapID = 942,
         x     = 0.839,
@@ -106,7 +105,7 @@ RetroRuns_Data[2096] = {
                     mapID   = 1345,
                     kind    = "path",
                     subZone = "Shrine of Shadows",
-                    note    = "After zoning in, follow the path straight ahead to find and kill The Restless Cabal.",
+                    note    = "After zoning in, follow the path straight ahead to find and kill ^The Restless Cabal^.",
                     points  = {
                         { 0.656, 0.799 },
                         { 0.520, 0.408 },
@@ -127,7 +126,7 @@ RetroRuns_Data[2096] = {
                     mapID   = 1346,
                     kind    = "path",
                     subZone = "Tendril of Corruption",
-                    note    = "After defeating The Restless Cabal, there will be a cutscene where you will fall into a deep hole, landing in Tendril of Corruption. Follow the path all the way back to reach Uu'nat.",
+                    note    = "After defeating ^The Restless Cabal^, there will be a cutscene where you will fall into a deep hole, landing in ^Tendril of Corruption^. Follow the path all the way back to reach ^Uu'nat^.",
                     points  = {
                         { 0.822, 0.332 },
                         { 0.776, 0.312 },

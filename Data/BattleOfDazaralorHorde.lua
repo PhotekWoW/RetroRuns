@@ -43,8 +43,7 @@ RetroRuns_DataHorde[2070] = {
         y     = 0.025,
     },
 
-    -- mapID -> world-map dropdown label. Horde-side traversal hits a
-    -- different set of mapIDs than Alliance.
+    -- Horde-side traversal hits a different set of mapIDs than Alliance.
     maps = {
         [1352] = "Port of Zandalar",       -- shared with Alliance file
         [1353] = "Halls of Opulence",      -- shared with Alliance file
@@ -294,7 +293,7 @@ RetroRuns_DataHorde[2070] = {
             achievements       = {
                 { id = 13410, name = "Snow Fun Allowed", meta = true, soloable = "no" },
             },
-            soloTip            = "Nuke her. If the fight extends into Phase 2, jump off the boat and make your way through the snow to find Jaina and finish her off.",
+            soloTip            = "Nuke her. If the fight extends into Phase 2, jump off the boat and make your way through the snow to find ^Jaina^ and finish her off.",
             specialLoot = {
                 { id = 166705, kind = "mount", name = "Glacial Tidestorm", mythicOnly = true },
             },
@@ -328,7 +327,7 @@ RetroRuns_DataHorde[2070] = {
                     mapID   = 1358,
                     kind    = "path",
                     subZone = "The Zocalo",
-                    note    = "After zoning in, proceed straight ahead to Champion of the Light.",
+                    note    = "After zoning in, proceed straight ahead to ^Champion of the Light^.",
                     points  = {
                         { 0.239, 0.193 },
                         { 0.241, 0.303 },
@@ -350,7 +349,7 @@ RetroRuns_DataHorde[2070] = {
                     mapID   = 1358,
                     kind    = "path",
                     subZone = "Dazar'alor",
-                    note    = "After defeating Champion of the Light, continue down the path, clearing trash on the way to Grong.",
+                    note    = "After defeating ^Champion of the Light^, continue down the path, clearing trash on the way to ^Grong^.",
                     points  = {
                         { 0.316, 0.413 },
                         { 0.360, 0.480 },
@@ -375,7 +374,7 @@ RetroRuns_DataHorde[2070] = {
                     mapID   = 1358,
                     kind    = "path",
                     subZone = "Dazar'alor",
-                    note    = "After defeating Grong, follow the winding path around to Jadefire Masters. Kill the trash to start the encounter.",
+                    note    = "After defeating ^Grong^, follow the winding path around to ^Jadefire Masters^. Kill the trash to start the encounter.",
                     points  = {
                         { 0.438, 0.612 },
                         { 0.462, 0.609 },
@@ -414,7 +413,7 @@ RetroRuns_DataHorde[2070] = {
                     mapID   = 1358,
                     kind    = "path",
                     subZone = "Dazar'alor",
-                    note    = "After defeating Jadefire Masters, go up the stairs behind them toward the map exit labeled The Heart of the Empire. Open the door to continue.",
+                    note    = "After defeating ^Jadefire Masters^, go up the stairs behind them toward the map exit labeled ^The Heart of the Empire^. Open the door to continue.",
                     points  = {
                         { 0.513, 0.660 },
                         { 0.531, 0.660 },
@@ -428,7 +427,7 @@ RetroRuns_DataHorde[2070] = {
                     mapID   = 1357,
                     kind    = "path",
                     subZone = "Walk of Kings",
-                    note    = "Inside The Heart of the Empire, follow the path around to find some NPCs mourning over the corpse of King Rastakhan. Talk to Otoye to be switched to Alliance temporarily.",
+                    note    = "Inside ^The Heart of the Empire^, follow the path around to find some NPCs mourning over the corpse of ^King Rastakhan^. Talk to ^Otoye^ to be switched to Alliance temporarily.",
                     points  = {
                         { 0.472, 0.190 },
                         { 0.469, 0.306 },
@@ -442,7 +441,7 @@ RetroRuns_DataHorde[2070] = {
                     mapID   = 1352,
                     kind    = "path",
                     subZone = "Terrace of the Speakers",
-                    note    = "After switching to Alliance, follow the path up the stairs and around to the map exit labeled Halls of Opulence. Jump in the hole at the end of the path.",
+                    note    = "After switching to Alliance, follow the path up the stairs and around to the map exit labeled ^Halls of Opulence^. Jump in the hole at the end of the path.",
                     points  = {
                         { 0.491, 0.288 },
                         { 0.491, 0.191 },
@@ -455,7 +454,7 @@ RetroRuns_DataHorde[2070] = {
                     mapID   = 1353,
                     kind    = "path",
                     subZone = "Halls of Opulence",
-                    note    = "Inside the boss room, head straight ahead to engage Opulence.",
+                    note    = "Inside the boss room, head straight ahead to engage ^Opulence^.",
                     points  = {
                         { 0.421, 0.838 },
                         { 0.420, 0.549 },
@@ -477,7 +476,7 @@ RetroRuns_DataHorde[2070] = {
                     mapID   = 1353,
                     kind    = "path",
                     subZone = "Halls of Opulence",
-                    note    = "After killing Opulence, exit the room to the north, up some stairs to the map exit labeled Loa's Sanctum.",
+                    note    = "After killing ^Opulence^, exit the room to the north, up some stairs to the map exit labeled ^Loa's Sanctum^.",
                     points  = {
                         { 0.420, 0.477 },
                         { 0.420, 0.217 },
@@ -490,7 +489,7 @@ RetroRuns_DataHorde[2070] = {
                     mapID   = 1354,
                     kind    = "path",
                     subZone = "Path of the Ancestors",
-                    note    = "Once inside Loa's Sanctum, follow the path straight ahead to engage Conclave of the Chosen.",
+                    note    = "Once inside ^Loa's Sanctum^, follow the path straight ahead to engage ^Conclave of the Chosen^.",
                     points  = {
                         { 0.474, 0.177 },
                         { 0.475, 0.643 },
@@ -513,7 +512,7 @@ RetroRuns_DataHorde[2070] = {
                     mapID   = 1354,
                     kind    = "path",
                     subZone = "Loa's Sanctum",
-                    note    = "After defeating Conclave of the Chosen, exit the room to the east, and take the elevator up.",
+                    note    = "After defeating ^Conclave of the Chosen^, exit the room to the east, and take the elevator up.",
                     points  = {
                         { 0.500, 0.673 },
                         { 0.641, 0.674 },
@@ -524,7 +523,7 @@ RetroRuns_DataHorde[2070] = {
                     mapID   = 1356,
                     kind    = "path",
                     subZone = "Walk of Kings",
-                    note    = "After getting off the elevator, follow the path around to the map exit labeled The Heart of the Empire.",
+                    note    = "After getting off the elevator, follow the path around to the map exit labeled ^The Heart of the Empire^.",
                     points  = {
                         { 0.648, 0.680 },
                         { 0.648, 0.385 },
@@ -536,7 +535,7 @@ RetroRuns_DataHorde[2070] = {
                     mapID   = 1357,
                     kind    = "path",
                     subZone = "The Heart of the Empire",
-                    note    = "Continue ahead to clear the trash and engage King Rastakhan.",
+                    note    = "Continue ahead to clear the trash and engage ^King Rastakhan^.",
                     points  = {
                         { 0.475, 0.408 },
                         { 0.473, 0.539 },
@@ -566,7 +565,7 @@ RetroRuns_DataHorde[2070] = {
                     mapID   = 1357,
                     kind    = "path",
                     subZone = "The Heart of the Empire",
-                    note    = "After defeating King Rastakhan, take the western exit from the room and make your way towards the map exit labeled Port of Zandalar. Interact with the Riding Pterrordax to be flown to the next area.",
+                    note    = "After defeating ^King Rastakhan^, take the western exit from the room and make your way towards the map exit labeled ^Port of Zandalar^. Interact with the ^Riding Pterrordax^ to be flown to the next area.",
                     points  = {
                         { 0.473, 0.538 },
                         { 0.407, 0.464 },
@@ -580,7 +579,7 @@ RetroRuns_DataHorde[2070] = {
                     mapID   = 1352,
                     kind    = "path",
                     subZone = "Dazar'alor",
-                    note    = "After landing, proceed down the steps to clear trash and begin the fight with High Tinker Mekkatorque.",
+                    note    = "After landing, proceed down the steps to clear trash and begin the fight with ^High Tinker Mekkatorque^.",
                     points  = {
                         { 0.491, 0.203 },
                         { 0.490, 0.283 },
@@ -606,7 +605,7 @@ RetroRuns_DataHorde[2070] = {
                     mapID   = 1352,
                     kind    = "path",
                     subZone = "Terrace of the Speakers",
-                    note    = "After defeating Mekkatorque, make your way down the long path south, and kill the trash at the end of the bridge. Interact with a Pterrordax to start the encounter with Stormwall Blockade.",
+                    note    = "After defeating ^Mekkatorque^, make your way down the long path south, and kill the trash at the end of the bridge. Interact with a ^Pterrordax^ to start the encounter with ^Stormwall Blockade^.",
                     points  = {
                         { 0.493, 0.367 },
                         { 0.491, 0.906 },
@@ -633,7 +632,7 @@ RetroRuns_DataHorde[2070] = {
                     kind    = "poi",
                     subZone = "Port of Zandalar",
                     poiSize = 35,
-                    note    = "After defeating Stormwall Blockade, walk onto the newly-arrived ship and speak with Captain Zadari to begin the Lady Jaina Proudmoore encounter.",
+                    note    = "After defeating ^Stormwall Blockade^, walk onto the newly-arrived ship and speak with ^Captain Zadari^ to begin the ^Lady Jaina Proudmoore^ encounter.",
                     points  = {
                         { 0.484, 0.975 },
                     },

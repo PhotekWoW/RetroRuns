@@ -38,15 +38,11 @@ RetroRuns_Data[1530] = {
 
     -- Entrance is in Suramar (mapID 680), at the Sanctum Depths
     -- portal inside the Sanctum of Order building in central Suramar
-    -- City. Coords (44.2, 59.7) are the actual instance portal,
-    -- in-game verified. ATT lists two coords for this raid: this
-    -- portal AND (43.3, 62.3) which is the building's ground-level
-    -- entrance (subzone "Sanctum of Order"). Third-party guides
-    -- (e.g. dungeon.guide) tend to give the building entrance since
-    -- it's visually more findable; we point to the portal itself
-    -- since that's what the addon's navigation feature should target.
-    -- The path inside is: enter the building, head straight down and
-    -- turn left onto the portal pad.
+    -- City. The actual instance portal is at (44.2, 59.7), not the
+    -- building's ground-level entrance at (43.3, 62.3) -- we target
+    -- the portal directly since that's what the navigation feature
+    -- needs. The path inside is: enter the building, head straight
+    -- down and turn left onto the portal pad.
     entrance = {
         mapID   = 680,
         x       = 0.442,
@@ -54,17 +50,20 @@ RetroRuns_Data[1530] = {
         subZone = "Sanctum Depths",
     },
 
-    -- mapID -> world-map dropdown label. The label for mapID 766
-    -- has not yet been verified in-game.
     maps = {
         [764] = "The Nightwell",
         [765] = "The Nighthold",
-        [766] = "?? unverified",
-        [767] = "Shal'Dorei Terrace",
+        [766] = "The Nighthold",  -- label not yet verified in-game
+        [767] = "Shal'dorei Terrace",
         [768] = "Captain's Quarters",
         [769] = "Astromancer's Rise",
         [770] = "The Nightspire",
+        [771] = "Elisande's Quarters",
         [772] = "The Font of Night",
+        -- mapID 771 also surfaces the subZone "Elisande's Secret Quarters"
+        -- when the "The Nighthold: Love Tap" world quest is active. Not
+        -- part of the normal raid workflow, so the maps[] label for 771
+        -- stays on the in-raid name "Elisande's Quarters".
     },
 
     tierSets = {
@@ -345,11 +344,9 @@ RetroRuns_Data[1530] = {
             specialLoot = {
                 -- The two toys below are NOT listed in the in-game
                 -- Encounter Journal -- Blizzard never tagged them in
-                -- the EJ data. Both are real drops from Gul'dan,
-                -- sourced via ATT cross-reference and confirmed by
-                -- Wowhead/Wowpedia. Same pattern as Illusion: Chronos
-                -- on Chronomatic Anomaly and most other non-gear
-                -- collectibles in this raid.
+                -- the EJ data, but both drop from Gul'dan. Same pattern
+                -- as Illusion: Chronos on Chronomatic Anomaly and most
+                -- other non-gear collectibles in this raid.
                 { id = 119211, kind = "toy", name = "Golden Hearthstone Card: Lord Jaraxxus" },
                 { id = 143544, kind = "toy", name = "Skull of Corruption", classes = { 12 } },
                 { id = 137575, kind = "mount", name = "Fiendish Hellfire Core" },
@@ -393,7 +390,7 @@ RetroRuns_Data[1530] = {
                     mapID   = 764,
                     kind    = "path",
                     subZone = "Arcing Depths",
-                    note    = "After zoning in, move forward and take your first left to reach Skorpyron.",
+                    note    = "After zoning in, move forward and take your first left to reach ^Skorpyron^.",
                     points  = {
                         { 0.255, 0.886 },
                         { 0.313, 0.796 },
@@ -420,7 +417,7 @@ RetroRuns_Data[1530] = {
                     mapID   = 764,
                     kind    = "path",
                     subZone = "Crystal Breach",
-                    note    = "After defeating Skorpyron, take the new southeast exit up the ramp and make your way towards Chronomatic Anomaly. Kill trash on the way to open the door.",
+                    note    = "After defeating ^Skorpyron^, take the new southeast exit up the ramp and make your way towards ^Chronomatic Anomaly^. Kill trash on the way to open the door.",
                     points  = {
                         { 0.321, 0.647 },
                         { 0.367, 0.719 },
@@ -445,7 +442,7 @@ RetroRuns_Data[1530] = {
                     mapID   = 764,
                     kind    = "path",
                     subZone = "The Nightwell",
-                    note    = "After killing Chronomatic Anomaly, proceed up the stairwell at the northwest side of the room, and clear slimes in the boss room to engage Trilliax.",
+                    note    = "After killing ^Chronomatic Anomaly^, proceed up the stairwell at the northwest side of the room, and clear slimes in the boss room to engage ^Trilliax^.",
                     points  = {
                         { 0.504, 0.437 },
                         { 0.507, 0.334 },
@@ -473,7 +470,7 @@ RetroRuns_Data[1530] = {
                 {
                     mapID   = 764,
                     kind    = "path",
-                    note    = "After defeating Trilliax, take the northwest exit out of the room and make your way up the spiral staircase.",
+                    note    = "After defeating ^Trilliax^, take the northwest exit out of the room and make your way up the spiral staircase.",
                     points  = {
                         { 0.386, 0.152 },
                         { 0.367, 0.132 },
@@ -488,22 +485,25 @@ RetroRuns_Data[1530] = {
                     mapID   = 765,
                     kind    = "path",
                     subZone = "Arcing Depths",
-                    note    = "When you reach the top of the stairwell, follow the path around and find a steep ramp you need to walk up. At the top of this ramp, open the gate to reach the map exit labeled The Nighthold.",
+                    note    = "When you reach the top of the stairwell, continue following the linear path to reach the map exit labeled ^The Nighthold^.",
                     points  = {
-                        { 0.436, 0.548 },
-                        { 0.458, 0.621 },
-                        { 0.528, 0.662 },
-                        { 0.571, 0.652 },
-                        { 0.618, 0.530 },
-                        { 0.676, 0.530 },
-                        { 0.677, 0.308 },
-                        { 0.446, 0.314 },
+                        { 0.435, 0.548 },
+                        { 0.459, 0.622 },
+                        { 0.528, 0.661 },
+                        { 0.574, 0.650 },
+                        { 0.607, 0.603 },
+                        { 0.626, 0.531 },
+                        { 0.675, 0.529 },
+                        { 0.675, 0.307 },
+                        { 0.447, 0.314 },
+                        { 0.427, 0.341 },
+                        { 0.439, 0.386 },
                     },
                 },
                 {
                     mapID   = 766,
                     kind    = "path",
-                    note    = "Continue ahead into the main courtyard to find Spellblade Aluriel.",
+                    note    = "Continue ahead into the main courtyard to find ^Spellblade Aluriel^.",
                     points  = {
                         { 0.255, 0.186 },
                         { 0.335, 0.313 },
@@ -529,7 +529,7 @@ RetroRuns_Data[1530] = {
                 {
                     mapID   = 766,
                     kind    = "path",
-                    note    = "After defeating Aluriel Spellblade, take the path into the building to the northeast, and clear trash as you approach the map exit labeled Astromancer's Rise.",
+                    note    = "After defeating ^Aluriel^, take the path into the building to the northeast, and clear trash as you approach the map exit labeled ^Astromancer's Rise^.",
                     points  = {
                         { 0.404, 0.361 },
                         { 0.414, 0.274 },
@@ -541,7 +541,7 @@ RetroRuns_Data[1530] = {
                     mapID   = 769,
                     kind    = "path",
                     subZone = "Astromancer's Rise",
-                    note    = "Once the door opens, proceed through it and climb some stairs to reach Star Augur Etraeus.",
+                    note    = "Once the door opens, proceed through it and climb some stairs to reach ^Star Augur Etraeus^.",
                     points  = {
                         { 0.516, 0.522 },
                         { 0.550, 0.477 },
@@ -569,7 +569,7 @@ RetroRuns_Data[1530] = {
                     mapID   = 769,
                     kind    = "path",
                     subZone = "Astromancer's Rise",
-                    note    = "After defeating Star Augur Etraeus, backtrack down the stairs to return to Astromancer's Rise.",
+                    note    = "After defeating ^Star Augur Etraeus^, backtrack down the stairs to return to ^Astromancer's Rise^.",
                     points  = {
                         { 0.393, 0.243 },
                         { 0.549, 0.477 },
@@ -580,7 +580,7 @@ RetroRuns_Data[1530] = {
                     mapID   = 766,
                     kind    = "path",
                     subZone = "Astromancer's Rise",
-                    note    = "Back on the main level of Astromancer's Rise, take the northeast exit from the building towards the map exit labeled Shal'Dorei Terrace.",
+                    note    = "Back on the main level of ^Astromancer's Rise^, take the northeast exit from the building towards the map exit labeled ^Shal'dorei Terrace^.",
                     points  = {
                         { 0.455, 0.211 },
                         { 0.534, 0.093 },
@@ -590,7 +590,7 @@ RetroRuns_Data[1530] = {
                     mapID   = 767,
                     kind    = "path",
                     subZone = "Shal'dorei Terrace",
-                    note    = "Once you reach Shal'dorei Terrace, make your way over to High Botanist Tel'arn to begin the encounter.",
+                    note    = "Once you reach ^Shal'dorei Terrace^, make your way over to ^High Botanist Tel'arn^ to begin the encounter.",
                     points  = {
                         { 0.267, 0.516 },
                         { 0.351, 0.392 },
@@ -620,7 +620,7 @@ RetroRuns_Data[1530] = {
                     mapID   = 767,
                     kind    = "path",
                     subZone = "Shal'dorei Terrace",
-                    note    = "After defeating High Botanist Tel'arn, backtrack towards the map exit labeled The Nighthold.",
+                    note    = "After defeating ^High Botanist Tel'arn^, backtrack towards the map exit labeled ^The Nighthold^.",
                     points  = {
                         { 0.623, 0.390 },
                         { 0.515, 0.395 },
@@ -633,7 +633,7 @@ RetroRuns_Data[1530] = {
                     mapID   = 766,
                     kind    = "path",
                     subZone = "Astromancer's Rise",
-                    note    = "Follow the path back out to the main courtyard, and make your way to the Captain's Quarters entrance on the southwest corner of the map. Inside the Captain's Quarters, take your first right to go up a short stairwell.",
+                    note    = "Follow the path back out to the main courtyard, and make your way to the ^Captain's Quarters^ entrance on the southwest corner of the map. Inside the ^Captain's Quarters^, take your first right to go up a short stairwell.",
                     points  = {
                         { 0.531, 0.097 },
                         { 0.413, 0.277 },
@@ -648,7 +648,7 @@ RetroRuns_Data[1530] = {
                 {
                     mapID   = 768,
                     kind    = "path",
-                    note    = "Continue up and around the stairwell until you reach Tichondrius.",
+                    note    = "Continue up and around the stairwell until you reach ^Tichondrius^.",
                     points  = {
                         { 0.373, 0.261 },
                         { 0.252, 0.428 },
@@ -681,7 +681,7 @@ RetroRuns_Data[1530] = {
                     mapID   = 768,
                     kind    = "path",
                     subZone = "Captain's Quarters",
-                    note    = "After killing Tichondrius, backtrack the way you came to return to the main courtyard.",
+                    note    = "After killing ^Tichondrius^, backtrack the way you came to return to the main courtyard.",
                     points  = {
                         { 0.270, 0.601 },
                         { 0.286, 0.415 },
@@ -698,7 +698,7 @@ RetroRuns_Data[1530] = {
                     mapID   = 766,
                     kind    = "path",
                     subZone = "Captain's Quarters",
-                    note    = "After returning to the main courtyard, follow the path all the way to the far southeast of the map to reach Krosus.",
+                    note    = "After returning to the main courtyard, follow the path all the way to the far southeast of the map to reach ^Krosus^.",
                     points  = {
                         { 0.280, 0.477 },
                         { 0.320, 0.429 },
@@ -733,7 +733,7 @@ RetroRuns_Data[1530] = {
                     mapID   = 766,
                     kind    = "path",
                     subZone = "The Shattered Walkway",
-                    note    = "After defeating Krosus, backtrack up to the main courtyard and click the portal to teleport to The Nightspire. After landing, proceed ahead into the boss room.",
+                    note    = "After defeating ^Krosus^, backtrack up to the main courtyard and click the portal to teleport to ^The Nightspire^. After landing, proceed ahead into the boss room.",
                     points  = {
                         { 0.718, 0.887 },
                         { 0.491, 0.542 },
@@ -744,7 +744,7 @@ RetroRuns_Data[1530] = {
                     mapID   = 770,
                     kind    = "path",
                     subZone = "The Nightspire",
-                    note    = "Inside The Nightspire, clear trash around the room to begin the encounter with Grand Magistrix Elisande.",
+                    note    = "Inside ^The Nightspire^, clear trash around the room to begin the encounter with ^Grand Magistrix Elisande^.",
                     points  = {
                         { 0.620, 0.346 },
                         { 0.486, 0.444 },
@@ -772,7 +772,7 @@ RetroRuns_Data[1530] = {
                     mapID   = 770,
                     kind    = "path",
                     subZone = "The Nightspire",
-                    note    = "After defeating Elisande, approach the teleporter outside the room and choose \"Font of Night\" as your destination.",
+                    note    = "After defeating ^Elisande^, approach the teleporter outside the room and choose ^Font of Night^ as your destination.",
                     points  = {
                         { 0.431, 0.420 },
                         { 0.320, 0.269 },
@@ -782,7 +782,7 @@ RetroRuns_Data[1530] = {
                     mapID   = 772,
                     kind    = "poi",
                     subZone = "The Font of Night",
-                    note    = "You have reached the final encounter. Kill Gul'dan!",
+                    note    = "You have reached the final encounter. Kill ^Gul'dan^!",
                     poiSize = 35,
                     points  = {
                         { 0.495, 0.475 },

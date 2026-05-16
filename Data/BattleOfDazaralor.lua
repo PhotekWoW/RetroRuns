@@ -45,8 +45,6 @@ RetroRuns_Data[2070] = {
         y     = 0.3523,
     },
 
-    -- mapID -> world-map dropdown label.
-    --
     -- mapIDs 1352, 1353, 1354, 1356, 1357 cover the Alliance route
     -- through the city interior; 1358 is "The Zocalo" (never visited
     -- by Alliance route, included for completeness); 1364 is "The
@@ -293,7 +291,7 @@ RetroRuns_Data[2070] = {
             achievements       = {
                 { id = 13410, name = "Snow Fun Allowed", meta = true, soloable = "no" },
             },
-            soloTip            = "Nuke her. If the fight extends into Phase 2, jump off the boat and make your way through the snow to find Jaina and finish her off.",
+            soloTip            = "Nuke her. If the fight extends into Phase 2, jump off the boat and make your way through the snow to find ^Jaina^ and finish her off.",
             specialLoot = {
                 { id = 166705, kind = "mount", name = "Glacial Tidestorm", mythicOnly = true },
             },
@@ -335,7 +333,7 @@ RetroRuns_Data[2070] = {
                     mapID   = 1352,
                     kind    = "path",
                     subZone = "Port of Zandalar",
-                    note    = "After zoning in, proceed straight ahead to the first boss room. Kill trash to start the encounter with Champion of the Light.",
+                    note    = "After zoning in, proceed straight ahead to the first boss room. Kill trash to start the encounter with ^Champion of the Light^.",
                     points  = {
                         { 0.493, 0.883 },
                         { 0.492, 0.735 },
@@ -356,7 +354,7 @@ RetroRuns_Data[2070] = {
                     mapID   = 1352,
                     kind    = "path",
                     subZone = "Port of Zandalar",
-                    note    = "After defeating the Champion of the Light, follow the linear path to the right and work your way towards the next boss, Jadefire Masters. Kill trash on the way.",
+                    note    = "After defeating the ^Champion of the Light^, follow the linear path to the right and work your way towards the next boss, ^Jadefire Masters^. Kill trash on the way.",
                     points  = {
                         { 0.518, 0.695 },
                         { 0.602, 0.679 },
@@ -380,7 +378,7 @@ RetroRuns_Data[2070] = {
                     mapID   = 1352,
                     kind    = "path",
                     subZone = "Grand Bazaar",
-                    note    = "After defeating Jadefire Masters, proceed up the long staircase behind them to reach Grong, the Revenant. Kill trash at the top of the stairs to start the encounter.",
+                    note    = "After defeating ^Jadefire Masters^, proceed up the long staircase behind them to reach ^Grong, the Revenant^. Kill trash at the top of the stairs to start the encounter.",
                     points  = {
                         { 0.492, 0.555 },
                         { 0.493, 0.345 },
@@ -401,7 +399,7 @@ RetroRuns_Data[2070] = {
                     mapID   = 1352,
                     kind    = "path",
                     subZone = "Terrace of the Speakers",
-                    note    = "After killing Grong, continue up the stairwell behind him towards the map exit labeled Halls of Opulence. Jump in the hole when you reach the end of the path.",
+                    note    = "After killing ^Grong^, continue up the stairwell behind him towards the map exit labeled ^Halls of Opulence^. Jump in the hole when you reach the end of the path.",
                     points  = {
                         { 0.490, 0.280 },
                         { 0.492, 0.194 },
@@ -414,7 +412,7 @@ RetroRuns_Data[2070] = {
                     mapID   = 1353,
                     kind    = "path",
                     subZone = "Halls of Opulence",
-                    note    = "Inside the Halls of Opulence, proceed straight ahead to the middle area to engage Opulence.",
+                    note    = "Inside the ^Halls of Opulence^, proceed straight ahead to the middle area to engage ^Opulence^.",
                     points  = {
                         { 0.421, 0.846 },
                         { 0.422, 0.548 },
@@ -435,7 +433,7 @@ RetroRuns_Data[2070] = {
                     mapID   = 1353,
                     kind    = "path",
                     subZone = "Halls of Opulence",
-                    note    = "After killing Opulence, follow the path straight ahead and make your way to the map exit labeled Loa's Sanctum.",
+                    note    = "After killing ^Opulence^, follow the path straight ahead and make your way to the map exit labeled ^Loa's Sanctum^.",
                     points  = {
                         { 0.421, 0.480 },
                         { 0.421, 0.215 },
@@ -448,7 +446,7 @@ RetroRuns_Data[2070] = {
                     mapID   = 1354,
                     kind    = "path",
                     subZone = "Path of the Ancestors",
-                    note    = "Continue straight ahead to engage Conclave of the Chosen.",
+                    note    = "Continue straight ahead to engage ^Conclave of the Chosen^.",
                     points  = {
                         { 0.474, 0.189 },
                         { 0.471, 0.633 },
@@ -469,7 +467,7 @@ RetroRuns_Data[2070] = {
                     mapID   = 1354,
                     kind    = "path",
                     subZone = "Loa's Sanctum",
-                    note    = "After defeating Conclave, exit the room to the east and ride the elevator up to the Walk of Kings.",
+                    note    = "After defeating ^Conclave^, exit the room to the east and ride the elevator up to the ^Walk of Kings^.",
                     points  = {
                         { 0.499, 0.677 },
                         { 0.643, 0.680 },
@@ -480,7 +478,7 @@ RetroRuns_Data[2070] = {
                     mapID   = 1356,
                     kind    = "path",
                     subZone = "Walk of Kings",
-                    note    = "After getting off the elevator in Walk of Kings, follow the linear path around to The Heart of the Empire.",
+                    note    = "After getting off the elevator in ^Walk of Kings^, follow the linear path around to ^The Heart of the Empire^.",
                     points  = {
                         { 0.650, 0.684 },
                         { 0.650, 0.389 },
@@ -493,7 +491,7 @@ RetroRuns_Data[2070] = {
                     kind     = "poi",
                     subZone  = "The Heart of the Empire",
                     noMarker = true,
-                    note     = "Kill trash in the boss room to trigger some dialog and start the encounter with King Rastakhan.",
+                    note     = "Kill trash in the boss room to trigger some dialog and start the encounter with ^King Rastakhan^.",
                     points   = {
                         { 0.5, 0.5 },
                     },
@@ -521,7 +519,7 @@ RetroRuns_Data[2070] = {
                     mapID   = 1357,
                     kind    = "path",
                     subZone = "The Heart of the Empire",
-                    note    = "After defeating King Rastakhan, take the western exit from the room and make your way towards the map exit labeled Port of Zandalar. Interact with the 7th Legion Gryphon to be flown to the next area.",
+                    note    = "After defeating ^King Rastakhan^, take the western exit from the room and make your way towards the map exit labeled ^Port of Zandalar^. Interact with the ^7th Legion Gryphon^ to be flown to the next area.",
                     points  = {
                         { 0.473, 0.538 },
                         { 0.407, 0.464 },
@@ -536,7 +534,7 @@ RetroRuns_Data[2070] = {
                     kind     = "poi",
                     subZone  = "Bay of Kings",
                     noMarker = true,
-                    note     = "After landing on the ship, make your way to the top of the ship and talk to Tandred Proudmoore to proceed.",
+                    note     = "After landing on the ship, make your way to the top of the ship and talk to ^Tandred Proudmoore^ to proceed.",
                     points   = {
                         { 0.558, 0.699 },
                     },
@@ -545,14 +543,14 @@ RetroRuns_Data[2070] = {
                     mapID   = 1367,
                     kind    = "path",
                     subZone = "Boralus Harbor",
-                    note    = "When the ship stops, talk to Ensign Roberts to continue.",
+                    note    = "When the ship stops, talk to ^Ensign Roberts^ to continue.",
                     points  = {},
                 },
                 {
                     mapID   = 1352,
                     kind    = "path",
                     subZone = "Dazar'alor",
-                    note    = "After you reach the next area, go downstairs and kill trash to begin the fight against High Tinker Mekkatorque.",
+                    note    = "After you reach the next area, go downstairs and kill trash to begin the fight against ^High Tinker Mekkatorque^.",
                     points  = {
                         { 0.492, 0.200 },
                         { 0.491, 0.285 },
@@ -573,7 +571,7 @@ RetroRuns_Data[2070] = {
                     mapID   = 1352,
                     kind    = "path",
                     subZone = "Terrace of the Speakers",
-                    note    = "After defeating Mekkatorque, make your way down the long path south, and kill the trash at the end of the bridge. Interact with a Pterrordax to start the encounter with Stormwall Blockade.",
+                    note    = "After defeating ^Mekkatorque^, make your way down the long path south, and kill the trash at the end of the bridge. Interact with a ^Pterrordax^ to start the encounter with ^Stormwall Blockade^.",
                     points  = {
                         { 0.492, 0.354 },
                         { 0.492, 0.889 },
@@ -595,7 +593,7 @@ RetroRuns_Data[2070] = {
                     kind    = "poi",
                     subZone = "Port of Zandalar",
                     poiSize = 35,
-                    note    = "After defeating Stormwall Blockade, walk onto the newly-arrived ship and speak with Captain Zadari to begin the Lady Jaina Proudmoore encounter.",
+                    note    = "After defeating ^Stormwall Blockade^, walk onto the newly-arrived ship and speak with ^Captain Zadari^ to begin the ^Lady Jaina Proudmoore^ encounter.",
                     points  = {
                         { 0.484, 0.975 },
                     },

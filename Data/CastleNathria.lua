@@ -69,13 +69,9 @@ RetroRuns_Data[2296] = {
     },
 
     maps = {
-        -- Sub-zone names match the in-game world-map dropdown. Castle
-        -- Nathria's API (C_Map.GetMapInfo) returns the parent raid name
-        -- for every sub-map rather than the dropdown label, so the
-        -- zone labels are maintained here by hand. The Observatorium
-        -- (1748) has no boss or route directly assigned to it; it's
-        -- declared because the Sire Denathrius encounter auto-
-        -- transitions the player's displayed map to it partway
+        -- The Observatorium (1748) has no boss or route directly assigned
+        -- to it; it's declared because the Sire Denathrius encounter
+        -- auto-transitions the player's displayed map to it partway
         -- through the fight.
         [1735] = "The Grand Walk",
         [1744] = "The Purloined Stores",
@@ -641,7 +637,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1735,
                     kind   = "path",
-                    note   = "Upon zoning in, go up the stairs into the first room and watch some dialog. After that, engage Shriekwing.",
+                    note   = "Upon zoning in, go up the stairs into the first room and watch some dialog. After that, engage ^Shriekwing^.",
                     points = {
                         { 0.384, 0.808 },
                         { 0.571, 0.807 },
@@ -664,7 +660,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1735,
                     kind   = "path",
-                    note   = "After killing Shriekwing, follow the north path out of the room and go down the stairs. Kill the trash, and General Draven will come open the gate. Kill a few trash mobs then engage Huntsman Altimor.",
+                    note   = "After killing ^Shriekwing^, follow the north path out of the room and go down the stairs. Kill the trash, and ^General Draven^ will come open the gate. Kill a few trash mobs then engage ^Huntsman Altimor^.",
                     points = {
                         { 0.592, 0.766 },
                         { 0.592, 0.689 },
@@ -699,7 +695,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1735,
                     kind   = "path",
-                    note   = "After killing Huntsman Altimor, follow the path to a small room at the back, and jump into the sewer that the NPCs are standing next to. Make your way down the path to find Hungering Destroyer.",
+                    note   = "After killing ^Huntsman Altimor^, follow the path to a small room at the back, and jump into the sewer that the NPCs are standing next to. Make your way down the path to find ^Hungering Destroyer^.",
                     points = {
                         { 0.675, 0.459 },
                         { 0.634, 0.435 },
@@ -733,7 +729,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1735,
                     kind   = "path",
-                    note   = "After killing Hungering Destroyer, take the stairs going up to The Purloined Stores.",
+                    note   = "After killing ^Hungering Destroyer^, take the stairs going up to ^The Purloined Stores^.",
                     points = {
                         { 0.332, 0.351 },
                         { 0.305, 0.433 },
@@ -745,7 +741,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1744,
                     kind   = "path",
-                    note   = "After arriving in the room with Lady Inerva Darkvein, kill all the trash to trigger some dialog, then kill the boss.",
+                    note   = "After arriving in the room with ^Lady Inerva Darkvein^, kill all the trash to trigger some dialog, then kill the boss.",
                     points = {
                         { 0.465, 0.556 },
                         { 0.449, 0.445 },
@@ -779,7 +775,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1744,
                     kind   = "path",
-                    note   = "After killing Lady Inerva Darkvein, follow the path to take the exit General Draven is standing in. He will lead you back to the main entrance of the raid in The Grand Walk.",
+                    note   = "After killing ^Lady Inerva Darkvein^, follow the path to take the exit ^General Draven^ is standing in. He will lead you back to the main entrance of the raid in ^The Grand Walk^.",
                     points = {
                         { 0.389, 0.444 },
                         { 0.502, 0.485 },
@@ -791,7 +787,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1735,
                     kind   = "path",
-                    note   = "After arriving back in The Grand Walk, follow the path up to where you killed Shriekwing. This time, take the path right/south to end up in Halls of the Faithful.",
+                    note   = "After arriving back in ^The Grand Walk^, follow the path up to where you killed ^Shriekwing^. This time, take the path right/south to end up in ^Halls of the Faithful^.",
                     points = {
                         { 0.411, 0.760 },
                         { 0.412, 0.807 },
@@ -802,7 +798,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1745,
                     kind   = "path",
-                    note   = "In Halls of the Faithful, wind your way around to the room overlooking the dancers. Clear the trash, and the NPCs will enter the room and open both gates. Follow the path opened by Prince Renathal, and make your way up the stairs to Pride's Prison.",
+                    note   = "In ^Halls of the Faithful^, wind your way around to the room overlooking the dancers. Clear the trash, and the NPCs will enter the room and open both gates. Follow the path opened by ^Prince Renathal^, and make your way up the stairs to ^Pride's Prison^.",
                     points = {
                         { 0.200, 0.418 },
                         { 0.201, 0.499 },
@@ -822,7 +818,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1746,
                     kind   = "path",
-                    note   = "Upon reaching Pride's Prison, follow the path to engage Sun King's Salvation.",
+                    note   = "Upon reaching ^Pride's Prison^, follow the path to engage ^Sun King's Salvation^.",
                     points = {
                         { 0.136, 0.341 },
                         { 0.151, 0.265 },
@@ -849,7 +845,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1746,
                     kind   = "path",
-                    note   = "After defeating Sun King's Salvation, go back the way you came and return down the stairs to Halls of the Faithful.",
+                    note   = "After defeating ^Sun King's Salvation^, go back the way you came and return down the stairs to ^Halls of the Faithful^.",
                     points = {
                         { 0.529, 0.644 },
                         { 0.528, 0.202 },
@@ -863,7 +859,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1745,
                     kind   = "path",
-                    note   = "After arriving back in Halls of the Faithful, follow the path all the way around to Artificer Xy'mox. Kill the trash, and Prince Renathal will show up to open the gate.",
+                    note   = "After arriving back in ^Halls of the Faithful^, follow the path all the way around to ^Artificer Xy'mox^. Kill the trash, and ^Prince Renathal^ will show up to open the gate.",
                     points = {
                         { 0.531, 0.864 },
                         { 0.560, 0.826 },
@@ -891,7 +887,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1745,
                     kind   = "path",
-                    note   = "After defeating Artificer Xy'mox, backtrack out of the room and follow the path to the stairs leading to Feast of Arrogance.",
+                    note   = "After defeating ^Artificer Xy'mox^, backtrack out of the room and follow the path to the stairs leading to ^Feast of Arrogance^.",
                     points = {
                         { 0.651, 0.284 },
                         { 0.650, 0.568 },
@@ -902,7 +898,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1750,
                     kind   = "path",
-                    note   = "Once you arrive in Feast of Arrogance, follow the path to find The Council of Blood at the far end of the room.",
+                    note   = "Once you arrive in ^Feast of Arrogance^, follow the path to find ^The Council of Blood^ at the far end of the room.",
                     points = {
                         { 0.338, 0.162 },
                         { 0.361, 0.178 },
@@ -933,7 +929,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1750,
                     kind   = "path",
-                    note   = "After killing Council of Blood, take the south stairwell out of the room and return to the Halls of the Faithful.",
+                    note   = "After killing ^Council of Blood^, take the south stairwell out of the room and return to the ^Halls of the Faithful^.",
                     points = {
                         { 0.667, 0.542 },
                         { 0.453, 0.540 },
@@ -945,7 +941,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1745,
                     kind   = "path",
-                    note   = "Upon landing back in Halls of the Faithful, follow the path to the right and Prince Renathal will guide you to a mirror portal. Take this teleport for a shortcut back to the main entrance lobby in The Grand Walk.",
+                    note   = "Upon landing back in ^Halls of the Faithful^, follow the path to the right and ^Prince Renathal^ will guide you to a mirror portal. Take this teleport for a shortcut back to the main entrance lobby in ^The Grand Walk^.",
                     points = {
                         { 0.525, 0.857 },
                         { 0.582, 0.826 },
@@ -956,7 +952,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1735,
                     kind   = "path",
-                    note   = "After teleporting back to The Grand Walk, follow the path up to where you killed Shriekwing (again). After some dialog, Sludgefist will jump down to fight.",
+                    note   = "After teleporting back to ^The Grand Walk^, follow the path up to where you killed ^Shriekwing^ (again). After some dialog, ^Sludgefist^ will jump down to fight.",
                     points = {
                         { 0.411, 0.810 },
                         { 0.633, 0.806 },
@@ -978,7 +974,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1735,
                     kind   = "path",
-                    note   = "After killing Sludgefist, travel up the stairs behind him and walk through the mirror teleporter to land in Nightcloak Sanctum.",
+                    note   = "After killing ^Sludgefist^, travel up the stairs behind him and walk through the mirror teleporter to land in ^Nightcloak Sanctum^.",
                     points = {
                         { 0.631, 0.806 },
                         { 0.644, 0.754 },
@@ -991,7 +987,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1747,
                     kind   = "path",
-                    note   = "After taking the teleporter to Nightcloak Sanctum, follow the path around to the Stone Legion Generals.",
+                    note   = "After taking the teleporter to ^Nightcloak Sanctum^, follow the path around to the ^Stone Legion Generals^.",
                     points = {
                         { 0.617, 0.320 },
                         { 0.546, 0.248 },
@@ -1022,7 +1018,7 @@ RetroRuns_Data[2296] = {
                 {
                     mapID  = 1747,
                     kind   = "path",
-                    note   = "After killing Stone Legion Generals, simply walk into the room where Sire Denathrius is waiting for you.",
+                    note   = "After killing ^Stone Legion Generals^, simply walk into the room where ^Sire Denathrius^ is waiting for you.",
                     points = {
                         { 0.352, 0.518 },
                         { 0.433, 0.516 },

@@ -4,9 +4,7 @@
 -- Alternative picker subsystem for raids that opt in via the
 -- `useStrictActiveSegPicker = true` flag on their data table. Other
 -- raids continue using the default picker via dispatch in
--- Navigation.lua and UI.lua. Originally written for Battle of
--- Dazar'alor (hence the filename), since generalized to support
--- additional raids.
+-- Navigation.lua and UI.lua.
 --
 -- THE MODEL: each step has an integer activeSeg pointer
 -- (state.strictActiveSeg[stepIndex]), starting at 1 and monotonically

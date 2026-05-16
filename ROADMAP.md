@@ -2,7 +2,7 @@
 
 This is a forward-looking document: what's coming next, what's planned, and what's still in idea form. For what's already shipped and historical context, see [CHANGELOG.md](CHANGELOG.md).
 
-## Current Version: 1.10.0
+## Current Version: 1.10.1
 
 ---
 

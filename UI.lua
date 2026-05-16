@@ -32,15 +32,6 @@ local C_BLUE   = { 0.30, 0.80, 1.00 }
 local C_LABEL  = "7CFC00"   -- section label colour (green)
 
 -- Known teleporter node names -- highlighted orange in travel text
-local TRAVEL_NODES = {
-    "Ephemeral Plains Alpha",
-    "Ephemeral Plains Omega",
-    "Genesis Cradle Alpha",
-    "Domination's Grasp",
-    "The Grand Design",
-    "The Endless Foundry",
-}
-
 -------------------------------------------------------------------------------
 -- Font helper
 -------------------------------------------------------------------------------
@@ -1991,156 +1982,23 @@ local function ColorizeDifficulties(text)
     return text
 end
 
--- Build a case-insensitive Lua pattern from a literal string. Lua's
--- `string.gsub` is case-sensitive and has no flag to disable that. The
--- idiomatic workaround is to expand each ASCII letter into a `[Aa]` class
--- so the pattern matches both cases.
+-- Apply orange highlighting to prose. The author marks spans with
+-- ^carets^ in note/travelText/soloTip strings; this function wraps each
+-- marked span in the orange color code. Difficulty words
+-- (LFR/Normal/Heroic/Mythic) still get their Blizzard quality colors
+-- via ColorizeDifficulties, regardless of caret markup.
 --
--- Why we need this: data-file notes often write boss names lowercased
--- after a preposition ("walk to the Tarragrue"), but our boss-name
--- registry stores the canonical form ("The Tarragrue"). A case-sensitive
--- gsub of "The Tarragrue" against "the Tarragrue" misses entirely. The
--- fallback to alias-based highlighting is also blocked because
--- "Tarragrue" is a substring of the full name (substring-skip rule, see
--- below). Net result: no highlighting at all for that mention.
---
--- Also escapes Lua pattern magic characters (.()%+-*?[^$) so names like
--- "Soulrender Dormazain" or future raids' "Sun King's Salvation" pattern-
--- match literally rather than treating their punctuation as metacharacters.
---
--- Side effect: the replacement uses the canonical-cased form, so a note
--- written as "to the Tarragrue" renders as "to The Tarragrue" with orange
--- highlight. Mildly weird mid-sentence capitalization but acceptable for
--- the gain of not having to think about case in every note.
-local PATTERN_MAGIC = "[%(%)%.%%%+%-%*%?%[%]%^%$]"
-local function CaseInsensitivePattern(s)
-    -- 1. Escape Lua pattern magic characters
-    local escaped = s:gsub(PATTERN_MAGIC, "%%%1")
-    -- 2. Replace each ASCII letter with a [Aa]-style class
-    local pattern = escaped:gsub("%a", function(letter)
-        return "[" .. letter:lower() .. letter:upper() .. "]"
-    end)
-    return pattern
-end
-
+-- Caret pairs nest cleanly because gsub walks left-to-right. Unmatched
+-- carets (odd count, or a stray ^ inside a marked span) get stripped
+-- silently rather than producing broken color codes.
 local function HighlightNames(text)
     if not text or text == "" then return text end
-
-    -- Transport locations
-    for _, name in ipairs(TRAVEL_NODES) do
-        text = text:gsub(CaseInsensitivePattern(name), OrangeText(name))
-    end
-
-    -- Raid map names from the active raid's maps[] table. These run
-    -- BEFORE boss-name highlighting so multi-word map names get the
-    -- full-phrase match before single-word boss names match a
-    -- substring inside them. Canonical case: "Halls of Opulence"
-    -- contains the boss name "Opulence" -- without this pass, only
-    -- "Opulence" inside the phrase would highlight. Sort by length
-    -- descending so longer names match first (avoids "Bay of Kings"
-    -- consuming "Bay" before "Bay of Kings" can match).
-    --
-    -- Track which map names actually matched -- the boss-name pass
-    -- below uses this to avoid double-wrapping when a boss name
-    -- appears inside a map name that was already wrapped.
-    local matchedMapNames = {}
-    if RR.currentRaid and RR.currentRaid.maps then
-        local names = {}
-        for _, n in pairs(RR.currentRaid.maps) do
-            table.insert(names, n)
-        end
-        table.sort(names, function(a, b) return #a > #b end)
-        for _, name in ipairs(names) do
-            if name and #name > 3 then
-                local newText, count = text:gsub(CaseInsensitivePattern(name), OrangeText(name))
-                text = newText
-                if count > 0 then
-                    matchedMapNames[name:lower()] = true
-                end
-            end
-        end
-    end
-
-    -- Helper: returns true if `name` appears as a substring (case-
-    -- insensitive) of any map name that was just highlighted.
-    -- Prevents the boss-name pass below from double-wrapping a name
-    -- like "Opulence" that lives inside an already-wrapped "Halls of
-    -- Opulence".
-    local function isInsideMatchedMapName(name)
-        if not name or name == "" then return false end
-        local lname = name:lower()
-        for mapName in pairs(matchedMapNames) do
-            if mapName:find(lname, 1, true) then return true end
-        end
-        return false
-    end
-
-    -- Boss names from current raid
-    if RR.currentRaid and RR.currentRaid.bosses then
-        for _, boss in ipairs(RR.currentRaid.bosses) do
-            if boss.name and #boss.name > 3
-                and not isInsideMatchedMapName(boss.name)
-            then
-                -- Capture the substitution count from gsub. We need it
-                -- below to decide whether the alias loop is safe to run.
-                local newText, fullMatched = text:gsub(
-                    CaseInsensitivePattern(boss.name),
-                    OrangeText(boss.name))
-                text = newText
-                -- Also highlight common aliases. The alias gsub can cause
-                -- DOUBLE-WRAP if it matches inside text already wrapped by
-                -- the full-name gsub above -- that breaks WoW's color codes
-                -- (`|r` resets to default rather than popping a stack, so
-                -- the inner close-code leaves the tail of the name
-                -- uncolored). Example: "Fatescribe Roh-Kalo" wrapped, then
-                -- "Fatescribe" alias re-wraps inside it -> " Roh-Kalo"
-                -- renders uncolored.
-                --
-                -- Old defense: skip any alias that's a substring of the
-                -- full name. That defense was too aggressive -- it also
-                -- blocked legitimate alias-only mentions like "follow the
-                -- path to Eye of the Jailer" (no leading "The"), where
-                -- the full-name gsub doesn't fire and the alias is the
-                -- only chance to highlight.
-                --
-                -- Smarter rule: skip aliases ONLY if the full-name gsub
-                -- actually performed at least one substitution in this
-                -- text (`fullMatched > 0`). If the full name didn't appear
-                -- in this text at all, the alias has no double-wrap risk
-                -- and is safe to apply.
-                --
-                -- Trade-off: if a single text contains BOTH the full name
-                -- AND a standalone alias usage (e.g. "Kill Fatescribe
-                -- Roh-Kalo, then Fatescribe will respawn"), the standalone
-                -- usage stays unwrapped. Acceptable: contrived case, much
-                -- rarer than the alias-only or full-name-only cases.
-                if boss.aliases and fullMatched == 0 then
-                    for _, alias in ipairs(boss.aliases) do
-                        if #alias > 3 then
-                            text = text:gsub(
-                                CaseInsensitivePattern(alias),
-                                OrangeText(alias))
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    -- Map/zone names from current raid
-    if RR.currentRaid and RR.currentRaid.maps then
-        for _, mapName in pairs(RR.currentRaid.maps) do
-            if mapName and #mapName > 3 then
-                text = text:gsub(CaseInsensitivePattern(mapName), OrangeText(mapName))
-            end
-        end
-    end
-
-    -- Difficulty words (LFR/Normal/Heroic/Mythic) get Blizzard's standard
-    -- item-quality colors. Done LAST so other highlighters can't swallow
-    -- these words first.
+    text = text:gsub("%^([^%^]+)%^", function(span)
+        return OrangeText(span)
+    end)
+    -- Strip any stragglers (unmatched carets) so they don't render.
+    text = text:gsub("%^", "")
     text = ColorizeDifficulties(text)
-
     return text
 end
 
@@ -5355,13 +5213,10 @@ local GetOrCreateSkipsWindow
 -- Build a structured row list for the skips window. Each row is one of:
 --   { kind = "expansionHeader", text = "Dragonflight" }
 --   { kind = "raidRow", name = "Aberrus...", mythic = bool, heroic = bool, normal = bool }
---   { kind = "raidNameRow", name = "Antorus..." }
---     -- Multi-chain raid parent row: name only, no cells. The chain
---     -- sub-rows that follow render their own cells underneath.
---   { kind = "chainSubRow", label = "Imonar", mythic = bool, heroic = bool, normal = bool, isLast = bool }
---     -- Indented chain row under a raidNameRow. isLast=true on the
---     -- last chain triggers the row-divider so chain rows group
---     -- visually under their parent.
+--     -- For multi-chain raids (Antorus's Imonar + Aggramar), the row
+--     -- additionally carries mythic2/heroic2/normal2 fields for the
+--     -- second chain's per-difficulty state. The renderer paints two
+--     -- glyphs per cell, centered as a pair on the column midline.
 --   { kind = "spacer" }
 --   { kind = "message", text = "..." }   -- empty-state and error messages
 --
@@ -5447,24 +5302,17 @@ local function BuildSkipsRows()
                 -- "na" = not applicable for this raid (only Mythic exists).
 
                 -- Multi-chain raids (skipQuests array of chains, e.g.
-                -- Antorus's Imonar + Aggramar) get a parent name-only row
-                -- followed by one indented chainSubRow per chain. Each
-                -- chain has its own cells, so the player sees which
-                -- chain unlocks at which difficulty.
+                -- Antorus's Imonar + Aggramar) render as a single row.
+                -- Each difficulty cell paints two glyphs side-by-side --
+                -- chain 1 on the left, chain 2 on the right -- with the
+                -- pair's visual center aligned to the column midline.
+                -- Each chain cascades independently, so each chain's
+                -- per-difficulty cells come from its own ceiling.
                 local perChain = RR:GetSkipChainCeilings(raid)
                 local isMultiChain = perChain and #perChain > 1
 
                 if isMultiChain then
-                    -- Parent name row (cells suppressed).
-                    table.insert(expRows, {
-                        kind = "raidNameRow",
-                        name = raid.name or "?",
-                    })
-                    -- One sub-row per chain. Each chain cascades
-                    -- independently (Imonar progress doesn't unlock
-                    -- Aggramar and vice versa), so each row computes
-                    -- its own per-difficulty cells from its own ceiling.
-                    for idx, c in ipairs(perChain) do
+                    local function cellsForChain(c)
                         local mCell, hCell, nCell
                         if cascading then
                             mCell = c.ceiling and c.ceiling >= 16 or false
@@ -5475,18 +5323,16 @@ local function BuildSkipsRows()
                             hCell = "na"
                             nCell = "na"
                         end
-                        table.insert(expRows, {
-                            kind     = "chainSubRow",
-                            label    = c.label or ("Skip " .. idx),
-                            mythic   = mCell,
-                            heroic   = hCell,
-                            normal   = nCell,
-                            -- Last chain in this raid gets the divider;
-                            -- intermediate chains don't, so the chain
-                            -- rows feel grouped under their parent name.
-                            isLast   = (idx == #perChain),
-                        })
+                        return mCell, hCell, nCell
                     end
+                    local m1, h1, n1 = cellsForChain(perChain[1])
+                    local m2, h2, n2 = cellsForChain(perChain[2])
+                    table.insert(expRows, {
+                        kind    = "raidRow",
+                        name    = raid.name or "?",
+                        mythic  = m1, heroic  = h1, normal  = n1,
+                        mythic2 = m2, heroic2 = h2, normal2 = n2,
+                    })
                 else
                     -- Single-chain raid: existing flat row shape.
                     -- Cascade-down for standard skipQuests: ceiling N
@@ -5560,6 +5406,19 @@ local function GetSkipsRowSlot(parent, idx)
     slot.cellN = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     slot.cellN:SetJustifyH("CENTER")
 
+    -- Secondary cell glyphs, used only when the raid has a second skip
+    -- chain (Antorus's Imonar + Aggramar pair). The primary cellM/H/N
+    -- and the secondary cellM2/H2/N2 sit offset left/right of the
+    -- column midline so the pair's visual center lines up with single-
+    -- chain raids' single centered glyph. Hidden on rows that don't
+    -- need them.
+    slot.cellM2 = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    slot.cellM2:SetJustifyH("CENTER")
+    slot.cellH2 = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    slot.cellH2:SetJustifyH("CENTER")
+    slot.cellN2 = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    slot.cellN2:SetJustifyH("CENTER")
+
     -- Subtle horizontal divider drawn at the bottom of the row, matching
     -- the achievements-window pattern. Dim and slightly transparent so
     -- it reads as visual structure without competing with the cell text.
@@ -5585,6 +5444,9 @@ local function HideAllSkipsSlots()
         slot.cellM:Hide()
         slot.cellH:Hide()
         slot.cellN:Hide()
+        slot.cellM2:Hide()
+        slot.cellH2:Hide()
+        slot.cellN2:Hide()
         slot.divider:Hide()
     end
 end
@@ -5650,22 +5512,57 @@ local function RefreshSkipsContent()
                 return SKIPS_CELL_LOCKED
             end
 
+            -- Paired-glyph rendering for multi-chain raids: when the
+            -- row carries mythic2/heroic2/normal2, paint a second glyph
+            -- offset to the right of the column midline and shift the
+            -- primary glyph left by the same amount, so the pair's
+            -- visual center stays aligned with the column line (and
+            -- with the single-glyph cells on other rows).
+            local pairOffset = 10  -- pixels from column midline to each glyph
+
             slot.cellM:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
             slot.cellM:SetText(cellText(row.mythic))
             slot.cellM:ClearAllPoints()
-            slot.cellM:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_MYTHIC_X, y)
+            if row.mythic2 ~= nil then
+                slot.cellM:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_MYTHIC_X - pairOffset, y)
+                slot.cellM2:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+                slot.cellM2:SetText(cellText(row.mythic2))
+                slot.cellM2:ClearAllPoints()
+                slot.cellM2:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_MYTHIC_X + pairOffset, y)
+                slot.cellM2:Show()
+            else
+                slot.cellM:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_MYTHIC_X, y)
+            end
             slot.cellM:Show()
 
             slot.cellH:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
             slot.cellH:SetText(cellText(row.heroic))
             slot.cellH:ClearAllPoints()
-            slot.cellH:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_HEROIC_X, y)
+            if row.heroic2 ~= nil then
+                slot.cellH:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_HEROIC_X - pairOffset, y)
+                slot.cellH2:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+                slot.cellH2:SetText(cellText(row.heroic2))
+                slot.cellH2:ClearAllPoints()
+                slot.cellH2:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_HEROIC_X + pairOffset, y)
+                slot.cellH2:Show()
+            else
+                slot.cellH:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_HEROIC_X, y)
+            end
             slot.cellH:Show()
 
             slot.cellN:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
             slot.cellN:SetText(cellText(row.normal))
             slot.cellN:ClearAllPoints()
-            slot.cellN:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_NORMAL_X, y)
+            if row.normal2 ~= nil then
+                slot.cellN:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_NORMAL_X - pairOffset, y)
+                slot.cellN2:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
+                slot.cellN2:SetText(cellText(row.normal2))
+                slot.cellN2:ClearAllPoints()
+                slot.cellN2:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_NORMAL_X + pairOffset, y)
+                slot.cellN2:Show()
+            else
+                slot.cellN:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_NORMAL_X, y)
+            end
             slot.cellN:Show()
 
             -- Subtle row divider at bottom of this row's vertical span,
@@ -5679,68 +5576,6 @@ local function RefreshSkipsContent()
             slot.divider:SetPoint("TOPLEFT",  w, "TOPLEFT",  SKIPS_COL_NAME_X, y - lineHeight + SKIPS_ROW_DIVIDER_INSET)
             slot.divider:SetPoint("TOPRIGHT", w, "TOPRIGHT", -14, y - lineHeight + SKIPS_ROW_DIVIDER_INSET)
             slot.divider:Show()
-
-            y = y - lineHeight
-
-        elseif row.kind == "raidNameRow" then
-            -- Multi-chain raid parent row: name only, no cells, no
-            -- divider. The chain sub-rows that follow each carry their
-            -- own cells, and the last one carries the divider.
-            slot.name:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
-            slot.name:SetText("|cffffffff  " .. row.name .. "|r")
-            slot.name:ClearAllPoints()
-            slot.name:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y)
-            slot.name:SetWidth(SKIPS_COL_MYTHIC_X - SKIPS_COL_NAME_X - 8)
-            slot.name:Show()
-
-            y = y - lineHeight
-
-        elseif row.kind == "chainSubRow" then
-            -- Indented chain row under a multi-chain raid. The label
-            -- ("Imonar" / "Aggramar") gets an extra ~16px indent under
-            -- the raid name, in a dimmer color to read as secondary.
-            slot.name:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
-            slot.name:SetText("|cffaaaaaa      " .. row.label .. "|r")
-            slot.name:ClearAllPoints()
-            slot.name:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y)
-            slot.name:SetWidth(SKIPS_COL_MYTHIC_X - SKIPS_COL_NAME_X - 8)
-            slot.name:Show()
-
-            -- Same cell renderer as raidRow.
-            local function cellText(v)
-                if v == "na" then return SKIPS_CELL_NA end
-                if v then return SKIPS_CELL_UNLOCKED end
-                return SKIPS_CELL_LOCKED
-            end
-
-            slot.cellM:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
-            slot.cellM:SetText(cellText(row.mythic))
-            slot.cellM:ClearAllPoints()
-            slot.cellM:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_MYTHIC_X, y)
-            slot.cellM:Show()
-
-            slot.cellH:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
-            slot.cellH:SetText(cellText(row.heroic))
-            slot.cellH:ClearAllPoints()
-            slot.cellH:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_HEROIC_X, y)
-            slot.cellH:Show()
-
-            slot.cellN:SetFont(STANDARD_TEXT_FONT, rowFontSize, "")
-            slot.cellN:SetText(cellText(row.normal))
-            slot.cellN:ClearAllPoints()
-            slot.cellN:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_NORMAL_X, y)
-            slot.cellN:Show()
-
-            -- Only the LAST chain sub-row in a multi-chain group gets a
-            -- divider, so the chain rows visually group together under
-            -- their raid name. Vertical inset matches raidRow's divider
-            -- for visual consistency.
-            if row.isLast then
-                slot.divider:ClearAllPoints()
-                slot.divider:SetPoint("TOPLEFT",  w, "TOPLEFT",  SKIPS_COL_NAME_X, y - lineHeight + SKIPS_ROW_DIVIDER_INSET)
-                slot.divider:SetPoint("TOPRIGHT", w, "TOPRIGHT", -14, y - lineHeight + SKIPS_ROW_DIVIDER_INSET)
-                slot.divider:Show()
-            end
 
             y = y - lineHeight
 

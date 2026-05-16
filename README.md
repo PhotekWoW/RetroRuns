@@ -80,7 +80,7 @@ Main commands — type in chat:
 
 ## Status
 
-Version **1.10.0**
+Version **1.10.1**
 
 ## Reporting bugs / requesting features
 
