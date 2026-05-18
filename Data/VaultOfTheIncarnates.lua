@@ -109,6 +109,12 @@ RetroRuns_Data[2522] = {
         mythic = 71020,
     },
 
+    -- Surfaced to players via the Skips window's per-row info button.
+    skipTrigger = {
+        questName = "Vault of the Incarnates: Break a Few Eggs",
+        details   = "After killing ^Eranog^, you will find two clickable runes beside the stairs leading to ^Broodkeeper Diurna^. Click the runes to open the access.",
+    },
+
     -- Glory meta-achievement for this raid. Completing all 8 per-boss
     -- criteria below awards the Raging Magmammoth mount.
     gloryMeta = {

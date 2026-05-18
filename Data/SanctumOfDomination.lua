@@ -53,6 +53,12 @@ RetroRuns_Data[2450] = {
         mythic = 64599,
     },
 
+    -- Surfaced to players via the Skips window's per-row info button.
+    skipTrigger = {
+        questName = "Sanctum of Domination - Damned If You Don't",
+        details   = "After killing ^The Tarragrue^, speak to the ^Ebon Blade Acolyte^ NPC located outside the boss room. He will conjure a portal that will send you straight to ^Kel'Thuzad^.",
+    },
+
     -- Glory meta-achievement for this raid. Completing all 10 per-boss
     -- criteria below awards the Hand of Hrestimorak mount.
     gloryMeta = {

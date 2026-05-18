@@ -89,6 +89,12 @@ RetroRuns_Data[2481] = {
         mythic = 65762,
     },
 
+    -- Surfaced to players via the Skips window's per-row info button.
+    skipTrigger = {
+        questName = "Sepulcher of the First Ones - Heavy is the Crown",
+        details   = "After killing ^Vigilant Guardian^, proceed up the bridge and speak to ^Highlord Bolvar Fordragon^ near the teleporter to skip ahead to ^Anduin Wrynn^.",
+    },
+
     -- Glory meta-achievement for this raid. Completing all 11 per-boss
     -- criteria below awards the Shimmering Aurelid mount.
     gloryMeta = {

@@ -121,12 +121,6 @@ local ITEM_CONTEXT_TO_DIFFICULTY = {
     [Enum.ItemCreationContext.RaidMythicExtended_3]  = 16,
 }
 
--- Expose on the RR namespace so /rr tmogverify (in Core.lua) can use the
--- same mapping without duplicating it. Keeping a single source of truth
--- ensures the verifier's bucket-assignment check stays in lockstep with
--- the harvester's actual integration logic.
-RR.ITEM_CONTEXT_TO_DIFFICULTY = ITEM_CONTEXT_TO_DIFFICULTY
-
 local DIFF_ORDER = { 17, 14, 15, 16 }   -- LFR, Normal, Heroic, Mythic (display order)
 
 -- Map a player class ID (1-13) to its uppercase classFile name. Used when
@@ -997,9 +991,6 @@ local function ParseItemContextFromLink(link)
     local context = select(12, LinkUtil.SplitLinkOptions(linkOptions))
     return tonumber(context) or 0
 end
-
--- Expose so /rr tmogverify (Core.lua) can reuse the same parser.
-RR.ParseItemContextFromLink = ParseItemContextFromLink
 
 -- Map a (link?, modID?) pair to a difficulty ID. Prefers itemContext from the
 -- link (reliable across Sepulcher-era loot); falls back to modID for items

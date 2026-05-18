@@ -2,7 +2,7 @@
 
 This is a forward-looking document: what's coming next, what's planned, and what's still in idea form. For what's already shipped and historical context, see [CHANGELOG.md](CHANGELOG.md).
 
-## Current Version: 1.10.1
+## Current Version: 1.10.2
 
 ---
 
@@ -30,9 +30,6 @@ Broader version of the Boss Progress collapse: travel pane, encounter section, a
 
 ### Compact view / smaller-footprint mode during a raid run
 An alternate panel layout with reduced vertical real estate while in an active raid run. Open design questions to elicit before building: what must stay visible (multi-select among current step + travel note, travel pane, boss section, kill pills, transmog button), how the toggle fires (setting, button, both), and form factor (horizontal strip, vertical column, icon-driven).
-
-### "What's New" surface on the idle panel
-Present recent-version highlights or changelog-summary content on the main panel during idle state (out of raid) so version updates surface organically. Design questions to settle before building: where on the panel does it live, what triggers dismiss, what's the data source (hand-authored per-version blurbs, auto-generated from CHANGELOG, or a separate file), and how long an entry stays "new."
 
 ---
 

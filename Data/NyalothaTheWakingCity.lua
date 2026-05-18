@@ -61,14 +61,16 @@ RetroRuns_Data[2217] = {
         tokenSources = {},
     },
 
-    -- MOTHER's Guidance: per-difficulty skip quests granting a jump
-    -- from Wrathion direct to Carapace of N'Zoth, bypassing the three
-    -- wings. Account-wide flag, cascade-aware (Mythic implies Heroic
-    -- implies Normal at the render layer).
     skipQuests = {
         normal = 58373,
         heroic = 58374,
         mythic = 58375,
+    },
+
+    -- Surfaced to players via the Skips window's per-row info button.
+    skipTrigger = {
+        questName = "Ny'alotha: MOTHER's Guidance",
+        details   = "After defeating ^Wrathion^, you can proceed up the long bridge straight to ^Carapace of N'Zoth^.",
     },
 
     -- Glory meta-achievement for this raid. Completing all 12 per-boss

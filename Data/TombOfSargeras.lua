@@ -76,13 +76,16 @@ RetroRuns_Data[1676] = {
         tokenSources = {},
     },
 
-    -- Raid skip quest: "Tomb of Sargeras: Aegwynn's Path" (one quest
-    -- per difficulty). Completing the quest unlocks an in-raid
-    -- teleporter that bypasses the entry-wing bosses.
     skipQuests = {
         normal = 47725,
         heroic = 47726,
         mythic = 47727,
+    },
+
+    -- Surfaced to players via the Skips window's per-row info button.
+    skipTrigger = {
+        questName = "Tomb of Sargeras: Aegwynn's Path",
+        details   = "After killing ^Goroth^, the door behind ^Image of Aegwynn^ opens, allowing you to skip to ^Maiden of Vigilance^.",
     },
 
     -- Glory meta-achievement for this raid. Completing all 9 per-boss

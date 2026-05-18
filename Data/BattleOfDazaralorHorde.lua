@@ -64,6 +64,12 @@ RetroRuns_DataHorde[2070] = {
         mythic = 13314,
     },
 
+    -- Surfaced to players via the Skips window's per-row info button.
+    skipTrigger = {
+        achievementName = "Mythic: Lady Jaina Proudmoore",
+        details         = "After zoning in, talk with ^Otoye^ to skip straight to ^Lady Jaina Proudmoore^.",
+    },
+
     -- Faction-shared with Alliance: same mount reward, same achievement
     -- ID, same name. Earning the meta on either faction's character
     -- credits the account-wide mount.

@@ -61,8 +61,32 @@ Click any boss name in the panel to open the transmog collection browser for tha
 * **Achievement callouts.** Per-boss list with completed state and clickable in-game links.
 * **Automatic kill detection.** Listens for `ENCOUNTER_END` and syncs with Blizzard's lockout API, so progression state is correct across reloads, disconnects, and character swaps within the same lockout.
 * **Configurable.** Font size, window scale, panel position — all persisted per character.
+* **Body font choice.** Three options for panel body text: WoW's native Friz Quadrata for max readability, 04B_03 for full pixel-retro feel, or VT323 for a clean terminal style in between. Chrome (title, buttons, footer) stays consistent across all three.
+* **Launch mode.** Choose what RetroRuns does on login — open fully expanded, open in compact minimized mode, or stay hidden until you click the minimap icon. Zoning into a supported raid and clicking "Load" always opens the panel fully regardless.
 * **Collapsible supported-raids list.** When the panel is idle, the list of supported raids groups by expansion with click-to-expand toggles, so the panel stays compact and you only open the expansion you're working through.
-* **One-click navigation to raid entrances.** Each supported raid has a flight-master icon next to its name; click it to be routed to the raid's entrance. With Zygor or Mapzeroth installed, you get full step-by-step turn directions through portals, flight paths, and other travel options. Without either, a single waypoint is set at the entrance via TomTom (if installed) or Blizzard's native pin.
+* **Skip detail popups.** The Skips window includes an info button on every raid row that opens the unlock requirements for that raid's skip — what quest, what prerequisite kills, and where the resulting teleporter or shortcut takes you.
+* **One-click navigation to raid entrances.** Each supported raid has a flight-master icon next to its name; click it to be routed to the raid's entrance. RetroRuns hands off to whatever navigation addons you have installed — see [Navigation handoff](#navigation-handoff) below for details. Works out of the box with no addons installed (Blizzard's native waypoint), and progressively enhances with TomTom, Zygor, Mapzeroth, AzerothWaypoint, and Waypoint UI as you add them.
+
+## Navigation handoff
+
+The flight-master icon next to each supported raid hands off to whatever navigation addons you have installed. RetroRuns recognizes three different navigation roles and fires the appropriate provider for each:
+
+**Routing** — multi-leg route planning across portals, flight paths, and zones. Supported planners (one fires per click, in this order):
+* **AzerothWaypoint with Zygor or Mapzeroth as backend** — AzerothWaypoint orchestrates the backend's route through its own queue UI.
+* **Zygor alone** — uses Zygor's LibRover pathfinding and its own arrow.
+* **Mapzeroth alone** — uses Mapzeroth's GPS frame with full multi-leg directions.
+
+When a planner is active, it provides its own arrow and destination indicator. No additional waypoint is set.
+
+**Waypoint** — the destination arrow that points you toward the raid entrance. Fires only when no planner is handling the route. Supported sources (one wins per click):
+* **TomTom** — drops a crazy arrow waypoint.
+* **Blizzard native** — falls back to the in-game super-tracker if TomTom isn't installed.
+
+**3D Overlay** — in-world visual marker at the destination. Fires alongside the planner or waypoint, independently. Either or both can be active at once:
+* **AzerothWaypoint** — its 3D queue overlay. When AWP is also handling routing (above), the overlay is part of that dispatch; otherwise it fires standalone.
+* **Waypoint UI** — its in-world destination marker and close-range navigator.
+
+The legend at the bottom of the main panel shows which providers are active for your install. None of these addons are required — Blizzard's native super-tracker is the universal fallback when nothing else is installed.
 
 ## Commands
 
@@ -80,7 +104,7 @@ Main commands — type in chat:
 
 ## Status
 
-Version **1.10.1**
+Version **1.10.2**
 
 ## Reporting bugs / requesting features
 

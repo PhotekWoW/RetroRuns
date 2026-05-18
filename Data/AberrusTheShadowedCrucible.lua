@@ -103,6 +103,12 @@ RetroRuns_Data[2569] = {
         mythic = 76086,
     },
 
+    -- Surfaced to players via the Skips window's per-row info button.
+    skipTrigger = {
+        questName = "Aberrus, the Shadowed Crucible: Echoes of the Earth-Warder",
+        details   = "After defeating ^Kazzara^, click the vent behind ^Neltharion^ and you will be able to jump down and skip ahead to the ^Echo of Neltharion^ encounter.",
+    },
+
     -- Glory meta-achievement for this raid. Completing all 9 per-boss
     -- criteria below awards the Shadowflame Shalewing mount.
     gloryMeta = {

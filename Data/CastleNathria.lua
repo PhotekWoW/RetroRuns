@@ -142,6 +142,12 @@ RetroRuns_Data[2296] = {
         mythic = 62056,
     },
 
+    -- Surfaced to players via the Skips window's per-row info button.
+    skipTrigger = {
+        questName = "Castle Nathria: Getting a Head",
+        details   = "After killing ^Shriekwing^, speak to ^General Draven^ near the Huntsman Entrance to skip ahead to ^Sludgefist^.",
+    },
+
     -- Weapon-token appearance pools. Maps each pool to the set of
     -- transmog appearances (and their source IDs) that a player can
     -- unlock by redeeming a spherule/bead at the Covenant Sanctum

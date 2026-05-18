@@ -124,6 +124,15 @@ RetroRuns_Data[1712] = {
         { label = "Aggramar", normal = 49133, heroic = 49134, mythic = 49135 },
     },
 
+    -- Surfaced to players via the Skips window's per-row info button.
+    skipTrigger = {
+        questNames = {
+            Imonar   = "Antorus, the Burning Throne: Dark Passage",
+            Aggramar = "Antorus, the Burning Throne: The Heart of Argus",
+        },
+        details   = "After killing ^Garothi Worldbreaker^, you can take the teleporter to whichever skip you have unlocked:\n  - The Exhaust: ^Imonar the Soulhunter^\n  - The Burning Throne: ^Aggramar^",
+    },
+
     -- Glory meta-achievement for this raid. Completing all 11 per-boss
     -- achievements below awards the Antoran Gloomhound mount.
     gloryMeta = {

@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "1.10.1"
+local VERSION    = "1.10.2"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -60,9 +60,29 @@ RetroRuns = {
         -- only (logo + RETRO RUNS text + minimize/close buttons), with all
         -- body fields and footer action buttons hidden. Toggled via the
         -- minimize button left of the close X. Persists across /reload
-        -- (unlike showPanel, which is force-reset to false on init so the
-        -- panel always starts hidden after a reload).
+        -- (unlike showPanel, which is overridden at init time based on
+        -- launchMode below -- the panel's load-time visibility is governed
+        -- by the user's chosen launchMode, not the last-session showPanel).
         minimized    = false,
+        -- launchMode controls what RetroRuns does to the panel on load:
+        --   "hidden"    - leave the panel closed (legacy pre-1.10.2 default)
+        --   "minimized" - open in minimized title-bar mode (current default)
+        --   "full"      - open fully expanded
+        -- Set via the Settings panel. Lets the user pick a load-time
+        -- starting state without affecting live session toggling (the
+        -- minimize button, close button, /rr toggle, etc. all still work
+        -- the same way mid-session).
+        launchMode   = "minimized",
+        -- bodyFontStyle controls which font is used for body-level text
+        -- inside the main panel + auxiliary windows (action buttons are
+        -- excluded; they stay 04B_03 always). Three values:
+        --   "standard" - WoW's default body font, Friz Quadrata (default)
+        --   "retro"    - 04B_03 pixel font (tight, narrow grid)
+        --   "vt323"    - VT323 monospaced terminal-style font
+        -- Frame headers (auxiliary window titles, main panel "RETRO RUNS"
+        -- title, footer chrome) always use the retro font regardless of
+        -- this setting -- the toggle scopes to body text only.
+        bodyFontStyle = "standard",
     },
 }
 
@@ -117,6 +137,48 @@ function RR:ZoneLog(msg)
     while #buf > 1000 do table.remove(buf, 1) end
 end
 
+--- Per-provider installation checks. Each of the six waypoint providers
+--- in our cascade has its own detection signature; centralizing the
+--- checks here keeps GetNavTier, the cascade in NavigateToEntrance /
+--- NavigateToSanctum, and the legend renderer in UI.lua in lock-step.
+--- If any one drifts, the wrong pill lights or the wrong branch fires.
+function RR:IsAWPInstalled()
+    return _G.AzerothWaypointNS
+        and type(_G.AzerothWaypointNS.RequestManualRoute) == "function"
+        or false
+end
+
+function RR:IsZygorInstalled()
+    return _G.ZygorGuidesViewer
+        and _G.ZygorGuidesViewer.Pointer
+        and _G.ZygorGuidesViewer.Pointer.SetWaypoint
+        and true or false
+end
+
+function RR:IsMapzerothInstalled()
+    return (_G.Mapzeroth and _G.Mapzeroth.FindRoute) and true or false
+end
+
+--- Waypoint UI (by AdaptiveX). Single-arrow in-world HUD waypoint
+--- provider with a documented public API (WaypointUIAPI.Navigation,
+--- file API.lua in the WaypointUI addon). Polished in-world arrow
+--- presentation; rides on top of Blizzard's C_SuperTrack so the
+--- minimap arrow comes along for free.
+function RR:IsWUIInstalled()
+    return _G.WaypointUIAPI
+        and _G.WaypointUIAPI.Navigation
+        and type(_G.WaypointUIAPI.Navigation.NewUserNavigation) == "function"
+        or false
+end
+
+function RR:IsTomTomInstalled()
+    return (_G.TomTom and _G.TomTom.AddWaypoint) and true or false
+end
+
+function RR:IsBlizzardWaypointAvailable()
+    return (C_Map and C_Map.SetUserWaypoint and _G.UiMapPoint) and true or false
+end
+
 --- Detect which navigation tier is active for the current addon load
 --- state. Returns one of:
 ---
@@ -163,80 +225,54 @@ end
 --- gets a single arrow instead of a route, which is the correct
 --- degradation -- it matches what would happen with /zygor goto.
 function RR:GetNavTier()
-    if _G.AzerothWaypointNS
-        and type(_G.AzerothWaypointNS.RequestManualRoute) == "function" then
-        return "routing"
-    end
-    if _G.ZygorGuidesViewer
-        and _G.ZygorGuidesViewer.Pointer
-        and _G.ZygorGuidesViewer.Pointer.SetWaypoint then
-        return "routing"
-    end
-    if _G.Mapzeroth and _G.Mapzeroth.FindRoute then
-        return "routing"
-    end
+    if self:IsAWPInstalled()       then return "routing" end
+    if self:IsZygorInstalled()     then return "routing" end
+    if self:IsMapzerothInstalled() then return "routing" end
     return "waypoint"
 end
 
 --- Route the player to the entrance of a raid.
 ---
---- Five-tier preference order:
----   1. AzerothWaypoint installed: hand off to NS.RequestManualRoute.
----      AWP is a meta-router that orchestrates one of Farstrider /
----      Mapzeroth / Zygor / direct underneath, plus its own arrow and
----      queue UI. Calling AWP directly (rather than relying on its
----      TomTom hook to silently intercept us) makes our route appear
----      in AWP's queue with proper RetroRuns attribution and bypasses
----      the hook-adoption path that the user's allowlist setting
----      doesn't cover. Goes first because AWP would be orchestrating
----      the lower-tier addons itself; calling them directly when AWP
----      is present would skip AWP's UI surface entirely. We register
----      RetroRuns as a known external waypoint source at PLAYER_LOGIN
----      so AWP attributes adopted routes to us by name.
----   2. Zygor installed (no AWP): hand off to ZGV.Pointer:SetWaypoint
----      with findpath=true, which triggers Zygor's LibRover pathfinder
----      and renders the resulting route in Zygor's own arrow + travel-
----      mode UI. Step-by-step experience for paid users. Requires
----      ZGV.db.profile.pathfinding to be enabled (Zygor's "Travel
----      Mode" setting); if disabled, the call falls back to a single
----      arrow at the destination, same degradation /zygor goto would
----      produce. Zygor takes precedence over Mapzeroth because it's
----      the premium product and a paying Zygor user expects that
----      experience to win.
----   3. Mapzeroth installed (no AWP, no Zygor): hand off directly to
----      its FindRoute API with our entrance coords. Mapzeroth runs
----      Dijkstra over its curated travel graph (portals, flight paths,
----      hearthstones, mage teleports, class abilities, toys, items)
----      and presents the player with a multi-step route in its own
----      GPS navigator and route execution frame. Handles cross-
----      continent, faction filtering, attunement gating, holiday-only
----      portals -- the whole problem space. Free install; the legend
----      below recommends it specifically when no routing addon is
----      loaded.
----   4. TomTom installed (none of the above): drop a single waypoint
----      at the entrance with from = "RetroRuns" tag. Single-arrow
----      experience that works in-zone and silently hides cross-
----      continent (TomTom's hardcoded behavior).
----   5. None of the above: Blizzard native C_Map.SetUserWaypoint with
----      super-tracker arrow. Universal fallback. The Blizzard arrow
----      cheerfully points cross-continent, so this is actually
----      better than TomTom-direct for cross-continent guidance.
+--- Two-slot dispatch model (replaces the older single-cascade model):
 ---
---- The detection precedence here mirrors GetNavTier(). Tiers 1, 2,
---- and 3 fall under GetNavTier()'s "routing" return (AWP is a router
---- whether or not it has a backend installed -- AWP without a backend
---- still produces queue UI and pin presentation, just no multi-leg
---- planning); tiers 4 and 5 fall under "waypoint". Zygor wins ties
---- over Mapzeroth when both are installed and AWP is absent (see
---- GetNavTier rationale).
+---   ROUTING SLOT: AWP -> Zygor -> Mapzeroth (one wins per click).
+---     Fires when any of the three is installed. AWP orchestrates the
+---     others when it's installed alongside one; without AWP, the
+---     highest installed routing addon fires directly. AWP-alone (no
+---     Zygor/Mapzeroth backend) still fires the routing slot -- it
+---     drops a single pin in its queue UI rather than planning a
+---     multi-leg route, but it's still the addon the user chose for
+---     routing presentation. Zygor wins ties over Mapzeroth (premium
+---     product).
+---
+---   WAYPOINT SLOT: WUI -> TomTom -> (Blizzard fallback).
+---     Fires WUI or TomTom whenever installed -- these are deliberate
+---     user choices for in-world HUD or crazy-arrow presentation, and
+---     they layer cleanly on top of a routing addon's own UI (the
+---     user manages any pin redundancy themselves via the respective
+---     addon's settings). If neither WUI nor TomTom is installed AND
+---     the routing slot didn't fire either, fall back to Blizzard
+---     native C_Map.SetUserWaypoint so there's at least a super-
+---     tracker arrow. With a routing slot fire and no WUI/TomTom, the
+---     Blizzard fallback is suppressed -- the routing addon's own
+---     UI already handles destination presentation.
+---
+---   Practical examples:
+---     Zygor + WUI installed -> Zygor route + WUI overlay (both fire)
+---     Zygor alone           -> Zygor route only
+---     AWP + Mapzeroth + WUI -> AWP orchestrates Mapzeroth + WUI overlay
+---     AWP alone             -> AWP queue UI (with single pin) only
+---     WUI alone             -> WUI overlay only
+---     TomTom alone          -> TomTom crazy arrow only
+---     Nothing installed     -> Blizzard native fallback
 ---
 --- An earlier iteration tried to drive multi-step routing ourselves
 --- via FarstriderLib + a position-watching ticker. The map-graph edge
 --- cases (city vs zone mapID mismatches, attunement gating, dragon-
 --- riding altitude considerations, phasing) made it a tar pit. We
 --- chose to be a good ecosystem citizen instead: hand off to
---- dedicated routing addons when present, drop a plain waypoint when
---- not.
+--- dedicated routing and waypoint addons when present, drop a plain
+--- waypoint when not.
 ---
 --- Entrance accessor. Looks like a one-liner today, but kept as a named
 --- accessor so callers don't reach into raid struct internals -- if the
@@ -256,12 +292,12 @@ function RR:GetRaidEntrance(raid)
     return raid.entrance
 end
 
---- Returns one of "awp" / "zygor" / "mapzeroth" / "tomtom" /
---- "blizzard" / nil to indicate which branch ran. The UI uses this to
---- surface branch-specific feedback (e.g. a transient "waypoint set"
---- toast on the silent Blizzard-native path, since that branch
---- otherwise has no visible signal beyond the pin appearing on the
---- map).
+--- Returns a struct describing which slot(s) fired:
+---     { routing = "awp"|"zygor"|"mapzeroth"|nil,
+---       waypoint = "wui"|"tomtom"|"blizzard"|nil }
+--- The UI uses this to surface branch-specific feedback (e.g. the
+--- "waypoint set" toast for silent-at-click providers). Returns nil
+--- entirely on failure (no entrance data, no providers available).
 function RR:NavigateToEntrance(raid)
     local e = self:GetRaidEntrance(raid)
     if not raid or not e then
@@ -284,36 +320,33 @@ function RR:NavigateToEntrance(raid)
     self:CancelNavRoute()
 
     local title = ("RetroRuns: %s entrance"):format(raid.name or "raid")
+    local result = { planner = nil, arrow = nil, overlays = {} }
 
-    -- AWP tier: AzerothWaypoint is a meta-router that orchestrates one of
-    -- Farstrider / Mapzeroth / Zygor / direct, plus its own arrow and queue
-    -- UI. When AWP is installed, it's the user's deliberate choice for
-    -- routing presentation -- so we hand off to it directly via its
-    -- documented public route-request API rather than calling TomTom and
-    -- relying on AWP's hook to silently intercept us. Direct call surfaces
-    -- our route in AWP's queue with proper RetroRuns attribution (paired
-    -- with the RegisterExternalWaypointSource call at PLAYER_LOGIN), and
-    -- works regardless of whether the user has TomTom installed at all.
-    -- Goes ABOVE Zygor/Mapzeroth in the cascade because AWP would be
-    -- orchestrating those itself; calling them directly when AWP is
-    -- present would skip AWP's UI surface entirely. If RequestManualRoute
-    -- returns false (AWP declined to adopt -- e.g. routing disabled in
-    -- AWP settings), we fall through to the Zygor/Mapzeroth/TomTom/
-    -- Blizzard tiers as a safety net.
-    if _G.AzerothWaypointNS
-        and type(_G.AzerothWaypointNS.RequestManualRoute) == "function"
-    then
+    -- PLANNER ROLE --------------------------------------------------------
+    -- The multi-leg router. Zygor or Mapzeroth -- the addons that
+    -- actually plan a route. AWP is NOT a planner; it orchestrates
+    -- one of these (Zygor or Mapzeroth as a backend) plus its own
+    -- queue/overlay UI. So AWP only fires from this slot when it has
+    -- a backend to orchestrate. AWP-alone-without-backend falls
+    -- through to the overlay role below.
+    --
+    -- One planner wins. AWP-with-backend wins ties over the backend
+    -- alone (since the user explicitly installed AWP for the
+    -- orchestration UI). Zygor wins over Mapzeroth (premium product
+    -- assumption).
+    local hasBackend = self:IsZygorInstalled() or self:IsMapzerothInstalled()
+    if self:IsAWPInstalled() and hasBackend then
         local ok, routed = pcall(_G.AzerothWaypointNS.RequestManualRoute,
             e.mapID, e.x, e.y, title, nil, nil)
         if ok and routed then
-            self.state.activeRoute = { raid = raid, awpRoute = true }
-            return "awp"
+            self.state.activeRoute = self.state.activeRoute or { raid = raid }
+            self.state.activeRoute.raid = raid
+            self.state.activeRoute.awpRoute = true
+            result.planner = "awp"
         end
     end
 
-    if _G.ZygorGuidesViewer
-        and _G.ZygorGuidesViewer.Pointer
-        and _G.ZygorGuidesViewer.Pointer.SetWaypoint then
+    if not result.planner and self:IsZygorInstalled() then
         -- Mirrors the data table that ZGV.Pointer:SetWaypointByCommand-
         -- Line builds for /zygor goto -- exactly the same payload Zygor
         -- itself constructs for its own user-facing waypoint command.
@@ -329,11 +362,13 @@ function RR:NavigateToEntrance(raid)
             overworld   = true,
             showonedge  = true,
         }, true)
-        self.state.activeRoute = { raid = raid, zygorRoute = true }
-        return "zygor"
+        self.state.activeRoute = self.state.activeRoute or { raid = raid }
+        self.state.activeRoute.raid = raid
+        self.state.activeRoute.zygorRoute = true
+        result.planner = "zygor"
     end
 
-    if _G.Mapzeroth and _G.Mapzeroth.FindRoute then
+    if not result.planner and self:IsMapzerothInstalled() then
         _G.Mapzeroth:FindRoute("_WAYPOINT_DESTINATION", {
             mapID  = e.mapID,
             x      = e.x,
@@ -341,47 +376,140 @@ function RR:NavigateToEntrance(raid)
             name   = title,
             source = "retroruns",
         })
-        self.state.activeRoute = { raid = raid, mapzerothRoute = true }
-        return "mapzeroth"
+        self.state.activeRoute = self.state.activeRoute or { raid = raid }
+        self.state.activeRoute.raid = raid
+        self.state.activeRoute.mapzerothRoute = true
+        result.planner = "mapzeroth"
     end
 
-    if TomTom and TomTom.AddWaypoint then
-        local uid = TomTom:AddWaypoint(e.mapID, e.x, e.y, {
-            title  = title,
-            from   = "RetroRuns",
-            silent = true,
-            crazy  = true,
-        })
-        self.state.activeRoute = { raid = raid, tomtomWaypoint = uid }
-        return "tomtom"
-    end
+    -- ARROW ROLE ----------------------------------------------------------
+    -- The destination indicator that points the player toward the
+    -- target. TomTom's crazy arrow is the canonical implementation;
+    -- Blizzard's super-tracker is the universal fallback. ONE wins
+    -- per click. Suppressed when a planner is providing its own
+    -- arrow (Zygor's pointer, Mapzeroth's GPS frame) -- a redundant
+    -- arrow on top of an existing one is visual noise. AWP-with-
+    -- backend is also considered a planner here, but AWP itself
+    -- doesn't have an arrow -- it bridges to TomTom for that. So
+    -- when AWP fires the planner role and TomTom is installed,
+    -- TomTom is already showing the arrow via AWP's bridge; calling
+    -- TomTom:AddWaypoint here would duplicate it. We skip in that
+    -- case too.
+    --
+    -- Rule: arrow role fires when NO planner fired. If a planner is
+    -- handling navigation, the arrow role is suppressed.
+    if not result.planner then
+        if self:IsTomTomInstalled() then
+            local uid = TomTom:AddWaypoint(e.mapID, e.x, e.y, {
+                title  = title,
+                from   = "RetroRuns",
+                silent = true,
+                crazy  = true,
+            })
+            -- Belt-and-suspenders: explicitly call SetCrazyArrow after
+            -- the AddWaypoint. The AddWaypoint(crazy=true) flag is
+            -- documented to do this, and IsCrazyArrowEmpty() does
+            -- return false after the AddWaypoint -- so SOMETHING gets
+            -- set internally. But the arrow doesn't actually render in
+            -- some configurations (observed: a 12.0 retail user with a
+            -- clean TomTom config and the auto-set-crazy-arrow option
+            -- enabled still didn't see the arrow). TomTom's own /cway
+            -- slash command -- which is just self:SetCrazyArrow(
+            -- closestWaypoint, ...) -- DOES produce a visible arrow,
+            -- so mirroring that call explicitly here forces the
+            -- wayframe:Show() path that the AddWaypoint flag path is
+            -- somehow skipping. Defensive but cheap; no downside if
+            -- the AddWaypoint path already worked.
+            if uid and TomTom.SetCrazyArrow then
+                TomTom:SetCrazyArrow(uid, TomTom.profile and TomTom.profile.arrow
+                    and TomTom.profile.arrow.arrival or 0, title)
+            end
+            self.state.activeRoute = self.state.activeRoute or { raid = raid }
+            self.state.activeRoute.raid = raid
+            self.state.activeRoute.tomtomWaypoint = uid
+            result.arrow = "tomtom"
 
-    if C_Map and C_Map.SetUserWaypoint and UiMapPoint then
-        local point = UiMapPoint.CreateFromCoordinates(e.mapID, e.x, e.y)
-        C_Map.SetUserWaypoint(point)
-        if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-            C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+        elseif self:IsBlizzardWaypointAvailable() then
+            local point = UiMapPoint.CreateFromCoordinates(e.mapID, e.x, e.y)
+            C_Map.SetUserWaypoint(point)
+            if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+                C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+            end
+            self.state.activeRoute = self.state.activeRoute or { raid = raid }
+            self.state.activeRoute.raid = raid
+            self.state.activeRoute.blizzardWaypoint = true
+            result.arrow = "blizzard"
         end
-        self.state.activeRoute = { raid = raid, blizzardWaypoint = true }
-        return "blizzard"
     end
 
-    self:Print("No supported waypoint API available.")
-    return nil
+    -- OVERLAY ROLE --------------------------------------------------------
+    -- 3D world overlays. AWP and WUI are peers -- both can fire
+    -- independently when installed. AWP fires here ONLY when it
+    -- didn't already fire from the planner role above (i.e. when
+    -- there's no backend installed). AWP-with-backend already
+    -- presented its overlay as part of orchestrating; calling AWP
+    -- again here would be a redundant queue entry.
+    --
+    -- WUI always fires from this role when installed -- it's overlay-
+    -- only by design and doesn't participate in planner or arrow
+    -- roles.
+    if self:IsAWPInstalled() and result.planner ~= "awp" then
+        -- AWP without a backend: ask AWP to handle this as a manual
+        -- waypoint anyway. It'll queue + overlay, just won't multi-
+        -- leg plan. If we have no backend AND no TomTom AND no
+        -- Blizzard, this is the only thing fired -- AWP's overlay
+        -- alone, no arrow. The user effectively has a fancy 3D
+        -- marker at the destination.
+        local ok, routed = pcall(_G.AzerothWaypointNS.RequestManualRoute,
+            e.mapID, e.x, e.y, title, nil, nil)
+        if ok and routed then
+            self.state.activeRoute = self.state.activeRoute or { raid = raid }
+            self.state.activeRoute.raid = raid
+            self.state.activeRoute.awpOverlay = true
+            table.insert(result.overlays, "awp")
+        end
+    end
+
+    if self:IsWUIInstalled() then
+        -- WaypointUIAPI.Navigation.NewUserNavigation(name, mapID, x, y,
+        -- ...) -- WUI's public API. WUI's coord units are 0-100 (not
+        -- the 0-1 we use elsewhere), so we scale on the way in.
+        -- Confirmed via reading WUI's TomTom adapter which multiplies
+        -- by 100 before calling NewUserNavigation. WUI also registers
+        -- the waypoint with C_SuperTrack so the Blizzard minimap arrow
+        -- follows along -- which is fine; if our arrow role didn't
+        -- fire (because a planner is active and presenting its own
+        -- arrow), the super-tracker arrow may layer on top, but that's
+        -- WUI's deliberate behavior, not ours to fight.
+        _G.WaypointUIAPI.Navigation.NewUserNavigation(title, e.mapID, e.x * 100, e.y * 100)
+        self.state.activeRoute = self.state.activeRoute or { raid = raid }
+        self.state.activeRoute.raid = raid
+        self.state.activeRoute.wuiRoute = true
+        table.insert(result.overlays, "wui")
+    end
+
+    if not result.planner and not result.arrow and #result.overlays == 0 then
+        self:Print("No supported waypoint API available.")
+        return nil
+    end
+    return result
 end
 
 --- Drop a waypoint at a Covenant Sanctum's Mythic Nathrian Weaponsmith.
---- Mirrors NavigateToEntrance's cascade (AWP -> Zygor -> Mapzeroth ->
---- TomTom -> Blizzard) but reads target coords from raid.weaponVendors
---- keyed by covenantID (C_Covenants.GetActiveCovenantID return value).
+--- Mirrors NavigateToEntrance's three-role dispatch (planner / arrow /
+--- overlays) but reads target coords from raid.weaponVendors keyed by
+--- covenantID (C_Covenants.GetActiveCovenantID return value).
 ---
 --- Specific to Castle Nathria, where the Tmog detail pane surfaces a
 --- "Redeem at <covenant> vendor" hint when viewing a boss that drops
 --- weapon tokens. The Flight button next to that hint calls into here.
 ---
---- Returns the same tier string NavigateToEntrance does ("awp", "zygor",
---- "mapzeroth", "tomtom", "blizzard") or nil on failure -- caller uses
---- this for the same toast-popup branching.
+--- Returns the same struct shape NavigateToEntrance does:
+---     { planner = "awp"|"zygor"|"mapzeroth"|nil,
+---       arrow = "tomtom"|"blizzard"|nil,
+---       overlays = { ["awp"|"wui"]... } }
+--- or nil on failure -- caller uses this for the same toast-popup
+--- branching.
 function RR:NavigateToSanctum(raid, covID)
     if not raid or not raid.weaponVendors or not covID then
         self:Print("No sanctum vendor data available.")
@@ -401,71 +529,104 @@ function RR:NavigateToSanctum(raid, covID)
 
     local title = ("RetroRuns: %s (%s vendor)"):format(
         vendor.vendorName or "Sanctum", vendor.covenantName or "covenant")
+    local result = { planner = nil, arrow = nil, overlays = {} }
+    local mapID, x, y = vendor.vendorMapID, vendor.x, vendor.y
 
-    if _G.AzerothWaypointNS
-        and type(_G.AzerothWaypointNS.RequestManualRoute) == "function"
-    then
+    -- PLANNER ROLE --------------------------------------------------------
+    local hasBackend = self:IsZygorInstalled() or self:IsMapzerothInstalled()
+    if self:IsAWPInstalled() and hasBackend then
         local ok, routed = pcall(_G.AzerothWaypointNS.RequestManualRoute,
-            vendor.vendorMapID, vendor.x, vendor.y, title, nil, nil)
+            mapID, x, y, title, nil, nil)
         if ok and routed then
-            self.state.activeRoute = { raid = raid, awpRoute = true }
-            return "awp"
+            self.state.activeRoute = self.state.activeRoute or { raid = raid }
+            self.state.activeRoute.raid = raid
+            self.state.activeRoute.awpRoute = true
+            result.planner = "awp"
         end
     end
 
-    if _G.ZygorGuidesViewer
-        and _G.ZygorGuidesViewer.Pointer
-        and _G.ZygorGuidesViewer.Pointer.SetWaypoint then
-        _G.ZygorGuidesViewer.Pointer:SetWaypoint(vendor.vendorMapID,
-            vendor.x, vendor.y, {
-                findpath    = true,
-                type        = "manual",
-                cleartype   = true,
-                title       = title,
-                onminimap   = "always",
-                overworld   = true,
-                showonedge  = true,
-            }, true)
-        self.state.activeRoute = { raid = raid, zygorRoute = true }
-        return "zygor"
+    if not result.planner and self:IsZygorInstalled() then
+        _G.ZygorGuidesViewer.Pointer:SetWaypoint(mapID, x, y, {
+            findpath    = true,
+            type        = "manual",
+            cleartype   = true,
+            title       = title,
+            onminimap   = "always",
+            overworld   = true,
+            showonedge  = true,
+        }, true)
+        self.state.activeRoute = self.state.activeRoute or { raid = raid }
+        self.state.activeRoute.raid = raid
+        self.state.activeRoute.zygorRoute = true
+        result.planner = "zygor"
     end
 
-    if _G.Mapzeroth and _G.Mapzeroth.FindRoute then
+    if not result.planner and self:IsMapzerothInstalled() then
         _G.Mapzeroth:FindRoute("_WAYPOINT_DESTINATION", {
-            mapID  = vendor.vendorMapID,
-            x      = vendor.x,
-            y      = vendor.y,
-            name   = title,
-            source = "retroruns",
+            mapID  = mapID, x = x, y = y, name = title, source = "retroruns",
         })
-        self.state.activeRoute = { raid = raid, mapzerothRoute = true }
-        return "mapzeroth"
+        self.state.activeRoute = self.state.activeRoute or { raid = raid }
+        self.state.activeRoute.raid = raid
+        self.state.activeRoute.mapzerothRoute = true
+        result.planner = "mapzeroth"
     end
 
-    if TomTom and TomTom.AddWaypoint then
-        local uid = TomTom:AddWaypoint(vendor.vendorMapID, vendor.x, vendor.y, {
-            title  = title,
-            from   = "RetroRuns",
-            silent = true,
-            crazy  = true,
-        })
-        self.state.activeRoute = { raid = raid, tomtomWaypoint = uid }
-        return "tomtom"
-    end
+    -- ARROW ROLE ----------------------------------------------------------
+    if not result.planner then
+        if self:IsTomTomInstalled() then
+            local uid = TomTom:AddWaypoint(mapID, x, y, {
+                title  = title,
+                from   = "RetroRuns",
+                silent = true,
+                crazy  = true,
+            })
+            if uid and TomTom.SetCrazyArrow then
+                TomTom:SetCrazyArrow(uid, TomTom.profile and TomTom.profile.arrow
+                    and TomTom.profile.arrow.arrival or 0, title)
+            end
+            self.state.activeRoute = self.state.activeRoute or { raid = raid }
+            self.state.activeRoute.raid = raid
+            self.state.activeRoute.tomtomWaypoint = uid
+            result.arrow = "tomtom"
 
-    if C_Map and C_Map.SetUserWaypoint and UiMapPoint then
-        local point = UiMapPoint.CreateFromCoordinates(
-            vendor.vendorMapID, vendor.x, vendor.y)
-        C_Map.SetUserWaypoint(point)
-        if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-            C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+        elseif self:IsBlizzardWaypointAvailable() then
+            local point = UiMapPoint.CreateFromCoordinates(mapID, x, y)
+            C_Map.SetUserWaypoint(point)
+            if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+                C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+            end
+            self.state.activeRoute = self.state.activeRoute or { raid = raid }
+            self.state.activeRoute.raid = raid
+            self.state.activeRoute.blizzardWaypoint = true
+            result.arrow = "blizzard"
         end
-        self.state.activeRoute = { raid = raid, blizzardWaypoint = true }
-        return "blizzard"
     end
 
-    self:Print("No supported waypoint API available.")
-    return nil
+    -- OVERLAY ROLE --------------------------------------------------------
+    if self:IsAWPInstalled() and result.planner ~= "awp" then
+        local ok, routed = pcall(_G.AzerothWaypointNS.RequestManualRoute,
+            mapID, x, y, title, nil, nil)
+        if ok and routed then
+            self.state.activeRoute = self.state.activeRoute or { raid = raid }
+            self.state.activeRoute.raid = raid
+            self.state.activeRoute.awpOverlay = true
+            table.insert(result.overlays, "awp")
+        end
+    end
+
+    if self:IsWUIInstalled() then
+        _G.WaypointUIAPI.Navigation.NewUserNavigation(title, mapID, x * 100, y * 100)
+        self.state.activeRoute = self.state.activeRoute or { raid = raid }
+        self.state.activeRoute.raid = raid
+        self.state.activeRoute.wuiRoute = true
+        table.insert(result.overlays, "wui")
+    end
+
+    if not result.planner and not result.arrow and #result.overlays == 0 then
+        self:Print("No supported waypoint API available.")
+        return nil
+    end
+    return result
 end
 
 --- Cancel the active nav route, if any. Behavior depends on which
@@ -834,7 +995,26 @@ end
 function RR:InitializeDB()
     RetroRunsDB = RetroRunsDB or {}
     MergeDefaults(RetroRunsDB, self.defaults)
-    RetroRunsDB.showPanel = false
+
+    -- Apply launchMode to set the panel's load-time visibility. Three
+    -- modes, see defaults.launchMode for full rationale:
+    --   "hidden"    -> panel closed
+    --   "minimized" -> panel open, in minimized title-bar mode
+    --   "full"      -> panel open, fully expanded
+    -- Anything unrecognized falls through to "minimized" (the default).
+    -- This replaces the pre-1.10.2 unconditional force-to-hidden behavior;
+    -- existing users get "minimized" on first load post-upgrade via the
+    -- MergeDefaults call above seeding launchMode for the first time.
+    local launchMode = RetroRunsDB.launchMode
+    if launchMode == "hidden" then
+        RetroRunsDB.showPanel = false
+    elseif launchMode == "full" then
+        RetroRunsDB.showPanel = true
+        RetroRunsDB.minimized = false
+    else
+        RetroRunsDB.showPanel = true
+        RetroRunsDB.minimized = true
+    end
 
     -- Restore recorder session log from persistent storage so /reload
     -- mid-recording doesn't lose diagnostic context. Recorder state
@@ -1487,7 +1667,18 @@ function RR:LoadCurrentRaid()
     self:RestorePersistedSegments()
     self:RestorePersistedStrictActiveSeg()
 
+    -- Force the panel to fully-expanded mode (visible + un-minimized)
+    -- regardless of the user's launchMode setting. Clicking "Load" on
+    -- the in-raid popup is an explicit engagement signal -- the user
+    -- wants to see the navigation surface for this raid, not a tiny
+    -- title-bar or a hidden panel. SetSetting writes showPanel/minimized
+    -- to the saved variable; SetMinimized additionally triggers a full
+    -- UI.Update so body-content visibility flips synchronously rather
+    -- than waiting for the next heartbeat tick.
     self:SetSetting("showPanel", true)
+    if RR.UI and RR.UI.SetMinimized then
+        RR.UI.SetMinimized(false)
+    end
     self:RefreshAll()
 end
 
@@ -2739,11 +2930,8 @@ function RR:VerifyOneRaid(raid, opts, onDone)
             ok              = 0,   -- item had no findings
             fatal_nil       = 0,   -- source returned nil via every API we tried
             item_mismatch   = 0,   -- E2: sourceID's itemID disagrees with our item.id
-            bucket_mismatch = 0,   -- E5: sourceID lives in wrong difficulty slot per its itemLink's itemContext
             coverage_gap    = 0,   -- E6: EJ exposes more sourceIDs for this item-at-this-diff than we shipped
             missing_item    = 0,   -- E7: EJ exposes an item at this boss that's not in our data
-            e5_checked      = 0,   -- diagnostic: how many bucket slots actually got the E5 itemContext check
-            e5_skipped      = 0,   -- diagnostic: how many slots E5 skipped (no link, or unknown context)
             -- E4: source-duplication shape classification (descriptive,
             -- not error-severity -- binary and perdiff are both fine).
             shape_binary    = 0,   -- 1 unique source cloned across 2+ buckets (single-variant item)
@@ -2794,15 +2982,14 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                     -- resolved visualID for each. Fan out into per-
                     -- bucket checks first; shape/dedup checks happen
                     -- once we have all 4.
-                    local perBucket = {}  -- [diffID] = {src, apiItemID, visualID, apiNil, itemLink}
+                    local perBucket = {}  -- [diffID] = {src, apiItemID, visualID, apiNil}
                     for _, diffID in ipairs(DIFFS) do
                         local src = item.sources and item.sources[diffID]
                         if src then
                             local info = C_TransmogCollection.GetSourceInfo(src)
-                            local apiItemID, visualID, apiNil, itemLink
+                            local apiItemID, visualID, apiNil
                             if info then
                                 apiItemID = info.itemID
-                                itemLink  = info.itemLink
                             end
                             -- Resolve visualID via the proven
                             -- GetAppearanceInfoBySource path (the
@@ -2827,7 +3014,6 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                             perBucket[diffID] = {
                                 src = src, apiItemID = apiItemID,
                                 visualID = visualID, apiNil = apiNil,
-                                itemLink = itemLink,
                             }
                         end
                     end
@@ -2854,52 +3040,6 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                             table.insert(findings, ("[ERR] %s src=%d: API itemID=%d, expected %d"):format(
                                 DIFF_NAME[diffID], b.src, b.apiItemID, item.id))
                             T.item_mismatch = T.item_mismatch + 1
-                        end
-                    end
-
-                    -- [E5] Difficulty-bucket mismatch via itemContext.
-                    --
-                    -- Each EJ-generated item link carries an
-                    -- itemContext value (the 12th option in the
-                    -- hyperlink). The harvester uses this as its
-                    -- primary signal to decide which difficulty
-                    -- bucket a sourceID belongs to. So if a source
-                    -- in our `[16]=N` (Mythic) slot has an itemLink
-                    -- whose itemContext maps to LFR, that's a
-                    -- bucket-assignment bug -- the source is in
-                    -- the wrong slot.
-                    --
-                    -- Caveats:
-                    --  - Only checked when info.itemLink was non-nil
-                    --    AND ParseItemContextFromLink yielded a
-                    --    recognized context. Items with no link
-                    --    or context=0 (UNKNOWN) get skipped silently
-                    --    -- not actionable, just unverifiable.
-                    --  - Some items legitimately have ambiguous
-                    --    itemContexts (very old raids may use modID
-                    --    instead). Those skip silently rather than
-                    --    flag false positives.
-                    if RR.ParseItemContextFromLink and RR.ITEM_CONTEXT_TO_DIFFICULTY then
-                        for _, diffID in ipairs(DIFFS) do
-                            local b = perBucket[diffID]
-                            if b and b.itemLink then
-                                local ctx = RR.ParseItemContextFromLink(b.itemLink)
-                                local apiDiff = RR.ITEM_CONTEXT_TO_DIFFICULTY[ctx]
-                                if apiDiff then
-                                    T.e5_checked = T.e5_checked + 1
-                                    if apiDiff ~= diffID then
-                                        table.insert(findings, ("[ERR] %s src=%d: itemContext=%d says difficulty=%s, but lives in %s slot"):format(
-                                            DIFF_NAME[diffID], b.src, ctx,
-                                            DIFF_NAME[apiDiff] or tostring(apiDiff),
-                                            DIFF_NAME[diffID]))
-                                        T.bucket_mismatch = (T.bucket_mismatch or 0) + 1
-                                    end
-                                else
-                                    T.e5_skipped = T.e5_skipped + 1
-                                end
-                            elseif b then
-                                T.e5_skipped = T.e5_skipped + 1
-                            end
                         end
                     end
 
@@ -3184,7 +3324,7 @@ function RR:VerifyOneRaid(raid, opts, onDone)
             add("=== Coverage Pass (E6 / E7) ===")
             add("Driving the EJ at every difficulty and comparing exposed")
             add("sourceIDs + items against shipped data. This catches the")
-            add("harvester-skip class of bug that E1-E5 cannot see.")
+            add("harvester-skip class of bug that E1-E4 cannot see.")
             add("")
         end
 
@@ -3208,8 +3348,6 @@ function RR:VerifyOneRaid(raid, opts, onDone)
             add("Findings:")
             add(("  [ERR] API-nil buckets:         %d"):format(T.fatal_nil))
             add(("  [ERR] itemID mismatches:       %d"):format(T.item_mismatch))
-            add(("  [ERR] bucket-slot mismatches:  %d (E5 checked %d slot(s), skipped %d)"):format(
-                T.bucket_mismatch, T.e5_checked, T.e5_skipped))
             add(("  [ERR] coverage gaps (E6):      %d"):format(T.coverage_gap))
             add(("  [ERR] missing items (E7):      %d"):format(T.missing_item))
             add(("  [ERR] special kind mismatches: %d"):format(T.special_kind_mismatch))
@@ -3227,11 +3365,6 @@ function RR:VerifyOneRaid(raid, opts, onDone)
             add("        Edge of Night for Sanctum). Run /rr tmogverify")
             add("        again after warming by opening the tmog browser")
             add("        once; remaining WRNs need a look.")
-            add("  E5 'checked N, skipped M': checked = itemContext was")
-            add("        present and decoded; skipped = no itemLink or")
-            add("        unknown context. A clean bucket_mismatch=0 with")
-            add("        e5_checked=0 means E5 never had data to verify")
-            add("        against (binary-shape items can't trigger E5).")
             add("  E6 / E7 require driving the EJ at each difficulty;")
             add("        E6 catches items where EJ exposes sourceIDs we")
             add("        didn't ship (harvester missed sources). E7")
@@ -3538,6 +3671,141 @@ SlashCmdList["RETRORUNS"] = function(input)
             add("(empty)")
         end
         RR:ShowCopyWindow("RetroRuns -- Strict-activeSeg Picker State", table.concat(lines, "\n"))
+
+    elseif cmd == "skipsprobe" then
+        -- Diagnostic dump of every [i] button's hit rectangle in the
+        -- Skips window. Use when [i] clicks are inconsistent -- the
+        -- output shows the button's screen-space rect plus the glyph's
+        -- rendered rect so we can compare "where the icon LOOKS" vs
+        -- "where the click target IS". Skips window must be open.
+        --
+        -- Also reports GetMouseFocus() at probe time -- if invoked
+        -- while the cursor is hovering over an [i], the line tells us
+        -- which frame WoW thinks the mouse is over. Mismatch between
+        -- "I see [i] under my cursor" and "WoW says cursor is over X"
+        -- is the smoking gun for click-interception.
+        local lines = {}
+        local function add(s) lines[#lines + 1] = s end
+        add("== Skips [i] button hit-test geometry ==")
+        local w = _G.RetroRunsSkipsWindow
+        if not w then
+            add("(Skips window has never been opened -- nothing to probe)")
+        elseif not w:IsShown() then
+            add("(Skips window is closed -- open it first, then /rr skipsprobe)")
+        else
+            add(("Window: %.0fx%.0f at screen (%.0f, %.0f), scale=%.2f, level=%d, strata=%s"):format(
+                w:GetWidth() or 0, w:GetHeight() or 0,
+                w:GetLeft() or -1, w:GetBottom() or -1,
+                w:GetScale() or 0, w:GetFrameLevel() or 0,
+                tostring(w:GetFrameStrata())))
+
+            -- What's under the mouse RIGHT NOW. Hover over an [i] glyph
+            -- and run the command without un-hovering -- the captured
+            -- focus frame tells us what would actually receive a click.
+            local focus = GetMouseFocus and GetMouseFocus()
+            if focus then
+                local fname = focus.GetName and focus:GetName() or "(anonymous)"
+                local ftype = focus.GetObjectType and focus:GetObjectType() or "?"
+                local fparent = focus.GetParent and focus:GetParent()
+                local fparentName = fparent and fparent.GetName
+                    and fparent:GetName() or "(anonymous parent)"
+                add(("Mouse-over frame: type=%s name=%s parent=%s"):format(
+                    ftype, fname, fparentName))
+                if focus.GetFrameLevel then
+                    add(("    level=%d strata=%s"):format(
+                        focus:GetFrameLevel(),
+                        tostring(focus.GetFrameStrata and focus:GetFrameStrata() or "?")))
+                end
+            else
+                add("Mouse-over frame: nil (cursor not on any frame, or GetMouseFocus unavailable)")
+            end
+
+            -- Cursor position for sanity check
+            local mx, my = GetCursorPosition()
+            local effScale = UIParent:GetEffectiveScale()
+            if mx and my and effScale then
+                add(("Cursor screen pos: (%.0f, %.0f), UIParent effScale=%.2f"):format(
+                    mx / effScale, my / effScale, effScale))
+            end
+
+            -- Walk the pool. Skips row pool lives in UI.lua as a file-
+            -- local; we don't have a public accessor. Best alternative:
+            -- query all children of the window and pick out Button-type
+            -- ones that contain a child glyph FontString. This catches
+            -- the same widgets regardless of pool structure.
+            local children = { w:GetChildren() }
+            local btnCount = 0
+            for _, child in ipairs(children) do
+                if child.glyph and child.glyph.GetText then
+                    local txt = child.glyph:GetText() or ""
+                    if txt:find("%[ i %]") then
+                        btnCount = btnCount + 1
+                        local shown = child:IsShown() and "SHOWN" or "HIDDEN"
+                        local bx, by = child:GetLeft(), child:GetBottom()
+                        local bw, bh = child:GetWidth(), child:GetHeight()
+                        local gx, gy = child.glyph:GetLeft(), child.glyph:GetBottom()
+                        local gw, gh = child.glyph:GetWidth(), child.glyph:GetHeight()
+                        local lvl = child:GetFrameLevel() or 0
+                        local mouseEnabled = child:IsMouseEnabled() and "Y" or "N"
+                        local hasClick = child:GetScript("OnClick") ~= nil and "Y" or "N"
+                        local hitL, hitR, hitT, hitB = child:GetHitRectInsets()
+                        local hasHitArea = child.hitArea and "Y" or "N"
+                        local effScale = child:GetEffectiveScale() or 1
+                        add(("[%d] %s lvl=%d mouse=%s click=%s hitArea=%s effScale=%.2f"):format(
+                            btnCount, shown, lvl, mouseEnabled, hasClick, hasHitArea, effScale))
+                        add(("    btn rect:   x=%.0f y=%.0f w=%.0f h=%.0f insets=(L%d R%d T%d B%d)"):format(
+                            bx or -1, by or -1, bw or 0, bh or 0,
+                            hitL or 0, hitR or 0, hitT or 0, hitB or 0))
+                        add(("    glyph rect: x=%.0f y=%.0f w=%.0f h=%.0f  text=%q"):format(
+                            gx or -1, gy or -1, gw or 0, gh or 0, txt))
+                    end
+                end
+            end
+            add(("Total [i] buttons found: %d"):format(btnCount))
+        end
+        RR:ShowCopyWindow("RetroRuns -- Skips [i] Probe", table.concat(lines, "\n"))
+
+    elseif cmd == "idleprobe" then
+        -- Diagnostic dump of every active idle-list FontString row.
+        -- For each row, reports: the raw text content (so we can see
+        -- color codes and texture specs verbatim), GetStringHeight
+        -- (the rendered text height after wrapping), GetHeight (the
+        -- FontString's measured frame height), the FontString's
+        -- TOPLEFT-from-panel offset (to see actual vertical
+        -- placement), and GetWidth / SetWidth state.
+        --
+        -- Use when row spacing looks wrong (a row sits unusually far
+        -- below its predecessor) -- a row whose StringHeight exceeds
+        -- the typical line height by ~fontSize is wrapping internally,
+        -- and the next row anchors below the wrapped block's bottom.
+        local panel = _G.RetroRunsUI
+        if not panel or not panel.idleListLines then
+            RR:Print("idleprobe: panel or idle list not available")
+            return
+        end
+        local lines = {}
+        local function add(s) lines[#lines + 1] = s end
+        add(("== Idle list probe (%d active rows) =="):format(#panel.idleListLines))
+        local panelTop = panel:GetTop() or 0
+        for i, fs in ipairs(panel.idleListLines) do
+            local text = fs:GetText() or ""
+            -- Truncate very long texture-bearing strings so the probe
+            -- output stays readable. Keep the first 80 chars.
+            local displayText = text
+            if #displayText > 80 then
+                displayText = displayText:sub(1, 80) .. "..."
+            end
+            local sh = fs:GetStringHeight() or 0
+            local h  = fs:GetHeight() or 0
+            local w  = fs:GetWidth() or 0
+            local top = fs:GetTop() or panelTop
+            local topFromPanel = panelTop - top
+            add(("[%d] yTop=%.1f  H=%.1f  StrH=%.1f  W=%.0f"):format(
+                i, topFromPanel, h, sh, w))
+            add(("    text=%q"):format(displayText))
+        end
+        RR:ShowCopyWindow("RetroRuns -- Idle List Probe",
+            table.concat(lines, "\n"))
 
     elseif cmd == "zonelog" then
         -- Diagnostic dump of the in-memory zone-change log. Used to
@@ -4584,15 +4852,16 @@ SlashCmdList["RETRORUNS"] = function(input)
         --                               half-resolved. Rae'shalare is a
         --                               known instance (bonusID variants
         --                               ATT stores differently than modID).
-        --   [E5] Difficulty-bucket mismatch via itemContext. Each sourceID's
-        --        live itemLink carries an itemContext (the 12th option in
-        --        the hyperlink) that names which difficulty it was
-        --        generated at. If the source in our `[16]=N` (Mythic) slot
-        --        has an itemLink whose itemContext maps to LFR, the source
-        --        is in the wrong bucket. Added post-v1.0.1 LFR/Mythic-swap
-        --        incident. Only fires when the data is per-difficulty
-        --        shape -- binary-shape items have identical sourceIDs
-        --        across all buckets and trigger no mismatch by design.
+        --   [E5] Retired (was: difficulty-bucket mismatch via itemContext).
+        --        The check depended on GetSourceInfo(src).itemLink, which
+        --        is nil in tmogverify's runtime context across every shipped
+        --        raid (audited 2026-05-15). Removed in v1.10.x rather than
+        --        kept as silent no-op. Patch-boundary bucket-assignment
+        --        regressions are now caught by the offline
+        --        wago_loot_audit.py pipeline against db2; in-game, E3
+        --        visualID shape outliers catch the same class of bug
+        --        indirectly when a misbucketed variant has a different
+        --        visual.
         --
         -- Coverage checks (require driving the EJ at each difficulty;
         -- async pass that runs after the per-row metadata checks):
@@ -4602,7 +4871,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         --        fast path returned one sourceID, the EJ-sweep would
         --        have caught 4, the gate skipped the sweep, we shipped
         --        binary. Without this check, tmogverify on binary-shape
-        --        data is clean but uninformative -- E1-E5 all pass on
+        --        data is clean but uninformative -- E1-E4 all pass on
         --        valid binary data even when the items SHOULD be per-
         --        difficulty.
         --   [E7] Missing item: EJ exposes an item at this boss that's not
@@ -4759,7 +5028,6 @@ SlashCmdList["RETRORUNS"] = function(input)
                         -- Build compact summary for this raid.
                         local errCount = (T.fatal_nil or 0)
                                        + (T.item_mismatch or 0)
-                                       + (T.bucket_mismatch or 0)
                                        + (T.coverage_gap or 0)
                                        + (T.missing_item or 0)
                                        + (T.special_kind_mismatch or 0)
@@ -4778,12 +5046,10 @@ SlashCmdList["RETRORUNS"] = function(input)
                         reportAdd(("  Items: %d (binary=%d, per-diff=%d, partial=%d)"):format(
                             totalItems, T.shape_binary or 0, T.shape_perdiff or 0, T.shape_partial or 0))
                         reportAdd(("  Findings: %d ERR / %d WRN"):format(errCount, wrnCount))
-                        reportAdd(("    fatal_nil=%d, item_mismatch=%d, bucket_mismatch=%d"):format(
-                            T.fatal_nil or 0, T.item_mismatch or 0, T.bucket_mismatch or 0))
+                        reportAdd(("    fatal_nil=%d, item_mismatch=%d"):format(
+                            T.fatal_nil or 0, T.item_mismatch or 0))
                         reportAdd(("    coverage_gap=%d (E6), missing_item=%d (E7)"):format(
                             T.coverage_gap or 0, T.missing_item or 0))
-                        reportAdd(("  E5: checked=%d, skipped=%d"):format(
-                            T.e5_checked or 0, T.e5_skipped or 0))
                         reportAdd(("  STATUS: %s"):format(status))
                         reportAdd("")
 

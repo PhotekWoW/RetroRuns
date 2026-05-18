@@ -80,19 +80,16 @@ RetroRuns_Data[1520] = {
         tokenSources = {},
     },
 
-    -- Raid skip quests: "The Emerald Nightmare: Piercing the Veil"
-    -- (one quest per difficulty). Skip target: jump from Nythendra
-    -- straight to Cenarius, bypassing the parallel middle wing
-    -- (Il'gynoth, Elerethe, Ursoc, Dragons of Nightmare). Talk to
-    -- Malfurion Stormrage in the Nightmare Iris area to take the
-    -- skip; Malfurion has to still be present (i.e. Cenarius and
-    -- Xavius can't already be dead this lockout). Account-wide --
-    -- earning the unlock on any character lights it up for every
-    -- character in the warband.
     skipQuests = {
         normal = 44283,
         heroic = 44284,
         mythic = 44285,
+    },
+
+    -- Surfaced to players via the Skips window's per-row info button.
+    skipTrigger = {
+        questName = "The Emerald Nightmare: Piercing the Veil",
+        details   = "Kill ^Nythendra^, then talk to ^Malfurion Stormrage^ to skip to ^Cenarius^.",
     },
 
     -- Glory meta-achievement covering both Emerald Nightmare and The

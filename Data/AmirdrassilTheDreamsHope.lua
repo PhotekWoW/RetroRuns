@@ -131,6 +131,12 @@ RetroRuns_Data[2549] = {
         mythic = 78602,
     },
 
+    -- Surfaced to players via the Skips window's per-row info button.
+    skipTrigger = {
+        questName = "Amirdrassil, the Dream's Hope: Up in Smoke",
+        details   = "After killing ^Gnarlroot^ and ^Igira^, you can channel the seed to open the bridge to ^Smolderon^.",
+    },
+
     -- Glory meta-achievement for this raid. Completing all 9 per-boss
     -- criteria below awards the Shadow Dusk Dreamsaber mount.
     gloryMeta = {

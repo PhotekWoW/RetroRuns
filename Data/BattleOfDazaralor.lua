@@ -68,20 +68,14 @@ RetroRuns_Data[2070] = {
         tokenSources = {},
     },
 
-    -- BfD's skip mechanic. Talking to Otoye (Horde) or Ensign Roberts
-    -- (Alliance) at the raid entrance offers a "skip directly to Lady
-    -- Jaina Proudmoore" option when the player has earned the
-    -- achievement "Mythic: Lady Jaina Proudmoore" (13314). The
-    -- achievement is account-wide -- earning it on any character
-    -- unlocks the skip on every character.
-    --
-    -- BfD is the only raid in the game with this pattern: the skip
-    -- is Mythic-only and gated by an achievement rather than by a
-    -- per-difficulty quest flag like later raids use. There is no
-    -- Normal or Heroic skip variant -- the Skips browser shows N/H
-    -- cells as "not applicable" for this raid.
     skipAchievement = {
         mythic = 13314,
+    },
+
+    -- Surfaced to players via the Skips window's per-row info button.
+    skipTrigger = {
+        achievementName = "Mythic: Lady Jaina Proudmoore",
+        details         = "After zoning in, talk with ^Ensign Roberts^ to skip straight to ^Lady Jaina Proudmoore^.",
     },
 
     -- Glory meta-achievement for this raid. Completing all 9 per-boss

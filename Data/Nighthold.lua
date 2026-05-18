@@ -71,21 +71,16 @@ RetroRuns_Data[1530] = {
         tokenSources = {},
     },
 
-    -- Raid skip quest: "The Nighthold: Talisman of the Shal'dorei"
-    -- (one quest per difficulty). Skip target: jump from the raid
-    -- entrance straight to Grand Magistrix Elisande, bypassing bosses
-    -- 1-8 entirely. Earn it by collecting 4 Echoes of Time from
-    -- Elisande on the matching difficulty (kill Elisande four times)
-    -- and turning in to First Arcanist Thalyssra. The reward is the
-    -- Talisman of the Shal'dorei neck, which lets the bearer use the
-    -- skip teleporter at the entrance on subsequent runs. Higher
-    -- difficulty completions unlock lower difficulties automatically
-    -- (Mythic clear lights up Normal + Heroic + Mythic). Quest added
-    -- in patch 7.1.0 (2016-10-25), one patch before Nighthold opened.
     skipQuests = {
         normal = 45381,
         heroic = 45382,
         mythic = 45383,
+    },
+
+    -- Surfaced to players via the Skips window's per-row info button.
+    skipTrigger = {
+        questName = "The Nighthold: Talisman of the Shal'dorei",
+        details   = "After the first trash pack of scorpions, there will be a door opened to the right at the end of the hallway. Inside the room, you will find a teleporter that will allow you to teleport to:\n  - Palace Entrance (^Spellblade Aluriel^)\n  - Palace Courtyard (^Krosus^)\n  - Nightspire (^Elisande^)",
     },
 
     -- Glory meta-achievement covering both Emerald Nightmare and The
