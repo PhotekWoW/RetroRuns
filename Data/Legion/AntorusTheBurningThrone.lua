@@ -2,72 +2,6 @@
 -- RetroRuns Data -- Antorus, the Burning Throne
 -- Legion, Patch 7.3.2  |  instanceID: 1712  |  journalInstanceID: 946
 -------------------------------------------------------------------------------
--- Antorus, the Burning Throne is the fifth and final raid of Legion
--- (7.3.2, opened November 28 2017), set at the heart of the Burning
--- Legion's homeworld of Argus. The raid is entered from the Antoran
--- Wastes via a crack beneath the artillery platform near Felfire
--- Armory. Eleven boss encounters culminating in Argus the Unmaker,
--- the corrupted world soul of Argus.
---
--- Topology:
---   Garothi Worldbreaker      -- gates the rest of the raid
---   Then four siblings, any order:
---     Felhounds of Sargeras
---     Antoran High Command
---     Portal Keeper Hasabel
---     Eonar the Life-Binder
---   Then linear:
---     Imonar the Soulhunter
---     Kin'garoth
---   Then two siblings, any order:
---     Varimathras
---     The Coven of Shivarra
---   Then linear finale:
---     Aggramar
---     Argus the Unmaker
---
--- Tier: Antorus drops Tier 21 ("Genesis" set), distributed across
--- six bosses by slot -- Antoran High Command: Back, Eonar the
--- Life-Binder: Chest, Imonar the Soulhunter: Legs, Kin'garoth:
--- Hands, The Coven of Shivarra: Shoulders, Aggramar: Head. Same
--- Legion tier distribution model as Emerald Nightmare, Nighthold,
--- and Tomb of Sargeras: tier pieces drop directly as class-
--- restricted items rather than via cross-class tokens, so
--- `tierSets.tokenSources` is empty and each tier row carries a
--- `classes = { N }` field. Tier 21 is a 6-piece set (the second
--- six-piece tier in the addon after Tomb of Sargeras's T20).
--- Garothi Worldbreaker, Felhounds of Sargeras, Portal Keeper
--- Hasabel, Varimathras, and Argus the Unmaker have no tier piece.
---
--- Special loot:
---   * Antoran Charhound mount (item 152816) -- very rare drop
---     from Felhounds of Sargeras, all difficulties including LFR.
---   * Shackled Ur'zul mount (item 152789) -- guaranteed drop
---     from Mythic Argus the Unmaker only.
---
--- Skip mechanics: Antorus is the first raid in the addon with TWO
--- independent skips (most prior raids have one). Both are standard
--- per-difficulty quest-flag cascades; turn-in happens inside the
--- instance.
---   * Dark Passage -- skip to Imonar the Soulhunter. Earned by
---     collecting 4 Runes of Passage (item 152902) from Imonar at
---     the matching difficulty (so: defeat Imonar 4x).
---     Normal 49032, Heroic 49075, Mythic 49076.
---   * The Heart of Argus -- skip to Aggramar. Earned by defeating
---     Aggramar 4x at the matching difficulty.
---     Normal 49133, Heroic 49134, Mythic 49135.
--- Quest IDs verified from the per-quest Wowhead pages (the raid
--- guide page lists only the Normal IDs; the per-difficulty matrix
--- comes from a community-compiled per-quest list cross-referenced
--- against the individual quest entries).
---
--- These are encoded as a two-element skipQuests array (multi-chain
--- shape). The Skips window renders Antorus on a single row with two
--- glyphs side-by-side in each difficulty cell (left = Imonar / Dark
--- Passage, right = Aggramar / Heart of Argus). Single-chain raids
--- continue to use the legacy flat-object skipQuests shape; both are
--- normalized by Core's NormalizeSkipChains before consumption.
--------------------------------------------------------------------------------
 
 RetroRuns_Data = RetroRuns_Data or {}
 
@@ -77,8 +11,6 @@ RetroRuns_Data[1712] = {
     name              = "Antorus, the Burning Throne",
     expansion         = "Legion",
     patch             = "7.3.2",
-
-    useStrictActiveSegPicker = true,
 
     -- Entrance is in Antoran Wastes (mapID 885) on Argus, at the
     -- crack beneath the artillery platform near Felfire Armory --
@@ -461,9 +393,9 @@ RetroRuns_Data[1712] = {
             requires  = { },
             segments  = {
                 {
+                    when    = { mapID = 909 },
                     mapID   = 909,
                     kind    = "path",
-                    subZone = "Light's Breach",
                     note    = "After zoning in, follow the linear path to find the first boss, ^Garothi Worldbreaker^.",
                     points  = {
                         { 0.902, 0.633 },
@@ -481,9 +413,9 @@ RetroRuns_Data[1712] = {
             requires  = { 1 },
             segments  = {
                 {
+                    when    = { mapID = 909 },
                     mapID   = 909,
                     kind    = "path",
-                    subZone = "Edge of Discord",
                     note    = "After defeating ^Garothi Worldbreaker^, continue straight ahead on the path to ^Felhounds of Sargeras^.",
                     points  = {
                         { 0.706, 0.636 },
@@ -495,16 +427,16 @@ RetroRuns_Data[1712] = {
             },
         },
         {
-            step      = 2,
-            priority  = 2,
+            step      = 3,
+            priority  = 1,
             bossIndex = 3,
             title     = "Antoran High Command",
-            requires  = { 1 },
+            requires  = { 2 },
             segments  = {
                 {
+                    when    = { mapID = 909 },
                     mapID   = 909,
                     kind    = "path",
-                    subZone = "Den of the Devourers",
                     note    = "After defeating ^Felhounds of Sargeras^, backtrack towards the closest intersection and keep to the left. Kill a trash pack to spawn a ^Lightforged Teleportation Pad^. Use it to cross the chasm, then proceed ahead to ride an elevator up.",
                     points  = {
                         { 0.431, 0.569 },
@@ -517,9 +449,9 @@ RetroRuns_Data[1712] = {
                     },
                 },
                 {
+                    when    = { mapID = 910 },
                     mapID   = 910,
                     kind    = "path",
-                    subZone = "Gaze of the Legion",
                     note    = "From the top of the elevator, proceed ahead up the ramp to find the ^Antoran High Command^.",
                     points  = {
                         { 0.680, 0.759 },
@@ -531,16 +463,17 @@ RetroRuns_Data[1712] = {
             },
         },
         {
-            step      = 2,
-            priority  = 3,
+            step      = 4,
+            priority  = 1,
             bossIndex = 4,
             title     = "Portal Keeper Hasabel",
-            requires  = { 1 },
+            requires  = { 3 },
             segments  = {
                 {
-                    mapID   = 910,
-                    kind    = "path",
-                    subZone = "Gaze of the Legion",
+                    when         = { mapID = 910 },
+                    mapID        = 910,
+                    kind         = "path",
+                    endpointKind = "skull",
                     note    = "After killing ^Antoran High Command^, kill yourself by jumping down the elevator hole to save time getting to the next boss.",
                     points  = {
                         { 0.436, 0.491 },
@@ -551,6 +484,7 @@ RetroRuns_Data[1712] = {
                     },
                 },
                 {
+                    when    = { mapID = 909 },
                     mapID   = 909,
                     kind    = "path",
                     note    = "After spawning, cross the chasm using the ^Lightforged Teleport Pod^. Stay to the left when you reach the intersection, and follow the path to interact with a ^Portal^.",
@@ -563,9 +497,9 @@ RetroRuns_Data[1712] = {
                     },
                 },
                 {
+                    when    = { mapID = 911 },
                     mapID   = 911,
                     kind    = "path",
-                    subZone = "Halls of the Boundless Reach",
                     note    = "After taking the teleport, follow the path to reach ^Portal Keeper Hasabel^.",
                     points  = {
                         { 0.763, 0.510 },
@@ -578,16 +512,16 @@ RetroRuns_Data[1712] = {
             },
         },
         {
-            step               = 2,
-            priority           = 4,
-            bossIndex          = 5,
-            title              = "Eonar the Life-Binder",
-            requires           = { 1 },
-            segments           = {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 5,
+            title     = "Eonar the Life-Binder",
+            requires  = { 4 },
+            segments  = {
                 {
+                    when    = { mapID = 911 },
                     mapID   = 911,
                     kind    = "path",
-                    subZone = "Halls of the Boundless Reach",
                     note    = "After defeating ^Portal Keeper Hasabel^, leave the boss room and stay to the right to find the map exit labeled ^Elunaria^. Click the portal.",
                     points  = {
                         { 0.467, 0.511 },
@@ -597,9 +531,9 @@ RetroRuns_Data[1712] = {
                     },
                 },
                 {
+                    when    = { mapID = 912 },
                     mapID   = 912,
                     kind    = "path",
-                    subZone = "Elunaria",
                     note    = "After taking the portal, follow the long, linear path towards the next map exit labeled ^Elarian Sanctuary^.",
                     points  = {
                         { 0.603, 0.853 },
@@ -609,9 +543,9 @@ RetroRuns_Data[1712] = {
                     },
                 },
                 {
+                    when    = { mapID = 913 },
                     mapID   = 913,
                     kind    = "path",
-                    subZone = "Elarian Sanctuary",
                     note    = "Once you enter the ^Elarian Sanctuary^, approach the ^Essence of Eonar^ (blue floating orb), and interact with it to begin the encounter for ^Eonar the Life-Binder^.",
                     points  = {
                         { 0.731, 0.594 },
@@ -624,16 +558,16 @@ RetroRuns_Data[1712] = {
             },
         },
         {
-            step      = 3,
+            step      = 6,
             priority  = 1,
             bossIndex = 6,
             title     = "Imonar the Soulhunter",
-            requires  = { 2, 3, 4, 5 },
+            requires  = { 5 },
             segments  = {
                 {
+                    when    = { mapID = 913, subZone = "Elarian Sanctuary" },
                     mapID   = 913,
                     kind    = "poi",
-                    subZone = "Elarian Sanctuary",
                     poiSize = 35,
                     note    = "Talk to the ^Essence of Eonar^ to be sent back to Antorus.",
                     points  = {
@@ -641,6 +575,7 @@ RetroRuns_Data[1712] = {
                     },
                 },
                 {
+                    when    = { mapID = 909 },
                     mapID   = 909,
                     kind    = "path",
                     note    = "Back on Antorus, proceed forward and click on one of the ^Lightforged Warframes^ to be flown to the next area.",
@@ -650,20 +585,9 @@ RetroRuns_Data[1712] = {
                     },
                 },
                 {
+                    when    = { mapID = 909, subZone = "Broken Cliffs" },
                     mapID   = 909,
                     kind    = "path",
-                    subZone = "Broken Cliffs",
-                    -- advanceOn = subZone: seg 2 (the warframe-fly seg) and
-                    -- this seg share mapID 909 -- the mapID-only strict-
-                    -- activeSeg advancer fires once on the 913->909 transit
-                    -- (when the player clicks the warframe back to Antorus),
-                    -- bumping activeSeg 1->2, but never advances 2->3 because
-                    -- mapID doesn't change again on landing. The subZone DOES
-                    -- change ("" -> "Broken Cliffs") on landing, so we gate
-                    -- this seg's reveal on that subZone-change event.
-                    -- Idempotency via IsSegmentCompleted handles the subZone
-                    -- flicker the engine emits during/after the flight.
-                    advanceOn = { kind = "subZone", subZone = "Broken Cliffs" },
                     note    = "After landing, move forward and click the ^Lightforged Beacon^ to be teleported to ^The Exhaust^.",
                     points  = {
                         { 0.564, 0.648 },
@@ -671,31 +595,25 @@ RetroRuns_Data[1712] = {
                     },
                 },
                 {
-                    -- Post-teleport seg. The Lightforged Beacon click takes
-                    -- the player from mapID 909 (Broken Cliffs) to mapID 914
-                    -- (The Exhaust). Without this seg, AdvanceStrictActiveSeg
-                    -- has nothing to advance to on the 909->914 transit -- the
-                    -- picker stays parked on seg 3's "click the Beacon" note
-                    -- even though the player has already teleported.
+                    when    = { mapID = 914 },
                     mapID   = 914,
                     kind    = "path",
-                    subZone = "The Exhaust",
                     note    = "After landing in ^The Exhaust^, move forward to start the encounter with ^Imonar the Soulhunter^.",
                     points  = {},
                 },
             },
         },
         {
-            step      = 4,
+            step      = 7,
             priority  = 1,
             bossIndex = 7,
             title     = "Kin'garoth",
             requires  = { 6 },
             segments  = {
                 {
+                    when    = { mapID = 914 },
                     mapID   = 914,
                     kind    = "path",
-                    subZone = "The Exhaust",
                     note    = "After killing ^Imonar^, make your way down the long path to find the next boss, ^Kin'garoth^.",
                     points  = {
                         { 0.200, 0.500 },
@@ -705,16 +623,16 @@ RetroRuns_Data[1712] = {
             },
         },
         {
-            step      = 5,
+            step      = 8,
             priority  = 1,
             bossIndex = 8,
             title     = "Varimathras",
             requires  = { 7 },
             segments  = {
                 {
+                    when    = { mapID = 914 },
                     mapID   = 914,
                     kind    = "path",
-                    subZone = "The Hallowed Felworks",
                     note    = "After killing ^Kin'garoth^, click the ^Lightforged Beacon^ behind you to be teleported to the next area. Select ^The Burning Throne^ from the dialog options.",
                     points  = {
                         { 0.778, 0.495 },
@@ -722,9 +640,9 @@ RetroRuns_Data[1712] = {
                     },
                 },
                 {
+                    when    = { mapID = 915 },
                     mapID   = 915,
                     kind    = "path",
-                    subZone = "The Burning Throne",
                     note    = "After arriving in ^The Burning Throne^, proceed down the path and kill ^Tarneth^ to open the door. Jump in the hole behind the next trash pack.",
                     points  = {
                         { 0.857, 0.529 },
@@ -736,9 +654,9 @@ RetroRuns_Data[1712] = {
                     },
                 },
                 {
+                    when    = { mapID = 916 },
                     mapID   = 916,
                     kind    = "path",
-                    subZone = "Temple of Anguish",
                     note    = "After jumping in the hole, you will be in ^Chamber of Anguish^. Proceed to the next room to find ^Varimathras^.",
                     points  = {
                         { 0.692, 0.682 },
@@ -749,16 +667,16 @@ RetroRuns_Data[1712] = {
             },
         },
         {
-            step      = 5,
-            priority  = 2,
+            step      = 9,
+            priority  = 1,
             bossIndex = 9,
             title     = "The Coven of Shivarra",
-            requires  = { 7 },
+            requires  = { 8 },
             segments  = {
                 {
+                    when    = { mapID = 916 },
                     mapID   = 916,
                     kind    = "path",
-                    subZone = "Chamber of Anguish",
                     note    = "After defeating ^Varimathras^, take the ascending stairwell out of the room towards ^Temple of Anguish^.",
                     points  = {
                         { 0.516, 0.770 },
@@ -769,9 +687,9 @@ RetroRuns_Data[1712] = {
                     },
                 },
                 {
+                    when    = { mapID = 915 },
                     mapID   = 915,
                     kind    = "path",
-                    subZone = "Temple of Anguish",
                     note    = "After reaching the top of the stairs and opening a door, you will encounter ^The Coven of Shivarra^.",
                     points  = {
                         { 0.321, 0.452 },
@@ -781,16 +699,16 @@ RetroRuns_Data[1712] = {
             },
         },
         {
-            step      = 6,
+            step      = 10,
             priority  = 1,
             bossIndex = 10,
             title     = "Aggramar",
-            requires  = { 8, 9 },
+            requires  = { 9 },
             segments  = {
                 {
+                    when    = { mapID = 915 },
                     mapID   = 915,
                     kind    = "path",
-                    subZone = "Temple of Anguish",
                     note    = "After defeating ^The Coven of Shivarra^, take some stairs out of the area and make your way west towards the map exit labeled ^The World Soul^.",
                     points  = {
                         { 0.322, 0.563 },
@@ -801,9 +719,9 @@ RetroRuns_Data[1712] = {
                     },
                 },
                 {
+                    when    = { mapID = 917 },
                     mapID   = 917,
                     kind    = "path",
-                    subZone = "The World Soul",
                     note    = "Proceed ahead to engage ^Aggramar^.",
                     points  = {
                         { 0.718, 0.539 },
@@ -817,16 +735,16 @@ RetroRuns_Data[1712] = {
             },
         },
         {
-            step      = 7,
+            step      = 11,
             priority  = 1,
             bossIndex = 11,
             title     = "Argus the Unmaker",
             requires  = { 10 },
             segments  = {
                 {
+                    when    = { mapID = 917 },
                     mapID   = 917,
                     kind    = "poi",
-                    subZone = "The World Soul",
                     poiSize = 35,
                     note    = "After defeating ^Aggramar^, speak to ^Magni Bronzebeard^ and tell him you're ready.",
                     points  = {
@@ -834,9 +752,9 @@ RetroRuns_Data[1712] = {
                     },
                 },
                 {
+                    when    = { mapID = 918 },
                     mapID    = 918,
                     kind     = "poi",
-                    subZone  = "Seat of the Pantheon",
                     noMarker = true,
                     note     = "You have reached the final boss, ^Argus the Unmaker^. Kill him!",
                     points   = {

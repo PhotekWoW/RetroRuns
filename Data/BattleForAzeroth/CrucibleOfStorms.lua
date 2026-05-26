@@ -2,16 +2,6 @@
 -- RetroRuns Data -- Crucible of Storms
 -- Battle for Azeroth, Patch 8.1.5  |  instanceID: 2096  |  journalInstanceID: 1177
 -------------------------------------------------------------------------------
--- Crucible of Storms is the second raid of Battle for Azeroth's Tides of
--- Vengeance content cycle (8.1.5), located beneath the Shrine of the Storm
--- in Stormsong Valley, Kul Tiras. Two bosses: The Restless Cabal (a paired
--- encounter against Zaxasj the Speaker and Fa'thuul the Feared) and
--- Uu'nat, Harbinger of the Void.
---
--- No class tier sets. Patch 8.1.5 predated the return of proper tier sets
--- (which came with 9.2 / Sepulcher). No skip mechanic either -- the
--- account-wide raid skip system arrived with Shadowlands.
--------------------------------------------------------------------------------
 
 RetroRuns_Data = RetroRuns_Data or {}
 
@@ -102,11 +92,10 @@ RetroRuns_Data[2096] = {
             requires  = {},
             segments  = {
                 {
-                    mapID   = 1345,
-                    kind    = "path",
-                    subZone = "Shrine of Shadows",
-                    note    = "After zoning in, follow the path straight ahead to find and kill ^The Restless Cabal^.",
-                    points  = {
+                    when   = { mapID = 1345 },
+                    kind   = "path",
+                    note   = "After zoning in, follow the path straight ahead to find and kill ^The Restless Cabal^.",
+                    points = {
                         { 0.656, 0.799 },
                         { 0.520, 0.408 },
                     },
@@ -123,11 +112,10 @@ RetroRuns_Data[2096] = {
             requires  = { 1 },
             segments  = {
                 {
-                    mapID   = 1346,
-                    kind    = "path",
-                    subZone = "Tendril of Corruption",
-                    note    = "After defeating ^The Restless Cabal^, there will be a cutscene where you will fall into a deep hole, landing in ^Tendril of Corruption^. Follow the path all the way back to reach ^Uu'nat^.",
-                    points  = {
+                    when   = { mapID = 1346 },
+                    kind   = "path",
+                    note   = "After defeating ^The Restless Cabal^, there will be a cutscene where you will fall into a deep hole, landing in ^Tendril of Corruption^. Follow the path all the way back to reach ^Uu'nat^.",
+                    points = {
                         { 0.822, 0.332 },
                         { 0.776, 0.312 },
                         { 0.725, 0.318 },

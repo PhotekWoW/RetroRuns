@@ -2,27 +2,6 @@
 -- RetroRuns Data -- Amirdrassil, the Dream's Hope
 -- Dragonflight, Patch 10.2  |  instanceID: 2549  |  journalInstanceID: 1207
 -------------------------------------------------------------------------------
--- Amirdrassil is the third Dragonflight raid (10.2, Guardians of the Dream).
--- 9 bosses set in the regrowing World Tree on the Emerald Dream's slopes.
--- Two structural notes worth understanding when reading this file:
---
--- (1) The lockout has a branching shape, similar to Aberrus. After Igira,
---     two pairs unlock in parallel: Volcoross + Larodar on one path,
---     Council of Dreams + Nymue on the other. Both pairs must complete
---     before Smolderon's wing opens. From there it's a linear chain
---     (Smolderon -> Tindral -> Fyrakk). routing[] flattens this into a
---     single recommended order; players who diverge will see "next step
---     still locked" guidance from the addon even though their lockout
---     would permit the kill.
---
--- (2) Fyrakk's headline drops are a Mythic-only legendary mount (Reins
---     of Anu'relos, the only non-drake mount that uses the Dragonriding
---     system) and a rare-drop Drakewatcher Manuscript that re-skins the
---     Renewed Proto-Drake with Fyrakk's pre-Shadowflame appearance.
---     A second manuscript (Embodiment of Shadowflame) was the AOTC reward
---     for Heroic Fyrakk during Dragonflight; it was made unobtainable at
---     the launch of The War Within and is not surfaced in this file.
--------------------------------------------------------------------------------
 
 RetroRuns_Data = RetroRuns_Data or {}
 
@@ -115,16 +94,7 @@ RetroRuns_Data[2549] = {
         },
     },
 
-    -- Raid skip quests. Account-wide unlock per Patch 11.0.5; check via
-    -- C_QuestLog.IsQuestFlaggedCompletedOnAccount. Per-character
-    -- IsQuestFlaggedCompleted does NOT reflect the unlock for alts that
-    -- did not personally complete the quest.
-    --
-    -- Only the questID for the difficulty actually completed returns
-    -- true; the in-game cascade that lets you use the skip on lower
-    -- difficulties happens at the skip NPC, NOT by backfilling the
-    -- per-difficulty quest flags. To detect "skip is available at any
-    -- difficulty", OR across all three IDs.
+    -- Raid skip quests (account-wide unlock).
     skipQuests = {
         normal = 78600,
         heroic = 78601,
@@ -137,8 +107,7 @@ RetroRuns_Data[2549] = {
         details   = "After killing ^Gnarlroot^ and ^Igira^, you can channel the seed to open the bridge to ^Smolderon^.",
     },
 
-    -- Glory meta-achievement for this raid. Completing all 9 per-boss
-    -- criteria below awards the Shadow Dusk Dreamsaber mount.
+    -- Glory of the Raider meta -- 9 criteria, awards the Shadow Dusk Dreamsaber mount.
     gloryMeta = {
         id   = 19349,
         name = "Glory of the Dream Raider",
@@ -240,7 +209,7 @@ RetroRuns_Data[2549] = {
                 { id=210206, slot="Wrist",            name="Verdant Sanctuary Bands",         sources={ [17]=192616, [14]=191965, [15]=192617, [16]=192618 } },
                 { id=210205, slot="Wrist",            name="Vigilant Protector's Bracers",    sources={ [17]=193217, [14]=191964, [15]=193218, [16]=193219 } },
             },
-            soloTip = "Bosses must die around the same time, so bring them down at the same pace. When you get polymorphed, run over 3 green circles, walk under Urctos, and press 2 on your action bar to return to normal.",
+            soloTip = "Bosses must die around the same time. When you get polymorphed, run over green circles then press the button on your action bar to return to normal.",
         },
         {
             index              = 5,
@@ -434,9 +403,8 @@ RetroRuns_Data[2549] = {
             requires  = {},
             segments  = {
                 {
-                    mapID   = 2232,
+                    when    = { mapID = 2232 },
                     kind    = "path",
-                    subZone = "Wellspring Atrium",
                     note    = "After zoning in, follow the path to ^Gnarlroot^. Clear the trash around him to start the encounter.",
                     points  = {
                         { 0.507, 0.904 },
@@ -462,9 +430,8 @@ RetroRuns_Data[2549] = {
             requires  = { 1 },
             segments  = {
                 {
-                    mapID   = 2232,
+                    when    = { mapID = 2232 },
                     kind    = "path",
-                    subZone = "Wellspring Atrium",
                     note    = "After killing ^Gnarlroot^, continue forward and clear the trash pack to start the encounter with ^Igira the Cruel^.",
                     points  = {
                         { 0.507, 0.368 },
@@ -487,19 +454,18 @@ RetroRuns_Data[2549] = {
             requires  = { 1, 2 },
             segments  = {
                 {
-                    mapID   = 2232,
-                    kind    = "path",
-                    subZone = "Wellspring Atrium",
-                    note    = "After killing ^Igira^, take the left exit to ^The Scorched Hall^.",
-                    points  = {
-                        { 0.486, 0.257 },
-                        { 0.440, 0.211 },
+                    when            = { mapID = 2232 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    note            = "After killing ^Igira^, take the left exit to ^The Scorched Hall^.",
+                    points          = {
+                        { 0.430, 0.197 },
                     },
                 },
                 {
-                    mapID   = 2244,
+                    when    = { mapID = 2244 },
                     kind    = "path",
-                    subZone = "Pit of Volcoross",
                     note    = "Follow the path to the boss area, and clear the trash to spawn ^Volcoross^.",
                     points  = {
                         { 0.768, 0.878 },
@@ -524,9 +490,8 @@ RetroRuns_Data[2549] = {
             requires  = { 1, 2, 3 },
             segments  = {
                 {
-                    mapID   = 2244,
+                    when    = { mapID = 2244 },
                     kind    = "path",
-                    subZone = "The Charred Arbor",
                     note    = "After killing ^Volcoross^, continue down the path behind him. Clear trash to start the encounter with ^Larodar, Keeper of the Flame^.",
                     points  = {
                         { 0.528, 0.556 },
@@ -552,12 +517,22 @@ RetroRuns_Data[2549] = {
             requires  = { 1, 2 },
             segments  = {
                 {
-                    mapID       = 2244,
-                    kind        = "teleport",
-                    subZone     = "The Charred Arbor",
-                    destination = "Wellspring Atrium",
-                    note        = "After killing ^Larodar^, interact with the ^Seed of Life^ to unlock a portal at the back of the room. Walk through the portal to arrive back at the ^Wellspring Atrium^.",
-                    points      = {
+                    when     = { mapID = 2244 },
+                    kind     = "poi",
+                    note     = "After killing ^Larodar^, interact with the ^Seed of Life^ to unlock a portal at the back of the room. Walk through the portal to arrive back at the ^Wellspring Atrium^.",
+                    mapLabel = "Seed of Life",
+                    mapLabelPos = "above",
+                    completionCheck = true,
+                    points   = {
+                        { 0.345, 0.289 },
+                    },
+                },
+                {
+                    when    = { mapID = 2244 },
+                    kind    = "path",
+                    triggeredBy = { yell = { npc = "Tyrande Whisperwind", match = "Amirdrassil will be defended" } },
+                    note    = "After killing ^Larodar^, interact with the ^Seed of Life^ to unlock a portal at the back of the room. Walk through the portal to arrive back at the ^Wellspring Atrium^.",
+                    points  = {
                         { 0.345, 0.289 },
                         { 0.323, 0.331 },
                         { 0.281, 0.330 },
@@ -565,19 +540,18 @@ RetroRuns_Data[2549] = {
                     },
                 },
                 {
-                    mapID   = 2232,
-                    kind    = "path",
-                    subZone = "Wellspring Atrium",
-                    note    = "After taking the teleport, make your way for the right-most exit labeled ^Verdant Terrace^.",
-                    points  = {
-                        { 0.422, 0.263 },
-                        { 0.584, 0.218 },
+                    when            = { mapID = 2232 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    note            = "After taking the teleport, make your way for the right-most exit labeled ^Verdant Terrace^.",
+                    points          = {
+                        { 0.584, 0.197 },
                     },
                 },
                 {
-                    mapID   = 2240,
+                    when    = { mapID = 2240 },
                     kind    = "path",
-                    subZone = "Sylvan Conservatory",
                     note    = "Follow the path all the way back to meet the ^Council of Dreams^. Click each of the illusions to start the fight.",
                     points  = {
                         { 0.187, 0.939 },
@@ -602,9 +576,8 @@ RetroRuns_Data[2549] = {
             requires  = { 1, 2, 4 },
             segments  = {
                 {
-                    mapID   = 2240,
+                    when    = { mapID = 2240 },
                     kind    = "path",
-                    subZone = "The Dream's Tapestry",
                     note    = "After killing ^Council of Dreams^, follow the path behind them to reach ^Nymue, Weaver of the Cycle^.",
                     points  = {
                         { 0.420, 0.579 },
@@ -633,30 +606,43 @@ RetroRuns_Data[2549] = {
             requires  = { 1, 2, 3, 4, 5, 6 },
             segments  = {
                 {
-                    mapID       = 2240,
-                    kind        = "teleport",
-                    subZone     = "The Dream's Tapestry",
-                    destination = "Wellspring Atrium",
-                    note        = "After killing ^Nymue^, walk up the stairs behind her to interact with the ^Seed of Life^. This opens a portal at the back of the room. Walk through the portal to return back to ^Wellspring Atrium^.",
-                    points      = {
+                    when     = { mapID = 2240 },
+                    kind     = "poi",
+                    poiSize  = 35,
+                    note     = "After killing ^Nymue^, walk up the stairs behind her to interact with the ^Seed of Life^. This opens a portal at the back of the room. Walk through the portal to return back to ^Wellspring Atrium^.",
+                    mapLabel = "Seed of Life",
+                    mapLabelPos = "right",
+                    completionCheck = true,
+                    points   = {
+                        { 0.643, 0.277 },
+                    },
+                },
+                {
+                    when    = { mapID = 2240 },
+                    kind    = "path",
+                    triggeredBy = { yell = { npc = "Merithra", match = "Seed of Life, we are one step closer" } },
+                    note    = "After killing ^Nymue^, walk up the stairs behind her to interact with the ^Seed of Life^. This opens a portal at the back of the room. Walk through the portal to return back to ^Wellspring Atrium^.",
+                    points  = {
                         { 0.643, 0.277 },
                         { 0.667, 0.238 },
                     },
                 },
                 {
-                    mapID   = 2232,
-                    kind    = "path",
-                    subZone = "Wellspring Atrium",
-                    note    = "From ^Wellspring Atrium^, take the final remaining exit labeled ^Throne of the Firelord^. Click on the ^Formation Seed^ to construct a bridge to the next area.",
-                    points  = {
-                        { 0.594, 0.272 },
-                        { 0.508, 0.148 },
+                    when            = { mapID = 2232 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    note            = "From ^Wellspring Atrium^, take the final remaining exit labeled ^Throne of the Firelord^. Click on the ^Formation Seed^ to construct a bridge to the next area.",
+                    mapLabel        = "Formation Seed",
+                    mapLabelPos     = "right",
+                    mapLabelPulse   = true,
+                    points          = {
+                        { 0.507, 0.130 },
                     },
                 },
                 {
-                    mapID   = 2233,
+                    when    = { mapID = 2233 },
                     kind    = "path",
-                    subZone = "Throne of the Firelord",
                     note    = "As you cross the bridge, dodge fire so you don't get thrown over the edge. At the end of the bridge, you will find ^Smolderon^.",
                     points  = {
                         { 0.501, 0.941 },
@@ -680,20 +666,21 @@ RetroRuns_Data[2549] = {
             requires  = { 1, 2, 3, 4, 5, 6, 7 },
             segments  = {
                 {
-                    mapID       = 2233,
-                    kind        = "teleport",
-                    subZone     = "Throne of the Firelord",
-                    destination = "The Blessed Boughs",
-                    note        = "After killing ^Smolderon^, talk to the dragon to be flown to ^Tindral Sageswift, Seer of the Flame^.",
-                    points      = {
-                        { 0.504, 0.298 },
-                        { 0.458, 0.338 },
+                    when            = { mapID = 2233 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    note            = "After killing ^Smolderon^, talk to the dragon to be flown to ^Tindral Sageswift, Seer of the Flame^.",
+                    mapLabel        = "Verdant Dreambreaker",
+                    mapLabelPos     = "above",
+                    mapLabelPulse   = true,
+                    points          = {
+                        { 0.469, 0.326 },
                     },
                 },
                 {
-                    mapID   = 2237,
+                    when    = { mapID = 2237 },
                     kind    = "path",
-                    subZone = "The Blessed Boughs",
                     note    = "Approach ^Tindral^ to trigger the encounter.",
                 },
             },
@@ -715,23 +702,17 @@ RetroRuns_Data[2549] = {
             requires  = { 1, 2, 3, 4, 5, 6, 7, 8 },
             segments  = {
                 {
-                    mapID   = 2234,
+                    when    = { mapID = 2234 },
                     kind    = "poi",
-                    subZone = "The Blessed Boughs",
+                    poiSize = 78,
                     note    = "After killing ^Tindral^, mount up and fly into the fire-colored portal in the sky (marked with a |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t). This will teleport you to ^Heart of Amirdrassil^.",
                     points  = {
                         { 0.565, 0.656 },
                     },
                 },
                 {
-                    mapID   = 2238,
-                    kind    = "path",
-                    subZone = "Heart of Amirdrassil",
+                    when    = { mapID = 2238 },
                     note    = "After the teleport, you should be standing across from ^Fyrakk^. Approach him to start the encounter.",
-                    points  = {
-                        { 0.256, 0.537 },
-                        { 0.537, 0.537 },
-                    },
                 },
             },
         },

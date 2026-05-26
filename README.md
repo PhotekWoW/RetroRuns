@@ -6,29 +6,29 @@ Zone into an old raid and RetroRuns lays out a styled panel with the next boss, 
 
 Currently supports:
 
-**Legion**
-* The Emerald Nightmare (7.0.3)
-* Trial of Valor (7.1)
-* The Nighthold (7.1.5)
-* Tomb of Sargeras (7.2)
-* Antorus, the Burning Throne (7.3)
-
-**Battle for Azeroth**
-* Uldir (8.0)
-* Battle of Dazar'alor (8.1)
-* Crucible of Storms (8.1.5)
-* The Eternal Palace (8.2)
-* Ny'alotha, the Waking City (8.3)
+**Dragonflight**
+* Amirdrassil, the Dream's Hope (10.2)
+* Aberrus, the Shadowed Crucible (10.1)
+* Vault of the Incarnates (10.0)
 
 **Shadowlands**
-* Castle Nathria (9.0)
-* Sanctum of Domination (9.1)
 * Sepulcher of the First Ones (9.2)
+* Sanctum of Domination (9.1)
+* Castle Nathria (9.0)
 
-**Dragonflight**
-* Vault of the Incarnates (10.0)
-* Aberrus, the Shadowed Crucible (10.1)
-* Amirdrassil, the Dream's Hope (10.2)
+**Battle for Azeroth**
+* Ny'alotha, the Waking City (8.3)
+* The Eternal Palace (8.2)
+* Crucible of Storms (8.1.5)
+* Battle of Dazar'alor (8.1)
+* Uldir (8.0)
+
+**Legion**
+* Antorus, the Burning Throne (7.3)
+* Tomb of Sargeras (7.2)
+* The Nighthold (7.1.5)
+* Trial of Valor (7.1)
+* The Emerald Nightmare (7.0.3)
 
 ## Installation
 
@@ -47,8 +47,6 @@ Zone into any supported raid. You'll get a prompt asking whether to load navigat
 * Per-item transmog collection state
 
 The minimap button (a small icon on the edge of your minimap) toggles the panel. Right-click it for settings. Drag it to reposition around the minimap edge.
-
-Click any boss name in the panel to open the transmog collection browser for that boss — shows every loot item with per-difficulty collection state (green = collected, gold = have the appearance via another item, gray = not collected).
 
 ## Features
 
@@ -95,16 +93,16 @@ Main commands — type in chat:
 | Command | What it does |
 |---|---|
 | `/rr` | Toggle the main panel |
-| `/rr help` | Show the command list |
-| `/rr tmog` | Open the standalone transmog browser |
+| `/rr show` / `/rr hide` | Show or hide the main panel |
 | `/rr status` | Print current raid, step, and kill state to chat |
-| `/rr test` | Enter test mode (cycle bosses without actually killing them) |
-| `/rr next` | In test mode, advance to the next boss |
-| `/rr real` | Exit test mode |
+| `/rr tmog` | Open the transmog browser |
+| `/rr skips` | Print account-wide raid skip status |
+| `/rr settings` | Open the settings window |
+| `/rr help` | Show the command list |
 
 ## Status
 
-Version **1.10.2**
+Version **1.11.0**
 
 ## Reporting bugs / requesting features
 
@@ -123,10 +121,6 @@ When reporting a bug, the following info helps:
 * Your class, covenant (if applicable), and the raid + difficulty you were in
 * What you expected vs what actually happened
 * Screenshot if visual
-
-## Suggesting a raid
-
-Additional raid support is planned. Suggestions are welcome via the CurseForge comments or a GitHub issue, with preference given to raids that have complex layouts or optional kill orders — those are where the addon earns its keep.
 
 ## Credits
 

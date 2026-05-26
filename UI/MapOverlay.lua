@@ -13,6 +13,9 @@ local MAX_LINES    = 80
 local MAX_ICONS    = 30
 local MAX_DOTS     = 80
 local MAX_LABELS   = 30
+-- Highlight rings: a few per map at most (one per seg opting in via
+-- highlightCircle). 10 is comfortable headroom for any single render.
+local MAX_RINGS    = 10
 -- Direction-of-travel chevrons placed along route polylines at a fixed
 -- pixel stride. Sized for the tightest current stride (35px) across the
 -- largest current routes -- multi-segment renders like Eranog produce
@@ -28,6 +31,7 @@ overlay.lines    = {}
 overlay.icons    = {}
 overlay.dots     = {}
 overlay.labels   = {}
+overlay.rings    = {}
 overlay.chevrons = {}
 
 local function MakeLine(p)
@@ -82,10 +86,30 @@ local function MakeChevron(p)
     return tx
 end
 
+-- Highlight ring. Uses Media/RingCircle.tga -- a 64x64 anti-aliased
+-- white ring on transparent background, band radius 24..28 in texture
+-- space (so the ring sits at ~75-88% of the texture extent and scales
+-- predictably with SetSize). Authored white so SetVertexColor's red
+-- channel cleanly drives the displayed red intensity for the pulse.
+--
+-- Drawn at OVERLAY so the ring sits above native Blizzard map icons
+-- (exit arrows, NPC dots) -- the whole point of the ring is to draw
+-- the eye to one of those native icons, so we want to surround it
+-- visually rather than be painted over.
+local function MakeRing(p)
+    local tx = p:CreateTexture(nil, "OVERLAY")
+    tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\RingCircle")
+    tx:SetVertexColor(1.0, 0.0, 0.0, 1.0)
+    tx:SetSize(42, 42)
+    tx:Hide()
+    return tx
+end
+
 for i = 1, MAX_LINES    do overlay.lines[i]    = MakeLine(overlay)    end
 for i = 1, MAX_ICONS    do overlay.icons[i]    = MakeIcon(overlay)    end
 for i = 1, MAX_DOTS     do overlay.dots[i]     = MakeDot(overlay)     end
 for i = 1, MAX_LABELS   do overlay.labels[i]   = MakeLabel(overlay)   end
+for i = 1, MAX_RINGS    do overlay.rings[i]    = MakeRing(overlay)    end
 for i = 1, MAX_CHEVRONS do overlay.chevrons[i] = MakeChevron(overlay) end
 
 -------------------------------------------------------------------------------
@@ -133,7 +157,28 @@ end
 -- visually fine since there's no path leading into it.
 -------------------------------------------------------------------------------
 
-local function PlaceEndMarker(self, icon, pts, dest, W, H)
+local function PlaceEndMarker(self, icon, pts, dest, W, H, endpointKind)
+    -- endpointKind opt-in: data segs can set seg.endpointKind to swap
+    -- the default end-triangle for a semantic alternative. Currently
+    -- supports "skull" (for jump-off-edge-to-die routing tricks --
+    -- Tomb Maiden's Tears step, and any future raid using a suicide
+    -- shortcut). Default (nil / unrecognized) renders the standard
+    -- directional triangle.
+    if endpointKind == "skull" then
+        -- WoW's built-in raid-target skull marker -- universally
+        -- recognized as "death" without needing a custom asset.
+        icon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_8")
+        icon:SetVertexColor(1.0, 1.0, 1.0, 1.0)
+        icon:SetSize(24, 24)
+        icon:SetDrawLayer("OVERLAY")
+        icon:ClearAllPoints()
+        icon:SetPoint("CENTER", self, "TOPLEFT",
+            dest[1] * W, -dest[2] * H)
+        -- Skulls aren't directional; reset any prior rotation.
+        icon:SetRotation(0)
+        return
+    end
+
     icon:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\EndTriangle")
     -- Cyan fill and pink border are baked into the asset (vertex tint
     -- is global to the texture so we can't tint fill and border
@@ -285,7 +330,15 @@ function overlay:HideAll()
     for _, v in ipairs(self.lines)    do v:Hide() end
     for _, v in ipairs(self.icons)    do v:Hide() end
     for _, v in ipairs(self.dots)     do v:Hide() end
-    for _, v in ipairs(self.labels)   do v:Hide() end
+    for _, v in ipairs(self.labels)   do
+        v:Hide()
+        -- Clear completionCheck pulse state so a recycled label
+        -- doesn't keep flashing the next time the labels pool is
+        -- reused on a non-flashing seg.
+        v.flashState = nil
+        v.flashBase  = nil
+    end
+    for _, v in ipairs(self.rings)    do v:Hide() end
     for _, v in ipairs(self.chevrons) do v:Hide() end
 end
 
@@ -293,13 +346,59 @@ function overlay:DrawSegmentsForMap(mapID)
     local step = RR.state.activeStep
     if not step then return end
 
-    local segments = RR:GetRelevantSegmentsForMap(step, mapID)
+    local segments = RR:PickLineSegs(step, mapID)
     if not segments or #segments == 0 then return end
 
     local W, H      = self:GetWidth(), self:GetHeight()
     local lineIdx    = 1
     local iconIdx    = 1
+    local labelIdx   = 1
+    local ringIdx    = 1
     local chevronIdx = 1
+
+    -- Place a text label adjacent to an endpoint icon. Used for
+    -- opt-in per-seg map labels (seg.mapLabel = "Console", etc.).
+    -- pos selects one of 9 placements: 4 cardinal (above/below/left/
+    -- right), 4 diagonal (upper-left/upper-right/lower-left/lower-
+    -- right), or "middle" (centered ON the coord with no gap).
+    -- Default "below" preserves the original behavior.
+    -- iconHalf = half the icon's dimension in pixels (icons are
+    -- square), used to compute the gap between icon and label.
+    --
+    -- Cardinal placements align the label's far edge with the
+    -- icon's center axis. Diagonal placements anchor the label's
+    -- inner corner to the icon's outer corner, giving the label a
+    -- 45-degree offset clear of both axes -- useful when adjacent
+    -- segments leave both vertical and horizontal space around
+    -- the icon partially obstructed. "middle" centers the label on
+    -- the coord itself; paired with noMarker=true it lets the label
+    -- sit directly over a fixed reference point (e.g. an interactable
+    -- located underneath a boss icon, where any cardinal offset
+    -- would push the label off the object).
+    local function PlaceLabel(label, pos, nx, ny, iconHalf)
+        label:ClearAllPoints()
+        local gap = iconHalf + 2
+        local cx, cy = nx * W, -ny * H
+        if pos == "above" then
+            label:SetPoint("BOTTOM", self, "TOPLEFT", cx, cy + gap)
+        elseif pos == "left" then
+            label:SetPoint("RIGHT", self, "TOPLEFT", cx - gap, cy)
+        elseif pos == "right" then
+            label:SetPoint("LEFT", self, "TOPLEFT", cx + gap, cy)
+        elseif pos == "upper-left" then
+            label:SetPoint("BOTTOMRIGHT", self, "TOPLEFT", cx - gap, cy + gap)
+        elseif pos == "upper-right" then
+            label:SetPoint("BOTTOMLEFT", self, "TOPLEFT", cx + gap, cy + gap)
+        elseif pos == "lower-left" then
+            label:SetPoint("TOPRIGHT", self, "TOPLEFT", cx - gap, cy - gap)
+        elseif pos == "lower-right" then
+            label:SetPoint("TOPLEFT", self, "TOPLEFT", cx + gap, cy - gap)
+        elseif pos == "middle" then
+            label:SetPoint("CENTER", self, "TOPLEFT", cx, cy)
+        else  -- "below" or nil
+            label:SetPoint("TOP", self, "TOPLEFT", cx, cy - gap)
+        end
+    end
 
     for _, seg in ipairs(segments) do
         local pts = seg.points
@@ -341,15 +440,90 @@ function overlay:DrawSegmentsForMap(mapID)
                     -- state predictable.
                     poiIcon:SetRotation(0)
                     poiIcon:SetDrawLayer("ARTWORK")
-                    -- Default 78 matches Fyrakk in Amirdrassil. Older raids
-                    -- on smaller sub-zone maps (Ny'alotha) can override via
-                    -- per-segment poiSize for proportional rendering.
-                    local size = seg.poiSize or 78
+                    -- Default 35 is the standard sub-zone-map size used
+                    -- across the shipped raids. Outliers on world-scale
+                    -- maps (Fyrakk's portal on Amirdrassil) override
+                    -- via per-segment poiSize for proportional rendering.
+                    local size = seg.poiSize or 35
                     poiIcon:SetSize(size, size)
                     poiIcon:Show()
                     iconIdx = iconIdx + 1
                 end
                 end -- end "if not seg.noMarker"
+
+                -- Optional opt-in map label. POI uses the star's
+                -- half-size for the gap so the label sits adjacent
+                -- to the star regardless of poiSize. Segments whose
+                -- icon sits close to adjacent path lines or other
+                -- icons can choose a non-default placement via
+                -- seg.mapLabelPos = "above" | "below" | "left" |
+                -- "right" | "upper-left" | "upper-right" |
+                -- "lower-left" | "lower-right" | "middle". Default
+                -- is "below". "middle" centers the label on the
+                -- coord with no gap, useful for noMarker segs where
+                -- the coord is the visual anchor.
+                --
+                -- seg.completionCheck = true opts the label into a
+                -- two-state visual: while the seg is incomplete the
+                -- text breathes in the same yellow pulse as the
+                -- encounter [!] glyph; once the seg completes, the
+                -- text goes static gray with a green checkmark
+                -- appended. The pulse retint happens on a 0.1s
+                -- ticker at the bottom of this file; the static
+                -- complete state is set once here and persists
+                -- until the next label-pool recycle.
+                if seg.mapLabel then
+                    local label = self.labels[labelIdx]
+                    if label then
+                        local mark = seg.navPoint or pts[#pts]
+                        local poiHalf = (seg.poiSize or 35) / 2
+                        PlaceLabel(label, seg.mapLabelPos, mark[1], mark[2], poiHalf)
+
+                        if seg.completionCheck then
+                            -- Locate segIndex by identity in step.segments
+                            -- so we can query the engine's completion state.
+                            local segIndex
+                            for i, s in ipairs(step.segments) do
+                                if s == seg then segIndex = i; break end
+                            end
+                            local isComplete = false
+                            if segIndex then
+                                local stepIndex = step.step or step.priority or 0
+                                isComplete = segIndex < RR:GetProgress(stepIndex)
+                            end
+
+                            if isComplete then
+                                label:SetText("|cff9d9d9d" .. seg.mapLabel
+                                    .. "|r |TInterface\\RaidFrame\\ReadyCheck-Ready:14|t")
+                                label.flashState = "completed"
+                            else
+                                local color = (RR.GetLabelPulseColor and RR:GetLabelPulseColor())
+                                    or "|cffffffff"
+                                label:SetText(color .. seg.mapLabel .. "|r")
+                                label.flashState = "pulsing"
+                                label.flashBase  = seg.mapLabel
+                            end
+                        elseif seg.mapLabelPulse then
+                            -- Always-pulse mode: no completion tracking, no
+                            -- gray/checkmark end-state. Used when the seg
+                            -- represents an interactable with no detectable
+                            -- completion signal (e.g. clicking an object
+                            -- that fires no event Claude can hook). The
+                            -- label breathes yellow on the same shared phase
+                            -- counter as completionCheck pulses.
+                            local color = (RR.GetLabelPulseColor and RR:GetLabelPulseColor())
+                                or "|cffffffff"
+                            label:SetText(color .. seg.mapLabel .. "|r")
+                            label.flashState = "pulsing"
+                            label.flashBase  = seg.mapLabel
+                        else
+                            label:SetText(seg.mapLabel)
+                        end
+
+                        label:Show()
+                        labelIdx = labelIdx + 1
+                    end
+                end
             else
 
             -- Start dot: always show so the player knows where the segment begins
@@ -389,12 +563,47 @@ function overlay:DrawSegmentsForMap(mapID)
             local dest    = seg.navPoint or pts[#pts]
             local endIcon = self.icons[iconIdx]
             if endIcon then
-                PlaceEndMarker(self, endIcon, pts, dest, W, H)
+                PlaceEndMarker(self, endIcon, pts, dest, W, H, seg.endpointKind)
                 endIcon:Show()
                 iconIdx = iconIdx + 1
             end
 
+            -- Optional opt-in map label. Path end-triangle is 24x24
+            -- (see PlaceEndMarker); half-height = 12 for the gap.
+            -- Accepts the same seg.mapLabelPos values as the POI
+            -- branch above.
+            if seg.mapLabel then
+                local label = self.labels[labelIdx]
+                if label then
+                    PlaceLabel(label, seg.mapLabelPos, dest[1], dest[2], 12)
+                    label:SetText(seg.mapLabel)
+                    label:Show()
+                    labelIdx = labelIdx + 1
+                end
+            end
+
             end -- end "if seg.kind == poi else"
+
+            -- Optional opt-in attention ring. Renders a pulsing red
+            -- ring at the seg's navPoint (or final point) on top of
+            -- whatever the seg drew above. Drawn at OVERLAY layer so
+            -- it sits above any native Blizzard map icon at that
+            -- coord (exit arrows, NPC dots) -- the point of the ring
+            -- is to surround such a native icon visually, drawing
+            -- the eye to it without obscuring it.
+            --
+            -- Pulse via the ring ticker at the bottom of this file:
+            -- 0.1s cadence, red-brightness modulated in sync with
+            -- the label and yellow [!] pulses (shared phase counter).
+            if seg.highlightCircle then
+                local ring = self.rings[ringIdx]
+                if ring then
+                    local mark = seg.navPoint or pts[#pts]
+                    PlaceAt(ring, self, mark[1], mark[2])
+                    ring:Show()
+                    ringIdx = ringIdx + 1
+                end
+            end
         end
     end
 end
@@ -405,14 +614,14 @@ end
 -- Used when the active step has step.renderAllSegments = true. Draws every
 -- incomplete segment matching the player's mapID simultaneously, with a
 -- numbered label at each segment's endpoint so the player can see which
--- waypoint corresponds to which step number. Bypasses the
--- GetRelevantSegmentsForMap "pick one" filter that DrawSegmentsForMap uses.
+-- waypoint corresponds to which step number. Bypasses the active-seg
+-- "pick one" filter that DrawSegmentsForMap uses.
 --
 -- Why this exists: C_Map.GetPlayerMapPosition returns nil inside raid
 -- instances (Blizzard restriction, see Recorder.lua preamble), so the
 -- position-based segment-advancement tickers can't fire to mark earlier
 -- segments complete as the player progresses. The "earliest incomplete
--- segment" fallback in GetRelevantSegmentsForMap means the player's note
+-- segment" fallback in the active-seg picker means the player's note
 -- would stay stuck on segment 1 throughout a multi-segment same-mapID
 -- step. Rendering all segments with numbered waypoints sidesteps the
 -- problem: the player reads the map for spatial cues and self-paces
@@ -455,11 +664,12 @@ function overlay:DrawAllSegmentsForMap(mapID)
     local renderableCount = 0
     do
         local sIdx = step.step or step.priority or 0
+        local progress = RR:GetProgress(sIdx)
         for segIndex, seg in ipairs(step.segments) do
-            if seg.mapID == mapID
+            local segMapID = seg.when and seg.when.mapID
+            if segMapID == mapID
                 and seg.points and #seg.points > 0
-                and not RR:IsSegmentCompleted(sIdx, segIndex)
-                and RR:IsSegmentRevealed(sIdx, seg) then
+                and segIndex >= progress then
                 renderableCount = renderableCount + 1
             end
         end
@@ -467,11 +677,12 @@ function overlay:DrawAllSegmentsForMap(mapID)
     local labelSegs = renderableCount > 1
 
     local stepIndex = step.step or step.priority or 0
+    local progress = RR:GetProgress(stepIndex)
     for segIndex, seg in ipairs(step.segments) do
-        if seg.mapID == mapID
+        local segMapID = seg.when and seg.when.mapID
+        if segMapID == mapID
             and seg.points and #seg.points > 0
-            and not RR:IsSegmentCompleted(stepIndex, segIndex)
-            and RR:IsSegmentRevealed(stepIndex, seg) then
+            and segIndex >= progress then
             local pts = seg.points
             renderNum = renderNum + 1
 
@@ -517,7 +728,7 @@ function overlay:DrawAllSegmentsForMap(mapID)
             local dest    = seg.navPoint or pts[#pts]
             local endIcon = self.icons[iconIdx]
             if endIcon then
-                PlaceEndMarker(self, endIcon, pts, dest, W, H)
+                PlaceEndMarker(self, endIcon, pts, dest, W, H, seg.endpointKind)
                 endIcon:Show()
                 iconIdx = iconIdx + 1
             end
@@ -634,5 +845,42 @@ end)
 C_Timer.NewTicker(1.0, function()
     if WorldMapFrame and WorldMapFrame:IsShown() then
         overlay:Refresh()
+    end
+end)
+
+-- Per-label pulse ticker for opt-in completionCheck labels. Runs at
+-- 0.1s (same cadence as the UI's encounter [!] and What's New? [!]
+-- pulses) and re-tints labels whose flashState == "pulsing" so the
+-- "click this" attention-grabber breathes while the seg remains
+-- incomplete. Completed labels are static (gray + checkmark) and
+-- skipped. Cheap: bails entirely when the world map isn't visible,
+-- and iterates only the labels pool (typically <10 entries).
+C_Timer.NewTicker(0.1, function()
+    if not WorldMapFrame or not WorldMapFrame:IsShown() then return end
+    if not RR.GetLabelPulseColor then return end
+    local color = RR:GetLabelPulseColor()
+    for _, label in ipairs(overlay.labels) do
+        if label:IsShown()
+            and label.flashState == "pulsing"
+            and label.flashBase
+        then
+            label:SetText(color .. label.flashBase .. "|r")
+        end
+    end
+end)
+
+-- Per-ring pulse ticker for highlightCircle rings. Same 0.1s cadence
+-- as the label and yellow [!] pulses (shared phase counter via the
+-- RR:GetRingPulseRed accessor), but modulates the red channel only
+-- so the ring breathes bright-red to dim-red and back. Same bail-out
+-- guard as the label ticker; rings pool is small (MAX_RINGS=10).
+C_Timer.NewTicker(0.1, function()
+    if not WorldMapFrame or not WorldMapFrame:IsShown() then return end
+    if not RR.GetRingPulseRed then return end
+    local r = RR:GetRingPulseRed()
+    for _, ring in ipairs(overlay.rings) do
+        if ring:IsShown() then
+            ring:SetVertexColor(r, 0, 0, 1)
+        end
     end
 end)

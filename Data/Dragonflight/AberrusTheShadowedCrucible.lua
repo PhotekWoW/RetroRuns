@@ -2,21 +2,6 @@
 -- RetroRuns Data -- Aberrus, the Shadowed Crucible
 -- Dragonflight, Patch 10.1  |  instanceID: 2569  |  journalInstanceID: 1208
 -------------------------------------------------------------------------------
--- Aberrus is the second Dragonflight raid (10.1, Embers of Neltharion). 9
--- bosses set in Neltharion's hidden experimentation laboratory beneath the
--- Forbidden Reach. One structural note worth understanding when reading
--- this file:
---
--- The lockout has a branching shape: after Kazzara, two pairs unlock in
--- parallel (Amalgamation Chamber + Forgotten Experiments on one side,
--- Assault of the Zaqali + Rashok on the other). Both pairs must complete
--- before Zskarn's wing opens. From there it's a linear chain (Zskarn ->
--- Magmorax -> Echo of Neltharion -> Sarkareth). routing[] flattens this
--- into a single recommended order chosen for shortest in-zone walking
--- distance; players who diverge will see "next step still locked"
--- guidance from the addon even though their lockout would permit the
--- kill. Same trade-off Vault's branching wings made.
--------------------------------------------------------------------------------
 
 RetroRuns_Data = RetroRuns_Data or {}
 
@@ -87,16 +72,7 @@ RetroRuns_Data[2569] = {
         },
     },
 
-    -- Raid skip quests. Account-wide unlock per Patch 11.0.5; check via
-    -- C_QuestLog.IsQuestFlaggedCompletedOnAccount. Per-character
-    -- IsQuestFlaggedCompleted does NOT reflect the unlock for alts that
-    -- did not personally complete the quest.
-    --
-    -- Only the questID for the difficulty actually completed returns
-    -- true; the in-game cascade that lets you use the skip on lower
-    -- difficulties happens at the skip NPC, NOT by backfilling the
-    -- per-difficulty quest flags. To detect "skip is available at any
-    -- difficulty", OR across all three IDs.
+    -- Raid skip quests (account-wide unlock).
     skipQuests = {
         normal = 76083,
         heroic = 76085,
@@ -109,8 +85,7 @@ RetroRuns_Data[2569] = {
         details   = "After defeating ^Kazzara^, click the vent behind ^Neltharion^ and you will be able to jump down and skip ahead to the ^Echo of Neltharion^ encounter.",
     },
 
-    -- Glory meta-achievement for this raid. Completing all 9 per-boss
-    -- criteria below awards the Shadowflame Shalewing mount.
+    -- Glory of the Raider meta -- 9 criteria, awards the Shadowflame Shalewing mount.
     gloryMeta = {
         id   = 18251,
         name = "Glory of the Aberrus Raider",
@@ -426,9 +401,8 @@ RetroRuns_Data[2569] = {
             requires  = {},
             segments  = {
                 {
-                    mapID   = 2166,
+                    when    = { mapID = 2166 },
                     kind    = "path",
-                    subZone = "Blazing Bulwark",
                     note    = "After zoning in, go straight ahead and clear all trash to spawn ^Kazzara^.",
                     points  = {
                         { 0.512, 0.934 },
@@ -452,9 +426,8 @@ RetroRuns_Data[2569] = {
             requires  = { 1 },
             segments  = {
                 {
-                    mapID   = 2166,
+                    when    = { mapID = 2166 },
                     kind    = "path",
-                    subZone = "Molten Crucible",
                     note    = "After killing ^Kazzara^, take the left path towards the exit labeled ^Onyx Laboratory^.",
                     points  = {
                         { 0.512, 0.686 },
@@ -466,9 +439,8 @@ RetroRuns_Data[2569] = {
                     },
                 },
                 {
-                    mapID   = 2167,
+                    when    = { mapID = 2167 },
                     kind    = "path",
-                    subZone = "Onyx Laboratory",
                     note    = "Continue down the path and clear the trash to spawn ^The Amalgamation Chamber^.",
                     points  = {
                         { 0.557, 0.620 },
@@ -493,9 +465,8 @@ RetroRuns_Data[2569] = {
             requires  = { 1, 2 },
             segments  = {
                 {
-                    mapID   = 2167,
+                    when    = { mapID = 2167 },
                     kind    = "path",
-                    subZone = "Onyx Laboratory",
                     note    = "After killing ^The Amalgamation Chamber^, follow the path north to reach some stairs leading to the ^Molten Crucible^.",
                     points  = {
                         { 0.468, 0.632 },
@@ -507,14 +478,9 @@ RetroRuns_Data[2569] = {
                     },
                 },
                 {
-                    mapID   = 2166,
+                    when    = { mapID = 2166 },
                     kind    = "path",
-                    subZone = "Onyx Laboratory",
                     note    = "Kill the slimes to spawn ^The Forgotten Experiments^.",
-                    points  = {
-                        { 0.339, 0.198 },
-                        { 0.371, 0.263 },
-                    },
                 },
             },
         },
@@ -534,9 +500,8 @@ RetroRuns_Data[2569] = {
             requires  = { 1, 2, 3 },
             segments  = {
                 {
-                    mapID   = 2166,
+                    when    = { mapID = 2166 },
                     kind    = "path",
-                    subZone = "Molten Crucible",
                     note    = "After defeating ^The Forgotten Experiments^, jump down behind them (under a chain) and take the path across the room to the exit labeled ^Defiant Ramparts^.",
                     points  = {
                         { 0.372, 0.259 },
@@ -547,9 +512,8 @@ RetroRuns_Data[2569] = {
                     },
                 },
                 {
-                    mapID   = 2168,
+                    when    = { mapID = 2168 },
                     kind    = "path",
-                    subZone = "Defiant Ramparts",
                     note    = "Inside ^Defiant Ramparts^, follow the path to climb some stairs. Kill the last trash pack to spawn ^Assault of the Zaqali^.",
                     points  = {
                         { 0.375, 0.685 },
@@ -575,9 +539,8 @@ RetroRuns_Data[2569] = {
             requires  = { 1, 2, 3, 4 },
             segments  = {
                 {
-                    mapID   = 2168,
+                    when    = { mapID = 2168 },
                     kind    = "path",
-                    subZone = "Defiant Ramparts",
                     note    = "After defeating the ^Assault of the Zaqali^, enter the nearby room labeled ^Molten Crucible^.",
                     points  = {
                         { 0.450, 0.384 },
@@ -585,14 +548,9 @@ RetroRuns_Data[2569] = {
                     },
                 },
                 {
-                    mapID   = 2166,
+                    when    = { mapID = 2166 },
                     kind    = "path",
-                    subZone = "Aberrus, the Shadowed Crucible",
                     note    = "Approach the boss, and kill the trash to engage ^Rashok^.",
-                    points  = {
-                        { 0.722, 0.143 },
-                        { 0.695, 0.186 },
-                    },
                 },
             },
         },
@@ -609,9 +567,8 @@ RetroRuns_Data[2569] = {
             requires  = { 1, 2, 3, 4, 5 },
             segments  = {
                 {
-                    mapID   = 2166,
+                    when    = { mapID = 2166 },
                     kind    = "path",
-                    subZone = "Molten Crucible",
                     note    = "After defeating ^Rashok^, make your way up the chain behind him, and follow the path around to ^The Vigilant Steward, Zskarn^.",
                     points  = {
                         { 0.660, 0.256 },
@@ -641,9 +598,8 @@ RetroRuns_Data[2569] = {
             requires  = { 1, 2, 3, 4, 5, 6 },
             segments  = {
                 {
-                    mapID   = 2166,
+                    when    = { mapID = 2166 },
                     kind    = "path",
-                    subZone = "Molten Crucible",
                     note    = "After defeating ^Zskarn^, drop down into the hole behind ^Neltharion^. Leap down again (across some lava), and make your way to the boss platform. Clear the trash to spawn ^Magmorax^.",
                     points  = {
                         { 0.489, 0.250 },
@@ -668,9 +624,8 @@ RetroRuns_Data[2569] = {
             requires  = { 1, 2, 3, 4, 5, 6, 7 },
             segments  = {
                 {
-                    mapID   = 2166,
+                    when    = { mapID = 2166 },
                     kind    = "path",
-                    subZone = "Aberrus, the Shadowed Crucible",
                     note    = "After defeating ^Magmorax^, swim across the lava to reach the southern exit labeled ^Neltharion's Sanctum^. Jump down into the hole.",
                     points  = {
                         { 0.514, 0.503 },
@@ -678,14 +633,9 @@ RetroRuns_Data[2569] = {
                     },
                 },
                 {
-                    mapID   = 2169,
+                    when    = { mapID = 2169 },
                     kind    = "path",
-                    subZone = "Neltharion's Sanctum",
                     note    = "After you land, enter the room and clear the trash to spawn ^Echo of Neltharion^.",
-                    points  = {
-                        { 0.507, 0.167 },
-                        { 0.508, 0.252 },
-                    },
                 },
             },
         },
@@ -703,9 +653,8 @@ RetroRuns_Data[2569] = {
             requires  = { 1, 2, 3, 4, 5, 6, 7, 8 },
             segments  = {
                 {
-                    mapID   = 2169,
+                    when    = { mapID = 2169 },
                     kind    = "path",
-                    subZone = "Neltharion's Sanctum",
                     note    = "After defeating ^Echo of Neltharion^, walk into the room behind him and jump into the purple circle to reach ^Edge of Oblivion^.",
                     points  = {
                         { 0.508, 0.318 },
@@ -713,9 +662,8 @@ RetroRuns_Data[2569] = {
                     },
                 },
                 {
-                    mapID   = 2170,
+                    when    = { mapID = 2170 },
                     kind    = "path",
-                    subZone = "Edge of Oblivion",
                     note    = "After landing below, follow the path to reach ^Scalecommander Sarkareth^.",
                     points  = {
                         { 0.490, 0.254 },

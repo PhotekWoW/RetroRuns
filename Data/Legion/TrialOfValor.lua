@@ -2,20 +2,6 @@
 -- RetroRuns Data -- Trial of Valor
 -- Legion, Patch 7.1.0  |  instanceID: 1648  |  journalInstanceID: 861
 -------------------------------------------------------------------------------
--- Trial of Valor is the mini-raid of Legion patch 7.1 (Return to Karazhan
--- patch, opened November 8 2016), set in the Halls of Valor instance map
--- in Stormheim. Three boss encounters in strict linear order:
---
---   Odyn  ->  Guarm  ->  Helya
---
--- Released as a short bridge raid between Emerald Nightmare and Nighthold,
--- thematically continuing the Odyn / Helya storyline from the Halls of
--- Valor 5-man dungeon.
---
--- Legion used the artifact-relic system instead of class tier sets
--- (proper tier returned with 9.2 / Sepulcher), so ToV has no tier
--- gear in its loot tables.
--------------------------------------------------------------------------------
 
 RetroRuns_Data = RetroRuns_Data or {}
 
@@ -25,8 +11,6 @@ RetroRuns_Data[1648] = {
     name              = "Trial of Valor",
     expansion         = "Legion",
     patch             = "7.1.0",
-
-    useStrictActiveSegPicker = true,
 
     -- Entrance is in Stormheim (mapID 634), at the Gates of Valor in
     -- the northeast corner of the zone. The player approaches the
@@ -127,9 +111,8 @@ RetroRuns_Data[1648] = {
             requires  = { },
             segments  = {
                 {
-                    mapID   = 807,
+                    when    = { mapID = 807 },
                     kind    = "path",
-                    subZone = "The Ephemeral Way",
                     note    = "After zoning in, take the escalator all the way up to engage ^Odyn^.",
                     points  = {
                         { 0.514, 0.087 },
@@ -147,18 +130,16 @@ RetroRuns_Data[1648] = {
             requires  = { 1 },
             segments  = {
                 {
-                    mapID   = 807,
+                    when    = { mapID = 807 },
                     kind    = "poi",
-                    subZone = "Hall of Glory",
                     note    = "After defeating ^Odyn^, talk to him and select the only dialog option available. You will be dropped into ^Helheim^.",
                     points  = {
                         { 0.514, 0.892 },
                     },
                 },
                 {
-                    mapID   = 806,
+                    when    = { mapID = 806 },
                     kind    = "path",
-                    subZone = "Field of Fallen Kings",
                     note    = "After landing down below, take the downhill path and kill trash as you walk through the ^Helheim^ portal at the bottom.",
                     points  = {
                         { 0.539, 0.588 },
@@ -166,9 +147,8 @@ RetroRuns_Data[1648] = {
                     },
                 },
                 {
-                    mapID   = 808,
+                    when    = { mapID = 808 },
                     kind    = "path",
-                    subZone = "The Eternal Battlefield",
                     note    = "Once you reach ^Helheim^, follow the path around to find ^Guarm^.",
                     points  = {
                         { 0.638, 0.450 },
@@ -188,9 +168,8 @@ RetroRuns_Data[1648] = {
             requires  = { 2 },
             segments  = {
                 {
-                    mapID   = 808,
+                    when    = { mapID = 808 },
                     kind    = "path",
-                    subZone = "The Eternal Battlefield",
                     note    = "After killing ^Guarm^, continue down the path to meet ^Helya^. Kill the trash to start the encounter.",
                     points  = {
                         { 0.481, 0.319 },

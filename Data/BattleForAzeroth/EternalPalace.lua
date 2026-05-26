@@ -2,25 +2,6 @@
 -- RetroRuns Data -- The Eternal Palace
 -- Battle for Azeroth, Patch 8.2  |  instanceID: 2164  |  journalInstanceID: 1179
 -------------------------------------------------------------------------------
--- The Eternal Palace is the third raid of Battle for Azeroth (8.2),
--- located in Nazjatar. Two structural notes worth understanding when
--- reading this file:
---
--- 1. No class tier sets. Patch 8.2 predated the return of proper tier
---    sets (which came with 9.2 / Sepulcher). Loot is a mix of standard
---    raid drops, Azerite armor, and Benthic-tier upgrades, none of
---    which is per-class-token-gated. The tierSets block is empty.
---
--- 2. Two orb-click gates between Behemoth and Ashvane. The route is
---    fully linear (no parallel pairs), but two of the boss approaches
---    are gated by clicking interactable "Font of Power" orbs which
---    trigger NPC voicelines. The first orb gates the final approach
---    to Radiance; the second gates the final approach to Ashvane.
---    Both orbs produce yells from First Arcanist Thalyssra. Without
---    detecting the yell, geographic-only routing would fail to
---    recognize the orb interaction and stall the player at the orb's
---    coords.
--------------------------------------------------------------------------------
 
 RetroRuns_Data = RetroRuns_Data or {}
 
@@ -63,8 +44,7 @@ RetroRuns_Data[2164] = {
     -- so the skipQuests field is omitted (renderer treats absent
     -- skipQuests as "no skip system on this raid").
 
-    -- Glory meta-achievement for this raid. Completing all 8 per-boss
-    -- criteria below awards the Azshari Bloatray mount.
+    -- Glory of the Raider meta -- 8 criteria, awards the Azshari Bloatray mount.
     gloryMeta = {
         id   = 13687,
         name = "Glory of the Eternal Raider",
@@ -301,9 +281,8 @@ RetroRuns_Data[2164] = {
             requires  = {},
             segments  = {
                 {
-                    mapID   = 1512,
+                    when    = { mapID = 1512 },
                     kind    = "path",
-                    subZone = "Dais of Eternity",
                     note    = "After zoning in, follow the path straight ahead to engage ^Sivara^.",
                     points  = {
                         { 0.914, 0.487 },
@@ -322,9 +301,8 @@ RetroRuns_Data[2164] = {
             requires  = { 1 },
             segments  = {
                 {
-                    mapID   = 1512,
+                    when    = { mapID = 1512 },
                     kind    = "path",
-                    subZone = "Dais of Eternity",
                     note    = "After defeating ^Sivara^, continue past her towards the map exit labeled ^Halls of the Chosen^. Take the underwater tunnel to reach the next area.",
                     points  = {
                         { 0.473, 0.487 },
@@ -338,9 +316,8 @@ RetroRuns_Data[2164] = {
                     },
                 },
                 {
-                    mapID   = 1513,
+                    when    = { mapID = 1513 },
                     kind    = "path",
-                    subZone = "Halls of the Chosen",
                     note    = "After coming out of the water, take the path south towards the map exit labeled ^Darkest Depths^.",
                     points  = {
                         { 0.648, 0.708 },
@@ -354,9 +331,8 @@ RetroRuns_Data[2164] = {
                     },
                 },
                 {
-                    mapID   = 1514,
+                    when    = { mapID = 1514 },
                     kind    = "path",
-                    subZone = "Darkest Depths",
                     note    = "Enter the water and click the ^Oxygen-Rich Membrane^ for swim speed and water breathing. You must kill the last trash pack in the tunnel to spawn ^Blackwater Behemoth^.",
                     points  = {
                         { 0.564, 0.176 },
@@ -377,9 +353,8 @@ RetroRuns_Data[2164] = {
             requires  = { 2 },
             segments  = {
                 {
-                    mapID   = 1514,
+                    when    = { mapID = 1514 },
                     kind    = "path",
-                    subZone = "Darkest Depths",
                     note    = "After killing ^Behemoth^, swim back out the way you came to the map exit labeled ^Halls of the Chosen^.",
                     points  = {
                         { 0.373, 0.237 },
@@ -389,20 +364,20 @@ RetroRuns_Data[2164] = {
                     },
                 },
                 {
-                    mapID   = 1513,
-                    kind    = "path",
-                    subZone = "Halls of the Chosen",
+                    when         = { mapID = 1513, subZone = "Halls of the Chosen" },
+                    kind         = "poi",
+                    poiSize      = 35,
+                    mapLabel     = "Font of Power",
+                    mapLabelPos  = "right",
+                    completionCheck = true,
                     -- Same underwater-corridor situation as Behemoth
                     -- seg 2: the swim-back from Darkest Depths transits
                     -- the unnamed portion of mapID 1513 before
                     -- surfacing into the named "Halls of the Chosen"
                     -- sub-zone. This seg waits until the actual surface
                     -- arrival.
-                    requiresSubZone = "Halls of the Chosen",
-                    note    = "After returning to the ^Halls of the Chosen^, walk straight ahead to kill a couple ^Azsh'ari Channelers^ and click the ^Font of Power^.",
-                    points  = {
-                        { 0.460, 0.883 },
-                        { 0.475, 0.859 },
+                    note     = "After returning to the ^Halls of the Chosen^, walk straight ahead to kill a couple ^Azsh'ari Channelers^ and click the ^Font of Power^.",
+                    points   = {
                         { 0.473, 0.760 },
                     },
                 },
@@ -412,15 +387,10 @@ RetroRuns_Data[2164] = {
                     -- Arcanist Thalyssra's voiceline; without that
                     -- detection the player would stand at the orb's
                     -- coords with no follow-on instruction.
-                    mapID   = 1513,
+                    when    = { mapID = 1513 },
                     kind    = "path",
-                    subZone = "Halls of the Chosen",
                     note    = "After clicking the first orb, follow the path all the way north to kill ^Radiance of Azshara^. Clear all the trash to start the encounter.",
-                    advanceOn = {
-                        kind  = "yell",
-                        npc   = "First Arcanist Thalyssra",
-                        match = "find the last font",
-                    },
+                    triggeredBy = { yell = { npc = "First Arcanist Thalyssra", match = "find the last font" } },
                     points  = {
                         { 0.474, 0.761 },
                         { 0.473, 0.808 },
@@ -449,16 +419,14 @@ RetroRuns_Data[2164] = {
             requires  = { 3 },
             segments  = {
                 {
-                    mapID   = 1513,
-                    kind    = "path",
-                    subZone = "Halls of the Chosen",
-                    note    = "After defeating ^Radiance of Azshara^, leave the room the way you came and find 2 more ^Azsh'ari Channelers^ guarding an orb. Kill them and click ^Font of Power^.",
-                    points  = {
-                        { 0.469, 0.226 },
-                        { 0.428, 0.252 },
-                        { 0.413, 0.308 },
-                        { 0.437, 0.363 },
-                        { 0.467, 0.375 },
+                    when     = { mapID = 1513 },
+                    kind     = "poi",
+                    poiSize  = 35,
+                    mapLabel = "Font of Power",
+                    mapLabelPos = "right",
+                    completionCheck = true,
+                    note     = "After defeating ^Radiance of Azshara^, leave the room the way you came and find 2 more ^Azsh'ari Channelers^ guarding an orb. Kill them and click ^Font of Power^.",
+                    points   = {
                         { 0.473, 0.600 },
                     },
                 },
@@ -467,17 +435,16 @@ RetroRuns_Data[2164] = {
                     -- second Font of Power orb. Same NPC voiceline
                     -- mechanism as the first orb, with a different
                     -- spoken phrase.
-                    mapID   = 1513,
+                    when    = { mapID = 1513 },
                     kind    = "path",
-                    subZone = "Halls of the Chosen",
                     note    = "After clicking the orb, the path opens to fight ^Lady Ashvane^.",
-                    advanceOn = {
-                        kind  = "yell",
-                        npc   = "First Arcanist Thalyssra",
-                        match = "barrier has fallen",
-                    },
+                    triggeredBy = { yell = { npc = "First Arcanist Thalyssra", match = "barrier has fallen" } },
                     points  = {
-                        { 0.473, 0.615 },
+                        { 0.469, 0.226 },
+                        { 0.428, 0.252 },
+                        { 0.413, 0.308 },
+                        { 0.437, 0.363 },
+                        { 0.467, 0.375 },
                         { 0.472, 0.567 },
                         { 0.422, 0.569 },
                         { 0.386, 0.655 },
@@ -498,10 +465,9 @@ RetroRuns_Data[2164] = {
             -- The Traverse (mapID 1516) is a teleport-pad room where
             -- the player hops between landing pads in a fixed sequence.
             -- Path lines between the pads visually misrepresent the
-            -- movement (teleports look like running), so the room
-            -- renders three numbered waypoint markers instead of a
-            -- polyline.
-            renderAllSegments = true,
+            -- movement (teleports look like running), so the three pad
+            -- locations render as numbered POI markers (1/2/3) instead
+            -- of a polyline.
             segments  = {
                 {
                     -- Instruction-only seg (no points). Auto-completes
@@ -509,41 +475,42 @@ RetroRuns_Data[2164] = {
                     -- room) into mapID 1516 (The Traverse). The travel
                     -- pane shows the note while the map-overlay stays
                     -- empty for this seg.
-                    mapID   = 1513,
+                    when    = { mapID = 1513 },
                     kind    = "path",
-                    subZone = "Halls of the Chosen",
                     note    = "After killing ^Lady Ashvane^, jump through the hole in the middle of her boss room to land in ^The Traverse^.",
                     points  = {},
                 },
                 {
-                    mapID   = 1516,
-                    kind    = "path",
-                    subZone = "The Traverse",
-                    note    = "After landing in ^The Traverse^, make your way to the bottom of the room by walking over a sequence of teleporting panels on the floor.",
-                    points  = {
+                    when     = { mapID = 1516 },
+                    kind     = "poi",
+                    poiSize  = 35,
+                    mapLabel = "1",
+                    note     = "After landing in ^The Traverse^, make your way to the bottom of the room by walking over a sequence of teleporting panels on the floor.",
+                    points   = {
                         { 0.542, 0.459 },
                     },
                 },
                 {
-                    mapID   = 1516,
-                    kind    = "path",
-                    subZone = "The Traverse",
-                    points  = {
+                    when     = { mapID = 1516 },
+                    kind     = "poi",
+                    poiSize  = 35,
+                    mapLabel = "2",
+                    points   = {
                         { 0.561, 0.437 },
                     },
                 },
                 {
-                    mapID   = 1516,
-                    kind    = "path",
-                    subZone = "The Traverse",
-                    points  = {
+                    when     = { mapID = 1516 },
+                    kind     = "poi",
+                    poiSize  = 35,
+                    mapLabel = "3",
+                    points   = {
                         { 0.518, 0.570 },
                     },
                 },
                 {
-                    mapID   = 1517,
+                    when    = { mapID = 1517 },
                     kind    = "path",
-                    subZone = "The Hatchery",
                     note    = "When you reach the bottom, simply follow the path to ^Orgozoa^ and kill him.",
                     points  = {
                         { 0.825, 0.367 },
@@ -564,9 +531,8 @@ RetroRuns_Data[2164] = {
             requires  = { 5 },
             segments  = {
                 {
-                    mapID   = 1517,
+                    when    = { mapID = 1517 },
                     kind    = "path",
-                    subZone = "The Hatchery",
                     note    = "After killing ^Orgozoa^, travel to the far west to reach the map exit labeled ^The Queen's Court^. You will be swimming for a good portion of this journey.",
                     points  = {
                         { 0.728, 0.468 },
@@ -584,9 +550,8 @@ RetroRuns_Data[2164] = {
                     },
                 },
                 {
-                    mapID   = 1518,
+                    when    = { mapID = 1518 },
                     kind    = "path",
-                    subZone = "The Queen's Court",
                     note    = "After surfacing from the water, follow the path around to reach ^The Queen's Court^.",
                     points  = {
                         { 0.667, 0.482 },
@@ -610,9 +575,8 @@ RetroRuns_Data[2164] = {
             requires  = { 6 },
             segments  = {
                 {
-                    mapID   = 1518,
+                    when    = { mapID = 1518 },
                     kind    = "path",
-                    subZone = "The Queen's Court",
                     note    = "After defeating ^The Queen's Court^, head up some stairs towards the map exit labeled ^Precipice of Dreams^.",
                     points  = {
                         { 0.312, 0.483 },
@@ -622,9 +586,8 @@ RetroRuns_Data[2164] = {
                     },
                 },
                 {
-                    mapID   = 1519,
+                    when    = { mapID = 1519 },
                     kind    = "path",
-                    subZone = "Precipice of Dreams",
                     note    = "Inside the ^Precipice of Dreams^, follow the path all the way west to kill ^Za'qul, Harbinger of Ny'alotha^.",
                     points  = {
                         { 0.869, 0.512 },
@@ -651,9 +614,8 @@ RetroRuns_Data[2164] = {
             requires  = { 7 },
             segments  = {
                 {
-                    mapID   = 1519,
+                    when    = { mapID = 1519 },
                     kind    = "path",
-                    subZone = "Precipice of Dreams",
                     note    = "After killing ^Za'qul^, watch a brief dialog while waiting on a portal to spawn behind the boss. Take the portal, marked on the map as an exit labeled ^The Last Prison^.",
                     points  = {
                         { 0.155, 0.500 },
@@ -664,11 +626,12 @@ RetroRuns_Data[2164] = {
                     -- Star marker on the Titan Console, the
                     -- interactable that engages Queen Azshara after
                     -- the player takes the portal into The Last Prison.
-                    mapID    = 1520,
+                    when     = { mapID = 1520 },
                     kind     = "poi",
-                    subZone  = "The Last Prison",
                     note     = "After taking the portal into ^The Last Prison^, you will watch some lengthy dialog then click the ^Titan Console^ in front of you to engage ^Queen Azshara^.",
                     poiSize  = 35,
+                    mapLabel = "Click Titan Console",
+                    completionCheck = true,
                     points   = {
                         { 0.580, 0.521 },
                     },

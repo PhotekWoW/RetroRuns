@@ -1,56 +1,42 @@
 -------------------------------------------------------------------------------
--- RetroRuns Data -- Battle of Dazar'alor (Horde side)
+-- RetroRuns Data -- Battle of Dazar'alor (Alliance side)
 -- Battle for Azeroth, Patch 8.1.0  |  instanceID: 2070  |  journalInstanceID: 1176
 -------------------------------------------------------------------------------
--- Horde-side data for BfD, the only faction-asymmetric raid in the addon.
--- See BattleOfDazaralor.lua for the Alliance side.
---
--- Differences from Alliance data:
---   * Bosses 2 and 3 swap order: Horde fights Champion -> Grong (Jungle
---     Lord) -> Jadefire Masters, while Alliance fights Champion ->
---     Jadefire -> Grong (the Revenant).
---   * Bosses 1-3 use Horde-variant journal encounter IDs and (for boss 2)
---     a different display name.
---   * Entrance is in Zuldazar (mapID 1165) at the city's northern
---     outskirts, not Boralus (mapID 1161).
---   * Routing path through the raid is entirely different (Horde fights
---     "down toward the harbor" rather than Alliance's "up the pyramid").
---
--- Bosses 4-9 share IDs, names, loot, achievements, and specialLoot
--- (mounts/pets on Conclave, Mekkatorque, and Jaina) with the Alliance
--- side -- the data is duplicated rather than cross-referenced for
--- runtime simplicity.
--------------------------------------------------------------------------------
 
-RetroRuns_DataHorde = RetroRuns_DataHorde or {}
+RetroRuns_Data = RetroRuns_Data or {}
 
-RetroRuns_DataHorde[2070] = {
+RetroRuns_Data[2070] = {
     instanceID        = 2070,
     journalInstanceID = 1176,
     name              = "Battle of Dazar'alor",
     expansion         = "Battle for Azeroth",
     patch             = "8.1.0",
 
-    useStrictActiveSegPicker = true,
-
-    -- Horde entrance: northern outskirts of Dazar'alor (near Zanchul).
-    -- mapID 1165 is Zuldazar (the parent zone) -- no city/zone mismatch
-    -- here, unlike the Alliance entrance which sits on the Boralus
-    -- city map 1161.
+    -- Alliance entrance: outside the BfD portal at the Boralus docks.
+    -- mapID 1161 is the Boralus city map (interior); the parent zone
+    -- Tiragarde Sound is mapID 895.
     entrance = {
-        mapID = 1165,
-        x     = 0.388,
-        y     = 0.025,
+        mapID = 1161,
+        x     = 0.7057,
+        y     = 0.3523,
     },
 
-    -- Horde-side traversal hits a different set of mapIDs than Alliance.
+    -- mapIDs 1352, 1353, 1354, 1356, 1357 cover the Alliance route
+    -- through the city interior; 1358 is "The Zocalo" (never visited
+    -- by Alliance route, included for completeness); 1364 is "The
+    -- Zocalo's" lower deck and is also Horde-side. 862 / 875 / 1367
+    -- cover the Bay of Kings ship sequence during the Mekkatorque
+    -- and Jaina encounters.
     maps = {
-        [1352] = "Port of Zandalar",       -- shared with Alliance file
-        [1353] = "Halls of Opulence",      -- shared with Alliance file
-        [1354] = "Loa's Sanctum",          -- shared with Alliance file
-        [1356] = "Walk of Kings",          -- shared with Alliance file
-        [1357] = "The Heart of the Empire", -- shared with Alliance file
-        [1358] = "The Zocalo",             -- Horde-only
+        [862]  = "The Great Sea",
+        [875]  = "Zandalar",
+        [1352] = "Port of Zandalar",
+        [1353] = "Halls of Opulence",
+        [1354] = "Loa's Sanctum",
+        [1356] = "Walk of Kings",
+        [1357] = "The Heart of the Empire",
+        [1358] = "The Zocalo",
+        [1367] = "Boralus Harbor",
     },
 
     tierSets = {
@@ -58,8 +44,6 @@ RetroRuns_DataHorde[2070] = {
         tokenSources = {},
     },
 
-    -- Faction-shared with Alliance: account-wide achievement-gated
-    -- Mythic-only skip via Otoye (Horde NPC).
     skipAchievement = {
         mythic = 13314,
     },
@@ -67,12 +51,15 @@ RetroRuns_DataHorde[2070] = {
     -- Surfaced to players via the Skips window's per-row info button.
     skipTrigger = {
         achievementName = "Mythic: Lady Jaina Proudmoore",
-        details         = "After zoning in, talk with ^Otoye^ to skip straight to ^Lady Jaina Proudmoore^.",
+        details         = "After zoning in, talk with ^Ensign Roberts^ to skip straight to ^Lady Jaina Proudmoore^.",
     },
 
-    -- Faction-shared with Alliance: same mount reward, same achievement
-    -- ID, same name. Earning the meta on either faction's character
-    -- credits the account-wide mount.
+    -- Glory meta-achievement for this raid. Completing all 9 per-boss
+    -- criteria below awards the Dazar'alor Windreaver mount. Two of the
+    -- nine criteria require 2+ players (De Lurker Be'loa needs one
+    -- player on a rope while the rest fight the boss; Snow Fun Allowed
+    -- requires 3 players to gather snow mounds simultaneously) -- the
+    -- meta as a whole is therefore NOT fully soloable.
     gloryMeta = {
         id   = 13315,
         name = "Glory of the Dazar'alor Raider",
@@ -81,19 +68,11 @@ RetroRuns_DataHorde[2070] = {
         rewardName         = "Dazar'alor Windreaver",
     },
 
-    -- Bosses array, Horde-ordered. Differences from Alliance:
-    --   * boss 1 (Champion of the Light): Horde jeid 2333 (Ra'wani Kanae)
-    --     vs Alliance 2344 (Frida Ironbellows). Display name shared.
-    --   * boss 2: Horde fights GRONG (Jungle Lord variant, jeid 2325).
-    --     Alliance's boss 2 is Jadefire Masters.
-    --   * boss 3: Horde fights JADEFIRE Masters (Horde variant, jeid 2341).
-    --     Alliance's boss 3 is Grong (Revenant variant, jeid 2340).
-    --   * bosses 4-9: identical jeids, names, and order both factions.
     bosses = {
         {
             index              = 1,
             name               = "Champion of the Light",
-            journalEncounterID = 2333,
+            journalEncounterID = 2344,
             aliases            = {},
             achievements       = {
                 { id = 13316, name = "Can I Get a Hek Hek Hek Yeah?", meta = true, soloable = "yes" },
@@ -114,13 +93,30 @@ RetroRuns_DataHorde[2070] = {
             },
         },
         {
-            -- Horde boss 2: Grong (the Jungle Lord). Same fight
-            -- mechanics and same loot table as Alliance's boss-3
-            -- Grong (the Revenant) -- only the visual variant and the
-            -- in-EJ display name differ.
             index              = 2,
-            name               = "Grong, the Jungle Lord",
-            journalEncounterID = 2325,
+            name               = "Jadefire Masters",
+            journalEncounterID = 2323,
+            aliases            = {},
+            achievements       = {
+                { id = 13431, name = "Hidden Dragon", meta = true, soloable = "kinda" },
+            },
+            soloTip            = "If you end up in the maze phase, collect a green orb and use it to bring down the barrier. Movement abilities can be used to get through the maze if needed.",
+            loot = {
+                { id = 165540, slot = "Chest",    name = "Mistfire Raiment",            sources = { [17]=101881, [14]=101880, [15]=101882, [16]=101883 } },
+                { id = 165764, slot = "Hands",    name = "Firecaller's Handwraps",      sources = { [17]=102117, [14]=102114, [15]=102115, [16]=102116 } },
+                { id = 165531, slot = "Hands",    name = "Grips of Harmonious Spirits", sources = { [17]=101847, [14]=101844, [15]=101845, [16]=101846 } },
+                { id = 165500, slot = "Head",     name = "Blazewing Hood",              sources = { [17]=101723, [14]=101720, [15]=101721, [16]=101722 } },
+                { id = 165548, slot = "Head",     name = "Helm of Tempered Jade",       sources = { [17]=101915, [14]=101912, [15]=101913, [16]=101914 } },
+                { id = 165521, slot = "Legs",     name = "Cranedancer Leggings",        sources = { [17]=101805, [14]=101804, [15]=101806, [16]=101807 } },
+                { id = 165777, slot = "Shoulder", name = "Ma'ra's Boneblade Mantle",    sources = { [17]=102165, [14]=102162, [15]=102163, [16]=102164 } },
+                { id = 165587, slot = "Two-Hand", name = "Phoenixfire Staff",           sources = { [17]=102003, [14]=102000, [15]=102001, [16]=102002 } },
+                { id = 165552, slot = "Waist",    name = "Embersear Waistguard",        sources = { [17]=101931, [14]=101928, [15]=101929, [16]=101930 } },
+            },
+        },
+        {
+            index              = 3,
+            name               = "Grong, the Revenant",
+            journalEncounterID = 2340,
             aliases            = { "Grong" },
             achievements       = {
                 { id = 13383, name = "Barrel of Monkeys", meta = true, soloable = "yes" },
@@ -139,39 +135,6 @@ RetroRuns_DataHorde[2070] = {
                 { id = 165588, slot = "Weapon",           name = "Bonelash Paw",                  sources = { [17]=102007, [14]=102004, [15]=102005, [16]=102006 } },
                 { id = 165534, slot = "Wrist",            name = "Ape Wrangler's Wristguards",    sources = { [17]=101857, [14]=101856, [15]=101858, [16]=101859 } },
                 { id = 165551, slot = "Wrist",            name = "Splinter-Bone Vambraces",       sources = { [17]=101927, [14]=101924, [15]=101925, [16]=101926 } },
-            },
-        },
-        {
-            -- Horde boss 3: Jadefire Masters (Horde variant). Same fight
-            -- mechanics as Alliance's boss-2 Jadefire Masters, but the
-            -- two Jadefire NPCs are different per faction:
-            --   * Alliance fights Ma'ra Grimfang + Anathos Firecaller
-            --     (Horde NPCs); their named drops are "Ma'ra's Boneblade
-            --     Mantle" (165777) and "Firecaller's Handwraps" (165764).
-            --   * Horde fights Mestrah, the Illuminated + Manceroy
-            --     Flamefist (Alliance NPCs, 7th Legion); their named
-            --     drops are "Mestrah's Singing Spaulders" (165516) and
-            --     "Manceroy's Flamefists" (165503).
-            -- The non-named items (Mistfire Raiment, Grips of Harmonious
-            -- Spirits, etc.) are faction-shared.
-            index              = 3,
-            name               = "Jadefire Masters",
-            journalEncounterID = 2341,
-            aliases            = {},
-            achievements       = {
-                { id = 13431, name = "Hidden Dragon", meta = true, soloable = "kinda" },
-            },
-            soloTip            = "If you end up in the maze phase, collect a green orb and use it to bring down the barrier. Movement abilities can be used to get through the maze if needed.",
-            loot = {
-                { id = 165540, slot = "Chest",    name = "Mistfire Raiment",            sources = { [17]=101881, [14]=101880, [15]=101882, [16]=101883 } },
-                { id = 165531, slot = "Hands",    name = "Grips of Harmonious Spirits", sources = { [17]=101847, [14]=101844, [15]=101845, [16]=101846 } },
-                { id = 165503, slot = "Hands",    name = "Manceroy's Flamefists",       sources = { [17]=101735, [14]=101732, [15]=101733, [16]=101734 } },
-                { id = 165500, slot = "Head",     name = "Blazewing Hood",              sources = { [17]=101723, [14]=101720, [15]=101721, [16]=101722 } },
-                { id = 165548, slot = "Head",     name = "Helm of Tempered Jade",       sources = { [17]=101915, [14]=101912, [15]=101913, [16]=101914 } },
-                { id = 165521, slot = "Legs",     name = "Cranedancer Leggings",        sources = { [17]=101805, [14]=101804, [15]=101806, [16]=101807 } },
-                { id = 165516, slot = "Shoulder", name = "Mestrah's Singing Spaulders", sources = { [17]=101787, [14]=101784, [15]=101785, [16]=101786 } },
-                { id = 165587, slot = "Two-Hand", name = "Phoenixfire Staff",           sources = { [17]=102003, [14]=102000, [15]=102001, [16]=102002 } },
-                { id = 165552, slot = "Waist",    name = "Embersear Waistguard",        sources = { [17]=101931, [14]=101928, [15]=101929, [16]=101930 } },
             },
         },
         {
@@ -273,7 +236,6 @@ RetroRuns_DataHorde[2070] = {
             achievements       = {
                 { id = 13430, name = "De Lurker Be'loa", meta = true, soloable = "no" },
             },
-            -- Faction-shared mechanic; same soloTip as Alliance file.
             soloTip            = "|cffF259C7(1)|r Click one of the Pterrordax to start the fight. |cffF259C7(2)|r Kill Brother/Sister. Killing too fast can bug the fight. |cffF259C7(3)|r Teleport to change boats and kill the other Brother/Sister. |cffF259C7(4)|r Teleport back to main platform and interrupt/kill the boss before he finishes casting Catastrophic Tides.",
             loot = {
                 { id = 165557, slot = "Chest",    name = "Sea Swell Chestplate",      sources = { [17]=101951, [14]=101948, [15]=101949, [16]=101950 } },
@@ -317,10 +279,18 @@ RetroRuns_DataHorde[2070] = {
         },
     },
 
-    -- Routing. Boss order matches bossesHorde[] -- Horde fights:
-    -- Champion -> Grong (Jungle Lord) -> Jadefire -> Opulence ->
-    -- Conclave -> Rastakhan -> Mekkatorque -> Stormwall -> Jaina.
     routing = {
+        -- Routing: linear progression for Alliance.
+        --   1. Champion of the Light    requires {}
+        --   2. Jadefire Masters         requires { 1 }
+        --   3. Grong, the Revenant      requires { 2 }
+        --   4. Opulence                 requires { 3 }
+        --   5. Conclave of the Chosen   requires { 4 }
+        --   6. King Rastakhan           requires { 5 }
+        --   7. High Tinker Mekkatorque  requires { 6 }
+        --   8. Stormwall Blockade       requires { 7 }
+        --   9. Lady Jaina Proudmoore    requires { 8 }
+
         -- 1. Champion of the Light
         {
             step      = 1,
@@ -330,84 +300,61 @@ RetroRuns_DataHorde[2070] = {
             requires  = {},
             segments  = {
                 {
-                    mapID   = 1358,
+                    when    = { mapID = 1352 },
                     kind    = "path",
-                    subZone = "The Zocalo",
-                    note    = "After zoning in, proceed straight ahead to ^Champion of the Light^.",
+                    note    = "After zoning in, proceed straight ahead to the first boss room. Kill trash to start the encounter with ^Champion of the Light^.",
                     points  = {
-                        { 0.239, 0.193 },
-                        { 0.241, 0.303 },
-                        { 0.272, 0.351 },
+                        { 0.493, 0.883 },
+                        { 0.492, 0.735 },
                     },
                 },
             },
         },
 
-        -- 2. Grong, the Jungle Lord
+        -- 2. Jadefire Masters
         {
             step      = 2,
             priority  = 1,
             bossIndex = 2,
-            title     = "Grong, the Jungle Lord",
+            title     = "Jadefire Masters",
             requires  = { 1 },
             segments  = {
                 {
-                    mapID   = 1358,
+                    when    = { mapID = 1352 },
                     kind    = "path",
-                    subZone = "Dazar'alor",
-                    note    = "After defeating ^Champion of the Light^, continue down the path, clearing trash on the way to ^Grong^.",
+                    note    = "After defeating the ^Champion of the Light^, follow the linear path to the right and work your way towards the next boss, ^Jadefire Masters^. Kill trash on the way.",
                     points  = {
-                        { 0.316, 0.413 },
-                        { 0.360, 0.480 },
-                        { 0.337, 0.514 },
-                        { 0.381, 0.576 },
-                        { 0.357, 0.676 },
-                        { 0.413, 0.673 },
+                        { 0.518, 0.695 },
+                        { 0.602, 0.679 },
+                        { 0.600, 0.634 },
+                        { 0.492, 0.629 },
+                        { 0.492, 0.555 },
                     },
                 },
             },
         },
 
-        -- 3. Jadefire Masters
+        -- 3. Grong, the Revenant
         {
             step      = 3,
             priority  = 1,
             bossIndex = 3,
-            title     = "Jadefire Masters",
+            title     = "Grong, the Revenant",
             requires  = { 2 },
             segments  = {
                 {
-                    mapID   = 1358,
+                    when    = { mapID = 1352 },
                     kind    = "path",
-                    subZone = "Dazar'alor",
-                    note    = "After defeating ^Grong^, follow the winding path around to ^Jadefire Masters^. Kill the trash to start the encounter.",
+                    note    = "After defeating ^Jadefire Masters^, proceed up the long staircase behind them to reach ^Grong, the Revenant^. Kill trash at the top of the stairs to start the encounter.",
                     points  = {
-                        { 0.438, 0.612 },
-                        { 0.462, 0.609 },
-                        { 0.463, 0.576 },
-                        { 0.513, 0.578 },
-                        { 0.514, 0.611 },
-                        { 0.553, 0.612 },
-                        { 0.576, 0.641 },
-                        { 0.574, 0.713 },
-                        { 0.533, 0.714 },
-                        { 0.531, 0.664 },
-                        { 0.513, 0.660 },
+                        { 0.492, 0.555 },
+                        { 0.493, 0.345 },
                     },
                 },
             },
         },
 
-        -- 4. Opulence (4-segment cross-mapID traversal:
-        -- Dazar'alor -> Heart of the Empire -> Port of Zandalar
-        -- (post-Alliance-transform) -> Halls of Opulence)
-        --
-        -- The "jump in the hole" transition from seg 3 (mapID 1352) to
-        -- seg 4 (mapID 1353) physically passes through 1357's airspace
-        -- (The Heart of the Empire), and the player can also retrace
-        -- back through the 1357 tunnel after reaching 1352. The
-        -- segments are mapID-tagged so the displayed instruction
-        -- stays correct in both cases.
+        -- 4. Opulence
         {
             step      = 4,
             priority  = 1,
@@ -416,61 +363,30 @@ RetroRuns_DataHorde[2070] = {
             requires  = { 3 },
             segments  = {
                 {
-                    mapID   = 1358,
+                    when    = { mapID = 1352 },
                     kind    = "path",
-                    subZone = "Dazar'alor",
-                    note    = "After defeating ^Jadefire Masters^, go up the stairs behind them toward the map exit labeled ^The Heart of the Empire^. Open the door to continue.",
+                    note    = "After killing ^Grong^, continue up the stairwell behind him towards the map exit labeled ^Halls of Opulence^. Jump in the hole when you reach the end of the path.",
                     points  = {
-                        { 0.513, 0.660 },
-                        { 0.531, 0.660 },
-                        { 0.531, 0.746 },
-                        { 0.519, 0.745 },
-                        { 0.517, 0.701 },
-                        { 0.499, 0.702 },
+                        { 0.490, 0.280 },
+                        { 0.492, 0.194 },
+                        { 0.555, 0.193 },
+                        { 0.556, 0.137 },
+                        { 0.502, 0.136 },
                     },
                 },
                 {
-                    mapID   = 1357,
+                    when    = { mapID = 1353 },
                     kind    = "path",
-                    subZone = "Walk of Kings",
-                    note    = "Inside ^The Heart of the Empire^, follow the path around to find some NPCs mourning over the corpse of ^King Rastakhan^. Talk to ^Otoye^ to be switched to Alliance temporarily.",
+                    note    = "Inside the ^Halls of Opulence^, proceed straight ahead to the middle area to engage ^Opulence^.",
                     points  = {
-                        { 0.472, 0.190 },
-                        { 0.469, 0.306 },
-                        { 0.323, 0.305 },
-                        { 0.321, 0.465 },
-                        { 0.413, 0.463 },
-                        { 0.456, 0.536 },
-                    },
-                },
-                {
-                    mapID   = 1352,
-                    kind    = "path",
-                    subZone = "Terrace of the Speakers",
-                    note    = "After switching to Alliance, follow the path up the stairs and around to the map exit labeled ^Halls of Opulence^. Jump in the hole at the end of the path.",
-                    points  = {
-                        { 0.491, 0.288 },
-                        { 0.491, 0.191 },
-                        { 0.556, 0.189 },
-                        { 0.554, 0.138 },
-                        { 0.504, 0.137 },
-                    },
-                },
-                {
-                    mapID   = 1353,
-                    kind    = "path",
-                    subZone = "Halls of Opulence",
-                    note    = "Inside the boss room, head straight ahead to engage ^Opulence^.",
-                    points  = {
-                        { 0.421, 0.838 },
-                        { 0.420, 0.549 },
+                        { 0.421, 0.846 },
+                        { 0.422, 0.548 },
                     },
                 },
             },
         },
 
-        -- 5. Conclave of the Chosen (2 segs: post-Opulence exit on
-        -- 1353 -> Loa's Sanctum entry on 1354)
+        -- 5. Conclave of the Chosen
         {
             step      = 5,
             priority  = 1,
@@ -479,34 +395,30 @@ RetroRuns_DataHorde[2070] = {
             requires  = { 4 },
             segments  = {
                 {
-                    mapID   = 1353,
+                    when    = { mapID = 1353 },
                     kind    = "path",
-                    subZone = "Halls of Opulence",
-                    note    = "After killing ^Opulence^, exit the room to the north, up some stairs to the map exit labeled ^Loa's Sanctum^.",
+                    note    = "After killing ^Opulence^, follow the path straight ahead and make your way to the map exit labeled ^Loa's Sanctum^.",
                     points  = {
-                        { 0.420, 0.477 },
-                        { 0.420, 0.217 },
-                        { 0.335, 0.214 },
-                        { 0.333, 0.107 },
-                        { 0.398, 0.085 },
+                        { 0.421, 0.480 },
+                        { 0.421, 0.215 },
+                        { 0.333, 0.215 },
+                        { 0.334, 0.104 },
+                        { 0.399, 0.101 },
                     },
                 },
                 {
-                    mapID   = 1354,
+                    when    = { mapID = 1354 },
                     kind    = "path",
-                    subZone = "Path of the Ancestors",
-                    note    = "Once inside ^Loa's Sanctum^, follow the path straight ahead to engage ^Conclave of the Chosen^.",
+                    note    = "Continue straight ahead to engage ^Conclave of the Chosen^.",
                     points  = {
-                        { 0.474, 0.177 },
-                        { 0.475, 0.643 },
+                        { 0.474, 0.189 },
+                        { 0.471, 0.633 },
                     },
                 },
             },
         },
 
-        -- 6. King Rastakhan (3 segs: 1354 elevator approach
-        -- (subZone-gated by Loa's Sanctum) -> 1356 post-elevator
-        -- -> 1357 Heart of the Empire boss room)
+        -- 6. King Rastakhan
         {
             step      = 6,
             priority  = 1,
@@ -515,36 +427,33 @@ RetroRuns_DataHorde[2070] = {
             requires  = { 5 },
             segments  = {
                 {
-                    mapID   = 1354,
+                    when    = { mapID = 1354 },
                     kind    = "path",
-                    subZone = "Loa's Sanctum",
-                    note    = "After defeating ^Conclave of the Chosen^, exit the room to the east, and take the elevator up.",
+                    note    = "After defeating ^Conclave^, exit the room to the east and ride the elevator up to the ^Walk of Kings^.",
                     points  = {
-                        { 0.500, 0.673 },
-                        { 0.641, 0.674 },
-                        { 0.640, 0.782 },
+                        { 0.499, 0.677 },
+                        { 0.643, 0.680 },
+                        { 0.641, 0.782 },
                     },
                 },
                 {
-                    mapID   = 1356,
+                    when    = { mapID = 1356 },
                     kind    = "path",
-                    subZone = "Walk of Kings",
-                    note    = "After getting off the elevator, follow the path around to the map exit labeled ^The Heart of the Empire^.",
+                    note    = "After getting off the elevator in ^Walk of Kings^, follow the linear path around to ^The Heart of the Empire^.",
                     points  = {
-                        { 0.648, 0.680 },
-                        { 0.648, 0.385 },
-                        { 0.362, 0.388 },
-                        { 0.360, 0.568 },
+                        { 0.650, 0.684 },
+                        { 0.650, 0.389 },
+                        { 0.363, 0.388 },
+                        { 0.360, 0.569 },
                     },
                 },
                 {
-                    mapID   = 1357,
-                    kind    = "path",
-                    subZone = "The Heart of the Empire",
-                    note    = "Continue ahead to clear the trash and engage ^King Rastakhan^.",
-                    points  = {
-                        { 0.475, 0.408 },
-                        { 0.473, 0.539 },
+                    when     = { mapID = 1357 },
+                    kind     = "poi",
+                    noMarker = true,
+                    note     = "Kill trash in the boss room to trigger some dialog and start the encounter with ^King Rastakhan^.",
+                    points   = {
+                        { 0.5, 0.5 },
                     },
                 },
             },
@@ -552,14 +461,12 @@ RetroRuns_DataHorde[2070] = {
 
         -- 7. High Tinker Mekkatorque
         --
-        -- Horde flight differs from Alliance: Horde boards a Riding
-        -- Pterrordax for an intra-city flight that lands directly on
-        -- 1352 in the "Dazar'alor" sub-zone, near the Mekkatorque
-        -- room. Alliance boards a 7th Legion Gryphon for a much longer
-        -- transcontinental flight that touches down in Bay of Kings
-        -- (875), then Boralus Harbor (1367), then back to 1352 for
-        -- final approach -- four segments. Horde skips the BoK and
-        -- Boralus Harbor segments entirely.
+        -- Multi-segment cross-mapID step: 1357 (Heart of the Empire) ->
+        -- 875 (Bay of Kings) via gryphon flight -> 1367 (Boralus Harbor)
+        -- via ship -> 1352 (Dazar'alor) for final landing. The flight
+        -- briefly transits 1352 mid-route, which is also seg 4's mapID;
+        -- the seg routing accounts for this by gating on subZone so the
+        -- transit flicker doesn't false-match seg 4.
         {
             step      = 7,
             priority  = 1,
@@ -568,10 +475,9 @@ RetroRuns_DataHorde[2070] = {
             requires  = { 6 },
             segments  = {
                 {
-                    mapID   = 1357,
+                    when    = { mapID = 1357 },
                     kind    = "path",
-                    subZone = "The Heart of the Empire",
-                    note    = "After defeating ^King Rastakhan^, take the western exit from the room and make your way towards the map exit labeled ^Port of Zandalar^. Interact with the ^Riding Pterrordax^ to be flown to the next area.",
+                    note    = "After defeating ^King Rastakhan^, take the western exit from the room and make your way towards the map exit labeled ^Port of Zandalar^. Interact with the ^7th Legion Gryphon^ to be flown to the next area.",
                     points  = {
                         { 0.473, 0.538 },
                         { 0.407, 0.464 },
@@ -582,24 +488,33 @@ RetroRuns_DataHorde[2070] = {
                     },
                 },
                 {
-                    mapID   = 1352,
+                    when     = { mapID = 875 },
+                    kind     = "poi",
+                    noMarker = true,
+                    note     = "After landing on the ship, make your way to the top of the ship and talk to ^Tandred Proudmoore^ to proceed.",
+                    points   = {
+                        { 0.558, 0.699 },
+                    },
+                },
+                {
+                    when    = { mapID = 1367 },
                     kind    = "path",
-                    subZone = "Dazar'alor",
-                    note    = "After landing, proceed down the steps to clear trash and begin the fight with ^High Tinker Mekkatorque^.",
+                    note    = "When the ship stops, talk to ^Ensign Roberts^ to continue.",
+                    points  = {},
+                },
+                {
+                    when    = { mapID = 1352 },
+                    kind    = "path",
+                    note    = "After you reach the next area, go downstairs and kill trash to begin the fight against ^High Tinker Mekkatorque^.",
                     points  = {
-                        { 0.491, 0.203 },
-                        { 0.490, 0.283 },
+                        { 0.492, 0.200 },
+                        { 0.491, 0.285 },
                     },
                 },
             },
         },
 
         -- 8. Stormwall Blockade
-        --
-        -- Boss-level soloTip already lives on bossesHorde[8] with the
-        -- 4-step interact-with-Pterrordax / kill-Brother-or-Sister /
-        -- teleport-and-mirror / interrupt-Catastrophic-Tides script;
-        -- mechanically faction-shared (same fight on both sides).
         {
             step      = 8,
             priority  = 1,
@@ -608,24 +523,18 @@ RetroRuns_DataHorde[2070] = {
             requires  = { 7 },
             segments  = {
                 {
-                    mapID   = 1352,
+                    when    = { mapID = 1352 },
                     kind    = "path",
-                    subZone = "Terrace of the Speakers",
                     note    = "After defeating ^Mekkatorque^, make your way down the long path south, and kill the trash at the end of the bridge. Interact with a ^Pterrordax^ to start the encounter with ^Stormwall Blockade^.",
                     points  = {
-                        { 0.493, 0.367 },
-                        { 0.491, 0.906 },
+                        { 0.492, 0.354 },
+                        { 0.492, 0.889 },
                     },
                 },
             },
         },
 
         -- 9. Lady Jaina Proudmoore
-        --
-        -- Faction-shared encounter -- Captain Zadari is a Zandalari NPC
-        -- (Horde-aligned in BfA's storyline) but takes both factions on
-        -- the climactic ship voyage to confront Jaina. Note and POI
-        -- segment shape are identical to the Alliance step.
         {
             step      = 9,
             priority  = 1,
@@ -634,9 +543,8 @@ RetroRuns_DataHorde[2070] = {
             requires  = { 8 },
             segments  = {
                 {
-                    mapID   = 1352,
+                    when    = { mapID = 1352 },
                     kind    = "poi",
-                    subZone = "Port of Zandalar",
                     poiSize = 35,
                     note    = "After defeating ^Stormwall Blockade^, walk onto the newly-arrived ship and speak with ^Captain Zadari^ to begin the ^Lady Jaina Proudmoore^ encounter.",
                     points  = {

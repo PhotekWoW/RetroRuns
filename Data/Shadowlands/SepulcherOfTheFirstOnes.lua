@@ -73,16 +73,7 @@ RetroRuns_Data[2481] = {
         },
     },
 
-    -- Raid skip quests. Account-wide unlock per Patch 11.0.5; check via
-    -- C_QuestLog.IsQuestFlaggedCompletedOnAccount. Per-character
-    -- IsQuestFlaggedCompleted does NOT reflect the unlock for alts that
-    -- did not personally complete the quest.
-    --
-    -- Only the questID for the difficulty actually completed returns
-    -- true; the in-game cascade that lets you use the skip on lower
-    -- difficulties happens at the skip NPC, NOT by backfilling the
-    -- per-difficulty quest flags. To detect "skip is available at any
-    -- difficulty", OR across all three IDs.
+    -- Raid skip quests (account-wide unlock).
     skipQuests = {
         normal = 65764,
         heroic = 65763,
@@ -95,8 +86,7 @@ RetroRuns_Data[2481] = {
         details   = "After killing ^Vigilant Guardian^, proceed up the bridge and speak to ^Highlord Bolvar Fordragon^ near the teleporter to skip ahead to ^Anduin Wrynn^.",
     },
 
-    -- Glory meta-achievement for this raid. Completing all 11 per-boss
-    -- criteria below awards the Shimmering Aurelid mount.
+    -- Glory of the Raider meta -- 11 criteria, awards the Shimmering Aurelid mount.
     gloryMeta = {
         id   = 15491,
         name = "Glory of the Sepulcher Raider",
@@ -125,7 +115,7 @@ RetroRuns_Data[2481] = {
                 { id = 189779, slot = "Weapon", name = "Key to the Immortal Hearth", sources = { [17]=167760, [14]=167758, [15]=167761, [16]=167759 } },
                 { id = 189777, slot = "Wrist", name = "Unstable Giant's Cuffs", sources = { [17]=167751, [14]=167750, [15]=167752, [16]=167753 } },
             },
-            soloTip = "Kill trash to fill the energy bar. Three Unstable Cores will spawn. Carry all 3 (one at a time) to the boss and throw them to spawn the boss. On Mythic, boss spawns immediately for a quicker kill.",
+            soloTip = "^Mythic^-- Just nuke the boss. ^Heroic^/^Normal^: Kill trash to fill the energy bar. Eventually, (3) ^Unstable Core^ will drop. Pick them up and carry each of them towards the boss, and use the Extra Action Button to throw them. After doing this 3 times, the boss will spawn.",
         },
         {
             index              = 2,
@@ -209,7 +199,7 @@ RetroRuns_Data[2481] = {
                 { id = 189789, slot = "Two-Hand", name = "Pursuit of Victory", sources = { [17]=167796, [14]=167794, [15]=167797, [16]=167795 } },
                 { id = 189797, slot = "Wrist", name = "Wristwraps of Night's Renewal", sources = { [17]=167820, [14]=167819, [15]=167821, [16]=167822 } },
             },
-            soloTip = "Clear surrounding trash to activate the bosses. Depending on difficulty, bosses will either spawn in pairs of 2, or all 4 together. Either way, the goal is to kill them around the same time.",
+            soloTip = "Bring them down slowly. If any of them die before the final phase, the fight can bug/reset. Once all 4 are active, cleave them down.",
         },
         {
             index              = 6,
@@ -380,7 +370,7 @@ RetroRuns_Data[2481] = {
             specialLoot = {
                 { id = 190768, kind = "mount", name = "Fractal Cypher of the Zereth Overseer" },
             },
-            soloTip = "When he casts Relentless Domination (mind control), use a nearby pillar to line-of-sight, then resume nuke.",
+            soloTip = "Stand behind a pillar to line-of-sight his mind control (Relentless Domination).",
         },
     },  -- bosses
 
@@ -395,9 +385,9 @@ RetroRuns_Data[2481] = {
             requires  = {},
             segments  = {
                 {
-                    mapID  = 2047,
+                    when   = { mapID = 2047 },
                     kind   = "path",
-                    note   = "Follow the main path to ^Vigilant Guardian^.",
+                    note   = "After zoning in, follow the main path to ^Vigilant Guardian^.",
                     points = {
                         { 0.100, 0.516 },
                         { 0.243, 0.518 },
@@ -418,8 +408,8 @@ RetroRuns_Data[2481] = {
             requires  = { 1 },
             segments  = {
                 {
-                    mapID       = 2047,
-                    kind        = "teleport",
+                    when        = { mapID = 2047 },
+                    kind        = "path",
                     destination = "Ephemeral Plains Alpha",
                     note        = "Head down the long hallway to the teleporter. Select ^Ephemeral Plains Alpha^.",
                     points      = {
@@ -429,7 +419,7 @@ RetroRuns_Data[2481] = {
                     },
                 },
                 {
-                    mapID  = 2061,
+                    when   = { mapID = 2061 },
                     kind   = "path",
                     note   = "Follow the path down to ^Skolex^. Kill the trash to spawn the boss.",
                     points = {
@@ -452,9 +442,9 @@ RetroRuns_Data[2481] = {
             requires  = { 2 },
             segments  = {
                 {
-                    mapID  = 2061,
+                    when   = { mapID = 2061 },
                     kind   = "path",
-                    note   = "Follow the ring path up and around to ^Artificer Xy'mox^.",
+                    note   = "After defeating ^Skolex^, follow the ring path up and around to ^Artificer Xy'mox^.",
                     points = {
                         { 0.163, 0.660 },
                         { 0.193, 0.584 },
@@ -478,7 +468,7 @@ RetroRuns_Data[2481] = {
             requires  = { 2, 3 },
             segments  = {
                 {
-                    mapID  = 2061,
+                    when   = { mapID = 2061 },
                     kind   = "path",
                     note   = "After killing both ^Skolex^ and ^Artificer Xy'mox^, follow the path south to ^Halondrus^.",
                     points = {
@@ -500,8 +490,8 @@ RetroRuns_Data[2481] = {
             requires  = { 7 },
             segments  = {
                 {
-                    mapID       = 2061,
-                    kind        = "teleport",
+                    when        = { mapID = 2061 },
+                    kind        = "path",
                     destination = "Genesis Cradle Alpha",
                     note        = "After killing ^Halondrus^, continue down the path behind him to reach his loot chest. Activate the nearby teleporter and select ^Genesis Cradle Alpha^.",
                     points      = {
@@ -512,9 +502,9 @@ RetroRuns_Data[2481] = {
                     },
                 },
                 {
-                    mapID  = 2048,
+                    when   = { mapID = 2048 },
                     kind   = "path",
-                    note   = "Cross ^Genesis Cradle^ to ^Dausegne^.",
+                    note   = "After landing in the ^Genesis Cradle^, follow the path to ^Dausegne^.",
                     points = {
                         { 0.254, 0.841 },
                         { 0.315, 0.757 },
@@ -540,9 +530,9 @@ RetroRuns_Data[2481] = {
             requires  = { 4 },
             segments  = {
                 {
-                    mapID  = 2048,
+                    when   = { mapID = 2048 },
                     kind   = "path",
-                    note   = "Continue past ^Dausegne^ toward ^the Endless Foundry^ entrance.",
+                    note   = "After killing ^Dausegne^, continue up the path toward ^The Endless Foundry^.",
                     points = {
                         { 0.543, 0.466 },
                         { 0.572, 0.510 },
@@ -552,7 +542,7 @@ RetroRuns_Data[2481] = {
                     },
                 },
                 {
-                    mapID  = 2049,
+                    when   = { mapID = 2049 },
                     kind   = "path",
                     note   = "Follow the foundry floor to ^Prototype Pantheon^.",
                     points = {
@@ -572,7 +562,7 @@ RetroRuns_Data[2481] = {
             requires  = { 5 },
             segments  = {
                 {
-                    mapID  = 2049,
+                    when   = { mapID = 2049 },
                     kind   = "path",
                     note   = "Follow the path through ^The Endless Foundry^, killing the trash on the way to ^Lihuvim^.",
                     points = {
@@ -592,8 +582,8 @@ RetroRuns_Data[2481] = {
             requires  = { 6 },
             segments  = {
                 {
-                    mapID       = 2049,
-                    kind        = "teleport",
+                    when        = { mapID = 2049 },
+                    kind        = "path",
                     destination = "Domination's Grasp",
                     note        = "Find the teleporter behind ^Lihuvim^ and select ^Domination's Grasp^.",
                     points      = {
@@ -602,9 +592,9 @@ RetroRuns_Data[2481] = {
                     },
                 },
                 {
-                    mapID  = 2050,
+                    when   = { mapID = 2050 },
                     kind   = "path",
-                    note   = "Follow the bridge into ^Domination's Grasp^ to ^Anduin^.",
+                    note   = "After landing in ^Domination's Grasp^, proceed up the ramp. After some dialog, you can engage ^Anduin Wrynn^.",
                     points = {
                         { 0.161, 0.518 },
                         { 0.377, 0.520 },
@@ -622,8 +612,8 @@ RetroRuns_Data[2481] = {
             requires  = { 8 },
             segments  = {
                 {
-                    mapID       = 2050,
-                    kind        = "teleport",
+                    when        = { mapID = 2050 },
+                    kind        = "path",
                     destination = "The Grand Design",
                     note        = "Cross the bridge behind ^Anduin^ to the teleporter. Select ^Proceed^.",
                     points      = {
@@ -632,7 +622,7 @@ RetroRuns_Data[2481] = {
                     },
                 },
                 {
-                    mapID  = 2052,
+                    when   = { mapID = 2052 },
                     kind   = "path",
                     note   = "Follow the path through ^The Grand Design^, killing trash on the way to ^Lords of Dread^.",
                     points = {
@@ -654,7 +644,7 @@ RetroRuns_Data[2481] = {
             requires  = { 9 },
             segments  = {
                 {
-                    mapID  = 2052,
+                    when   = { mapID = 2052 },
                     kind   = "path",
                     note   = "After killing ^Lords of Dread^, you will find a teleporter behind them. Use it to take a shortcut back to the beginning of the room, and follow the path to ^Rygelon^.",
                     points = {
@@ -684,9 +674,9 @@ RetroRuns_Data[2481] = {
             requires  = { 10 },
             segments  = {
                 {
-                    mapID  = 2052,
+                    when   = { mapID = 2052 },
                     kind   = "path",
-                    note   = "Follow the path behind ^Rygelon^ all the way to ^The Jailer^.",
+                    note   = "After killing ^Rygelon^, follow the path straight behind him all the way to ^The Jailer^.",
                     points = {
                         { 0.395, 0.545 },
                         { 0.425, 0.621 },
@@ -703,7 +693,7 @@ RetroRuns_Data[2481] = {
                 -- already headed the right way, they just need
                 -- acknowledgement that they're on-route.
                 {
-                    mapID  = 2051,
+                    when   = { mapID = 2051 },
                     kind   = "path",
                     note   = "Continue forward to ^The Jailer^'s platform and end this.",
                     points = {

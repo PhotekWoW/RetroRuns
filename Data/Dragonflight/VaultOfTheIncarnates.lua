@@ -2,23 +2,6 @@
 -- RetroRuns Data -- Vault of the Incarnates
 -- Dragonflight, Patch 10.0  |  instanceID: 2522  |  journalInstanceID: 1200
 -------------------------------------------------------------------------------
--- Vault of the Incarnates is the first Dragonflight raid (10.0). Two
--- structural notes worth understanding when reading this file:
---
--- 1. Boss order in routing[] is NOT the EJ order. The encounter journal
---    lists the bosses in geography-paired wing order, but the natural
---    solo-running path walks through them in a different sequence that
---    backtracks through Vault Approach (mapID 2122) multiple times.
---    `step`/`priority` follow the run order; `bossIndex` indexes into
---    bosses[] which stays EJ-ordered for transmog-lookup purposes.
---
--- 2. Routing segments often share a mapID within a single step. Vault
---    is the first raid where this happens, and the addon handles it
---    by picking the earliest incomplete segment within the player's
---    current mapID. Player position can't be queried inside raid
---    instances (a Blizzard restriction), so the earliest-incomplete
---    rule is what advances the route as the player moves.
--------------------------------------------------------------------------------
 
 RetroRuns_Data = RetroRuns_Data or {}
 
@@ -93,16 +76,7 @@ RetroRuns_Data[2522] = {
         },
     },
 
-    -- Raid skip quests. Account-wide unlock per Patch 11.0.5; check via
-    -- C_QuestLog.IsQuestFlaggedCompletedOnAccount. Per-character
-    -- IsQuestFlaggedCompleted does NOT reflect the unlock for alts that
-    -- did not personally complete the quest.
-    --
-    -- Only the questID for the difficulty actually completed returns
-    -- true; the in-game cascade that lets you use the skip on lower
-    -- difficulties happens at the skip NPC, NOT by backfilling the
-    -- per-difficulty quest flags. To detect "skip is available at any
-    -- difficulty", OR across all three IDs.
+    -- Raid skip quests (account-wide unlock).
     skipQuests = {
         normal = 71018,
         heroic = 71019,
@@ -115,8 +89,7 @@ RetroRuns_Data[2522] = {
         details   = "After killing ^Eranog^, you will find two clickable runes beside the stairs leading to ^Broodkeeper Diurna^. Click the runes to open the access.",
     },
 
-    -- Glory meta-achievement for this raid. Completing all 8 per-boss
-    -- criteria below awards the Raging Magmammoth mount.
+    -- Glory of the Raider meta -- 8 criteria, awards the Raging Magmammoth mount.
     gloryMeta = {
         id   = 16355,
         name = "Glory of the Vault Raider",
@@ -425,9 +398,8 @@ RetroRuns_Data[2522] = {
             requires  = {},
             -- Eranog's approach has two phases divided by the dragon ride.
             -- Pre-flight the player is on the dragon platform talking to
-            -- the five dragons and then to Khadgar. The route here is just
-            -- a short stub between the dragons -- one line on the map, one
-            -- instruction in the travel pane. Once the player picks a
+            -- the five dragons and then to Khadgar -- no map line, just
+            -- an instruction in the travel pane. Once the player picks a
             -- dragon, the assault begins and Raszageth yells "The skies
             -- are mine to control!" at the end of the flight just as the
             -- player lands.
@@ -440,26 +412,17 @@ RetroRuns_Data[2522] = {
             renderAllSegments = true,
             segments  = {
                 {
-                    mapID  = 2119,
-                    kind   = "path",
-                    note   = "Upon zoning in, talk to all 5 dragons. Then talk to ^Khadgar^ to begin the assault. Choose any dragon; doesn't matter.",
-                    points = {
-                        { 0.629, 0.920 },
-                        { 0.615, 0.856 },
-                    },
+                    when    = { mapID = 2119 },
+                    note    = "Upon zoning in, talk to all 5 dragons. Then talk to ^Khadgar^ to begin the assault. Choose any dragon; doesn't matter.",
                 },
                 {
-                    mapID  = 2119,
+                    when        = { mapID = 2119 },
+                    triggeredBy = { yell = { npc = "Raszageth", match = "skies are mine to control" } },
+                    after       = { 1 },
                     kind   = "path",
                     -- Raszageth's yell at the end of the dragon ride is
                     -- the cue to switch the panel from the pre-flight
                     -- instruction to the post-landing approach.
-                    advanceOn = {
-                        kind  = "yell",
-                        npc   = "Raszageth",
-                        match = "skies are mine to control",
-                    },
-                    revealAfter = 1,
                     note   = "After landing, follow the path to kill |cffF259C7(1)|r ^Volcanius^, then |cffF259C7(2)|r ^Eranog^.",
                     points = {
                         { 0.566, 0.530 },
@@ -469,9 +432,9 @@ RetroRuns_Data[2522] = {
                     },
                 },
                 {
-                    mapID  = 2119,
+                    when    = { mapID = 2119 },
+                    after   = { 1 },
                     kind   = "path",
-                    revealAfter = 1,
                     points = {
                         { 0.561, 0.377 },
                         { 0.512, 0.425 },
@@ -499,16 +462,17 @@ RetroRuns_Data[2522] = {
             requires  = { 1 },
             segments  = {
                 {
-                    mapID  = 2119,
-                    kind   = "path",
-                    note   = "After killing ^Eranog^, there are 3 paths available. Take the path on the right labeled ^The Vault Approach^.",
-                    points = {
-                        { 0.569, 0.172 },
-                        { 0.598, 0.152 },
+                    when            = { mapID = 2119 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    note            = "After killing ^Eranog^, there are 3 paths available. Take the path on the right labeled ^The Vault Approach^.",
+                    points          = {
+                        { 0.600, 0.135 },
                     },
                 },
                 {
-                    mapID  = 2122,
+                    when    = { mapID = 2122 },
                     kind   = "path",
                     note   = "Follow the path to ^The Primal Convergence^.",
                     points = {
@@ -518,7 +482,7 @@ RetroRuns_Data[2522] = {
                     },
                 },
                 {
-                    mapID  = 2124,
+                    when    = { mapID = 2124 },
                     kind   = "path",
                     note   = "When you arrive in ^The Primal Convergence^, take the first path on the left labeled ^Quarry of Infusion^.",
                     points = {
@@ -528,7 +492,7 @@ RetroRuns_Data[2522] = {
                     },
                 },
                 {
-                    mapID  = 2122,
+                    when    = { mapID = 2122 },
                     kind   = "path",
                     note   = "Follow the path to ^Terros^.",
                     points = {
@@ -557,7 +521,7 @@ RetroRuns_Data[2522] = {
             requires  = { 1, 2 },
             segments  = {
                 {
-                    mapID  = 2122,
+                    when    = { mapID = 2122 },
                     kind   = "path",
                     note   = "After killing ^Terros^, go back the way you came and arrive back in ^The Primal Convergence^.",
                     points = {
@@ -568,7 +532,7 @@ RetroRuns_Data[2522] = {
                     },
                 },
                 {
-                    mapID  = 2124,
+                    when    = { mapID = 2124 },
                     kind   = "path",
                     note   = "From ^The Primal Convergence^, follow the path to the entrance labeled ^Iceskitter Hollow^.",
                     points = {
@@ -579,7 +543,7 @@ RetroRuns_Data[2522] = {
                     },
                 },
                 {
-                    mapID  = 2122,
+                    when    = { mapID = 2122 },
                     kind   = "path",
                     note   = "Follow the path to ^Sennarth, the Cold Breath^",
                     points = {
@@ -588,7 +552,7 @@ RetroRuns_Data[2522] = {
                     },
                 },
                 {
-                    mapID  = 2123,
+                    when    = { mapID = 2123 },
                     kind   = "path",
                     note   = "Finish him!",
                     points = {
@@ -616,16 +580,19 @@ RetroRuns_Data[2522] = {
             requires  = { 1, 2, 4 },
             segments  = {
                 {
-                    mapID  = 2123,
-                    kind   = "path",
-                    note   = "After killing ^Sennarth^, click the ^Gust of Wind^ behind him to return to the bottom of the room. If you killed him on the ground floor, proceed up the ramp to find his corpse and collect his loot!",
-                    points = {
-                        { 0.331, 0.460 },
+                    when     = { mapID = 2123 },
+                    kind     = "poi",
+                    poiSize  = 35,
+                    note     = "After killing ^Sennarth^, click the ^Gust of Wind^ behind him to return to the bottom of the room. If you killed him on the ground floor, proceed up the ramp to find his corpse and collect his loot!",
+                    mapLabel = "Click Gust of Wind",
+                    mapLabelPos = "above",
+                    completionCheck = true,
+                    points   = {
                         { 0.368, 0.405 },
                     },
                 },
                 {
-                    mapID  = 2122,
+                    when    = { mapID = 2122 },
                     kind   = "path",
                     note   = "After landing from ^Gust of Wind^, follow the path back out to ^The Primal Convergence^.",
                     points = {
@@ -634,7 +601,7 @@ RetroRuns_Data[2522] = {
                     },
                 },
                 {
-                    mapID  = 2124,
+                    when    = { mapID = 2124 },
                     kind   = "path",
                     note   = "Back in ^The Primal Convergence^, follow the newly-opened path to ^Kurog Grimtotem^.",
                     points = {
@@ -662,7 +629,7 @@ RetroRuns_Data[2522] = {
             requires  = { 1, 2, 4, 6 },
             segments  = {
                 {
-                    mapID  = 2124,
+                    when    = { mapID = 2124 },
                     kind   = "path",
                     note   = "After killing ^Kurog Grimtotem^, follow the path back to ^The Vault Approach^.",
                     points = {
@@ -671,7 +638,7 @@ RetroRuns_Data[2522] = {
                     },
                 },
                 {
-                    mapID  = 2122,
+                    when    = { mapID = 2122 },
                     kind   = "path",
                     note   = "Continue following the path to arrive back at the ^The Primal Bulwark^.",
                     points = {
@@ -681,16 +648,17 @@ RetroRuns_Data[2522] = {
                     },
                 },
                 {
-                    mapID  = 2119,
-                    kind   = "path",
-                    note   = "This time, take the far-left exit to reach ^The Elemental Conclave^.",
-                    points = {
-                        { 0.600, 0.153 },
-                        { 0.543, 0.154 },
+                    when            = { mapID = 2119 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    note            = "This time, take the far-left exit to reach ^The Elemental Conclave^.",
+                    points          = {
+                        { 0.544, 0.135 },
                     },
                 },
                 {
-                    mapID  = 2120,
+                    when    = { mapID = 2120 },
                     kind   = "path",
                     note   = "Follow the path and kill ^Braekkas^ to open the wall. Continue on to find ^The Primal Council^.",
                     points = {
@@ -720,7 +688,7 @@ RetroRuns_Data[2522] = {
             requires  = { 1, 2, 3, 4, 6 },
             segments  = {
                 {
-                    mapID  = 2120,
+                    when    = { mapID = 2120 },
                     kind   = "path",
                     note   = "After killing ^The Primal Council^, follow the path towards the exit labeled ^Galewind Crag^. Kill ^Thondrozus^, and click on ^Upward Draft^ to be carried up to ^Galewind Crag^. Approach the Downward Draft.",
                     points = {
@@ -733,7 +701,7 @@ RetroRuns_Data[2522] = {
                     },
                 },
                 {
-                    mapID  = 2121,
+                    when    = { mapID = 2121 },
                     kind   = "path",
                     note   = "Click the ^Downward Draft^ to be flown to the platform and engage ^Dathea, Ascended^.",
                     points = {
@@ -761,7 +729,7 @@ RetroRuns_Data[2522] = {
             requires  = { 1, 2, 3, 4, 5, 6 },
             segments  = {
                 {
-                    mapID  = 2121,
+                    when    = { mapID = 2121 },
                     kind   = "path",
                     note   = "After killing ^Dathea, Ascended^, take one of the nearby ^Downward Draft^ to return below to ^The Primal Bulwark^.",
                     points = {
@@ -770,16 +738,17 @@ RetroRuns_Data[2522] = {
                     },
                 },
                 {
-                    mapID  = 2119,
-                    kind   = "path",
-                    note   = "Once you land, take the middle (and final) path labeled ^The Clutchwarren^.",
-                    points = {
-                        { 0.601, 0.161 },
-                        { 0.572, 0.139 },
+                    when            = { mapID = 2119 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    note            = "Once you land, take the middle (and final) path labeled ^The Clutchwarren^.",
+                    points          = {
+                        { 0.572, 0.122 },
                     },
                 },
                 {
-                    mapID  = 2122,
+                    when    = { mapID = 2122 },
                     kind   = "path",
                     note   = "Work your way upstairs through ^The Vault Approach^ and you will enter ^The Clutchwarren^.",
                     points = {
@@ -788,7 +757,7 @@ RetroRuns_Data[2522] = {
                     },
                 },
                 {
-                    mapID  = 2126,
+                    when    = { mapID = 2126 },
                     kind   = "path",
                     note   = "Follow the path up to ^Broodkeeper Diurna^.",
                     points = {
@@ -813,22 +782,19 @@ RetroRuns_Data[2522] = {
             requires  = { 1, 2, 3, 4, 5, 6, 7 },
             segments  = {
                 {
-                    mapID  = 2126,
-                    kind   = "path",
-                    note   = "After killing ^Broodkeeper Diurna^, click any nearby dragon to fly to the ^Vault of the Incarnates^.",
-                    points = {
-                        { 0.487, 0.516 },
+                    when     = { mapID = 2126 },
+                    kind     = "poi",
+                    note     = "After killing ^Broodkeeper Diurna^, click any nearby dragon to fly to the ^Vault of the Incarnates^.",
+                    mapLabel = "Click Dragon",
+                    mapLabelPos = "above",
+                    completionCheck = true,
+                    points   = {
                         { 0.380, 0.469 },
                     },
                 },
                 {
-                    mapID  = 2125,
-                    kind   = "path",
-                    note   = "After a brief dialog, kill ^Raszageth the Storm-Eater^!",
-                    points = {
-                        { 0.620, 0.674 },
-                        { 0.581, 0.635 },
-                    },
+                    when    = { mapID = 2125 },
+                    note    = "After a brief dialog, kill ^Raszageth the Storm-Eater^!",
                 },
             },
             soloTip = "The only mechanic that matters anymore is his knockback. Position yourself so it launches you to the left or right platform. Kill adds on both platforms and return to middle. For next knockback, let it knock you to the upper middle platform. Finish the boss there!",

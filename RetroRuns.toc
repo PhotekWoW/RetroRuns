@@ -2,48 +2,47 @@
 ## Title: RetroRuns
 ## Notes: Solo legacy raid navigator — routing, tips, and achievement tracking
 ## Author: Photek
-## Version: 1.10.2
+## Version: 1.11.0
 ## X-License: MIT
 ## SavedVariables: RetroRunsDB, RetroRunsDebug
 ## IconTexture: Interface\AddOns\RetroRuns\Media\MinimapIcon
 ## OptionalDeps: TomTom
 
 # ── Data ──────────────────────────────────────────────────────────────────────
-Data\NyalothaTheWakingCity.lua
-Data\EternalPalace.lua
-Data\CrucibleOfStorms.lua
-Data\BattleOfDazaralor.lua
-Data\BattleOfDazaralorHorde.lua
-Data\Uldir.lua
-Data\CastleNathria.lua
-Data\SanctumOfDomination.lua
-Data\SepulcherOfTheFirstOnes.lua
-Data\VaultOfTheIncarnates.lua
-Data\AberrusTheShadowedCrucible.lua
-Data\AmirdrassilTheDreamsHope.lua
-Data\EmeraldNightmare.lua
-Data\TrialOfValor.lua
-Data\Nighthold.lua
-Data\TombOfSargeras.lua
-Data\AntorusTheBurningThrone.lua
-# WoD raids (stubs only -- not loaded until routing data is complete):
-# Data\HellfireCitadel.lua
-# Data\BlackrockFoundry.lua
-# Data\Highmaul.lua
+Data\BattleForAzeroth\NyalothaTheWakingCity.lua
+Data\BattleForAzeroth\EternalPalace.lua
+Data\BattleForAzeroth\CrucibleOfStorms.lua
+Data\BattleForAzeroth\BattleOfDazaralor.lua
+Data\BattleForAzeroth\BattleOfDazaralorHorde.lua
+Data\BattleForAzeroth\Uldir.lua
+Data\Shadowlands\CastleNathria.lua
+Data\Shadowlands\SanctumOfDomination.lua
+Data\Shadowlands\SepulcherOfTheFirstOnes.lua
+Data\Dragonflight\VaultOfTheIncarnates.lua
+Data\Dragonflight\AberrusTheShadowedCrucible.lua
+Data\Dragonflight\AmirdrassilTheDreamsHope.lua
+Data\Legion\EmeraldNightmare.lua
+Data\Legion\TrialOfValor.lua
+Data\Legion\Nighthold.lua
+Data\Legion\TombOfSargeras.lua
+Data\Legion\AntorusTheBurningThrone.lua
+# Data\WarlordsOfDraenor\HellfireCitadel.lua
+# Data\WarlordsOfDraenor\BlackrockFoundry.lua
+# Data\WarlordsOfDraenor\Highmaul.lua
 
 # ── Core ──────────────────────────────────────────────────────────────────────
-Core.lua
-Navigation.lua
-StrictPicker.lua
-RaidState.lua
-Recorder.lua
-WhatsNew.lua
+Core\Core.lua
+Core\Navigation.lua
+Core\Engine.lua
+Core\RaidState.lua
+Core\WhatsNew.lua
 
-# ── Dev Tools (can be removed from public releases) ──────────────────────────
-Harvester.lua
+# ── Dev Tools ────────────────────────────────────────────────────────────────
+DevTools\Recorder.lua
+DevTools\Harvester.lua
+DevTools\DevTools.lua
 
 # ── UI ────────────────────────────────────────────────────────────────────────
-UI.lua
-MinimapButton.lua
-MapOverlay.lua
-DevTools.lua
+UI\UI.lua
+UI\MinimapButton.lua
+UI\MapOverlay.lua

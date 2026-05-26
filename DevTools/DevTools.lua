@@ -1,15 +1,16 @@
 -------------------------------------------------------------------------------
 -- DevTools.lua -- floating dev-tool launcher window
 -------------------------------------------------------------------------------
--- A small always-on-top frame that surfaces the dev-tool commands the
--- author runs frequently during raid bring-ups (recorder Start/Stop, EJ
--- capture, raid loot capture, tmog verify), plus a live zone/sub-zone/
--- mapID readout so coords and map context are always visible without
--- needing /rr status every few seconds.
+-- A small always-on-top frame surfacing the dev-tool commands the author
+-- runs frequently, plus a live zone/sub-zone/mapID/coords readout so map
+-- context is always visible without needing /rr status every few seconds.
 --
--- Currently wired up: Record Start, Record Stop. The other tool buttons
--- exist as visible-but-disabled placeholders so the panel layout stays
--- stable as more buttons get implemented over time.
+-- Button groups:
+--   * Diag: consolidated dump (RetroEngine state + zone log + session log
+--           in one copy window)
+--   * Bring-up:  Tmog Verify, Raid Capture
+--   * Recorder:  YellDebug (toggles on/off, label reflects state)
+--   * Utility:   Reload
 --
 -- Toggle with /rr devtools. Position persists via RetroRunsDB.devtools.
 -------------------------------------------------------------------------------
@@ -88,91 +89,59 @@ local function GetOrCreateDevToolsFrame()
     readoutText:SetText("(updating...)")
 
     -- ─────────────────────────────────────────────────────────────────
-    -- Tool buttons. Layout: 2-column grid below the readout block.
-    -- Wired-up buttons are enabled; not-yet-implemented buttons render
-    -- visibly disabled so the layout stays stable as more land.
+    -- Tool buttons. Layout: 2-column grid for the per-workflow tools,
+    -- with a full-width Reload at the bottom since it's the most-
+    -- frequently-clicked utility action across every workflow.
     -- ─────────────────────────────────────────────────────────────────
-    local function MakeButton(label, x, y, enabled, onClick)
+    local function MakeButton(label, x, y, width, onClick)
         local btn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-        btn:SetSize(120, 22)
+        btn:SetSize(width, 22)
         btn:SetPoint("TOPLEFT", x, y)
         btn:SetText(label)
-        if enabled then
-            btn:SetScript("OnClick", onClick)
-        else
-            btn:Disable()
-        end
+        btn:SetScript("OnClick", onClick)
         return btn
     end
 
-    -- Row 1: data-capture commands. Both wired through the slash dispatch
-    -- since the underlying handlers expect the dispatch's arg-parsing
-    -- convention (and tmogverify in particular is a large inline block,
-    -- not a callable function).
-    MakeButton("EJ Capture", 14, -120, true, function()
-        SlashCmdList["RETRORUNS"]("ej")
+    local COL_W = 120          -- grid column width
+    local L_X   = 14           -- left column X
+    local R_X   = 146          -- right column X
+    local FULL_W = PANEL_W - 28 -- full-width row width
+
+    -- Row 1: full-width Diag. One-click consolidated copy window with
+    -- RetroEngine state + zone log + session log. Capture state at
+    -- each step transition; paste into the session log for analysis.
+    MakeButton("Diag", L_X, -120, FULL_W, function()
+        SlashCmdList["RETRORUNS"]("diag")
     end)
-    MakeButton("Raid Capture", 146, -120, true, function()
+
+    -- Row 2: bring-up tools. Tmog Verify catches data-integrity issues
+    -- before ship; Raid Capture kicks off the full tier+loot harvest
+    -- for a newly-supported raid.
+    MakeButton("Tmog Verify", L_X, -148, COL_W, function()
+        SlashCmdList["RETRORUNS"]("tmogverify")
+    end)
+    MakeButton("Raid Capture", R_X, -148, COL_W, function()
         SlashCmdList["RETRORUNS"]("raidcapture")
     end)
 
-    -- Row 2: live toggles. Labels update dynamically based on the
-    -- underlying state (RR.recorder.active / RR:IsYellDebugActive()).
-    -- Tracked on the frame so the ticker can refresh their text.
-    f.recordButton = MakeButton("Record Start", 14, -148, true, function()
-        if RR.recorder and RR.recorder.active then
-            RR:StopRecording()
-        else
-            RR:StartRecording()
-        end
-        RefreshReadout()    -- repaint immediately for snappy feedback
-    end)
-
-    f.yellButton = MakeButton("YellDebug Start", 146, -148, true, function()
+    -- Row 3: YellDebug toggle. Label updates dynamically based on
+    -- RR:IsYellDebugActive(); tracked on the frame so the ticker can
+    -- refresh its text. Full-width because the toggle nature warrants
+    -- the visual prominence; it's the recorder's main signal-capture
+    -- knob during bring-up of a new raid's yell triggers.
+    f.yellButton = MakeButton("YellDebug Start", L_X, -176, FULL_W, function()
         if RR:IsYellDebugActive() then
             RR:YellDebugStop()
         else
             RR:YellDebugStart()
         end
-        RefreshReadout()    -- repaint immediately for snappy feedback
+        RefreshReadout()
     end)
 
-    -- Row 3: verification + manual-stamp safety net.
-    --
-    -- Mark Destination: manually triggers AutoStampCurrent on the in-
-    -- progress segment when neither ENCOUNTER_END nor PLAYER_CONTROL_
-    -- GAINED fires at the destination. Use cases:
-    --   * intermediate non-boss locations (e.g. "stand on the
-    --     Conclave platform pre-pull")
-    --   * seamless portal/door transitions that don't take control
-    --     from the player
-    --   * mid-zone destinations like "stand at the orb" that have no
-    --     Blizzard event tied to them
-    -- The auto-stamp system catches boss kills and forced-flight
-    -- transitions automatically; this button covers the rest.
-    -- Disabled when recording is not active.
-    MakeButton("Tmog Verify", 14, -176, true, function()
-        SlashCmdList["RETRORUNS"]("tmogverify")
-    end)
-    f.markDestButton = MakeButton("Mark Destination", 146, -176, true, function()
-        RR:RecorderMarkDestination()
-    end)
-
-    -- Row 4: Reload + Session Log. Two buttons side-by-side matching
-    -- the row 1-3 grid (left at x=14, right at x=146).
-    --
-    -- Session Log: opens a copy window showing the verbose recorder
-    -- session log -- every Click, Event, AutoStamp, Queue, Consume,
-    -- SegCut, etc. with timestamps. Persisted to RetroRunsDB so it
-    -- survives /reload. Use for diagnosing "why didn't auto-stamp fire
-    -- here" or "what happened between sessions" questions. Always
-    -- enabled (the log accumulates across sessions; can review even
-    -- when not actively recording).
-    MakeButton("Reload", 14, -210, true, function()
+    -- Row 4: full-width Reload. Most-clicked action in any workflow --
+    -- promoted to its own row to make it the easiest target.
+    MakeButton("Reload", L_X, -210, FULL_W, function()
         ReloadUI()
-    end)
-    MakeButton("Session Log", 146, -210, true, function()
-        RR:ShowRecorderSessionLog()
     end)
 
     devtoolsFrame = f
@@ -205,26 +174,11 @@ RefreshReadout = function()
     }
     readoutText:SetText(table.concat(lines, "\n"))
 
-    -- Toggle-button labels. Reflect current state so the button always
-    -- shows the action that will fire on the NEXT click.
-    if devtoolsFrame and devtoolsFrame.recordButton then
-        local active = RR.recorder and RR.recorder.active
-        devtoolsFrame.recordButton:SetText(active and "Record Stop" or "Record Start")
-    end
+    -- YellDebug toggle button: reflect current state so the button
+    -- always shows the action that will fire on the NEXT click.
     if devtoolsFrame and devtoolsFrame.yellButton then
         local active = RR:IsYellDebugActive()
         devtoolsFrame.yellButton:SetText(active and "YellDebug Stop" or "YellDebug Start")
-    end
-    if devtoolsFrame and devtoolsFrame.markDestButton then
-        -- Mark Destination only makes sense while recording is active --
-        -- it stamps metadata onto the in-progress segment. Disable when
-        -- inactive so a click doesn't fire a "no current segment" toast.
-        local recActive = RR.recorder and RR.recorder.active
-        if recActive then
-            devtoolsFrame.markDestButton:Enable()
-        else
-            devtoolsFrame.markDestButton:Disable()
-        end
     end
 end
 
@@ -242,4 +196,58 @@ function RR:ToggleDevTools()
         RefreshReadout()                                -- paint immediately
         tickerHandle = C_Timer.NewTicker(0.5, RefreshReadout)
     end
+end
+
+-- /rr mapicons: dumps the exact normalized coords of every Blizzard map
+-- link (zone-transition arrows, exits) and POI (boss icons, vendors,
+-- etc.) on the currently-VIEWED world map. Workaround for the
+-- shift-click-recording friction where clicking directly on top of a
+-- Blizzard icon often gets eaten by Blizzard's icon click handler
+-- before the recorder hook sees it. With this probe the icon's exact
+-- coord comes straight from the API and goes into the routing seg --
+-- no clicking required.
+function RR:DumpMapIcons()
+    local mapID = WorldMapFrame and WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()
+    if not mapID then
+        self:Print("Open the world map first, then run /rr mapicons.")
+        return
+    end
+
+    local lines = {}
+    local function add(s) lines[#lines+1] = s end
+
+    add(("Map icons for currently-viewed mapID %d"):format(mapID))
+    add("")
+
+    add("-- Map links (zone-transition arrows, exits) --")
+    local links = (C_Map and C_Map.GetMapLinksForMap and C_Map.GetMapLinksForMap(mapID)) or {}
+    if #links == 0 then
+        add("  (none)")
+    else
+        for i, link in ipairs(links) do
+            local x = (link.position and link.position.x) or -1
+            local y = (link.position and link.position.y) or -1
+            local linked = link.linkedUiMapID or 0
+            local name   = (link.name ~= "" and link.name) or "(unnamed)"
+            add(("  [%d] %s -> mapID=%d at { %.3f, %.3f }"):format(i, name, linked, x, y))
+        end
+    end
+    add("")
+
+    add("-- Map POIs (bosses, treasures, vendors, etc.) --")
+    local pois = (C_Map and C_Map.GetMapPOIs and C_Map.GetMapPOIs(mapID)) or {}
+    if #pois == 0 then
+        add("  (none)")
+    else
+        for i, poi in ipairs(pois) do
+            local x = (poi.position and poi.position.x) or -1
+            local y = (poi.position and poi.position.y) or -1
+            local name = (poi.name and poi.name ~= "" and poi.name) or "(unnamed)"
+            local pid  = poi.areaPoiID or "?"
+            add(("  [%d] %s at { %.3f, %.3f } areaPoiID=%s"):format(i, name, x, y, tostring(pid)))
+        end
+    end
+
+    self:ShowCopyWindow(("Map icons for mapID %d"):format(mapID),
+        table.concat(lines, "\n"))
 end

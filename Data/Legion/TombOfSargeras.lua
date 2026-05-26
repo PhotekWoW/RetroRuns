@@ -2,36 +2,6 @@
 -- RetroRuns Data -- Tomb of Sargeras
 -- Legion, Patch 7.2.5  |  instanceID: 1676  |  journalInstanceID: 875
 -------------------------------------------------------------------------------
--- Tomb of Sargeras is the fourth raid of Legion (7.2.5, opened
--- June 20 2017), set beneath the Broken Shore in what was once the
--- Temple of Elune. Nine boss encounters across four wings:
---
---   Gates of Hell           -- Goroth (gates the rest), Harjatan,
---                              Mistress Sassz'ine
---   Wailing Halls           -- Demonic Inquisition, Sisters of the
---                              Moon, The Desolate Host
---   Chamber of the Avatar   -- Maiden of Vigilance, Fallen Avatar
---   Deceiver's Fall         -- Kil'jaeden
---
--- After Goroth the raid splits into three sibling wings (Gates of
--- Hell continuation, Wailing Halls, Chamber of the Avatar) that
--- can be cleared in any order; Kil'jaeden is gated behind all
--- prior bosses.
---
--- Tier: Tomb of Sargeras drops Tier 20 ("Tomb Raider" set),
--- distributed across six bosses by slot -- Demonic Inquisition:
--- Head, Harjatan: Hands, Mistress Sassz'ine: Legs, The Desolate
--- Host: Back, Maiden of Vigilance: Chest, Fallen Avatar:
--- Shoulders. Same Legion tier distribution model as Emerald
--- Nightmare and Nighthold: tier pieces drop directly as class-
--- restricted items rather than via cross-class tokens, so
--- `tierSets.tokenSources` is empty and each tier row carries a
--- `classes = { N }` field. Tier 20 is a 6-piece set (the second
--- tier ever after T6 to add a Back slot alongside the standard
--- 5-slot tier armor). Kil'jaeden has only 7 non-tier items and
--- no class-set tier piece, consistent with a final-boss tail
--- where the chest slot wraps up on the prior boss instead.
--------------------------------------------------------------------------------
 
 RetroRuns_Data = RetroRuns_Data or {}
 
@@ -41,8 +11,6 @@ RetroRuns_Data[1676] = {
     name              = "Tomb of Sargeras",
     expansion         = "Legion",
     patch             = "7.2.5",
-
-    useStrictActiveSegPicker = true,
 
     -- Entrance is in Broken Shore (mapID 646), at the portal in the
     -- southern part of the zone. Coords (64.5, 20.9) are the actual
@@ -376,9 +344,8 @@ RetroRuns_Data[1676] = {
             requires  = {},
             segments  = {
                 {
-                    mapID   = 850,
+                    when   = { mapID = 850 },
                     kind    = "path",
-                    subZone = "The Breach",
                     note    = "After zoning in, proceed straight ahead to engage ^Goroth^.",
                     points  = {
                         { 0.450, 0.893 },
@@ -402,9 +369,8 @@ RetroRuns_Data[1676] = {
             requires  = {},
             segments  = {
                 {
-                    mapID   = 850,
+                    when   = { mapID = 850 },
                     kind    = "path",
-                    subZone = "Chamber of the Moon",
                     note    = "After defeating ^Goroth^, proceed straight ahead past the group of NPCs and go up the stairs to find ^Demonic Inquisition^.",
                     points  = {
                         { 0.450, 0.532 },
@@ -422,10 +388,11 @@ RetroRuns_Data[1676] = {
         -- Three segments:
         --   seg 1: poi -- click the Hammer of Khaz'goroth in the
         --          Demonic Inquisition room. Hammer sits directly
-        --          under the boss icon so no map marker is rendered
-        --          (points = {}); travel-note text carries the
+        --          under the boss icon so the map marker is
+        --          suppressed (noMarker = true); the "Click Hammer"
+        --          map label and travel-note text carry the
         --          instruction. Image of Aegwynn says a flavor line
-        --          when the hammer is clicked, used as the advanceOn
+        --          when the hammer is clicked, used as the yell
         --          trigger so the segment progresses automatically
         --          when the click takes effect.
         --   seg 2: path west on mapID 850 (sub-zone "Conclave of
@@ -441,21 +408,21 @@ RetroRuns_Data[1676] = {
             requires  = {},
             segments  = {
                 {
-                    mapID   = 850,
-                    kind    = "poi",
-                    subZone = "Chamber of the Moon",
+                    when            = { mapID = 850 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    mapLabel        = "Click Hammer",
+                    mapLabelPos     = "middle",
+                    completionCheck = true,
                     note    = "Click the ^Hammer of Khaz'goroth^ in the middle of this room after killing ^Demonic Inquisition^.",
-                    advanceOn = {
-                        kind  = "yell",
-                        npc   = "Image of Aegwynn",
-                        match = "shatters the bonds of fate",
+                    triggeredBy = { yell = { npc = "Image of Aegwynn", match = "shatters the bonds of fate" } },
+                    points  = {
+                        { 0.449, 0.195 },
                     },
-                    points  = {},
                 },
                 {
-                    mapID   = 850,
+                    when   = { mapID = 850 },
                     kind    = "path",
-                    subZone = "Conclave of Torment",
                     note    = "After clicking the ^Hammer^, proceed down the stairs towards the west side of the room and the map exit labeled ^The Abyssal Throne^.",
                     points  = {
                         { 0.449, 0.213 },
@@ -470,9 +437,8 @@ RetroRuns_Data[1676] = {
                     },
                 },
                 {
-                    mapID   = 851,
+                    when   = { mapID = 851 },
                     kind    = "path",
-                    subZone = "The Collapse",
                     note    = "After jumping in the hole, follow the path straight ahead to find ^Harjatan^.",
                     points  = {
                         { 0.146, 0.255 },
@@ -503,9 +469,8 @@ RetroRuns_Data[1676] = {
             requires  = {},
             segments  = {
                 {
-                    mapID   = 851,
+                    when   = { mapID = 851 },
                     kind    = "path",
-                    subZone = "Lair of Harjatan",
                     note    = "After killing ^Harjatan^, jump over the ledge to his left and land in the water. Follow the path through the tunnel and continue straight ahead to find ^Mistress Sassz'ine^.",
                     points  = {
                         { 0.433, 0.645 },
@@ -530,9 +495,11 @@ RetroRuns_Data[1676] = {
         --   seg 1: poi -- click the Tidestone of Golganneth in
         --          Sassz'ine's room. Like the Hammer of Khaz'goroth
         --          for Harjatan, the Tidestone sits under the boss
-        --          icon so no map marker (points = {}); travel-note
-        --          carries the instruction and an Aegwynn SAY event
-        --          ("washes clean the darkness") fires the advanceOn.
+        --          icon so the map marker is suppressed (noMarker =
+        --          true); the "Click Tidestone" map label and
+        --          travel-note text carry the instruction. An
+        --          Aegwynn SAY event ("washes clean the darkness")
+        --          fires the yell trigger.
         --   seg 2: path on mapID 851 (sub-zone "The Abyssal Throne",
         --          the wing's maps[] label). Backtrack northwest past
         --          a giant statue and climb a long winding staircase
@@ -548,21 +515,21 @@ RetroRuns_Data[1676] = {
             requires  = {},
             segments  = {
                 {
-                    mapID   = 851,
-                    kind    = "poi",
-                    subZone = "The Abyssal Throne",
+                    when            = { mapID = 851 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    mapLabel        = "Click Tidestone",
+                    mapLabelPos     = "middle",
+                    completionCheck = true,
                     note    = "Click the ^Tidestone of Golganneth^ after killing ^Mistress Sassz'ine^.",
-                    advanceOn = {
-                        kind  = "yell",
-                        npc   = "Image of Aegwynn",
-                        match = "washes clean the darkness",
+                    triggeredBy = { yell = { npc = "Image of Aegwynn", match = "washes clean the darkness" } },
+                    points  = {
+                        { 0.833, 0.824 },
                     },
-                    points  = {},
                 },
                 {
-                    mapID   = 851,
+                    when   = { mapID = 851 },
                     kind    = "path",
-                    subZone = "The Abyssal Throne",
                     note    = "After clicking the ^Tidestone^, backtrack a bit and take a right towards the map exit labeled ^Terrace of the Moon^. You will pass a giant statue and begin climbing a long, winding staircase.",
                     points  = {
                         { 0.833, 0.824 },
@@ -579,9 +546,8 @@ RetroRuns_Data[1676] = {
                     },
                 },
                 {
-                    mapID   = 852,
+                    when   = { mapID = 852 },
                     kind    = "path",
-                    subZone = "Sunken Stair",
                     note    = "When you reach the top of the staircase, you will go through a door and continue north to reach ^Sisters of the Moon^. For the next few areas, avoid the purple circular areas on the ground as they will stun you.",
                     points  = {
                         { 0.576, 0.835 },
@@ -613,9 +579,8 @@ RetroRuns_Data[1676] = {
             requires  = {},
             segments  = {
                 {
-                    mapID   = 852,
+                    when   = { mapID = 852 },
                     kind    = "path",
-                    subZone = "Terrace of the Moon",
                     note    = "After defeating ^Sisters of the Moon^, leave the boss room and take a left. Follow the winding path back to ^The Desolate Host^.",
                     points  = {
                         { 0.511, 0.605 },
@@ -637,18 +602,19 @@ RetroRuns_Data[1676] = {
         -- canonical "jump-suicide-respawn" routing trick:
         --   seg 1: poi -- click the Tears of Elune in the Desolate
         --          Host room. Like Hammer and Tidestone, the Tears
-        --          sit under the boss icon (points = {}). Aegwynn
-        --          SAY event ("purify your hearts") fires the
-        --          advanceOn.
+        --          sit under the boss icon so the map marker is
+        --          suppressed (noMarker = true); the "Click Tears"
+        --          map label and travel-note text carry the
+        --          instruction. An Aegwynn SAY event ("purify your
+        --          hearts") fires the yell trigger.
         --   seg 2: path on mapID 852 (sub-zone "Befouled Sanctum",
         --          another finer-grained sub-area within the Terrace
         --          of the Moon wing). After clicking Tears,
         --          jump off the edge to die -- the graveyard
         --          respawn drops the player back at the entrance
-        --          area on mapID 850 / Chamber of the Moon. Listed
-        --          as kind="path" since there's no in-game teleport
-        --          object; the player's death-and-respawn is the
-        --          transition mechanic.
+        --          area on mapID 850 / Chamber of the Moon. The
+        --          player's death-and-respawn is the transition
+        --          mechanic; there's no in-game teleport object.
         --   seg 3: path on mapID 850 (sub-zone "Chamber of the Moon")
         --          from the respawn position forward to a stairwell
         --          behind a group of NPCs.
@@ -662,21 +628,22 @@ RetroRuns_Data[1676] = {
             requires  = {},
             segments  = {
                 {
-                    mapID   = 852,
-                    kind    = "poi",
-                    subZone = "Befouled Sanctum",
+                    when            = { mapID = 852 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    mapLabel        = "Click Tears",
+                    mapLabelPos     = "above",
+                    completionCheck = true,
                     note    = "Click the ^Tears of Elune^ in the middle of the room after killing ^The Desolate Host^.",
-                    advanceOn = {
-                        kind  = "yell",
-                        npc   = "Image of Aegwynn",
-                        match = "purify your hearts",
+                    triggeredBy = { yell = { npc = "Image of Aegwynn", match = "purify your hearts" } },
+                    points  = {
+                        { 0.591, 0.235 },
                     },
-                    points  = {},
                 },
                 {
-                    mapID   = 852,
-                    kind    = "path",
-                    subZone = "Befouled Sanctum",
+                    when         = { mapID = 852 },
+                    kind         = "path",
+                    endpointKind = "skull",
                     note    = "After clicking the ^Tears of Elune^, jump off the edge to die and respawn back in ^Chamber of the Moon^.",
                     points  = {
                         { 0.591, 0.235 },
@@ -684,9 +651,8 @@ RetroRuns_Data[1676] = {
                     },
                 },
                 {
-                    mapID   = 850,
+                    when   = { mapID = 850 },
                     kind    = "path",
-                    subZone = "Chamber of the Moon",
                     note    = "After respawning in ^Chamber of the Moon^, proceed towards the group of NPCs and enter the descending stairwell behind them.",
                     points  = {
                         { 0.449, 0.605 },
@@ -694,9 +660,8 @@ RetroRuns_Data[1676] = {
                     },
                 },
                 {
-                    mapID   = 853,
+                    when   = { mapID = 853 },
                     kind    = "path",
-                    subZone = "The Guardian's Sanctum",
                     note    = "When you reach the bottom of the stairwell, cross the room and engage ^Maiden of Vigilance^.",
                     points  = {
                         { 0.484, 0.863 },
@@ -711,11 +676,10 @@ RetroRuns_Data[1676] = {
         },
 
         -- 8. Fallen Avatar. Two segments:
-        --   seg 1: teleport -- click the Teleportation Pad in Maiden's
-        --          room (mapID 853 / The Guardian's Sanctum). Carries
-        --          the player to mapID 854. kind="teleport" with
-        --          destination field set; advance is implicit when
-        --          the player's mapID changes to the next segment's.
+        --   seg 1: poi -- click the Teleportation Pad in Maiden's
+        --          room (mapID 853 / The Guardian's Sanctum). The
+        --          pad carries the player to mapID 854; the engine
+        --          advances on the mapID change.
         --   seg 2: path on mapID 854 (sub-zone "Chamber of the
         --          Avatar"). Forward across the room, killing trash
         --          to open the door, then a dialog plays before the
@@ -728,19 +692,21 @@ RetroRuns_Data[1676] = {
             requires  = {},
             segments  = {
                 {
-                    mapID       = 853,
-                    kind        = "teleport",
-                    subZone     = "The Guardian's Sanctum",
-                    destination = "Chamber of the Avatar",
+                    when            = { mapID = 853 },
+                    kind            = "poi",
+                    destination     = "Chamber of the Avatar",
+                    noMarker        = true,
+                    mapLabel        = "Click Teleporter",
+                    mapLabelPos     = "above",
+                    completionCheck = true,
                     note        = "After killing ^Maiden of Vigilance^, click the nearby ^Teleportation Pad^ to be taken to ^Chamber of the Avatar^. Note: the pad will likely be under the boss corpse until she despawns, but you can still click it.",
                     points      = {
                         { 0.501, 0.297 },
                     },
                 },
                 {
-                    mapID   = 854,
+                    when   = { mapID = 854 },
                     kind    = "path",
-                    subZone = "Chamber of the Avatar",
                     note    = "In the ^Chamber of the Avatar^, move forward and kill trash to open the door, then watch some dialog before engaging with ^Fallen Avatar^.",
                     points  = {
                         { 0.503, 0.731 },
@@ -768,9 +734,8 @@ RetroRuns_Data[1676] = {
             requires  = {},
             segments  = {
                 {
-                    mapID   = 855,
+                    when   = { mapID = 855 },
                     kind    = "path",
-                    subZone = "Chamber of the Avatar",
                     note    = "After killing ^Fallen Avatar^, continue straight ahead across the slime to the map exit labeled ^The Twisting Nether^. Walk into the green swirly portal.",
                     points  = {
                         { 0.525, 0.301 },
@@ -778,9 +743,8 @@ RetroRuns_Data[1676] = {
                     },
                 },
                 {
-                    mapID   = 856,
+                    when   = { mapID = 856 },
                     kind    = "path",
-                    subZone = "The Twisting Nether",
                     note    = "After arriving in ^The Twisting Nether^, work your way down the path, killing trash all the way until you reach ^Kil'Jaeden^.",
                     points  = {
                         { 0.158, 0.468 },

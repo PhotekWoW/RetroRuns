@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "1.10.2"
+local VERSION    = "1.11.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -20,9 +20,6 @@ RetroRuns = {
     -- Runtime state -- never written to SavedVariables
     state = {
         bossesKilled          = {},   -- [bossIndex] = true
-        completedSegments     = {},   -- [stepIndex][segIndex] = true
-        visitedMapIDs         = {},   -- [mapID] = true; mapIDs the player has been on this lockout
-        stepVisitedMapIDs     = {},   -- [mapID] = true; mapIDs visited since current step became active. Reset on step change.
         activeStep            = nil,
         testMode              = false,
         manualTargetBossIndex = nil,
@@ -32,16 +29,10 @@ RetroRuns = {
         currentDifficultyID   = nil,
         currentDifficultyName = nil,
         isReloadingUi         = false, -- captured from PLAYER_ENTERING_WORLD
-        zoneLog               = {},   -- ring buffer of zone-change debug lines, viewable via /rr zonelog
-        -- Last mapID observed by the strict-activeSeg heartbeat poll
-        -- (Core.lua's 1Hz ticker, AdvanceStrictActiveSeg trigger). The
-        -- poll only fires AdvanceStrictActiveSeg when nowMapID differs
-        -- from this baseline, so it must be kept in sync with the
-        -- seed's playerMapID; otherwise a step transition that seeds at
-        -- mapID X with the poll's last-seen mapID at Y can immediately
-        -- fire a spurious advance on the next tick when the poll
-        -- "discovers" the X->Y delta even though the player never
-        -- moved. SeedStrictActiveSeg writes here when it seeds.
+        zoneLog               = {},   -- ring buffer of zone-change debug lines, viewable via /rr diag
+        -- Last mapID seen by the strict-activeSeg heartbeat poll. Kept in
+        -- sync with the seeder so a step transition can't trigger a
+        -- phantom advance on the next tick.
         lastPolledMapID       = nil,
     },
 
@@ -56,32 +47,20 @@ RetroRuns = {
         panelY       = 0,
         settingsX    = 290,
         settingsY    = 60,
-        -- minimized: when true, the main panel renders as a tiny title-bar
-        -- only (logo + RETRO RUNS text + minimize/close buttons), with all
-        -- body fields and footer action buttons hidden. Toggled via the
-        -- minimize button left of the close X. Persists across /reload
-        -- (unlike showPanel, which is overridden at init time based on
-        -- launchMode below -- the panel's load-time visibility is governed
-        -- by the user's chosen launchMode, not the last-session showPanel).
+        -- Compact title-bar mode (toggled via the minimize button).
+        -- Persists across /reload.
         minimized    = false,
-        -- launchMode controls what RetroRuns does to the panel on load:
-        --   "hidden"    - leave the panel closed (legacy pre-1.10.2 default)
-        --   "minimized" - open in minimized title-bar mode (current default)
-        --   "full"      - open fully expanded
-        -- Set via the Settings panel. Lets the user pick a load-time
-        -- starting state without affecting live session toggling (the
-        -- minimize button, close button, /rr toggle, etc. all still work
-        -- the same way mid-session).
+        -- launchMode: what to show on load. Values:
+        --   "hidden"    - panel closed
+        --   "minimized" - compact title bar (default)
+        --   "full"      - fully expanded
+        -- Clicking "Load" on the in-raid prompt always opens fully.
         launchMode   = "minimized",
-        -- bodyFontStyle controls which font is used for body-level text
-        -- inside the main panel + auxiliary windows (action buttons are
-        -- excluded; they stay 04B_03 always). Three values:
-        --   "standard" - WoW's default body font, Friz Quadrata (default)
-        --   "retro"    - 04B_03 pixel font (tight, narrow grid)
-        --   "vt323"    - VT323 monospaced terminal-style font
-        -- Frame headers (auxiliary window titles, main panel "RETRO RUNS"
-        -- title, footer chrome) always use the retro font regardless of
-        -- this setting -- the toggle scopes to body text only.
+        -- bodyFontStyle: font for panel body text. Values:
+        --   "standard" - WoW's Friz Quadrata (default)
+        --   "retro"    - 04B_03 pixel font
+        --   "vt323"    - VT323 terminal-style
+        -- Frame headers + action buttons stay 04B_03 regardless.
         bodyFontStyle = "standard",
     },
 }
@@ -125,7 +104,7 @@ end
 
 --- Append a line to the in-memory zone-change log. Bounded ring buffer so
 --- a long session doesn't accumulate unbounded memory. View with
---- /rr zonelog to open a copyable window.
+--- /rr diag (zone log appears in the consolidated dump).
 function RR:ZoneLog(msg)
     local buf = self.state.zoneLog
     table.insert(buf, ("[%s] %s"):format(date("%H:%M:%S"), tostring(msg)))
@@ -155,15 +134,25 @@ function RR:IsZygorInstalled()
         and true or false
 end
 
+--- Zygor's waypoint arrow is gated by a user setting. When disabled,
+--- Zygor's SetWaypoint silently no-ops -- this predicate lets the UI
+--- warn the user. Couples to ZGV.db.profile.arrowshow; renames in a
+--- future Zygor release degrade silently to "enabled."
+function RR:IsZygorArrowEnabled()
+    local zgv = _G.ZygorGuidesViewer
+    if not zgv then return false end
+    if zgv.db and zgv.db.profile and zgv.db.profile.arrowshow ~= nil then
+        return zgv.db.profile.arrowshow == true
+    end
+    return true
+end
+
 function RR:IsMapzerothInstalled()
     return (_G.Mapzeroth and _G.Mapzeroth.FindRoute) and true or false
 end
 
---- Waypoint UI (by AdaptiveX). Single-arrow in-world HUD waypoint
---- provider with a documented public API (WaypointUIAPI.Navigation,
---- file API.lua in the WaypointUI addon). Polished in-world arrow
---- presentation; rides on top of Blizzard's C_SuperTrack so the
---- minimap arrow comes along for free.
+--- Waypoint UI (AdaptiveX). Polished in-world arrow that rides on top
+--- of Blizzard's C_SuperTrack.
 function RR:IsWUIInstalled()
     return _G.WaypointUIAPI
         and _G.WaypointUIAPI.Navigation
@@ -179,51 +168,11 @@ function RR:IsBlizzardWaypointAvailable()
     return (C_Map and C_Map.SetUserWaypoint and _G.UiMapPoint) and true or false
 end
 
---- Detect which navigation tier is active for the current addon load
---- state. Returns one of:
----
----   "routing"  -- A full step-by-step routing addon is loaded
----                 (currently: AzerothWaypoint, Zygor with pathfinding
----                 enabled, or Mapzeroth). Click drops the player into
----                 that addon's GPS UI with a planned route. AWP is
----                 included here even though it's a meta-router rather
----                 than a planner itself: it presents a queue/arrow
----                 UI for routes regardless of which backend is doing
----                 the planning, so from the user's perspective the
----                 click experience is the same as a direct routing
----                 addon. AWP without a backend installed degrades to
----                 a single-pin presentation, same as Zygor without
----                 pathfinding -- treated as the correct degradation.
----   "waypoint" -- No routing addon, but a waypoint provider is
----                 available (TomTom, or Blizzard native as universal
----                 fallback). Click sets a single waypoint at the
----                 destination -- one arrow, no step-by-step.
----
---- The UI uses this to gate the entrance-button visual state (full-
---- color when "routing", muted when "waypoint") and the legend copy.
---- NavigateToEntrance uses the same precedence order at click time,
---- so detection and dispatch stay in lock-step.
----
---- Detection is reevaluated on each call so the result reflects the
---- current addon-load state -- a /reload after the user installs or
---- enables a routing addon picks up the change.
----
---- Zygor wins ties over Mapzeroth when both are installed but AWP is
---- not. Zygor is a paid premium subscription with a more polished
---- routing experience (no separate window required, integrated
---- arrow+travel-mode UI). A user who pays for Zygor will expect that
---- experience to take precedence; Mapzeroth is the recommended FREE
---- fallback path for users without a Zygor sub. The legend below
---- names Mapzeroth specifically as the install recommendation since
---- it's the free option. When AWP is present it wins over both --
---- AWP would be orchestrating one of them itself, so calling them
---- directly would skip AWP's UI surface entirely.
----
---- Zygor detection is presence-only -- we don't try to verify the
---- license is current or that ZGV.db.profile.pathfinding is enabled.
---- A Zygor user with a lapsed subscription or pathfinding turned off
---- gets a single arrow instead of a route, which is the correct
---- degradation -- it matches what would happen with /zygor goto.
+--- Returns the navigation tier we'd dispatch through right now:
+---   "routing"  - a step-by-step planner is loaded (AWP, Zygor, Mapzeroth)
+---   "waypoint" - only a waypoint provider available (TomTom or Blizzard)
+--- Re-evaluated on every call so a fresh /reload picks up newly-loaded
+--- addons. Used by the UI to gate the entrance-button visual state.
 function RR:GetNavTier()
     if self:IsAWPInstalled()       then return "routing" end
     if self:IsZygorInstalled()     then return "routing" end
@@ -233,60 +182,11 @@ end
 
 --- Route the player to the entrance of a raid.
 ---
---- Two-slot dispatch model (replaces the older single-cascade model):
----
----   ROUTING SLOT: AWP -> Zygor -> Mapzeroth (one wins per click).
----     Fires when any of the three is installed. AWP orchestrates the
----     others when it's installed alongside one; without AWP, the
----     highest installed routing addon fires directly. AWP-alone (no
----     Zygor/Mapzeroth backend) still fires the routing slot -- it
----     drops a single pin in its queue UI rather than planning a
----     multi-leg route, but it's still the addon the user chose for
----     routing presentation. Zygor wins ties over Mapzeroth (premium
----     product).
----
----   WAYPOINT SLOT: WUI -> TomTom -> (Blizzard fallback).
----     Fires WUI or TomTom whenever installed -- these are deliberate
----     user choices for in-world HUD or crazy-arrow presentation, and
----     they layer cleanly on top of a routing addon's own UI (the
----     user manages any pin redundancy themselves via the respective
----     addon's settings). If neither WUI nor TomTom is installed AND
----     the routing slot didn't fire either, fall back to Blizzard
----     native C_Map.SetUserWaypoint so there's at least a super-
----     tracker arrow. With a routing slot fire and no WUI/TomTom, the
----     Blizzard fallback is suppressed -- the routing addon's own
----     UI already handles destination presentation.
----
----   Practical examples:
----     Zygor + WUI installed -> Zygor route + WUI overlay (both fire)
----     Zygor alone           -> Zygor route only
----     AWP + Mapzeroth + WUI -> AWP orchestrates Mapzeroth + WUI overlay
----     AWP alone             -> AWP queue UI (with single pin) only
----     WUI alone             -> WUI overlay only
----     TomTom alone          -> TomTom crazy arrow only
----     Nothing installed     -> Blizzard native fallback
----
---- An earlier iteration tried to drive multi-step routing ourselves
---- via FarstriderLib + a position-watching ticker. The map-graph edge
---- cases (city vs zone mapID mismatches, attunement gating, dragon-
---- riding altitude considerations, phasing) made it a tar pit. We
---- chose to be a good ecosystem citizen instead: hand off to
---- dedicated routing and waypoint addons when present, drop a plain
---- waypoint when not.
----
---- Entrance accessor. Looks like a one-liner today, but kept as a named
---- accessor so callers don't reach into raid struct internals -- if the
---- entrance schema ever changes again (e.g. multi-portal raids, instanced-
---- city entrance disambiguation), there's a single chokepoint to update
---- rather than a grep-and-replace across UI/Core read sites.
----
---- Faction-asymmetric raids (currently only BfD) are handled at a higher
---- level: `GetSupportedRaid` consults `RetroRuns_DataHorde[instanceID]`
---- first for Horde characters and falls back to the shared
---- `RetroRuns_Data[instanceID]` table when no Horde-specific file exists.
---- By the time a raid object reaches this accessor, faction dispatch has
---- already happened, so the entrance field is simply `raid.entrance` --
---- whichever side's table we read from.
+--- Two-slot dispatch:
+---   ROUTING SLOT: AWP -> Zygor -> Mapzeroth (one wins).
+---   WAYPOINT SLOT: WUI -> TomTom -> Blizzard fallback.
+--- Both slots can fire on one click (e.g. Zygor route + WUI overlay).
+--- The Blizzard fallback only fires if neither slot produced a UI.
 function RR:GetRaidEntrance(raid)
     if not raid then return nil end
     return raid.entrance
@@ -309,31 +209,13 @@ function RR:NavigateToEntrance(raid)
         return nil
     end
 
-    -- Cancel any in-progress route before starting a new one. Avoids
-    -- stale waypoints when the user clicks a different raid back-to-back.
-    -- (Mapzeroth handles route replacement internally via BeginRoute-
-    -- Navigation; Zygor handles it via the cleartype=true flag we pass
-    -- on each call; AWP handles it via RequestManualRoute supplanting
-    -- whatever manual route was previously active -- so none of those
-    -- need explicit teardown. The TomTom and Blizzard paths do need
-    -- active cleanup -- handled in CancelNavRoute below.)
+    -- Clear any in-progress route before starting a new one.
     self:CancelNavRoute()
 
     local title = ("RetroRuns: %s entrance"):format(raid.name or "raid")
     local result = { planner = nil, arrow = nil, overlays = {} }
 
-    -- PLANNER ROLE --------------------------------------------------------
-    -- The multi-leg router. Zygor or Mapzeroth -- the addons that
-    -- actually plan a route. AWP is NOT a planner; it orchestrates
-    -- one of these (Zygor or Mapzeroth as a backend) plus its own
-    -- queue/overlay UI. So AWP only fires from this slot when it has
-    -- a backend to orchestrate. AWP-alone-without-backend falls
-    -- through to the overlay role below.
-    --
-    -- One planner wins. AWP-with-backend wins ties over the backend
-    -- alone (since the user explicitly installed AWP for the
-    -- orchestration UI). Zygor wins over Mapzeroth (premium product
-    -- assumption).
+    -- PLANNER ROLE: AWP-with-backend > Zygor > Mapzeroth. One wins.
     local hasBackend = self:IsZygorInstalled() or self:IsMapzerothInstalled()
     if self:IsAWPInstalled() and hasBackend then
         local ok, routed = pcall(_G.AzerothWaypointNS.RequestManualRoute,
@@ -347,12 +229,8 @@ function RR:NavigateToEntrance(raid)
     end
 
     if not result.planner and self:IsZygorInstalled() then
-        -- Mirrors the data table that ZGV.Pointer:SetWaypointByCommand-
-        -- Line builds for /zygor goto -- exactly the same payload Zygor
-        -- itself constructs for its own user-facing waypoint command.
-        -- The findpath=true flag is what triggers LibRover routing
-        -- (gated by ZGV.db.profile.pathfinding); without it Zygor would
-        -- just show a single arrow.
+        -- Mirrors Zygor's own /zygor goto payload. findpath=true gates
+        -- multi-leg routing (otherwise just an arrow).
         _G.ZygorGuidesViewer.Pointer:SetWaypoint(e.mapID, e.x, e.y, {
             findpath    = true,
             type        = "manual",
@@ -382,22 +260,8 @@ function RR:NavigateToEntrance(raid)
         result.planner = "mapzeroth"
     end
 
-    -- ARROW ROLE ----------------------------------------------------------
-    -- The destination indicator that points the player toward the
-    -- target. TomTom's crazy arrow is the canonical implementation;
-    -- Blizzard's super-tracker is the universal fallback. ONE wins
-    -- per click. Suppressed when a planner is providing its own
-    -- arrow (Zygor's pointer, Mapzeroth's GPS frame) -- a redundant
-    -- arrow on top of an existing one is visual noise. AWP-with-
-    -- backend is also considered a planner here, but AWP itself
-    -- doesn't have an arrow -- it bridges to TomTom for that. So
-    -- when AWP fires the planner role and TomTom is installed,
-    -- TomTom is already showing the arrow via AWP's bridge; calling
-    -- TomTom:AddWaypoint here would duplicate it. We skip in that
-    -- case too.
-    --
-    -- Rule: arrow role fires when NO planner fired. If a planner is
-    -- handling navigation, the arrow role is suppressed.
+    -- ARROW ROLE: TomTom > Blizzard. Suppressed if a planner fired
+    -- (planner provides its own arrow).
     if not result.planner then
         if self:IsTomTomInstalled() then
             local uid = TomTom:AddWaypoint(e.mapID, e.x, e.y, {
@@ -406,20 +270,8 @@ function RR:NavigateToEntrance(raid)
                 silent = true,
                 crazy  = true,
             })
-            -- Belt-and-suspenders: explicitly call SetCrazyArrow after
-            -- the AddWaypoint. The AddWaypoint(crazy=true) flag is
-            -- documented to do this, and IsCrazyArrowEmpty() does
-            -- return false after the AddWaypoint -- so SOMETHING gets
-            -- set internally. But the arrow doesn't actually render in
-            -- some configurations (observed: a 12.0 retail user with a
-            -- clean TomTom config and the auto-set-crazy-arrow option
-            -- enabled still didn't see the arrow). TomTom's own /cway
-            -- slash command -- which is just self:SetCrazyArrow(
-            -- closestWaypoint, ...) -- DOES produce a visible arrow,
-            -- so mirroring that call explicitly here forces the
-            -- wayframe:Show() path that the AddWaypoint flag path is
-            -- somehow skipping. Defensive but cheap; no downside if
-            -- the AddWaypoint path already worked.
+            -- Force SetCrazyArrow explicitly -- the AddWaypoint flag
+            -- doesn't reliably render the arrow on some 12.0 configs.
             if uid and TomTom.SetCrazyArrow then
                 TomTom:SetCrazyArrow(uid, TomTom.profile and TomTom.profile.arrow
                     and TomTom.profile.arrow.arrival or 0, title)
@@ -442,24 +294,11 @@ function RR:NavigateToEntrance(raid)
         end
     end
 
-    -- OVERLAY ROLE --------------------------------------------------------
-    -- 3D world overlays. AWP and WUI are peers -- both can fire
-    -- independently when installed. AWP fires here ONLY when it
-    -- didn't already fire from the planner role above (i.e. when
-    -- there's no backend installed). AWP-with-backend already
-    -- presented its overlay as part of orchestrating; calling AWP
-    -- again here would be a redundant queue entry.
-    --
-    -- WUI always fires from this role when installed -- it's overlay-
-    -- only by design and doesn't participate in planner or arrow
-    -- roles.
+    -- OVERLAY ROLE: AWP (when not already-fired as planner) + WUI
+    -- (always fires when installed). Both can layer simultaneously.
     if self:IsAWPInstalled() and result.planner ~= "awp" then
-        -- AWP without a backend: ask AWP to handle this as a manual
-        -- waypoint anyway. It'll queue + overlay, just won't multi-
-        -- leg plan. If we have no backend AND no TomTom AND no
-        -- Blizzard, this is the only thing fired -- AWP's overlay
-        -- alone, no arrow. The user effectively has a fancy 3D
-        -- marker at the destination.
+        -- AWP without a backend still queues the destination as a
+        -- single-pin overlay.
         local ok, routed = pcall(_G.AzerothWaypointNS.RequestManualRoute,
             e.mapID, e.x, e.y, title, nil, nil)
         if ok and routed then
@@ -471,16 +310,7 @@ function RR:NavigateToEntrance(raid)
     end
 
     if self:IsWUIInstalled() then
-        -- WaypointUIAPI.Navigation.NewUserNavigation(name, mapID, x, y,
-        -- ...) -- WUI's public API. WUI's coord units are 0-100 (not
-        -- the 0-1 we use elsewhere), so we scale on the way in.
-        -- Confirmed via reading WUI's TomTom adapter which multiplies
-        -- by 100 before calling NewUserNavigation. WUI also registers
-        -- the waypoint with C_SuperTrack so the Blizzard minimap arrow
-        -- follows along -- which is fine; if our arrow role didn't
-        -- fire (because a planner is active and presenting its own
-        -- arrow), the super-tracker arrow may layer on top, but that's
-        -- WUI's deliberate behavior, not ours to fight.
+        -- WUI uses 0-100 coords; scale our 0-1 values on the way in.
         _G.WaypointUIAPI.Navigation.NewUserNavigation(title, e.mapID, e.x * 100, e.y * 100)
         self.state.activeRoute = self.state.activeRoute or { raid = raid }
         self.state.activeRoute.raid = raid
@@ -495,21 +325,8 @@ function RR:NavigateToEntrance(raid)
     return result
 end
 
---- Drop a waypoint at a Covenant Sanctum's Mythic Nathrian Weaponsmith.
---- Mirrors NavigateToEntrance's three-role dispatch (planner / arrow /
---- overlays) but reads target coords from raid.weaponVendors keyed by
---- covenantID (C_Covenants.GetActiveCovenantID return value).
----
---- Specific to Castle Nathria, where the Tmog detail pane surfaces a
---- "Redeem at <covenant> vendor" hint when viewing a boss that drops
---- weapon tokens. The Flight button next to that hint calls into here.
----
---- Returns the same struct shape NavigateToEntrance does:
----     { planner = "awp"|"zygor"|"mapzeroth"|nil,
----       arrow = "tomtom"|"blizzard"|nil,
----       overlays = { ["awp"|"wui"]... } }
---- or nil on failure -- caller uses this for the same toast-popup
---- branching.
+--- Drop a waypoint at a Covenant Sanctum weapon vendor (Castle
+--- Nathria). Same three-role dispatch as NavigateToEntrance.
 function RR:NavigateToSanctum(raid, covID)
     if not raid or not raid.weaponVendors or not covID then
         self:Print("No sanctum vendor data available.")
@@ -521,10 +338,7 @@ function RR:NavigateToSanctum(raid, covID)
         return nil
     end
 
-    -- Clear any in-progress route before starting a new one (same
-    -- rationale as NavigateToEntrance -- avoids stale waypoints when
-    -- the user clicks between the entrance and sanctum buttons back-
-    -- to-back).
+    -- Clear any in-progress route before starting a new one.
     self:CancelNavRoute()
 
     local title = ("RetroRuns: %s (%s vendor)"):format(
@@ -629,29 +443,9 @@ function RR:NavigateToSanctum(raid, covID)
     return result
 end
 
---- Cancel the active nav route, if any. Behavior depends on which
---- backend was used to start the route:
----   * TomTom: removes the waypoint we set.
----   * Blizzard: clears the user waypoint.
----   * AWP: no-op. RequestManualRoute supplants whatever manual route
----     was previously active on each call, so back-to-back entrance
----     clicks replace cleanly. Like the Zygor and Mapzeroth cases,
----     `/rr cancelnav` clears our internal activeRoute marker but
----     AWP's queue/arrow keeps showing the prior route until it's
----     replaced or the user dismisses it manually.
----   * Mapzeroth: no-op. Mapzeroth manages its own route lifecycle
----     and replaces the active route on the next FindRoute call;
----     there is no separate cancel API needed for back-to-back
----     entrance clicks. (`/rr cancelnav` will clear our internal
----     activeRoute marker but Mapzeroth's GPS frame keeps showing
----     the prior route until it's replaced or the user dismisses
----     it manually.)
----   * Zygor: no-op. The cleartype=true flag we pass to ZGV.Pointer:
----     SetWaypoint on every call automatically clears prior manual
----     waypoints, so back-to-back entrance clicks replace cleanly.
----     Same caveat as Mapzeroth -- Zygor's arrow stays on screen
----     until the route is replaced or the user dismisses it.
---- Safe to call when there's no active route -- no-op in that case.
+--- Cancel the active nav route, if any. TomTom + Blizzard waypoints
+--- get explicit cleanup; the planner addons (AWP, Zygor, Mapzeroth)
+--- replace their own routes on the next call so no teardown is needed.
 function RR:CancelNavRoute()
     local route = self.state.activeRoute
     if not route then return end
@@ -665,12 +459,6 @@ function RR:CancelNavRoute()
     if route.blizzardWaypoint and C_Map and C_Map.ClearUserWaypoint then
         C_Map.ClearUserWaypoint()
     end
-
-    -- route.awpRoute / route.mapzerothRoute / route.zygorRoute: no
-    -- cleanup needed. AWP supplants the prior manual route on each
-    -- RequestManualRoute call; Mapzeroth handles replacement via its
-    -- internal BeginRouteNavigation; Zygor handles it via cleartype=
-    -- true on every Pointer:SetWaypoint call.
 
     self.state.activeRoute = nil
 end
@@ -719,23 +507,12 @@ end
 
 -------------------------------------------------------------------------------
 -- Data validation
--- Called once on ADDON_LOADED. Prints warnings for malformed raid data so
--- errors surface immediately rather than causing silent misbehaviour later.
 -------------------------------------------------------------------------------
 
---- Walk all loaded raid data and produce a list of structural issues.
---- Each issue is a table with `severity` ("error" | "warn"), `raid` (the
---- raid display name or instanceID), and `msg` (human-readable detail).
----
---- Used by two consumers:
----   * Addon-load debug pass: filters to severity=="error" and prints
----     each via RR:Debug (no-op unless /rr debug is on).
----   * `/rr lintroute`: shows ALL issues (errors + warnings) in a copy
----     window, on-demand.
----
---- @param scopeFilter string?  When set, only lint raids whose name
----        contains this substring (case-insensitive). nil = all raids.
---- @return table   List of {severity, raid, msg} tables, in walk order.
+--- Walks all raid data and returns a list of issues. Each is
+--- { severity = "error"|"warn", raid = displayName, msg = detail }.
+--- Consumed by the addon-load lint pass (errors only) and /rr lintroute
+--- (everything). scopeFilter limits the walk to a name substring.
 local function CollectRaidDataIssues(scopeFilter)
     local issues = {}
     local function add(severity, raid, msg)
@@ -858,6 +635,9 @@ local function CollectRaidDataIssues(scopeFilter)
                 end
             end
 
+            -- Schema validation. Every raid is on the RetroEngine; segs
+            -- declare their gates via `when`, `after`, and `triggeredBy`.
+
             for i, step in ipairs(raid.routing or {}) do
                 local sp = "step " .. i .. ":"
                 if not step.bossIndex then
@@ -880,14 +660,115 @@ local function CollectRaidDataIssues(scopeFilter)
                     add("error", raidLabel, sp .. " has no segments")
                 else
                     local prevMapID = nil
+                    local numSegs = #step.segments
                     for si, seg in ipairs(step.segments) do
-                        if not seg.mapID then
+                        local segMapID
+
+                        -- when.mapID is required.
+                        if not seg.when then
                             add("error", raidLabel,
-                                sp .. (" segment %d missing mapID"):format(si))
+                                sp .. (" segment %d missing when table"):format(si))
+                        elseif not seg.when.mapID then
+                            add("error", raidLabel,
+                                sp .. (" segment %d when.mapID missing"):format(si))
+                        else
+                            segMapID = seg.when.mapID
                         end
-                        if not seg.kind then
+
+                        -- Bare mapID/subZone are stale schema leftovers
+                        -- that should be stripped from data.
+                        if seg.mapID then
+                            add("warn", raidLabel,
+                                sp .. (" segment %d has bare mapID field (strip from data)"):format(si))
+                        end
+                        if seg.mapID and seg.when and seg.when.mapID
+                            and seg.mapID ~= seg.when.mapID
+                        then
                             add("error", raidLabel,
-                                sp .. (" segment %d missing kind"):format(si))
+                                sp .. (" segment %d bare mapID=%d but when.mapID=%d (disagree)"):format(
+                                    si, seg.mapID, seg.when.mapID))
+                        end
+                        if seg.subZone then
+                            add("warn", raidLabel,
+                                sp .. (" segment %d has bare subZone field (strip from data)"):format(si))
+                        end
+
+                        -- Dropped fields from the legacy schema. Flag any
+                        -- raid data that still carries them.
+                        if seg.requiresSubZone then
+                            add("error", raidLabel,
+                                sp .. (" segment %d has requiresSubZone (use when.subZone)"):format(si))
+                        end
+                        if seg.revealAfter then
+                            add("error", raidLabel,
+                                sp .. (" segment %d has revealAfter (use after)"):format(si))
+                        end
+                        if seg.advanceOn then
+                            add("error", raidLabel,
+                                sp .. (" segment %d has advanceOn (use triggeredBy)"):format(si))
+                        end
+                        if seg.gateBySubZone then
+                            add("warn", raidLabel,
+                                sp .. (" segment %d has gateBySubZone (unused field; remove)"):format(si))
+                        end
+                        if seg.revealAfterMapVisit then
+                            add("warn", raidLabel,
+                                sp .. (" segment %d has revealAfterMapVisit (unused field; remove)"):format(si))
+                        end
+
+                        -- kind: must be "path" or "poi".
+                        if seg.kind == "teleport" or seg.kind == "kill" then
+                            add("error", raidLabel,
+                                sp .. (" segment %d kind=%q is no longer supported (use \"path\")"):format(si, seg.kind))
+                        elseif seg.kind and seg.kind ~= "path" and seg.kind ~= "poi" then
+                            add("error", raidLabel,
+                                sp .. (" segment %d kind=%q invalid (expected \"path\" or \"poi\")"):format(si, tostring(seg.kind)))
+                        end
+                        -- triggeredBy shape:
+                        if seg.triggeredBy then
+                            if type(seg.triggeredBy) ~= "table" then
+                                add("error", raidLabel,
+                                    sp .. (" segment %d triggeredBy must be a table"):format(si))
+                            elseif seg.triggeredBy.yell then
+                                local y = seg.triggeredBy.yell
+                                if type(y) ~= "table" then
+                                    add("error", raidLabel,
+                                        sp .. (" segment %d triggeredBy.yell must be a table"):format(si))
+                                else
+                                    if not y.npc then
+                                        add("error", raidLabel,
+                                            sp .. (" segment %d triggeredBy.yell missing npc field"):format(si))
+                                    end
+                                    if not y.match then
+                                        add("error", raidLabel,
+                                            sp .. (" segment %d triggeredBy.yell missing match field"):format(si))
+                                    end
+                                end
+                            else
+                                -- triggeredBy with no known sub-key (e.g. just empty {})
+                                add("warn", raidLabel,
+                                    sp .. (" segment %d triggeredBy has no recognized sub-key (expected yell)"):format(si))
+                            end
+                        end
+                        -- after must reference valid seg indices in same step:
+                        if seg.after then
+                            if type(seg.after) ~= "table" then
+                                add("error", raidLabel,
+                                    sp .. (" segment %d after must be a table of seg indices"):format(si))
+                            else
+                                for _, prereqIdx in ipairs(seg.after) do
+                                    if type(prereqIdx) ~= "number"
+                                        or prereqIdx < 1 or prereqIdx > numSegs
+                                    then
+                                        add("error", raidLabel,
+                                            sp .. (" segment %d after references invalid seg index %s (step has %d segs)"):format(
+                                                si, tostring(prereqIdx), numSegs))
+                                    elseif prereqIdx >= si then
+                                        add("error", raidLabel,
+                                            sp .. (" segment %d after references seg %d which is not earlier in step"):format(si, prereqIdx))
+                                    end
+                                end
+                            end
                         end
 
                         -- Consecutive-duplicate mapID check: two segs
@@ -896,12 +777,12 @@ local function CollectRaidDataIssues(scopeFilter)
                         -- cases exist (a path that crosses an area,
                         -- exits, then re-enters) but are rare enough
                         -- that flagging gives signal worth checking.
-                        if seg.mapID and prevMapID == seg.mapID then
+                        if segMapID and prevMapID == segMapID then
                             add("warn", raidLabel,
                                 sp .. (" segments %d and %d have the same mapID %d (intentional? or copy-paste?)"):format(
-                                    si - 1, si, seg.mapID))
+                                    si - 1, si, segMapID))
                         end
-                        prevMapID = seg.mapID
+                        prevMapID = segMapID
                     end
                 end
             end
@@ -1049,6 +930,17 @@ function RR:InitializeDB()
     if RetroRunsDB.recorderPendingEvent and self.recorder then
         self.recorder.pendingEvent = RetroRunsDB.recorderPendingEvent
     end
+
+    -- Persist zone log across /reload. RR.state.zoneLog is aliased to
+    -- RetroRunsDB.zoneLog so existing read/write paths continue to
+    -- work unchanged; the underlying storage is now SavedVariable-
+    -- backed. This survives /reload (critical for diagnosing reload-
+    -- related bugs where the events leading up to the reload are
+    -- exactly what you need to see) and gets wiped on initial login
+    -- via the PEW handler.
+    -- Buffer cap of 1000 entries still enforced in RR:ZoneLog.
+    RetroRunsDB.zoneLog = RetroRunsDB.zoneLog or {}
+    self.state.zoneLog = RetroRunsDB.zoneLog
 end
 
 function RR:RestorePanelPosition()
@@ -1094,51 +986,16 @@ function RR:GetRaidDisplayName()
     return self.currentRaid.name
 end
 
--- Returns per-difficulty kill counts for the current raid as
+-- Per-difficulty kill counts for a raid:
 --   { [difficultyID] = { complete = N, total = M } }
--- for difficultyIDs 17 (LFR), 14 (Normal), 15 (Heroic), 16 (Mythic).
---
--- Reads via C_RaidLocks.IsEncounterComplete which queries the same
--- saved-instance cache that GetSavedInstanceInfo reads from but with
--- a per-encounter-per-difficulty API surface (no need to walk every
--- saved instance and parse out matching encounters by hand).
---
--- IsEncounterComplete needs `dungeonEncounterID` (runtime encounter
--- instance ID), not the `journalEncounterID` we store in our boss
--- data. We bridge by walking EJ_GetEncounterInfoByIndex once per
--- call (cheap; raids have ~8-12 encounters) and matching on
--- journalEncounterID.
---
--- Returns nil if no current raid loaded, no journalInstanceID known,
--- or the IsEncounterComplete API is unavailable (older clients).
--- Difficulties that the raid doesn't support (e.g. older raids
--- without LFR/Mythic) get total=0; caller decides how to render.
--- Cache for journalEncounterID -> dungeonEncounterID maps, keyed by
--- journalInstanceID. Walking EJ_GetEncounterInfoByIndex is moderately
--- expensive (server-cache lookup + per-encounter call) and the result
--- is stable for the entire WoW session, so we memoize. Cleared only
--- on /reload (since the cache lives in module-level state, not in
--- SavedVariables).
---
--- Two non-obvious requirements, both confirmed by in-game diagnostic:
---
---   1. EJ_GetEncounterInfoByIndex(i, journalInstanceID) without a
---      prior EJ_SelectInstance call silently returns nothing on
---      modern clients. The two-arg form used to work standalone; it
---      now requires the EJ to have the instance pre-selected. We
---      call EJ_SelectInstance before the walk and restore whatever
---      was previously selected so the user's open EJ view doesn't
---      yank sideways. Side-effect minimization: this only runs on
---      cache misses, which is one call per raid per session.
---
---   2. The previous version cached the result unconditionally,
---      including empty-map results. If the API ever returned nothing
---      (e.g. before the fix above, or due to a transient server-
---      cache miss), the empty {} would be cached permanently for
---      the session and every subsequent call would short-circuit
---      to it. Now: only cache non-empty results. An empty result
---      goes to the caller for THIS call but isn't memoized, so the
---      next call retries the API.
+-- where IDs are 17 (LFR), 14 (Normal), 15 (Heroic), 16 (Mythic).
+-- Reads via C_RaidLocks.IsEncounterComplete; bridges from our
+-- journalEncounterIDs to dungeonEncounterIDs via the EJ map.
+-- Returns nil if no current raid or no journalInstanceID. Unsupported
+-- difficulties get total=0; caller decides how to render.
+
+-- Cache journalEncounterID -> dungeonEncounterID per journalInstanceID.
+-- Stable for the session; cleared on /reload.
 local ejMapCache = {}
 
 local function GetEJMapForJournalInstance(journalInstanceID)
@@ -1146,9 +1003,7 @@ local function GetEJMapForJournalInstance(journalInstanceID)
     local cached = ejMapCache[journalInstanceID]
     if cached then return cached end
 
-    -- Save the EJ's currently-selected instance so we can put it
-    -- back. EJ_GetSelectedInstance returns nil if nothing is
-    -- selected; in that case we just don't restore.
+    -- Save the currently-selected EJ instance so we can restore it.
     local prevInst = EJ_GetSelectedInstance and EJ_GetSelectedInstance() or nil
     if EJ_SelectInstance then
         EJ_SelectInstance(journalInstanceID)
@@ -1211,10 +1066,7 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
     local jeToDe = GetEJMapForJournalInstance(journalInstanceID)
     if not jeToDe then return nil end
 
-    -- Difficulties: 17=LFR, 14=Normal, 15=Heroic, 16=Mythic. These are
-    -- the modern raid difficulty IDs; older raids may not have valid
-    -- kill data on all four. IsEncounterComplete handles the "doesn't
-    -- apply" case by returning false, so the count stays 0.
+    -- 17=LFR, 14=Normal, 15=Heroic, 16=Mythic.
     local difficulties = { 17, 14, 15, 16 }
     local result = {}
     local total  = 0
@@ -1233,22 +1085,9 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
         result[dID] = { complete = complete, total = total }
     end
 
-    -- Active-difficulty special case: ENCOUNTER_END marks bossesKilled
-    -- immediately, but the saved-instance cache that IsEncounterComplete
-    -- reads from updates asynchronously (server pushes a new snapshot
-    -- via UPDATE_INSTANCE_INFO some time after the kill). To make pills
-    -- update in real time when the player kills a boss, the active-
-    -- difficulty count uses whichever value is HIGHER -- our in-memory
-    -- bossesKilled or the cache. Only applied to the currently-loaded
-    -- raid + active difficulty, since for other raids we have no local
-    -- kill state.
-    --
-    -- This fallback used to live in GetPerDifficultyKillCounts() (the
-    -- no-arg "current raid" wrapper), which meant the header pill saw
-    -- the immediate update but the "Where to next" panel's per-raid
-    -- pills (which call this function directly per-raid) lagged until
-    -- UPDATE_INSTANCE_INFO arrived. Moving it down to the shared getter
-    -- keeps both render paths consistent.
+    -- The instance cache updates asynchronously after a kill -- use
+    -- in-memory bossesKilled as a floor for the active difficulty so
+    -- pills update immediately on kill.
     if self.currentRaid and raid == self.currentRaid then
         local activeDifficulty = self.state.currentDifficultyID
         if activeDifficulty and result[activeDifficulty] then
@@ -1269,37 +1108,16 @@ end
 
 function RR:GetPerDifficultyKillCounts()
     if not self.currentRaid then return nil end
-    -- The bossesKilled-vs-cache fallback now lives inside
-    -- GetPerDifficultyKillCountsForRaid (it applies whenever the queried
-    -- raid is the current raid), so this wrapper is now a thin
-    -- convenience for callers that don't have a raid handle.
     return self:GetPerDifficultyKillCountsForRaid(self.currentRaid)
 end
 
--- Raid-skip account-wide unlock detection.
---
--- Per Patch 11.0.5, raid-skip quest unlocks became account-wide -- but
--- the per-character `IsQuestFlaggedCompleted(questID)` API does NOT
--- reflect that account-wide state. Use
--- `C_QuestLog.IsQuestFlaggedCompletedOnAccount(questID)` instead, which
--- returns true if ANY character on the account has completed the quest.
---
--- Quest flags do NOT backfill: completing the Mythic skip quest on one
--- character sets the Mythic flag true on the account but leaves the
--- Heroic and Normal flags false. The cascade that lets you USE the skip
--- on lower difficulties happens at the in-game skip NPC level. The
--- cascade is downward-only -- completing X unlocks X and every easier
--- difficulty, but never anything harder. So:
---
---   * Mythic completed   -> skip available at Normal, Heroic, Mythic
---   * Heroic completed   -> skip available at Normal, Heroic
---   * Normal completed   -> skip available at Normal only
---   * Nothing completed  -> skip not available
---
--- Reading this off the API: the HIGHEST flag-true difficulty is the
--- ceiling. We don't need to OR all three to answer "is the skip
--- available?" -- if any flag is true, we know at minimum that
--- difficulty is unlocked, and (by cascade) every difficulty below.
+-- Raid-skip unlock detection. Skip quests are account-wide as of
+-- Patch 11.0.5 (use IsQuestFlaggedCompletedOnAccount, not the
+-- per-character flag). Quest flags don't backfill -- completing the
+-- Mythic skip sets the Mythic flag true but leaves Heroic/Normal
+-- false. The in-game cascade lets a higher-difficulty unlock be used
+-- at lower difficulties, so the highest flag-true difficulty is the
+-- ceiling.
 -- The walk from highest to lowest gives us the ceiling directly.
 
 -- Normalize raid.skipQuests into an array of chain descriptors. Returns
@@ -1546,7 +1364,7 @@ end
 -- The lockoutId is unique per-lockout: when the weekly reset rolls a new
 -- lockout, the lockoutId changes, even if instanceID and difficulty are
 -- the same. That's what makes it the right key for invalidating persisted
--- per-lockout state (like completedSegments) on lockout reset.
+-- per-lockout state (like routingProgress) on lockout reset.
 function RR:GetCurrentLockoutId()
     if not self.currentRaid then return nil end
     if not self.state.currentDifficultyID then return nil end
@@ -1564,84 +1382,6 @@ function RR:GetCurrentLockoutId()
     return nil
 end
 
--- Restore from persisted SavedVariable IF the lockout matches. Wipes
--- persisted state if the lockout has changed (weekly reset since last
--- save) so stale segment marks don't survive into a fresh lockout.
---
--- Schema: RetroRunsDB.completedSegments[instanceID] = {
---     lockoutId = <number>,
---     segments  = { [stepIndex] = { [segIndex] = true } },
--- }
---
--- Old (pre-0.6.1) schema was just the segments table directly under the
--- instanceID key. We migrate transparently: if the persisted value
--- doesn't have a lockoutId field, we treat it as stale and wipe (a
--- conservative call -- migration could preserve it, but we have no way
--- to know if the user's current lockout matches the unrecorded one).
-function RR:RestorePersistedSegments()
-    wipe(self.state.completedSegments)
-    wipe(self.state.visitedMapIDs)
-
-    if not self.currentRaid then return end
-    local currentLockoutId = self:GetCurrentLockoutId()
-
-    -- Restore completedSegments (existing behavior).
-    if RetroRunsDB and RetroRunsDB.completedSegments then
-        local store = RetroRunsDB.completedSegments[self.currentRaid.instanceID]
-        if store then
-            -- Old-schema record (no segments field) OR lockoutId mismatch:
-            -- persistence is stale (different lockout, or pre-0.6.1 schema),
-            -- wipe it. Initial-login wipe in PEW handles cross-WoW-session
-            -- staleness; this guard handles the smaller case where a /reload
-            -- happens AFTER the weekly reset rolled the lockout.
-            if not store.lockoutId or store.lockoutId ~= currentLockoutId then
-                RetroRunsDB.completedSegments[self.currentRaid.instanceID] = nil
-            elseif store.segments then
-                for stepIndex, segs in pairs(store.segments) do
-                    self.state.completedSegments[stepIndex] = {}
-                    for segIndex, v in pairs(segs) do
-                        self.state.completedSegments[stepIndex][segIndex] = v
-                    end
-                end
-            end
-        end
-    end
-
-    -- Restore visitedMapIDs (same lockout-scoped pattern as
-    -- completedSegments). Used by the seg-picker's revealAfterMapVisit
-    -- gate; without restoration, /reload mid-route loses visit history
-    -- and gates that should be unlocked re-lock erroneously.
-    if RetroRunsDB and RetroRunsDB.visitedMapIDs then
-        local store = RetroRunsDB.visitedMapIDs[self.currentRaid.instanceID]
-        if store then
-            if not store.lockoutId or store.lockoutId ~= currentLockoutId then
-                RetroRunsDB.visitedMapIDs[self.currentRaid.instanceID] = nil
-            elseif store.mapIDs then
-                for mapID, v in pairs(store.mapIDs) do
-                    self.state.visitedMapIDs[mapID] = v
-                end
-            end
-        end
-    end
-
-    -- Stage the per-step visited tables for OnActiveStepChanged to
-    -- consume when the next step activates. We can't restore directly
-    -- into self.state.stepVisitedMapIDs here because we don't yet
-    -- know which step will be active -- ComputeNextStep runs after
-    -- this. Same lockout-scoped pattern as the others.
-    self.state.persistedStepVisited = nil
-    if RetroRunsDB and RetroRunsDB.stepVisitedMapIDs then
-        local store = RetroRunsDB.stepVisitedMapIDs[self.currentRaid.instanceID]
-        if store then
-            if not store.lockoutId or store.lockoutId ~= currentLockoutId then
-                RetroRunsDB.stepVisitedMapIDs[self.currentRaid.instanceID] = nil
-            elseif store.byStep then
-                self.state.persistedStepVisited = store.byStep
-            end
-        end
-    end
-end
-
 -- Single canonical "go to real raid state" routine. Wipes any test-mode
 -- or stale state, syncs bossesKilled from the saved-instance cache,
 -- restores persisted segments (if the lockout still matches), recomputes
@@ -1652,10 +1392,8 @@ end
 -- the same state-rebuild sequence.
 function RR:RestoreRealRaidState()
     self:ClearBossState()
-    self:ResetStrictAdvanceGuard()
     self:SyncFromSavedRaidInfo(true)   -- request fresh server data
-    self:RestorePersistedSegments()
-    self:RestorePersistedStrictActiveSeg()
+    self:RestorePersistedProgress()
     self:ComputeNextStep()
     self:RefreshAll()
 end
@@ -1664,8 +1402,7 @@ function RR:LoadCurrentRaid()
     if not self.currentRaid then return end
     self.state.loadedRaidKey = self:GetRaidContextKey()
 
-    self:RestorePersistedSegments()
-    self:RestorePersistedStrictActiveSeg()
+    self:RestorePersistedProgress()
 
     -- Force the panel to fully-expanded mode (visible + un-minimized)
     -- regardless of the user's launchMode setting. Clicking "Load" on
@@ -1735,70 +1472,6 @@ function RR:HandleLocationChange()
                          C_Map.GetBestMapForUnit("player")
     local previousMapID = self.state.lastPlayerMapID
 
-    -- Visit tracking: record the player's mapID into the in-memory
-    -- visited-set AND persist to RetroRunsDB for /reload survival.
-    -- Used by the seg-picker's `revealAfterMapVisit` gate (Navigation.lua),
-    -- which gates a seg's display on the player having physically
-    -- reached a specific mapID at some point during the current lockout.
-    --
-    -- Necessary because subZone-string gates (`requiresSubZone`) can be
-    -- ambiguous when the same subZone string appears at multiple
-    -- mapIDs along a route -- e.g. BfD's "Dazar'alor" subZone fires
-    -- briefly on mapID 1352 mid-gryphon-flight AND at the post-Tandred
-    -- destination on the same mapID. mapID-visit-history disambiguates
-    -- these cleanly: the destination case happens AFTER the player has
-    -- visited mapID 875 (the ship), the transit case happens BEFORE.
-    --
-    -- Persisted scoped by raid instanceID + lockoutId, same shape as
-    -- completedSegments. RestorePersistedSegments handles the wipe-on-
-    -- lockout-roll case for both.
-    if currentMapID and self.currentRaid and self.currentRaid.instanceID then
-        local wasNew = not self.state.stepVisitedMapIDs[currentMapID]
-        self.state.visitedMapIDs[currentMapID] = true
-        self.state.stepVisitedMapIDs[currentMapID] = true
-        if wasNew then
-            self:ZoneLog(("  -> stepVisitedMapIDs += %d (now: %s)"):format(
-                currentMapID,
-                (function()
-                    local keys = {}
-                    for k in pairs(self.state.stepVisitedMapIDs) do
-                        table.insert(keys, tostring(k))
-                    end
-                    table.sort(keys)
-                    return table.concat(keys, ", ")
-                end)()))
-        end
-        local lockoutId = self:GetCurrentLockoutId()
-        if lockoutId and RetroRunsDB then
-            RetroRunsDB.visitedMapIDs = RetroRunsDB.visitedMapIDs or {}
-            local store = RetroRunsDB.visitedMapIDs[self.currentRaid.instanceID]
-            if not store or store.lockoutId ~= lockoutId then
-                store = { lockoutId = lockoutId, mapIDs = {} }
-                RetroRunsDB.visitedMapIDs[self.currentRaid.instanceID] = store
-            end
-            store.mapIDs[currentMapID] = true
-
-            -- Persist stepVisitedMapIDs scoped by active step index.
-            -- Survives /reload mid-step. Without this, the picker's
-            -- strict-sequential cap loses its history on reload and
-            -- falls back to seg 1's note even when the player has
-            -- progressed deep into a step. Same lockoutId-scoped
-            -- shape as completedSegments / visitedMapIDs.
-            local activeStep = self.state.activeStep
-            local activeStepIndex = activeStep and (activeStep.step or activeStep.priority)
-            if activeStepIndex then
-                RetroRunsDB.stepVisitedMapIDs = RetroRunsDB.stepVisitedMapIDs or {}
-                local stepStore = RetroRunsDB.stepVisitedMapIDs[self.currentRaid.instanceID]
-                if not stepStore or stepStore.lockoutId ~= lockoutId then
-                    stepStore = { lockoutId = lockoutId, byStep = {} }
-                    RetroRunsDB.stepVisitedMapIDs[self.currentRaid.instanceID] = stepStore
-                end
-                stepStore.byStep[activeStepIndex] = stepStore.byStep[activeStepIndex] or {}
-                stepStore.byStep[activeStepIndex][currentMapID] = true
-            end
-        end
-    end
-
     -- Helper: resolve mapID -> sub-zone name from the active raid's
     -- maps table, falling back to the raw ID if no name is registered.
     local mapName = function(id)
@@ -1808,7 +1481,6 @@ function RR:HandleLocationChange()
         if n then return ("%s (%d)"):format(n, id) end
         return ("mapID %d"):format(id)
     end
-    -- DEBUG (remove once segment-completion is verified working):
     local zoneText    = (GetZoneText and GetZoneText())       or ""
     local subZoneText = (GetSubZoneText and GetSubZoneText()) or ""
     local minimapText = (GetMinimapZoneText and GetMinimapZoneText()) or ""
@@ -1816,162 +1488,22 @@ function RR:HandleLocationChange()
         :format(mapName(previousMapID), mapName(currentMapID),
                 zoneText, subZoneText, minimapText))
 
-    -- Helper: does this seg's `requiresSubZone` (if any) match the
-    -- player's current sub-zone? Used by both the cross-mapID and the
-    -- deferred-within-mapID completion paths below.
-    --
-    -- Why this exists: WoW's GetSubZoneText() can return the parent
-    -- raid name ("The Eternal Palace") during transit through unnamed
-    -- portions of a sub-zone map -- e.g. swimming through the
-    -- underwater corridor between Sivara's Dais and the named "Halls
-    -- of the Chosen" interior, both of which live on mapID 1513. The
-    -- mapID transition (1512 -> 1513) fires the moment the player
-    -- crosses into the underwater portion, but the player isn't
-    -- semantically "in Halls of the Chosen" yet -- they're still
-    -- transiting. requiresSubZone defers seg-completion until the
-    -- sub-zone actually matches.
-    --
-    -- Opt-in only: segments without requiresSubZone behave exactly
-    -- as before (no sub-zone check). This keeps the change surgical
-    -- to the segments that need it.
-    local function subZoneRequirementMet(seg)
-        if not seg or not seg.requiresSubZone then return true end
-        return seg.requiresSubZone == subZoneText
-    end
-
     if currentMapID and previousMapID and currentMapID ~= previousMapID then
-        local step = self.state.activeStep
-        if step and step.segments then
-            local stepIndex = step.step or step.priority or 0
-            self:ZoneLog(("mapID changed; active step=%s, looking for forward seg %s -> %s")
-                :format(tostring(stepIndex),
-                        mapName(previousMapID), mapName(currentMapID)))
-            -- Route-aware segment-completion. Marks seg N complete only
-            -- if seg N's mapID matches the previous mapID AND seg N+1's
-            -- mapID matches the new mapID. This is the "did the player
-            -- legitimately progress from seg N to seg N+1" check. It
-            -- defeats two failure modes the simpler "mark first
-            -- incomplete on previous mapID" rule had:
-            --   1. Backtracks. Walking 2124->2122 after already
-            --      progressing through seg 2 (mapID 2122) used to
-            --      over-mark seg 4 (also 2122). With this rule, the
-            --      backtrack only matches if seg 2's successor (seg 3)
-            --      has mapID currentMapID; seg 4's successor doesn't
-            --      exist, so seg 4 never gets marked here.
-            --   2. Same-mapID multi-segment ordering. The simpler rule
-            --      always picked the earliest incomplete; this rule
-            --      requires both endpoints to align with the route
-            --      sequence, so it picks the right one or none.
-            -- The LAST segment of any step never matches this rule
-            -- (no successor to check against). It gets marked by
-            -- ENCOUNTER_END for the boss instead.
-            --
-            -- Sub-zone gating (v1.2): if seg N+1 has requiresSubZone,
-            -- the player must already be in that sub-zone for the
-            -- completion to fire. If they're not (e.g. mid-transit
-            -- through a parent-zone-fallback portion), the completion
-            -- is deferred to the second loop below, which fires on
-            -- sub-zone-change events.
-            --
-            -- ORDERING NOTE: this completion loop runs BEFORE
-            -- AdvanceStrictActiveSeg (below) so the strict advancer
-            -- sees updated completedSegments state. Critical for the
-            -- gate-seg case: AdvanceStrictActiveSeg refuses to advance
-            -- past an uncompleted gate seg (advanceOn predicate), and
-            -- the cross-mapID transit IS what completes that gate seg.
-            -- If the strict advancer ran first, it would see the gate
-            -- uncompleted, short-circuit, and the activeSeg pointer
-            -- would never advance past the gate.
-            for segIndex, seg in ipairs(step.segments) do
-                local completed = self:IsSegmentCompleted(stepIndex, segIndex)
-                local segSubZone = seg.subZone or "(none)"
-                self:ZoneLog(("  seg %d: %s subZone=%q completed=%s")
-                    :format(segIndex, mapName(seg.mapID),
-                            segSubZone, tostring(completed)))
-                if seg.mapID == previousMapID and not completed then
-                    local nextSeg = step.segments[segIndex + 1]
-                    if nextSeg and nextSeg.mapID == currentMapID then
-                        if subZoneRequirementMet(nextSeg) then
-                            self:ZoneLog(("  -> marking seg %d complete (next seg's mapID matches)")
-                                :format(segIndex))
-                            self:MarkSegmentCompleted(stepIndex, segIndex)
-                            break
-                        else
-                            self:ZoneLog(("  -> deferring seg %d completion: next seg requiresSubZone=%q, current=%q")
-                                :format(segIndex, nextSeg.requiresSubZone, subZoneText))
-                        end
-                    end
-                end
-            end
-        else
-            self:ZoneLog("mapID changed but no active step or no segments")
-        end
-
-        -- Strict-activeSeg advancement hook (v1.6+, generalized in
-        -- v1.7): for raids opting in via useStrictActiveSegPicker,
-        -- the activeSeg-based picker advances on mapID transitions.
-        -- The function itself is predicated internally via
-        -- UsesStrictActiveSegPicker, so this hook is a no-op for
-        -- legacy raids. See Data/StrictPicker.lua for the model.
-        -- Runs AFTER the cross-mapID completion loop so gate-seg
-        -- completion is visible to the advancer's gate-respect check.
-        self:AdvanceStrictActiveSeg(currentMapID)
+        self:AdvanceProgress("zone")
     end
 
-    -- Deferred-completion path: fires on sub-zone change WITHIN the
-    -- same mapID (mapID unchanged since last HLC, but ZONE_CHANGED or
-    -- ZONE_CHANGED_INDOORS fired due to the player crossing into a
-    -- newly-named sub-zone). Catches the case where the cross-mapID
-    -- loop above deferred a completion because of requiresSubZone --
-    -- once the sub-zone finally matches, fire the deferral.
-    --
-    -- Detection without persistent "deferred" state: walk segments
-    -- looking for pairs where seg N's mapID differs from currentMapID
-    -- AND seg N+1's mapID matches currentMapID AND seg N+1 has
-    -- requiresSubZone matching the current sub-zone AND seg N is
-    -- still incomplete. Implies the player is in the post-transition
-    -- mapID with the right sub-zone, and the prior seg is what should
-    -- have completed at the original mapID transition.
+    -- Same-mapID subZone change. The RetroEngine handles segs gated on
+    -- when.subZone (EP step 3 seg 2 "Halls of the Chosen" is the
+    -- canonical case): player /reloads on mapID 1513 with the parent
+    -- subZone, then the subZone updates to "Halls of the Chosen"
+    -- without a mapID change. Without this call, the seeder's
+    -- location-match-at-seed time misses the gate and progress stays
+    -- stuck at the pre-gate seg. Self-gated internally (no-op if no
+    -- advance is computed), so cheap for raids whose segs never use
+    -- when.subZone gating.
     if currentMapID and previousMapID and currentMapID == previousMapID then
-        local step = self.state.activeStep
-        if step and step.segments then
-            local stepIndex = step.step or step.priority or 0
-            for segIndex, seg in ipairs(step.segments) do
-                local completed = self:IsSegmentCompleted(stepIndex, segIndex)
-                if not completed then
-                    local nextSeg = step.segments[segIndex + 1]
-                    if nextSeg
-                        and nextSeg.mapID == currentMapID
-                        and seg.mapID ~= currentMapID
-                        and nextSeg.requiresSubZone
-                        and nextSeg.requiresSubZone == subZoneText
-                    then
-                        self:ZoneLog(("  -> deferred-fire: marking seg %d complete (subZone=%q now matches)")
-                            :format(segIndex, subZoneText))
-                        self:MarkSegmentCompleted(stepIndex, segIndex)
-                        break
-                    end
-                end
-            end
-        end
+        self:AdvanceProgress("zone")
     end
-
-    -- SubZone-trigger advancement (segments with advanceOn=subZone).
-    -- Independent from the requiresSubZone / deferred-completion path
-    -- above: requiresSubZone gates a PRIOR seg's completion on subZone
-    -- match (the seg you're leaving needs subZone to be right before
-    -- being marked complete). advanceOn=subZone is the inverse: it
-    -- triggers advancement TO a seg whose mapID matches the player's
-    -- but isn't reachable via mapID-change advancement because the
-    -- previous seg shares the mapID. Imonar's warframe-fly seg 2
-    -- (mapID 909, no subZone) -> seg 3 (mapID 909, subZone "Broken
-    -- Cliffs") is the canonical case.
-    --
-    -- Called unconditionally; the function self-gates on "is there
-    -- an active step with an advanceOn=subZone seg matching the
-    -- current subZone?" so the call is cheap for raids/steps without
-    -- this pattern.
-    self:CheckSubZoneTriggers(subZoneText)
 
     if currentMapID then
         self.state.lastPlayerMapID = currentMapID
@@ -2013,22 +1545,15 @@ function RR:HandleLocationChange()
         local key = self:GetRaidContextKey(supported, info)
         if self.state.lastSeenRaidKey ~= key then
             -- New raid context (different raid, or same raid but
-            -- different difficulty). Wipe in-memory raid state before
+            -- different difficulty). Wipe in-memory bossesKilled before
             -- showing the load popup, otherwise the new raid would
-            -- inherit bossesKilled and completedSegments from the
-            -- previous raid -- which are bossIndex-keyed without raid
-            -- scoping, so they collide. SyncFromSavedRaidInfo's
-            -- removal-rejection guard (defeats saved-instance cache
-            -- hiccups mid-session) would otherwise refuse to clear
-            -- the stale data when the new raid's cache reports no
-            -- kills.
-            --
-            -- This wipes IN-MEMORY state only -- SavedVariable
-            -- (RetroRunsDB.completedSegments) persists across raid
-            -- contexts and is restored in LoadCurrentRaid for the
-            -- raid the user opts into via the popup.
+            -- inherit kill marks from the previous raid -- bossIndex-
+            -- keyed without raid scoping, so they collide.
+            -- SyncFromSavedRaidInfo's removal-rejection guard (defeats
+            -- saved-instance cache hiccups mid-session) would otherwise
+            -- refuse to clear the stale data when the new raid's cache
+            -- reports no kills.
             wipe(self.state.bossesKilled)
-            wipe(self.state.completedSegments)
             self.state.lastSeenRaidKey = key
             self.state.loadedRaidKey   = nil
             self:SetSetting("showPanel", false)
@@ -2045,7 +1570,6 @@ function RR:HandleLocationChange()
         -- must be cleared when the player leaves so the next raid
         -- they enter starts with a clean baseline.
         wipe(self.state.bossesKilled)
-        wipe(self.state.completedSegments)
         self.currentRaid                 = nil
         self.state.loadedRaidKey         = nil
         self.state.currentDifficultyID   = nil
@@ -2088,7 +1612,6 @@ end
 
 function RR:ResetTestState()
     self:ClearBossState()
-    wipe(self.state.completedSegments)
     self.state.testMode             = true
     self.state.manualTargetBossIndex = nil
     self:ComputeNextStep()
@@ -2113,7 +1636,6 @@ function RR:SimulateKillNext()
     if not self.state.testMode then
         self.state.testMode = true
         self:ClearBossState()
-        wipe(self.state.completedSegments)
         self:ComputeNextStep()
     end
     local step = self.state.activeStep or self:ComputeNextStep()
@@ -2281,439 +1803,6 @@ function RR:PrintStatus()
         table.concat(lines, "\n"))
     self:Print(("Status window opened.  %s | Kills: %d/%d"):format(
         raid.name, killed, #bosses))
-end
-
--------------------------------------------------------------------------------
--- TravelDebug: snapshot of the inputs the travel-pane renderer uses to
--- pick which segment's note to display. Read-only diagnostic, opens a
--- copy window with the result.
---
--- For each step (active step plus any candidate next-steps), prints:
---   - playerMapID  (what C_Map.GetBestMapForUnit("player") returns)
---   - worldMapID   (what WorldMapFrame:GetMapID() returns -- only when
---                   the world map is open)
---   - chosenMapID  (what UI.GetBestMapForStep returns -- the mapID the
---                   renderer would compare segments against)
---   - segments     (per-seg mapID, has-note, completed-flag)
---
--- Used for "why is the travel pane showing the wrong segment's note?"
--- diagnosis. The renderer matches segments against chosenMapID; if no
--- segment's mapID matches it, the renderer falls back to the seg[1]
--- note prefixed with "(Open map for directions)". This dump exposes
--- the inputs so the cause is obvious from one snapshot.
--------------------------------------------------------------------------------
-function RR:TravelDebug()
-    local out = {}
-    local function add(s) table.insert(out, s or "") end
-
-    add("traveldebug: snapshot of travel-pane renderer state")
-    add("")
-
-    -- Raw inputs (independent of any specific step)
-    local playerMapID = C_Map and C_Map.GetBestMapForUnit
-                        and C_Map.GetBestMapForUnit("player")
-    local worldMapID
-    if WorldMapFrame and WorldMapFrame.GetMapID then
-        worldMapID = WorldMapFrame:GetMapID()
-    end
-    add(("Raw inputs:"))
-    add(("  C_Map.GetBestMapForUnit(\"player\")  = %s"):format(tostring(playerMapID)))
-    add(("  WorldMapFrame:GetMapID()             = %s  <-- this is what the map renderer uses"):format(
-        tostring(worldMapID)))
-    add("")
-
-    -- World map open / visible state
-    local mapOpen = WorldMapFrame and WorldMapFrame.IsShown and WorldMapFrame:IsShown()
-    add(("WorldMapFrame visible: %s"):format(tostring(mapOpen)))
-    add("")
-
-    if not self.currentRaid then
-        add("No raid loaded.")
-        self:ShowCopyWindow(
-            "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaa/rr traveldebug|r",
-            table.concat(out, "\n"))
-        return
-    end
-
-    add(("Raid: %s"):format(self.currentRaid.name or "?"))
-
-    -- Active step (what the renderer is currently displaying)
-    local active = self.state and self.state.activeStep
-    if not active then
-        add("activeStep: nil")
-    else
-        add(("activeStep: step=%s title=%q"):format(
-            tostring(active.step), active.title or ""))
-    end
-    add("")
-
-    -- Iterate every step in the raid's routing array. For each, dump
-    -- what mapID the renderer would pick if that step were active, and
-    -- the per-segment table. The active step is flagged with "*".
-    local routing = self.currentRaid.routing
-    if not routing or #routing == 0 then
-        add("No routing data for this raid.")
-    else
-        for _, step in ipairs(routing) do
-            local marker = (active and active.step == step.step) and "* " or "  "
-            local chosenMapID
-            if RR.UI and RR.UI.GetBestMapForStep then
-                chosenMapID = RR.UI.GetBestMapForStep(step)
-            end
-            add(("%sstep=%s priority=%s bossIndex=%s title=%q"):format(
-                marker,
-                tostring(step.step),
-                tostring(step.priority),
-                tostring(step.bossIndex),
-                step.title or "?"))
-            add(("    chosenMapID = %s  (used by travel-pane text)"):format(tostring(chosenMapID)))
-            -- The MAP RENDERER uses worldMapID, not chosenMapID. Show
-            -- which seg(s) would draw on the currently-open world map.
-            if worldMapID then
-                local relevant = self:GetRelevantSegmentsForMap(step, worldMapID)
-                if #relevant > 0 then
-                    local segIdxs = {}
-                    for i, seg in ipairs(step.segments) do
-                        for _, r in ipairs(relevant) do
-                            if r == seg then table.insert(segIdxs, tostring(i)) end
-                        end
-                    end
-                    add(("    map renderer would draw seg(s) [%s] on world map %s"):format(
-                        table.concat(segIdxs, ","), tostring(worldMapID)))
-                else
-                    add(("    map renderer: no segs match world map %s"):format(
-                        tostring(worldMapID)))
-                end
-            end
-            if step.segments then
-                for i, seg in ipairs(step.segments) do
-                    local completed = self:IsSegmentCompleted(step.step or 0, i)
-                    local matches = (chosenMapID == seg.mapID) and " <-- matches chosen" or ""
-                    add(("    seg %d: mapID=%s kind=%-9s note=%s completed=%-5s%s"):format(
-                        i,
-                        tostring(seg.mapID),
-                        tostring(seg.kind or "path"),
-                        seg.note and "yes" or "no ",
-                        tostring(completed),
-                        matches))
-                end
-            else
-                add("    (no segments)")
-            end
-            add("")
-        end
-    end
-
-    add("Legend: chosenMapID is what the renderer compares segment mapIDs against.")
-    add("If no segment's mapID matches, the renderer falls back to seg[1]'s note")
-    add("with an \"(Open map for directions)\" prefix.")
-
-    self:ShowCopyWindow(
-        "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaa/rr traveldebug|r",
-        table.concat(out, "\n"))
-    self:Print("traveldebug snapshot opened.")
-end
-
--------------------------------------------------------------------------------
--- Toggle-probe diagnostic (dev-only; not user-facing)
---
--- Diagnoses the "Run complete!" + button click bug: in that state the
--- expansion-toggle "+" buttons in the supported-raids list go dead to
--- clicks (work fine in idle state). The fix path needs to identify
--- whether something is intercepting clicks or whether the buttons
--- themselves are misconfigured.
---
--- This probe dumps everything needed to identify the culprit:
---   1. Each panel.expansionToggleButtons[i] -- IsShown / IsMouseEnabled /
---      OnClick script set / FrameLevel / anchor point / size
---   2. Body-element frames that could overlap (encounter, transmog, list,
---      listHeader, etc.) -- IsShown / IsMouseEnabled / FrameLevel / size
---   3. GetMouseFocus() at the moment the probe runs -- so the user can
---      hover a + glyph and run /rr toggleprobe to see what frame the
---      mouse is actually over (the toggle button, or something else?)
---
--- Output goes to ShowCopyWindow. Run via /rr toggleprobe.
--------------------------------------------------------------------------------
-function RR:ToggleProbe()
-    local out = {}
-    local function add(s) table.insert(out, s or "") end
-
-    add("toggleprobe: expansion-toggle button + intercepting-frame state")
-    add("Hover the + glyph BEFORE running this for GetMouseFocus to be useful.")
-    add("")
-
-    -- Resolve panel via UI namespace's known reference
-    local panel = _G.RetroRunsMainFrame
-    if not panel then
-        add("ERROR: _G.RetroRunsMainFrame not found.")
-        self:ShowCopyWindow(
-            "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaa/rr toggleprobe|r",
-            table.concat(out, "\n"))
-        return
-    end
-
-    add(("Panel: shown=%s, FrameLevel=%s, strata=%s"):format(
-        tostring(panel:IsShown()),
-        tostring(panel:GetFrameLevel()),
-        tostring((panel.GetFrameStrata and panel:GetFrameStrata()) or "n/a")))
-    do
-        local pL, pB = panel:GetLeft(), panel:GetBottom()
-        local pW, pH = panel:GetWidth() or 0, panel:GetHeight() or 0
-        if pL and pB then
-            add(("Panel screen: L%.0f B%.0f W%.0f H%.0f (top=%.0f, right=%.0f)"):format(
-                pL, pB, pW, pH, pB + pH, pL + pW))
-        end
-    end
-    -- Cursor position. If the user hovered a + before running the probe,
-    -- this tells us exactly where on screen the mouse was, which we can
-    -- cross-reference against the toggle buttons' screen rectangles to
-    -- see whether the click hit area is where the visible glyph is.
-    if GetCursorPosition then
-        local cx, cy = GetCursorPosition()
-        if cx and cy then
-            local scale = UIParent and UIParent:GetEffectiveScale() or 1
-            add(("Cursor: raw=(%d,%d) UIParent-scaled=(%.0f,%.0f)"):format(
-                cx, cy, cx / scale, cy / scale))
-        end
-    end
-    add("")
-
-    -- Section 1: Expansion toggle buttons
-    add("=== panel.expansionToggleButtons ===")
-    local toggles = panel.expansionToggleButtons or {}
-    add(("Count: %d"):format(#toggles))
-    for i, btn in ipairs(toggles) do
-        local pt, relTo, relPt, x, y = btn:GetPoint(1)
-        local relName = "?"
-        if relTo and relTo.GetName then relName = relTo:GetName() or "(unnamed)" end
-        if relTo and not (relTo.GetName and relTo:GetName()) then
-            local rl, rb, rw, rh = relTo:GetLeft(), relTo:GetBottom(),
-                                   relTo:GetWidth() or 0, relTo:GetHeight() or 0
-            if rl and rb then
-                relName = ("FS(L=%.0f B=%.0f W=%.0f H=%.0f)"):format(
-                    rl, rb, rw, rh)
-            else
-                relName = "FS(off-screen-or-nil-coords)"
-            end
-        end
-        local hasOnClick     = (btn:GetScript("OnClick")     ~= nil)
-        local hasOnMouseDown = (btn:GetScript("OnMouseDown") ~= nil)
-        local hasOnMouseUp   = (btn:GetScript("OnMouseUp")   ~= nil)
-        local hasOnEnter     = (btn:GetScript("OnEnter")     ~= nil)
-        local isEnabled      = btn.IsEnabled and btn:IsEnabled()
-        local L, B = btn:GetLeft(), btn:GetBottom()
-        local W, H = btn:GetWidth() or 0, btn:GetHeight() or 0
-        local screenInfo
-        if L and B then
-            screenInfo = ("screen=L%.0f,B%.0f,W%.0f,H%.0f (top=%.0f,right=%.0f)"):format(
-                L, B, W, H, B + H, L + W)
-        else
-            screenInfo = "screen=NIL-COORDS"
-        end
-        local strata = (btn.GetFrameStrata and btn:GetFrameStrata()) or "n/a"
-        -- GetButtonState: "NORMAL" / "PUSHED" / "DISABLED"
-        local btnState = "n/a"
-        if btn.GetButtonState then btnState = btn:GetButtonState() end
-        -- GetRegisteredClickTypes returns nil on older clients; use pcall
-        -- to defensively check whether it's available. Fall back to a
-        -- reasonable label if not.
-        local regClicks = "?"
-        if btn.GetRegisteredClickTypes then
-            local ok, rc = pcall(btn.GetRegisteredClickTypes, btn)
-            if ok and rc then regClicks = tostring(rc) end
-        end
-        add(("  [%d] shown=%s mouse=%s enabled=%s state=%s onclick=%s mdn=%s mup=%s onent=%s strata=%s level=%s regClicks=%s"):format(
-            i,
-            tostring(btn:IsShown()),
-            tostring(btn:IsMouseEnabled()),
-            tostring(isEnabled),
-            btnState,
-            tostring(hasOnClick),
-            tostring(hasOnMouseDown),
-            tostring(hasOnMouseUp),
-            tostring(hasOnEnter),
-            strata,
-            tostring(btn:GetFrameLevel()),
-            regClicks))
-        add(("       anchor=%s->%s:%s(%g,%g)"):format(
-            tostring(pt), relName, tostring(relPt), x or 0, y or 0))
-        add(("       %s"):format(screenInfo))
-    end
-    add("")
-
-    -- Section 1.5: All Frame children of the panel, sorted by FrameLevel.
-    -- If there's an invisible overlay frame at FrameLevel >= 11 covering
-    -- the button area but with mouse=true and no visible texture, it
-    -- would intercept clicks while leaving hover/push textures on the
-    -- button below untouched (since those track screen mouse position
-    -- directly via the button's enter/leave region scripts, not via
-    -- click dispatch).
-    add("=== Panel child Frames (by FrameLevel descending) ===")
-    -- Build a reverse-lookup table mapping known panel members to a
-    -- human-readable name. When we walk panel:GetChildren() we'll
-    -- check each child against this table and surface the friendly
-    -- name. Helps identify the "unnamed" 392x1 button that only
-    -- exists in run-complete state.
-    local memberName = {
-        [panel.closeButton or 0]    = "panel.closeButton",
-        [panel.minimizeButton or 0] = "panel.minimizeButton",
-        [panel.encounter or 0]      = "panel.encounter",
-        [panel.transmog or 0]       = "panel.transmog",
-        [panel.mapBtn or 0]         = "panel.mapBtn",
-        [panel.tmogBtn or 0]        = "panel.tmogBtn",
-        [panel.achievesBtn or 0]    = "panel.achievesBtn",
-        [panel.skipsBtn or 0]       = "panel.skipsBtn",
-        [panel.settingsBtn or 0]    = "panel.settingsBtn",
-    }
-    -- Also tag every active expansion-toggle and entrance button
-    for i, b in ipairs(panel.expansionToggleButtons or {}) do
-        memberName[b] = ("toggle[%d]"):format(i)
-    end
-    for i, b in ipairs(panel.entranceButtons or {}) do
-        memberName[b] = ("entrance[%d]"):format(i)
-    end
-    -- And pool entries (these are inactive but still parented to panel)
-    for i, b in ipairs(panel.expansionToggleButtonPool or {}) do
-        memberName[b] = ("togglePool[%d]"):format(i)
-    end
-    for i, b in ipairs(panel.entranceButtonPool or {}) do
-        memberName[b] = ("entrancePool[%d]"):format(i)
-    end
-
-    local children = { panel:GetChildren() }
-    local childList = {}
-    for _, c in ipairs(children) do
-        if c.GetFrameLevel then
-            table.insert(childList, {
-                tag = memberName[c] or "(unidentified)",
-                level = c:GetFrameLevel(),
-                shown = c:IsShown(),
-                mouse = c.IsMouseEnabled and c:IsMouseEnabled() or false,
-                L = c:GetLeft(), B = c:GetBottom(),
-                W = c:GetWidth() or 0, H = c:GetHeight() or 0,
-                otype = (c.GetObjectType and c:GetObjectType()) or "?",
-                frame = c,
-            })
-        end
-    end
-    table.sort(childList, function(a, b) return a.level > b.level end)
-    add(("Total children: %d"):format(#childList))
-    for _, c in ipairs(childList) do
-        local screen = "no-coords"
-        if c.L and c.B then
-            screen = ("L%.0f,B%.0f,W%.0f,H%.0f"):format(c.L, c.B, c.W, c.H)
-        end
-        add(("  level=%-3d type=%-8s shown=%-5s mouse=%-5s %s   <- %s"):format(
-            c.level, c.otype,
-            tostring(c.shown), tostring(c.mouse), screen, c.tag))
-    end
-    add("")
-
-    -- Section 2: Potentially intercepting body frames. Anything that's a
-    -- Button child of panel and could overlap the toggle button area is
-    -- a candidate. We list known suspects explicitly with their full state.
-    add("=== Potentially intercepting body frames ===")
-    local suspects = {
-        { name = "panel.encounter",  frame = panel.encounter  },
-        { name = "panel.transmog",   frame = panel.transmog   },
-        { name = "panel.next",       frame = panel.next       },
-        { name = "panel.travel",     frame = panel.travel     },
-        { name = "panel.progress",   frame = panel.progress   },
-        { name = "panel.raid",       frame = panel.raid       },
-        { name = "panel.pills",      frame = panel.pills      },
-        { name = "panel.listHeader", frame = panel.listHeader },
-        { name = "panel.list",       frame = panel.list       },
-    }
-    for _, s in ipairs(suspects) do
-        local f = s.frame
-        if not f then
-            add(("  %s: nil"):format(s.name))
-        else
-            local mouseEnabled = "n/a"
-            if f.IsMouseEnabled then
-                mouseEnabled = tostring(f:IsMouseEnabled())
-            end
-            local frameLevel = "n/a"
-            if f.GetFrameLevel then
-                frameLevel = tostring(f:GetFrameLevel())
-            end
-            add(("  %s: shown=%s mouse=%s level=%s size=%dx%d"):format(
-                s.name,
-                tostring(f:IsShown()),
-                mouseEnabled,
-                frameLevel,
-                math.floor((f.GetWidth and f:GetWidth()) or 0),
-                math.floor((f.GetHeight and f:GetHeight()) or 0)))
-        end
-    end
-    add("")
-
-    -- Section 2.5: State + render-path diagnostic. The OnClick handler
-    -- writes to RR.state.expandedExpansions; BuildIdleListRows reads
-    -- from it. Dump the current state so we can see (a) whether clicks
-    -- are landing on the state at all, and (b) what state the render
-    -- path is seeing.
-    add("=== RR.state.expandedExpansions ===")
-    local exp = RR.state and RR.state.expandedExpansions
-    if not exp then
-        add("  RR.state.expandedExpansions is nil or RR.state is nil")
-    elseif next(exp) == nil then
-        add("  {} (empty -- no expansion is currently marked expanded)")
-    else
-        for k, v in pairs(exp) do
-            add(("  [%s] = %s"):format(tostring(k), tostring(v)))
-        end
-    end
-    add("")
-
-    -- Section 3: GetMouseFocus -- what frame is the mouse over right now?
-    add("=== GetMouseFocus() at probe time ===")
-    local focus = GetMouseFocus and GetMouseFocus()
-    if not focus then
-        add("  GetMouseFocus() returned nil. (No frame under cursor, or cursor")
-        add("  over a non-mouse-enabled area. Hover a + glyph first, then run")
-        add("  /rr toggleprobe again.)")
-    else
-        local focusName = (focus.GetName and focus:GetName()) or "(unnamed)"
-        add(("  Focus frame name: %s"):format(focusName))
-        add(("  Focus frame type: %s"):format(focus.GetObjectType and focus:GetObjectType() or "?"))
-        if focus.GetFrameLevel then
-            add(("  Focus frame level: %s"):format(tostring(focus:GetFrameLevel())))
-        end
-        -- Check if focus is one of our toggle buttons
-        local matchedToggle = false
-        for i, btn in ipairs(toggles) do
-            if focus == btn then
-                add(("  -> Focus IS panel.expansionToggleButtons[%d] (the toggle button itself)"):format(i))
-                matchedToggle = true
-                break
-            end
-        end
-        if not matchedToggle then
-            -- Check known suspects
-            for _, s in ipairs(suspects) do
-                if focus == s.frame then
-                    add(("  -> Focus is %s (intercepting the click)"):format(s.name))
-                    break
-                end
-            end
-        end
-        -- Walk parent chain so we see frame hierarchy context
-        add("  Parent chain:")
-        local p = focus.GetParent and focus:GetParent()
-        local depth = 0
-        while p and depth < 10 do
-            local pname = (p.GetName and p:GetName()) or "(unnamed)"
-            add(("    -> %s"):format(pname))
-            p = p.GetParent and p:GetParent()
-            depth = depth + 1
-        end
-    end
-
-    self:ShowCopyWindow(
-        "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaa/rr toggleprobe|r",
-        table.concat(out, "\n"))
-    self:Print("toggleprobe snapshot opened.")
 end
 
 -------------------------------------------------------------------------------
@@ -3593,232 +2682,6 @@ SlashCmdList["RETRORUNS"] = function(input)
     elseif cmd == "settings" then
         RR.UI.ToggleSettings()
 
-    elseif cmd == "pickerstate" then
-        -- Diagnostic dump of strict-activeSeg picker state. Use when the
-        -- travel pane shows "Open the map..." fallback in a raid that
-        -- opted in via useStrictActiveSegPicker -- typically caused by
-        -- activeSeg pointing past end of step.segments, or by the
-        -- picker dispatch not routing to StrictPicker for some reason.
-        local lines = {}
-        local function add(s) lines[#lines + 1] = s end
-        local raid = RR.currentRaid
-        add("== Strict-activeSeg Picker State ==")
-        add(("currentRaid: %s (instanceID=%s)"):format(
-            tostring(raid and raid.name or "(none)"),
-            tostring(raid and raid.instanceID or "(none)")))
-        add(("UsesStrictActiveSegPicker: %s"):format(
-            tostring(RR:UsesStrictActiveSegPicker())))
-        add(("playerMapID (real-time): %s"):format(
-            tostring(C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player") or "(api missing)")))
-        add(("state.lastPlayerMapID:    %s"):format(tostring(RR.state and RR.state.lastPlayerMapID)))
-        local s = RR.state and RR.state.activeStep
-        if s then
-            add("")
-            add(("activeStep: step=%s priority=%s title=%q"):format(
-                tostring(s.step), tostring(s.priority), tostring(s.title)))
-            local stepIndex = s.step or s.priority or 0
-            local activeSeg = RR:GetStrictActiveSeg(stepIndex)
-            add(("activeSeg for step %d: %d"):format(stepIndex, activeSeg))
-            if s.segments then
-                add(("step.segments: %d entries"):format(#s.segments))
-                for i, seg in ipairs(s.segments) do
-                    local notePreview = seg.note and seg.note:sub(1, 60) or "(no note)"
-                    add(("  seg %d: mapID=%s note=%q"):format(i, tostring(seg.mapID), notePreview))
-                end
-                local pickedSeg = RR:PickStrictNoteSeg(s, RR.state.lastPlayerMapID)
-                if pickedSeg then
-                    add(("PickStrictNoteSeg returned: seg with mapID=%s, note=%q"):format(
-                        tostring(pickedSeg.mapID),
-                        tostring(pickedSeg.note and pickedSeg.note:sub(1, 60) or "(no note)")))
-                else
-                    add("PickStrictNoteSeg returned: nil")
-                end
-            else
-                add("step.segments: NIL")
-            end
-        else
-            add("activeStep: (none)")
-        end
-        add("")
-        add("== Persisted strictActiveSeg ==")
-        if RetroRunsDB and RetroRunsDB.strictActiveSeg then
-            for instID, instStore in pairs(RetroRunsDB.strictActiveSeg) do
-                add(("instanceID %s:"):format(tostring(instID)))
-                -- Pre-faction-scoped legacy shape (lockoutId/activeSegs at
-                -- top level). Printed for diagnostic visibility but new
-                -- writes will migrate this away.
-                if instStore.lockoutId ~= nil or instStore.activeSegs ~= nil then
-                    add(("  [LEGACY pre-faction shape] lockoutId=%s"):format(
-                        tostring(instStore.lockoutId)))
-                    if instStore.activeSegs then
-                        for stepIdx, seg in pairs(instStore.activeSegs) do
-                            add(("    step %d activeSeg = %d"):format(stepIdx, seg))
-                        end
-                    end
-                else
-                    for faction, factionStore in pairs(instStore) do
-                        add(("  [%s] lockoutId=%s"):format(
-                            tostring(faction), tostring(factionStore.lockoutId)))
-                        if factionStore.activeSegs then
-                            for stepIdx, seg in pairs(factionStore.activeSegs) do
-                                add(("    step %d activeSeg = %d"):format(stepIdx, seg))
-                            end
-                        end
-                    end
-                end
-            end
-        else
-            add("(empty)")
-        end
-        RR:ShowCopyWindow("RetroRuns -- Strict-activeSeg Picker State", table.concat(lines, "\n"))
-
-    elseif cmd == "skipsprobe" then
-        -- Diagnostic dump of every [i] button's hit rectangle in the
-        -- Skips window. Use when [i] clicks are inconsistent -- the
-        -- output shows the button's screen-space rect plus the glyph's
-        -- rendered rect so we can compare "where the icon LOOKS" vs
-        -- "where the click target IS". Skips window must be open.
-        --
-        -- Also reports GetMouseFocus() at probe time -- if invoked
-        -- while the cursor is hovering over an [i], the line tells us
-        -- which frame WoW thinks the mouse is over. Mismatch between
-        -- "I see [i] under my cursor" and "WoW says cursor is over X"
-        -- is the smoking gun for click-interception.
-        local lines = {}
-        local function add(s) lines[#lines + 1] = s end
-        add("== Skips [i] button hit-test geometry ==")
-        local w = _G.RetroRunsSkipsWindow
-        if not w then
-            add("(Skips window has never been opened -- nothing to probe)")
-        elseif not w:IsShown() then
-            add("(Skips window is closed -- open it first, then /rr skipsprobe)")
-        else
-            add(("Window: %.0fx%.0f at screen (%.0f, %.0f), scale=%.2f, level=%d, strata=%s"):format(
-                w:GetWidth() or 0, w:GetHeight() or 0,
-                w:GetLeft() or -1, w:GetBottom() or -1,
-                w:GetScale() or 0, w:GetFrameLevel() or 0,
-                tostring(w:GetFrameStrata())))
-
-            -- What's under the mouse RIGHT NOW. Hover over an [i] glyph
-            -- and run the command without un-hovering -- the captured
-            -- focus frame tells us what would actually receive a click.
-            local focus = GetMouseFocus and GetMouseFocus()
-            if focus then
-                local fname = focus.GetName and focus:GetName() or "(anonymous)"
-                local ftype = focus.GetObjectType and focus:GetObjectType() or "?"
-                local fparent = focus.GetParent and focus:GetParent()
-                local fparentName = fparent and fparent.GetName
-                    and fparent:GetName() or "(anonymous parent)"
-                add(("Mouse-over frame: type=%s name=%s parent=%s"):format(
-                    ftype, fname, fparentName))
-                if focus.GetFrameLevel then
-                    add(("    level=%d strata=%s"):format(
-                        focus:GetFrameLevel(),
-                        tostring(focus.GetFrameStrata and focus:GetFrameStrata() or "?")))
-                end
-            else
-                add("Mouse-over frame: nil (cursor not on any frame, or GetMouseFocus unavailable)")
-            end
-
-            -- Cursor position for sanity check
-            local mx, my = GetCursorPosition()
-            local effScale = UIParent:GetEffectiveScale()
-            if mx and my and effScale then
-                add(("Cursor screen pos: (%.0f, %.0f), UIParent effScale=%.2f"):format(
-                    mx / effScale, my / effScale, effScale))
-            end
-
-            -- Walk the pool. Skips row pool lives in UI.lua as a file-
-            -- local; we don't have a public accessor. Best alternative:
-            -- query all children of the window and pick out Button-type
-            -- ones that contain a child glyph FontString. This catches
-            -- the same widgets regardless of pool structure.
-            local children = { w:GetChildren() }
-            local btnCount = 0
-            for _, child in ipairs(children) do
-                if child.glyph and child.glyph.GetText then
-                    local txt = child.glyph:GetText() or ""
-                    if txt:find("%[ i %]") then
-                        btnCount = btnCount + 1
-                        local shown = child:IsShown() and "SHOWN" or "HIDDEN"
-                        local bx, by = child:GetLeft(), child:GetBottom()
-                        local bw, bh = child:GetWidth(), child:GetHeight()
-                        local gx, gy = child.glyph:GetLeft(), child.glyph:GetBottom()
-                        local gw, gh = child.glyph:GetWidth(), child.glyph:GetHeight()
-                        local lvl = child:GetFrameLevel() or 0
-                        local mouseEnabled = child:IsMouseEnabled() and "Y" or "N"
-                        local hasClick = child:GetScript("OnClick") ~= nil and "Y" or "N"
-                        local hitL, hitR, hitT, hitB = child:GetHitRectInsets()
-                        local hasHitArea = child.hitArea and "Y" or "N"
-                        local effScale = child:GetEffectiveScale() or 1
-                        add(("[%d] %s lvl=%d mouse=%s click=%s hitArea=%s effScale=%.2f"):format(
-                            btnCount, shown, lvl, mouseEnabled, hasClick, hasHitArea, effScale))
-                        add(("    btn rect:   x=%.0f y=%.0f w=%.0f h=%.0f insets=(L%d R%d T%d B%d)"):format(
-                            bx or -1, by or -1, bw or 0, bh or 0,
-                            hitL or 0, hitR or 0, hitT or 0, hitB or 0))
-                        add(("    glyph rect: x=%.0f y=%.0f w=%.0f h=%.0f  text=%q"):format(
-                            gx or -1, gy or -1, gw or 0, gh or 0, txt))
-                    end
-                end
-            end
-            add(("Total [i] buttons found: %d"):format(btnCount))
-        end
-        RR:ShowCopyWindow("RetroRuns -- Skips [i] Probe", table.concat(lines, "\n"))
-
-    elseif cmd == "idleprobe" then
-        -- Diagnostic dump of every active idle-list FontString row.
-        -- For each row, reports: the raw text content (so we can see
-        -- color codes and texture specs verbatim), GetStringHeight
-        -- (the rendered text height after wrapping), GetHeight (the
-        -- FontString's measured frame height), the FontString's
-        -- TOPLEFT-from-panel offset (to see actual vertical
-        -- placement), and GetWidth / SetWidth state.
-        --
-        -- Use when row spacing looks wrong (a row sits unusually far
-        -- below its predecessor) -- a row whose StringHeight exceeds
-        -- the typical line height by ~fontSize is wrapping internally,
-        -- and the next row anchors below the wrapped block's bottom.
-        local panel = _G.RetroRunsUI
-        if not panel or not panel.idleListLines then
-            RR:Print("idleprobe: panel or idle list not available")
-            return
-        end
-        local lines = {}
-        local function add(s) lines[#lines + 1] = s end
-        add(("== Idle list probe (%d active rows) =="):format(#panel.idleListLines))
-        local panelTop = panel:GetTop() or 0
-        for i, fs in ipairs(panel.idleListLines) do
-            local text = fs:GetText() or ""
-            -- Truncate very long texture-bearing strings so the probe
-            -- output stays readable. Keep the first 80 chars.
-            local displayText = text
-            if #displayText > 80 then
-                displayText = displayText:sub(1, 80) .. "..."
-            end
-            local sh = fs:GetStringHeight() or 0
-            local h  = fs:GetHeight() or 0
-            local w  = fs:GetWidth() or 0
-            local top = fs:GetTop() or panelTop
-            local topFromPanel = panelTop - top
-            add(("[%d] yTop=%.1f  H=%.1f  StrH=%.1f  W=%.0f"):format(
-                i, topFromPanel, h, sh, w))
-            add(("    text=%q"):format(displayText))
-        end
-        RR:ShowCopyWindow("RetroRuns -- Idle List Probe",
-            table.concat(lines, "\n"))
-
-    elseif cmd == "zonelog" then
-        -- Diagnostic dump of the in-memory zone-change log. Used to
-        -- investigate segment-completion behavior on cross-mapID
-        -- transitions inside raid instances.
-        local buf = RR.state.zoneLog or {}
-        if #buf == 0 then
-            RR:Print("Zone log is empty. Move between sub-zones to populate it.")
-        else
-            RR:ShowCopyWindow("RetroRuns -- Zone Log",
-                table.concat(buf, "\n"))
-        end
-
     elseif cmd == "sessionlog" then
         -- Open the recorder session log copy window. Defaults to
         -- showing entries for the current raid only (so debugging an
@@ -3837,6 +2700,21 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- substring, e.g. `/rr lintroute Aberrus`.
         local scope = args[2]
         RR:LintRoute(scope)
+
+    elseif cmd == "diag" then
+        -- Consolidated diagnostic dump: RetroEngine state + zone log +
+        -- session log, all in one copy window. Use this when filing
+        -- a bug report or comparing state across reloads.
+        RR:DiagDump()
+
+    elseif cmd == "mapicons" then
+        -- Dev: dump the currently-viewed world map's Blizzard icons
+        -- (zone-transition exits + POIs) with their exact normalized
+        -- coords. Use when authoring a highlightCircle / POI seg whose
+        -- target is a Blizzard map icon -- reads the coord straight
+        -- from the API instead of trying to shift-click the icon
+        -- (which Blizzard's click handler usually eats first).
+        RR:DumpMapIcons()
 
     elseif cmd == "reset" then
         -- Preserve "transient toggle" state across reset. Reset is about
@@ -3893,16 +2771,14 @@ SlashCmdList["RETRORUNS"] = function(input)
         RR:Print("Returned to live raid state.")
 
     elseif cmd == "resetsegments" then
-        -- Clear persisted segment-completion state for the CURRENT raid.
-        -- Use when a backtrack or other quirk has left a segment marked
-        -- complete that shouldn't be -- the renderer's "earliest
-        -- incomplete on current mapID" picker then surfaces the wrong
-        -- segment (or nothing at all if all segs on a mapID get marked
-        -- complete). Scoped to the current raid; other raids' persisted
-        -- segment state is preserved.
+        -- Clear persisted routing-progress state for the CURRENT raid.
+        -- Use when a backtrack or other quirk has left progress advanced
+        -- past a seg that shouldn't yet be complete -- the renderer then
+        -- surfaces the wrong segment's note. Scoped to the current raid;
+        -- other raids' persisted progress is preserved.
         --
         -- Also clears the in-memory zonelog ring buffer. Resetting
-        -- segments is almost always done as part of a diagnostic
+        -- progress is almost always done as part of a diagnostic
         -- session, where the next thing the user wants to see is a
         -- clean zonelog showing only the events triggered by the
         -- post-reset walk -- not the stale entries from before the
@@ -3911,14 +2787,18 @@ SlashCmdList["RETRORUNS"] = function(input)
         if not RR.currentRaid then
             RR:Print("No raid loaded. Zone into a supported raid first.")
         else
-            wipe(RR.state.completedSegments)
-            if RetroRunsDB and RetroRunsDB.completedSegments then
-                RetroRunsDB.completedSegments[RR.currentRaid.instanceID] = nil
+            RR.state.progress      = {}
+            RR.state.triggersFired = {}
+            if RetroRunsDB and RetroRunsDB.routingProgress then
+                RetroRunsDB.routingProgress[RR.currentRaid.instanceID] = nil
             end
             wipe(RR.state.zoneLog)
+            if RR.state.activeStep then
+                RR:SeedProgress(RR.state.activeStep)
+            end
             RR.UI.Update()
             if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
-            RR:Print(("Segment state cleared for %s. (zonelog also wiped)"):format(RR.currentRaid.name))
+            RR:Print(("Routing progress cleared for %s. (zonelog also wiped)"):format(RR.currentRaid.name))
         end
 
     elseif cmd == "kill" then
@@ -4199,167 +3079,6 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- Read-only diagnostic. Used for "why is the harvester writing
         -- the wrong sourceIDs in this tier row?" diagnosis.
         RR:TierProbe(args[2])
-
-    elseif cmd == "probelockout" then
-        -- Probe GetSavedInstanceEncounterInfo's return shape on retail.
-        -- Wowpedia documents the signature as:
-        --   bossName, fileDataID, isKilled, unknown4 = GetSavedInstanceEncounterInfo(i, e)
-        -- but labels the 4th return as "unknown4". This probe dumps all
-        -- four returns for every encounter of every saved instance so we
-        -- can verify whether unknown4 is the dungeonEncounterID (which
-        -- would let us close the lockout-cache locale-independence gap)
-        -- or something else entirely.
-        --
-        -- For currently-loaded raid context: we also cross-reference
-        -- each unknown4 value against the EJ map (journalEncounterID ->
-        -- dungeonEncounterID) for the same raid. A match across all
-        -- encounters confirms unknown4 IS the dungeonEncounterID.
-        --
-        -- Output: ShowCopyWindow, since chat truncation would shred the
-        -- per-encounter table.
-        local lines = {}
-        local function add(s) table.insert(lines, s) end
-
-        add("probelockout: dumping all four returns of GetSavedInstanceEncounterInfo")
-        add("for every saved instance, for every encounter.")
-        add("")
-        add("Wowpedia signature:")
-        add("  bossName, fileDataID, isKilled, unknown4 = GetSavedInstanceEncounterInfo(i, e)")
-        add("")
-        add("Goal: identify what 'unknown4' actually contains. If it matches")
-        add("the dungeonEncounterID (cross-referenced with the EJ map for")
-        add("the currently-loaded raid), we can use it as the primary kill-")
-        add("resolution key in SyncFromSavedRaidInfo and close the locale-")
-        add("independence gap that bit us on Eonar.")
-        add("")
-
-        local numSaved = GetNumSavedInstances() or 0
-        add(("GetNumSavedInstances() = %d"):format(numSaved))
-        add("")
-
-        if numSaved == 0 then
-            add("No saved instances. Zone into a raid and complete at least one")
-            add("boss to populate the lockout cache, then re-run this probe.")
-        else
-            -- Build EJ map for the currently-loaded raid (if any) for
-            -- cross-referencing unknown4 values.
-            local jeToDe, deToJe
-            if RR.currentRaid and RR.currentRaid.journalInstanceID then
-                jeToDe = RR:GetEJMapForJournalInstance(RR.currentRaid.journalInstanceID)
-                if jeToDe then
-                    deToJe = {}
-                    for je, de in pairs(jeToDe) do
-                        deToJe[de] = je
-                    end
-                    add(("EJ map for currently-loaded raid '%s' (journalInstanceID=%d):"):format(
-                        RR.currentRaid.name or "?",
-                        RR.currentRaid.journalInstanceID))
-                    -- Sort journalEncounterIDs by boss index for stable output
-                    local rows = {}
-                    for _, b in ipairs(RR.currentRaid.bosses or {}) do
-                        if b.journalEncounterID and jeToDe[b.journalEncounterID] then
-                            table.insert(rows, {
-                                idx = b.index or 0,
-                                name = b.name or "?",
-                                je   = b.journalEncounterID,
-                                de   = jeToDe[b.journalEncounterID],
-                            })
-                        end
-                    end
-                    table.sort(rows, function(a, b) return a.idx < b.idx end)
-                    for _, r in ipairs(rows) do
-                        add(("  [%d] %s: journalEncounterID=%d -> dungeonEncounterID=%d"):format(
-                            r.idx, r.name, r.je, r.de))
-                    end
-                    add("")
-                end
-            else
-                add("No currently-loaded raid; skipping EJ cross-reference.")
-                add("Re-run from inside a supported raid for a complete check.")
-                add("")
-            end
-
-            for i = 1, numSaved do
-                local name, _, _, difficultyId, _, _, _, isRaid,
-                      _, difficultyName, numEncounters, _, _, instanceID = GetSavedInstanceInfo(i)
-                add(("=== Saved instance %d ==="):format(i))
-                add(("  name=%s"):format(tostring(name)))
-                add(("  instanceID=%s  difficultyId=%s  difficultyName=%s"):format(
-                    tostring(instanceID), tostring(difficultyId), tostring(difficultyName)))
-                add(("  isRaid=%s  numEncounters=%s"):format(
-                    tostring(isRaid), tostring(numEncounters)))
-
-                if numEncounters and numEncounters > 0 then
-                    for e = 1, numEncounters do
-                        -- Capture ALL returns (Lua's variadic select is the
-                        -- safest way; we don't know how many returns the
-                        -- current client actually emits).
-                        local r1, r2, r3, r4, r5, r6 = GetSavedInstanceEncounterInfo(i, e)
-                        local crossRef = ""
-                        if deToJe and type(r4) == "number" then
-                            local je = deToJe[r4]
-                            if je then
-                                crossRef = (" [unknown4 matches dungeonEncounterID for journalEncounterID=%d]"):format(je)
-                            else
-                                crossRef = " [unknown4 not in EJ map for current raid]"
-                            end
-                        elseif deToJe then
-                            crossRef = (" [unknown4 type=%s, not numeric]"):format(type(r4))
-                        end
-                        add(("  enc[%d]: bossName=%q  fileDataID=%s  isKilled=%s  unknown4=%s%s"):format(
-                            e,
-                            tostring(r1),
-                            tostring(r2),
-                            tostring(r3),
-                            tostring(r4),
-                            crossRef))
-                        -- Defensive: capture r5/r6 in case the client emits
-                        -- additional returns we don't know about.
-                        if r5 ~= nil or r6 ~= nil then
-                            add(("            extra returns: r5=%s  r6=%s"):format(
-                                tostring(r5), tostring(r6)))
-                        end
-                    end
-                end
-                add("")
-            end
-        end
-
-        add("=== Probe complete ===")
-        add("")
-        add("Interpretation:")
-        add("  If 'unknown4 matches dungeonEncounterID...' fires for every")
-        add("  encounter of the currently-loaded raid, then unknown4 IS the")
-        add("  dungeonEncounterID and SyncFromSavedRaidInfo can use it as")
-        add("  the primary kill-match key (with name as fallback).")
-        add("")
-        add("  If unknown4 is nil or otherwise unrelated, we stick with")
-        add("  name-based matching plus aliases for known event-name")
-        add("  mismatches (Eonar pattern).")
-
-        RetroRunsDebug = RetroRunsDebug or {}
-        RetroRunsDebug.probelockout = table.concat(lines, "\n")
-        RR:ShowCopyWindow(
-            ("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug: probelockout|r"),
-            table.concat(lines, "\n"))
-        RR:Print("probelockout complete. Copy window opened.")
-
-    elseif cmd == "traveldebug" then
-        -- Snapshot of the inputs the travel-pane renderer is using right
-        -- now: player mapID, world-map mapID, the mapID the renderer
-        -- would actually pick (GetBestMapForStep), and per-segment state
-        -- (mapID, has-note, completed). Used to diagnose "why is the
-        -- travel pane showing the wrong segment's note?" One-shot dump
-        -- rather than per-update, so chat doesn't get spammed.
-        RR:TravelDebug()
-
-    elseif cmd == "toggleprobe" then
-        -- Diagnostic for the run-complete-state dead-toggle-button bug.
-        -- Dumps each expansion-toggle button's state, every body frame
-        -- that could be intercepting clicks, and GetMouseFocus() at
-        -- probe time so the user can hover the + glyph and see what
-        -- frame is actually under the cursor.
-        RR:ToggleProbe()
 
     elseif cmd == "specialtest" then
         -- Probe a single itemID against every special-loot detection API
@@ -5199,7 +3918,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         if     sub == "start" then RR:YellDebugStart()
         elseif sub == "stop"  then RR:YellDebugStop()
         else
-            RR:Print("YellDebug: /rr yelldebug [start|stop]  (dev diagnostic for v1.2 yell-trigger framework)")
+            RR:Print("YellDebug: /rr yelldebug [start|stop]  (capture chat-channel yells for diagnosis)")
         end
 
     elseif cmd == "cancelnav" then
@@ -5229,22 +3948,27 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("  /rr  record [start|stop|dump|reset|status|break|tp <dest>|note <text>]")
             RR:Print("  /rr  sessionlog [all]            (recorder session log; omit `all` for current-raid only)")
             RR:Print("  /rr  lintroute [raid name]       (structural lint of raid routing data)")
+            RR:Print("  /rr  diag                        (consolidated engine + zonelog + sessionlog)")
+            RR:Print("  /rr  mapicons                    (dump exact coords of every Blizzard icon on the visible map)")
             RR:Print("  /rr  raidcapture                 (full new-raid tier + loot harvest)")
             RR:Print("  /rr  weaponharvest               (harvest CN weapon-token pools)")
             RR:Print("  /rr  vendorscan                  (scan open merchant frame for items+costs)")
             RR:Print("  /rr  tmogtest <itemID>           (transmog diagnostic)")
             RR:Print("  /rr  ejprobe [itemID]            (dump EJ loot for selected encounter)")
             RR:Print("  /rr  tierprobe <itemID>          (dump C_TransmogSets sources for a tier itemID)")
-            RR:Print("  /rr  traveldebug                 (snapshot of travel-pane renderer state)")
             RR:Print("  /rr  srctest <sourceID>          (transmog source diagnostic)")
             RR:Print("  /rr  specialtest <itemID>        (special-loot API probe)")
             RR:Print("  /rr  dottest <itemID>            (per-diff dot state probe)")
             RR:Print("  /rr  tmogaudit [raid name]       (full-raid tmog audit dump)")
             RR:Print("  /rr  tmogverify [raid name]      (full-raid data-integrity audit)")
+            RR:Print("  /rr  tmogverifyall               (run tmogverify across every shipped raid)")
             RR:Print("  /rr  ejdiff <encID> [itemID]     (EJ per-difficulty probe)")
             RR:Print("  /rr  tmogsrc | tmogtrace         (transmog internals)")
-            RR:Print("  /rr  ej                          (open Blizzard Encounter Journal)")
-            RR:Print("  /rr  yelldebug [start|stop]      (capture chat-channel yells -- v1.2 framework prep)")
+            RR:Print("  /rr  ej                          (EJ + instance-info dump for bring-up)")
+            RR:Print("  /rr  yelldebug [start|stop]      (capture chat-channel yells for diagnosis)")
+            RR:Print("  /rr  devtools                    (toggle the DevTools panel)")
+            RR:Print("  /rr  cancelnav                   (cancel an active entrance-navigation route)")
+            RR:Print("  /rr  reset | refresh             (reset settings to defaults | re-render the main panel)")
         else
             RR:Print("RetroRuns commands:")
             RR:Print("  /rr                  (toggle main panel)")
@@ -5253,9 +3977,6 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("  /rr  tmog            (open transmog browser)")
             RR:Print("  /rr  skips           (account-wide raid skip status)")
             RR:Print("  /rr  settings        (open settings window)")
-            RR:Print("  /rr  reset           (reset panel position & settings)")
-            RR:Print("  /rr  refresh         (re-render the main panel)")
-            RR:Print("  /rr  cancelnav       (cancel an active entrance-navigation route)")
         end
     end
 end
@@ -5343,29 +4064,20 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         RR:ZoneLog(("PEW: isInitialLogin=%s isReloadingUi=%s"):format(
             tostring(isInitialLogin), tostring(isReloadingUi)))
 
-        -- On initial login (new WoW process, not a /reload), wipe
-        -- persisted walk progress entirely. Walk progress is session-
-        -- scoped working memory: it lasts as long as the WoW process
-        -- (so /reload preserves it) but doesn't carry across full
-        -- logout/relaunch. This prevents stale segment marks from a
-        -- prior session showing up as "already walked" on a new login.
-        --
-        -- stepVisitedMapIDs is wiped alongside completedSegments because
-        -- it has the same semantics: "what mapIDs has the player physically
-        -- reached during the active step?" The strict-sequential picker cap
-        -- consults this set, and a stale set carries the prior session's
-        -- "I reached seg 4's mapID" signal across a logout, which makes the
-        -- cap permit seg 4 mid-flight when the player retries the step
-        -- post-logout. Canonical case: BfD Mekkatorque step 7 with the
-        -- 1357 -> [transit 1352] -> 875 -> 1367 -> 1352 gryphon route, on
-        -- second attempt this lockout. Without this wipe, all four mapIDs
-        -- are pre-loaded into the visit set at step-activation time, the
-        -- cap stays maxed, and seg 4's "go downstairs..." note flashes
-        -- mid-flight on 1352 -- the exact bug the cap was designed to fix.
+        -- On initial login (not /reload), wipe the persisted zone log
+        -- so stale entries from prior sessions don't carry forward.
+        -- /reload preserves it; a full quit doesn't.
         if isInitialLogin and RetroRunsDB then
-            RetroRunsDB.completedSegments = {}
-            RetroRunsDB.stepVisitedMapIDs = {}
-            RR:ZoneLog("PEW: initial login -- wiped persisted segments and step visit history")
+            if RetroRunsDB.zoneLog then wipe(RetroRunsDB.zoneLog) end
+            -- One-shot cleanup of orphan keys from pre-consolidation
+            -- builds. These tables are never read or written anymore;
+            -- niling them here reclaims SavedVar space for upgrading
+            -- users without affecting fresh installs. The keys never
+            -- come back, so the cleanup is effectively idempotent.
+            RetroRunsDB.completedSegments  = nil
+            RetroRunsDB.visitedMapIDs      = nil
+            RetroRunsDB.stepVisitedMapIDs  = nil
+            RR:ZoneLog("PEW: initial login -- wiped zone log")
         end
 
         C_Timer.After(1.0, function() RR:HandleLocationChange() end)
@@ -5373,15 +4085,9 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
     elseif event == "ZONE_CHANGED_NEW_AREA"
         or event == "ZONE_CHANGED"
         or event == "ZONE_CHANGED_INDOORS" then
-        -- ZONE_CHANGED_NEW_AREA fires for major zone transitions (entering
-        -- or leaving the raid instance itself). ZONE_CHANGED and
-        -- ZONE_CHANGED_INDOORS fire for sub-zone transitions within the
-        -- current zone -- which is what we need to detect movement
-        -- between Vault's sub-zones (Primal Bulwark, Vault Approach,
-        -- etc.) since they're sub-zones of the parent raid map, not
-        -- distinct zones. One of these also fires when the minimap text
-        -- changes (sub-sub-zones like Quarry of Infusion) -- the
-        -- separate MINIMAP_ZONE_CHANGED event was removed in patch 2.4.0.
+        -- _NEW_AREA covers major zone transitions; the other two cover
+        -- sub-zone moves within a zone (needed for Vault's named
+        -- sub-zones, etc).
         RR:ZoneLog(event .. " event fired")
         C_Timer.After(0.5, function() RR:HandleLocationChange() end)
 
@@ -5491,18 +4197,6 @@ RR.frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 -- Tickers
 -------------------------------------------------------------------------------
 
--- Teleport-arrival and kill-gate advancement. Both are position-based
--- checks on the same cadence: teleport arrival marks a teleport segment
--- complete when the player arrives at the next segment's start, kill-gate
--- advancement marks a kill segment complete when the player arrives at
--- that segment's endpoint (typically the miniboss pull spot).
-C_Timer.NewTicker(0.5, function()
-    if RR.currentRaid and RR.state.loadedRaidKey and RR.state.activeStep then
-        RR:CheckTeleportArrivalAdvance()
-        RR:CheckKillAdvance()
-    end
-end)
-
 -- UI heartbeat. Fires once per second while in a loaded raid; calls
 -- UI.Update unconditionally. Heartbeat is logged to ZoneLog only when
 -- explicitly requested via /rr debug -- otherwise it would flood the
@@ -5520,42 +4214,20 @@ C_Timer.NewTicker(1.0, function()
             RetroRunsMapOverlay:Refresh()
         end
 
-        -- Strict-activeSeg mapID-change poll. Closes a gap in
-        -- Blizzard's event timing: some elevator and flight
-        -- transitions don't fire ZONE_CHANGED events at the exact
-        -- moment the mapID changes. For example, BfD's Loa's
-        -- Sanctum (1354) -> Walk of Kings (1356) elevator only fires
-        -- ZONE_CHANGED_INDOORS for the sub-zone change, while
-        -- C_Map.GetBestMapForUnit still reports 1354 at that
-        -- moment; the actual mapID transition to 1356 happens
-        -- mid-elevator with no event accompanying it. Without this
-        -- poll, AdvanceStrictActiveSeg never gets called for those
-        -- transitions and the activeSeg pointer stays stuck.
-        --
-        -- Why polling is acceptable here: the strict-activeSeg
-        -- picker is the only consumer of mapID changes for raids
-        -- using it; missing a poll cycle (1 second resolution) is
-        -- fine for note-display latency. Other consumers (recorder,
-        -- segment-completion in raids using the layered-gate
-        -- picker) still use the event-driven HLC path.
-        --
-        -- AdvanceStrictActiveSeg is predicated internally via
-        -- UsesStrictActiveSegPicker, so this poll is safe to run
-        -- unconditionally -- it's a no-op for raids that don't
-        -- opt in.
-        --
-        -- RR.state.lastPolledMapID (not a module-local) is the
-        -- baseline so SeedStrictActiveSeg can re-sync it on step
-        -- transitions. Without that sync, post-ENCOUNTER_END map
-        -- flicker (e.g. Antorus Eonar success: player's mapID
-        -- briefly resolves 913->909 around the kill) can fire a
-        -- spurious advance from seg 1 to seg 2 even though the
-        -- player hasn't clicked the orb to return to Antorus yet.
+        -- Heartbeat mapID-change poll. Closes a gap in Blizzard's event
+        -- timing: some elevator and flight transitions don't fire
+        -- ZONE_CHANGED events at the exact moment the mapID changes.
+        -- For example, BfD's Loa's Sanctum (1354) -> Walk of Kings (1356)
+        -- elevator only fires ZONE_CHANGED_INDOORS for the sub-zone
+        -- change, while C_Map.GetBestMapForUnit still reports 1354 at
+        -- that moment; the actual mapID transition happens mid-elevator
+        -- with no event accompanying it. Without this poll the engine
+        -- would miss those transitions.
         if C_Map and C_Map.GetBestMapForUnit then
             local nowMapID = C_Map.GetBestMapForUnit("player")
             if nowMapID and nowMapID ~= RR.state.lastPolledMapID then
                 RR.state.lastPolledMapID = nowMapID
-                RR:AdvanceStrictActiveSeg(nowMapID)
+                RR:AdvanceProgress("heartbeat")
             end
         end
     end

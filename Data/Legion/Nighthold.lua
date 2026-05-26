@@ -2,28 +2,6 @@
 -- RetroRuns Data -- The Nighthold
 -- Legion, Patch 7.1.5  |  instanceID: 1530  |  journalInstanceID: 786
 -------------------------------------------------------------------------------
--- The Nighthold is the third raid of Legion (7.1.5, opened
--- January 17 2017), set in the Nightborne royal palace in Suramar.
--- Entrance is reached via the Sanctum of Order in central Suramar
--- City. Ten boss encounters with mixed topology:
---
---   Linear opening   -- Skorpyron, Chronomatic Anomaly, Trilliax,
---                       Spellblade Aluriel (must be done in order;
---                       killing Aluriel unlocks the main Nighthold
---                       portal as a raid shortcut)
---   Optional middle  -- Tichondrius, Krosus, High Botanist Tel'arn,
---                       Star Augur Etraeus (any order after Aluriel)
---   Linear ending    -- Grand Magistrix Elisande (after all four
---                       middle bosses), then Gul'dan
---
--- Tier: Nighthold drops Tier 19 ("The Nighthold" set), distributed
--- across five bosses by slot -- Tichondrius: Shoulders, Krosus:
--- Chest, Star Augur: Hands, Elisande: Head, Gul'dan: Legs. Unlike
--- Shadowlands+ tier raids, Legion tier pieces drop directly as
--- class-restricted items rather than via cross-class tokens, so
--- `tierSets.tokenSources` is empty and each tier row carries a
--- `classes = { N }` field identifying its class.
--------------------------------------------------------------------------------
 
 RetroRuns_Data = RetroRuns_Data or {}
 
@@ -33,8 +11,6 @@ RetroRuns_Data[1530] = {
     name              = "The Nighthold",
     expansion         = "Legion",
     patch             = "7.1.5",
-
-    useStrictActiveSegPicker = true,
 
     -- Entrance is in Suramar (mapID 680), at the Sanctum Depths
     -- portal inside the Sanctum of Order building in central Suramar
@@ -382,9 +358,8 @@ RetroRuns_Data[1530] = {
             requires  = {},
             segments  = {
                 {
-                    mapID   = 764,
+                    when    = { mapID = 764 },
                     kind    = "path",
-                    subZone = "Arcing Depths",
                     note    = "After zoning in, move forward and take your first left to reach ^Skorpyron^.",
                     points  = {
                         { 0.255, 0.886 },
@@ -409,9 +384,8 @@ RetroRuns_Data[1530] = {
             requires  = { 1 },
             segments  = {
                 {
-                    mapID   = 764,
+                    when    = { mapID = 764 },
                     kind    = "path",
-                    subZone = "Crystal Breach",
                     note    = "After defeating ^Skorpyron^, take the new southeast exit up the ramp and make your way towards ^Chronomatic Anomaly^. Kill trash on the way to open the door.",
                     points  = {
                         { 0.321, 0.647 },
@@ -434,9 +408,8 @@ RetroRuns_Data[1530] = {
             requires  = { 2 },
             segments  = {
                 {
-                    mapID   = 764,
+                    when    = { mapID = 764 },
                     kind    = "path",
-                    subZone = "The Nightwell",
                     note    = "After killing ^Chronomatic Anomaly^, proceed up the stairwell at the northwest side of the room, and clear slimes in the boss room to engage ^Trilliax^.",
                     points  = {
                         { 0.504, 0.437 },
@@ -463,7 +436,7 @@ RetroRuns_Data[1530] = {
             requires  = { 3 },
             segments  = {
                 {
-                    mapID   = 764,
+                    when    = { mapID = 764 },
                     kind    = "path",
                     note    = "After defeating ^Trilliax^, take the northwest exit out of the room and make your way up the spiral staircase.",
                     points  = {
@@ -477,9 +450,8 @@ RetroRuns_Data[1530] = {
                     },
                 },
                 {
-                    mapID   = 765,
+                    when    = { mapID = 765 },
                     kind    = "path",
-                    subZone = "Arcing Depths",
                     note    = "When you reach the top of the stairwell, continue following the linear path to reach the map exit labeled ^The Nighthold^.",
                     points  = {
                         { 0.435, 0.548 },
@@ -496,7 +468,7 @@ RetroRuns_Data[1530] = {
                     },
                 },
                 {
-                    mapID   = 766,
+                    when    = { mapID = 766 },
                     kind    = "path",
                     note    = "Continue ahead into the main courtyard to find ^Spellblade Aluriel^.",
                     points  = {
@@ -507,9 +479,10 @@ RetroRuns_Data[1530] = {
             },
         },
 
-        -- 8. Star Augur Etraeus  (DAG middle, sibling step with
-        --    Tichondrius, Krosus, Tel'arn -- all gated by Aluriel.)
-        -- Two-segment approach crossing mapIDs 766 -> 769.
+        -- 8. Star Augur Etraeus. First of the four spoke bosses (Star
+        -- Augur, Botanist, Tichondrius, Krosus), routed in fixed order
+        -- via the requires chain. Two-segment approach crossing mapIDs
+        -- 766 -> 769.
         -- Seg 1: northeast building from Aluriel's courtyard (mapID
         --   766).
         -- Seg 2: through the door, up the stairs to Star Augur
@@ -522,7 +495,7 @@ RetroRuns_Data[1530] = {
             requires  = { 4 },
             segments  = {
                 {
-                    mapID   = 766,
+                    when    = { mapID = 766 },
                     kind    = "path",
                     note    = "After defeating ^Aluriel^, take the path into the building to the northeast, and clear trash as you approach the map exit labeled ^Astromancer's Rise^.",
                     points  = {
@@ -533,9 +506,8 @@ RetroRuns_Data[1530] = {
                     },
                 },
                 {
-                    mapID   = 769,
+                    when    = { mapID = 769 },
                     kind    = "path",
-                    subZone = "Astromancer's Rise",
                     note    = "Once the door opens, proceed through it and climb some stairs to reach ^Star Augur Etraeus^.",
                     points  = {
                         { 0.516, 0.522 },
@@ -546,24 +518,24 @@ RetroRuns_Data[1530] = {
             },
         },
 
-        -- 7. High Botanist Tel'arn  (DAG middle sibling at step 5.)
-        -- Three-segment approach 769 -> 766 -> 767. Star Augur's fight
-        -- room and the approach to it share mapID 769 but use different
-        -- sub-zone labels: "Eternal Observatory" inside the room,
-        -- "Astromancer's Rise" on the approach. mapID 766 also surfaces
-        -- "Astromancer's Rise" as its sub-zone here -- the same label
-        -- name reused across two distinct mapIDs.
+        -- 7. High Botanist Tel'arn. Second spoke boss, routed after
+        -- Star Augur. Three-segment approach 769 -> 766 -> 767. Star
+        -- Augur's fight room and the approach to it share mapID 769
+        -- but use different sub-zone labels: "Eternal Observatory"
+        -- inside the room, "Astromancer's Rise" on the approach.
+        -- mapID 766 also surfaces "Astromancer's Rise" as its
+        -- sub-zone here -- the same label name reused across two
+        -- distinct mapIDs.
         {
-            step      = 5,
-            priority  = 2,
+            step      = 6,
+            priority  = 1,
             bossIndex = 7,
             title     = "High Botanist Tel'arn",
-            requires  = { 4 },
+            requires  = { 8 },
             segments  = {
                 {
-                    mapID   = 769,
+                    when    = { mapID = 769 },
                     kind    = "path",
-                    subZone = "Astromancer's Rise",
                     note    = "After defeating ^Star Augur Etraeus^, backtrack down the stairs to return to ^Astromancer's Rise^.",
                     points  = {
                         { 0.393, 0.243 },
@@ -572,9 +544,8 @@ RetroRuns_Data[1530] = {
                     },
                 },
                 {
-                    mapID   = 766,
+                    when    = { mapID = 766 },
                     kind    = "path",
-                    subZone = "Astromancer's Rise",
                     note    = "Back on the main level of ^Astromancer's Rise^, take the northeast exit from the building towards the map exit labeled ^Shal'dorei Terrace^.",
                     points  = {
                         { 0.455, 0.211 },
@@ -582,9 +553,8 @@ RetroRuns_Data[1530] = {
                     },
                 },
                 {
-                    mapID   = 767,
+                    when    = { mapID = 767 },
                     kind    = "path",
-                    subZone = "Shal'dorei Terrace",
                     note    = "Once you reach ^Shal'dorei Terrace^, make your way over to ^High Botanist Tel'arn^ to begin the encounter.",
                     points  = {
                         { 0.267, 0.516 },
@@ -598,23 +568,22 @@ RetroRuns_Data[1530] = {
             },
         },
 
-        -- 5. Tichondrius  (DAG middle sibling at step 5.)
+        -- 5. Tichondrius. Third spoke boss, routed after Botanist.
         -- Three-segment approach 767 -> 766 -> 768. First time mapID
         -- 768 surfaces in the route. The "Captain's Quarters" mentioned
         -- in seg 2's note is an in-game place name that the navigation
         -- prose references; it doesn't appear as a sub-zone label on
         -- this segment.
         {
-            step      = 5,
-            priority  = 3,
+            step      = 7,
+            priority  = 1,
             bossIndex = 5,
             title     = "Tichondrius",
-            requires  = { 4 },
+            requires  = { 7 },
             segments  = {
                 {
-                    mapID   = 767,
+                    when    = { mapID = 767 },
                     kind    = "path",
-                    subZone = "Shal'dorei Terrace",
                     note    = "After defeating ^High Botanist Tel'arn^, backtrack towards the map exit labeled ^The Nighthold^.",
                     points  = {
                         { 0.623, 0.390 },
@@ -625,9 +594,8 @@ RetroRuns_Data[1530] = {
                     },
                 },
                 {
-                    mapID   = 766,
+                    when    = { mapID = 766 },
                     kind    = "path",
-                    subZone = "Astromancer's Rise",
                     note    = "Follow the path back out to the main courtyard, and make your way to the ^Captain's Quarters^ entrance on the southwest corner of the map. Inside the ^Captain's Quarters^, take your first right to go up a short stairwell.",
                     points  = {
                         { 0.531, 0.097 },
@@ -641,7 +609,7 @@ RetroRuns_Data[1530] = {
                     },
                 },
                 {
-                    mapID   = 768,
+                    when    = { mapID = 768 },
                     kind    = "path",
                     note    = "Continue up and around the stairwell until you reach ^Tichondrius^.",
                     points  = {
@@ -658,7 +626,7 @@ RetroRuns_Data[1530] = {
             },
         },
 
-        -- 6. Krosus  (DAG middle sibling at step 5, closes the wing.)
+        -- 6. Krosus. Fourth and final spoke boss; closes the wing.
         -- Two-segment approach 768 -> 766. Both segments use the
         -- sub-zone "Captain's Quarters" -- the interior of mapID 768
         -- and a distinct region of mapID 766 share that label
@@ -666,16 +634,15 @@ RetroRuns_Data[1530] = {
         -- position: Aluriel, Tel'arn, Tichondrius, and Krosus each
         -- traverse different parts of the courtyard).
         {
-            step      = 5,
-            priority  = 4,
+            step      = 8,
+            priority  = 1,
             bossIndex = 6,
             title     = "Krosus",
-            requires  = { 4 },
+            requires  = { 5 },
             segments  = {
                 {
-                    mapID   = 768,
+                    when    = { mapID = 768 },
                     kind    = "path",
-                    subZone = "Captain's Quarters",
                     note    = "After killing ^Tichondrius^, backtrack the way you came to return to the main courtyard.",
                     points  = {
                         { 0.270, 0.601 },
@@ -690,9 +657,8 @@ RetroRuns_Data[1530] = {
                     },
                 },
                 {
-                    mapID   = 766,
+                    when    = { mapID = 766 },
                     kind    = "path",
-                    subZone = "Captain's Quarters",
                     note    = "After returning to the main courtyard, follow the path all the way to the far southeast of the map to reach ^Krosus^.",
                     points  = {
                         { 0.280, 0.477 },
@@ -718,16 +684,15 @@ RetroRuns_Data[1530] = {
         -- Seg 2: inside The Nightspire, clear trash to engage
         --   Elisande (mapID 770, sub-zone "The Nightspire").
         {
-            step      = 6,
+            step      = 9,
             priority  = 1,
             bossIndex = 9,
             title     = "Grand Magistrix Elisande",
             requires  = { 5, 6, 7, 8 },
             segments  = {
                 {
-                    mapID   = 766,
+                    when    = { mapID = 766 },
                     kind    = "path",
-                    subZone = "The Shattered Walkway",
                     note    = "After defeating ^Krosus^, backtrack up to the main courtyard and click the portal to teleport to ^The Nightspire^. After landing, proceed ahead into the boss room.",
                     points  = {
                         { 0.718, 0.887 },
@@ -736,9 +701,8 @@ RetroRuns_Data[1530] = {
                     },
                 },
                 {
-                    mapID   = 770,
+                    when    = { mapID = 770 },
                     kind    = "path",
-                    subZone = "The Nightspire",
                     note    = "Inside ^The Nightspire^, clear trash around the room to begin the encounter with ^Grand Magistrix Elisande^.",
                     points  = {
                         { 0.620, 0.346 },
@@ -757,16 +721,15 @@ RetroRuns_Data[1530] = {
         --   is sufficient and no traversal line is drawn (mapID 772,
         --   sub-zone "The Font of Night").
         {
-            step      = 7,
+            step      = 10,
             priority  = 1,
             bossIndex = 10,
             title     = "Gul'dan",
             requires  = { 9 },
             segments  = {
                 {
-                    mapID   = 770,
+                    when    = { mapID = 770 },
                     kind    = "path",
-                    subZone = "The Nightspire",
                     note    = "After defeating ^Elisande^, approach the teleporter outside the room and choose ^Font of Night^ as your destination.",
                     points  = {
                         { 0.431, 0.420 },
@@ -774,9 +737,8 @@ RetroRuns_Data[1530] = {
                     },
                 },
                 {
-                    mapID   = 772,
+                    when    = { mapID = 772 },
                     kind    = "poi",
-                    subZone = "The Font of Night",
                     note    = "You have reached the final encounter. Kill ^Gul'dan^!",
                     poiSize = 35,
                     points  = {

@@ -2,23 +2,6 @@
 -- RetroRuns Data -- Ny'alotha, the Waking City
 -- Battle for Azeroth, Patch 8.3  |  instanceID: 2217  |  journalInstanceID: 1180
 -------------------------------------------------------------------------------
--- Ny'alotha is the final raid of Battle for Azeroth (8.3). Two structural
--- notes worth understanding when reading this file:
---
--- 1. No class tier sets. Patch 8.3 predated the return of proper tier
---    sets (which came with 9.2 / Sepulcher). Loot is a mix of standard
---    raid drops, Azerite armor, and Corruption-eligible gear, none of
---    which is per-class-token-gated. The tierSets block is empty.
---
--- 2. Boss order is non-linear (DAG with three parallel mid-raid wings).
---    Wrathion gates Maut and Skitra (parallel pair). Once both Maut and
---    Skitra are down, four mid-raid bosses unlock: Xanesh (which then
---    gates Vexiona), Hivemind (which then gates Ra-den), and the
---    Shad'har/Drest'agath pair (which together gate Il'gynoth). The
---    three wing-finishers -- Vexiona, Ra-den, Il'gynoth -- jointly gate
---    Carapace of N'Zoth, which then gates the final N'Zoth fight. The
---    routing[] block's `requires` field encodes these gates.
--------------------------------------------------------------------------------
 
 RetroRuns_Data = RetroRuns_Data or {}
 
@@ -73,8 +56,7 @@ RetroRuns_Data[2217] = {
         details   = "After defeating ^Wrathion^, you can proceed up the long bridge straight to ^Carapace of N'Zoth^.",
     },
 
-    -- Glory meta-achievement for this raid. Completing all 12 per-boss
-    -- criteria below awards the Wriggling Parasite mount.
+    -- Glory of the Raider meta -- 12 criteria, awards the Wriggling Parasite mount.
     gloryMeta = {
         id   = 14146,
         name = "Glory of the Ny'alotha Raider",
@@ -355,9 +337,8 @@ RetroRuns_Data[2217] = {
             requires  = {},
             segments  = {
                 {
-                    mapID   = 1580,
+                    when    = { mapID = 1580 },
                     kind    = "path",
-                    subZone = "Vision of Destiny",
                     note    = "Upon zoning in, you will find ^Wrathion^ directly in front of you.",
                     points  = {
                         { 0.529, 0.652 },
@@ -376,9 +357,8 @@ RetroRuns_Data[2217] = {
             requires  = { 1 },
             segments  = {
                 {
-                    mapID   = 1581,
+                    when    = { mapID = 1581 },
                     kind    = "path",
-                    subZone = "Annex of Prophecy",
                     note    = "After killing ^Wrathion^, take the path all the way to the left. Clear the room to spawn ^Maut^, and kill him.",
                     points  = {
                         { 0.485, 0.768 },
@@ -401,10 +381,9 @@ RetroRuns_Data[2217] = {
             requires  = { 1 },
             segments  = {
                 {
-                    mapID   = 1581,
+                    when    = { mapID = 1581 },
                     kind    = "path",
-                    subZone = "Obsidian Overlook",
-                    note    = "After killing ^Maut^, take the long path all the way to the right to reach ^The Prophet Skitra^.",
+                    note    = "After killing ^Maut^, take the long path all the way to the right to reach ^The Prophet Skitra^. Jump off the ledge and die for a shortcut.",
                     points  = {
                         { 0.214, 0.587 },
                         { 0.244, 0.546 },
@@ -427,9 +406,8 @@ RetroRuns_Data[2217] = {
             requires  = { 2, 3 },
             segments  = {
                 {
-                    mapID   = 1581,
+                    when    = { mapID = 1581 },
                     kind    = "path",
-                    subZone = "Ny'alotha",
                     note    = "After killing ^Skitra^, backtrack a bit and go north to the map exit labeled ^Ny'alotha^. Ride an elevator up, and kill the trash to open the path to the next area.",
                     points  = {
                         { 0.813, 0.611 },
@@ -441,9 +419,8 @@ RetroRuns_Data[2217] = {
                     },
                 },
                 {
-                    mapID   = 1582,
+                    when    = { mapID = 1582 },
                     kind    = "path",
-                    subZone = "Ny'alotha",
                     note    = "Make your way up the path and stay to the right and find the map exit labeled ^The Ritual Chamber^.",
                     points  = {
                         { 0.524, 0.772 },
@@ -453,9 +430,8 @@ RetroRuns_Data[2217] = {
                     },
                 },
                 {
-                    mapID   = 1592,
+                    when    = { mapID = 1592 },
                     kind    = "path",
-                    subZone = "The Ritual Chamber",
                     note    = "Loop your way around the path and you will see ^Queen Azshara^ trapped. Clear the trash to engage ^Dark Inquisitor Xanesh^.",
                     points  = {
                         { 0.141, 0.516 },
@@ -477,9 +453,8 @@ RetroRuns_Data[2217] = {
             requires  = { 4 },
             segments  = {
                 {
-                    mapID   = 1592,
+                    when    = { mapID = 1592 },
                     kind    = "path",
-                    subZone = "The Ritual Chamber",
                     note    = "After killing ^Xanesh^, leave the room to the east and towards the map exit for ^Twilight Landing^. Ride the elevator up.",
                     points  = {
                         { 0.558, 0.460 },
@@ -487,9 +462,8 @@ RetroRuns_Data[2217] = {
                     },
                 },
                 {
-                    mapID   = 1593,
+                    when    = { mapID = 1593 },
                     kind    = "path",
-                    subZone = "The Ritual Chamber",
                     note    = "After reaching the top of the elevator, make your way down the path and clear the trash to engage ^Vexiona^.",
                     points  = {
                         { 0.733, 0.462 },
@@ -512,19 +486,20 @@ RetroRuns_Data[2217] = {
             requires  = { 2, 3 },
             segments  = {
                 {
-                    mapID   = 1593,
+                    when    = { mapID = 1593 },
                     kind    = "poi",
-                    subZone = "Twilight Landing",
                     poiSize = 35,
+                    mapLabel = "Re-origination Anchor",
+                    mapLabelPos = "above",
+                    completionCheck = true,
                     note    = "After killing ^Vexiona^, interact with the ^Re-origination Anchor^ behind the boss to be teleported.",
                     points  = {
                         { 0.295, 0.513 },
                     },
                 },
                 {
-                    mapID   = 1582,
+                    when    = { mapID = 1582 },
                     kind    = "path",
-                    subZone = "Ny'alotha",
                     note    = "After landing, follow the path down to the map exit labeled ^Maw of Gor'ma^.",
                     points  = {
                         { 0.570, 0.539 },
@@ -535,9 +510,8 @@ RetroRuns_Data[2217] = {
                     },
                 },
                 {
-                    mapID   = 1594,
+                    when    = { mapID = 1594 },
                     kind    = "path",
-                    subZone = "Maw of Gor'ma",
                     note    = "Make your way down the spiral, following the path to reach ^Shad'har the Insatiable^.",
                     points  = {
                         { 0.599, 0.284 },
@@ -561,9 +535,8 @@ RetroRuns_Data[2217] = {
             requires  = { 2, 3 },
             segments  = {
                 {
-                    mapID   = 1594,
+                    when    = { mapID = 1594 },
                     kind    = "path",
-                    subZone = "Spawning Pit",
                     note    = "After defeating ^Shad'har^, leave his room and continue down the spiral.",
                     points  = {
                         { 0.528, 0.696 },
@@ -572,9 +545,8 @@ RetroRuns_Data[2217] = {
                     },
                 },
                 {
-                    mapID   = 1595,
+                    when    = { mapID = 1595 },
                     kind    = "path",
-                    subZone = "Maw of Gor'ma",
                     note    = "Enter the next room and kill ^Drest'agath^.",
                     points  = {
                         { 0.774, 0.452 },
@@ -595,9 +567,8 @@ RetroRuns_Data[2217] = {
             requires  = { 6, 7 },
             segments  = {
                 {
-                    mapID   = 1595,
+                    when    = { mapID = 1595 },
                     kind    = "path",
-                    subZone = "Maw of Gor'ma",
                     note    = "After killing ^Drest'agath^, leave the room and continue down the spiral toward the map exit ^Chamber of Rebirth^.",
                     points  = {
                         { 0.360, 0.572 },
@@ -606,9 +577,8 @@ RetroRuns_Data[2217] = {
                     },
                 },
                 {
-                    mapID   = 1596,
+                    when    = { mapID = 1596 },
                     kind    = "path",
-                    subZone = "Maw of Gor'ma",
                     note    = "Follow the path all the way back to find ^Il'gynoth, Corruption Reborn^.",
                     points  = {
                         { 0.520, 0.845 },
@@ -631,19 +601,19 @@ RetroRuns_Data[2217] = {
             requires  = { 2, 3 },
             segments  = {
                 {
-                    mapID   = 1596,
+                    when    = { mapID = 1596 },
                     kind    = "poi",
-                    subZone = "Chamber of Rebirth",
                     poiSize = 35,
+                    mapLabel = "Re-origination Anchor",
+                    completionCheck = true,
                     note    = "After defeating ^Il'gynoth^, interact with the nearby ^Re-origination Anchor^ to be flown back to the top.",
                     points  = {
                         { 0.449, 0.375 },
                     },
                 },
                 {
-                    mapID   = 1582,
+                    when    = { mapID = 1582 },
                     kind    = "path",
-                    subZone = "Ny'alotha",
                     note    = "After landing up top, follow the path around to the map exit labeled ^The Hive^.",
                     points  = {
                         { 0.521, 0.538 },
@@ -657,9 +627,8 @@ RetroRuns_Data[2217] = {
                     },
                 },
                 {
-                    mapID   = 1590,
+                    when    = { mapID = 1590 },
                     kind    = "path",
-                    subZone = "The Hive",
                     note    = "Enter the room to engage with ^The Hivemind^.",
                     points  = {
                         { 0.733, 0.825 },
@@ -681,9 +650,8 @@ RetroRuns_Data[2217] = {
             requires  = { 5 },
             segments  = {
                 {
-                    mapID   = 1590,
+                    when    = { mapID = 1590 },
                     kind    = "path",
-                    subZone = "The Hive",
                     note    = "After killing ^The Hivemind^, continue past them to the next room, and take the elevator up to the ^Terrace of Desolation^.",
                     points  = {
                         { 0.487, 0.497 },
@@ -692,9 +660,8 @@ RetroRuns_Data[2217] = {
                     },
                 },
                 {
-                    mapID   = 1591,
+                    when    = { mapID = 1591 },
                     kind    = "path",
-                    subZone = "The Hive",
                     note    = "After reaching the top of the elevator, follow the path back to find ^Ra-den the Despoiled^.",
                     points  = {
                         { 0.389, 0.336 },
@@ -717,19 +684,19 @@ RetroRuns_Data[2217] = {
             requires  = { 8, 9, 10 },
             segments  = {
                 {
-                    mapID   = 1591,
+                    when    = { mapID = 1591 },
                     kind    = "poi",
-                    subZone = "Terrace of Desolation",
                     poiSize = 35,
+                    mapLabel = "Re-origination Anchor",
+                    completionCheck = true,
                     note    = "After defeating ^Ra-den^, interact with the ^Re-origination Anchor^ right behind him to be flown back below.",
                     points  = {
                         { 0.679, 0.710 },
                     },
                 },
                 {
-                    mapID   = 1582,
+                    when    = { mapID = 1582 },
                     kind    = "path",
-                    subZone = "Ny'alotha",
                     note    = "After landing, follow the path to the final map exit labeled ^N'Zoth^. Kill adds on the bridge to spawn a portal at the end.",
                     points  = {
                         { 0.455, 0.436 },
@@ -739,9 +706,8 @@ RetroRuns_Data[2217] = {
                     },
                 },
                 {
-                    mapID   = 1597,
+                    when    = { mapID = 1597 },
                     kind    = "path",
-                    subZone = "Locus of Infinite Truths",
                     note    = "In the next area, talk to ^Wrathion^ to trigger a cutscene, then kill some adds to start the fight with ^Carapace of N'Zoth^.",
                     points  = {
                         { 0.487, 0.784 },
@@ -760,9 +726,8 @@ RetroRuns_Data[2217] = {
             requires  = { 11 },
             segments  = {
                 {
-                    mapID    = 1597,
+                    when     = { mapID = 1597 },
                     kind     = "poi",
-                    subZone  = "Locus of Infinite Truths",
                     noMarker = true,
                     note     = "After killing ^Carapace^, you will find yourself standing in front of ^N'Zoth^. Attack the boss to start the encounter.",
                     points   = {

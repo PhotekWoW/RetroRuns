@@ -2,33 +2,6 @@
 -- RetroRuns Data -- Castle Nathria
 -- Shadowlands, Patch 9.0  |  instanceID: 2296  |  journalInstanceID: 1190
 -------------------------------------------------------------------------------
--- Castle Nathria is the first Shadowlands raid (9.0). Two structural
--- notes worth understanding when reading this file:
---
--- 1. Weapon tokens instead of armor tier sets. 9.0 predates the modern
---    armor tier-set system (which returned in 9.2 / Sepulcher). CN
---    instead has 6 class-restricted weapon tokens -- "Anima Spherules"
---    for main-hand weapons, "Anima Beads" for off-hands. Each token
---    drops from a specific boss and is redeemed at the Covenant Sanctum
---    weaponsmith for a covenant-themed weapon appearance. The covenant
---    chosen at redemption time controls only the visual skin; the
---    token's class eligibility and weapon slot are fixed by the token
---    itself. Each token family (Mystic, Abominable, Apogee, Venerated,
---    Thaumaturgic, Zenith) has a lower-ilvl and higher-ilvl itemID, so
---    `tokenSources` has 12 entries despite only 6 families.
---
--- 2. Boss order is non-linear (DAG). Shriekwing unlocks three parallel
---    bosses (Altimor, Hungering Destroyer, Xy'mox-precursor), which
---    gate the Council of Blood (left branch) and Lady Inerva (right
---    branch), which together gate the Sludgefist / Stone Legion
---    Generals / Sire Denathrius final sequence. The routing[] block's
---    `requires` field encodes these gates.
---
--- Castle Nathria's two notable collectibles -- the Nathria Rampart
--- Screecher mount (from the Glory of the Nathria Raider meta-
--- achievement) and a Denathrius-adjacent pet -- are not direct boss
--- loot, so `specialLoot` is empty on every boss.
--------------------------------------------------------------------------------
 
 RetroRuns_Data = RetroRuns_Data or {}
 
@@ -42,24 +15,13 @@ RetroRuns_Data[2296] = {
     -- World coordinates of the raid entrance portal in Revendreth
     -- (uiMapID 1525). The entrance sits in the central spire of the
     -- zone; closest flight master is Charred Ramparts. Used by
-    -- RR:NavigateToEntrance to drop a TomTom or native Blizzard
-    -- waypoint.
     entrance = {
         mapID = 1525,
         x     = 0.465,
         y     = 0.415,
     },
 
-    -- Glory meta-achievement for this raid. Completing all 10 per-boss
-    -- criteria below awards the Rampart Screecher mount.
-    --
-    -- rewardMountSpellID is the summon spell (not the mount-journal index
-    -- and not the bag item). C_Spell.GetSpellLink on this ID produces a
-    -- clickable link whose tooltip shows the mount model preview, which
-    -- is functionally what the user wants from a "mount journal link"
-    -- without needing a C_MountJournal name->ID linear lookup at render
-    -- time. Item-link fallback (rewardItemID) is kept for cases where the
-    -- spell link cache hasn't populated yet on first refresh.
+    -- Glory of the Raider meta -- 10 criteria, awards the Rampart Screecher mount.
     gloryMeta = {
         id = 14355,
         name = "Glory of the Nathria Raider",
@@ -69,10 +31,7 @@ RetroRuns_Data[2296] = {
     },
 
     maps = {
-        -- The Observatorium (1748) has no boss or route directly assigned
-        -- to it; it's declared because the Sire Denathrius encounter
-        -- auto-transitions the player's displayed map to it partway
-        -- through the fight.
+        -- Observatorium (1748) -- Sire Denathrius transits here mid-fight.
         [1735] = "The Grand Walk",
         [1744] = "The Purloined Stores",
         [1745] = "Halls of the Faithful",
@@ -82,26 +41,9 @@ RetroRuns_Data[2296] = {
         [1750] = "Feast of Arrogance",
     },
 
-    -- Weapon-token drops by boss. Sourced from the Wowhead Castle Nathria
-    -- token table and cross-referenced against TokenTransmogTooltips.
-    --
-    -- Schema: `[tokenItemID] = bossIndex` for tokens that drop on a single
-    -- boss, OR `[tokenItemID] = { bossIndex, bossIndex, ... }` for tokens
-    -- that drop on multiple bosses. Sire Denathrius drops four main-hand
-    -- tokens (Mystic/Abominable/Venerated/Zenith) as a late-raid backstop,
-    -- and Stone Legion Generals drops both off-hand tokens. Single-boss
-    -- scalar values remain backward compatible for raids without multi-
-    -- boss token overlap (e.g. Sepulcher).
-    --
-    -- 12 rows total covering 6 families (lower/higher ilvl each). 8 of
-    -- the 10 bosses drop weapon tokens; Shriekwing (index 1) and
-    -- Sludgefist (index 8) do not.
+    -- Weapon-token drops by boss.
     tierSets = {
-        labels = {},  -- Castle Nathria's weapon-token system predates the
-                      -- modern tier-set infrastructure, so no class tier
-                      -- labels apply here. The `tokenSources` block below
-                      -- drives the Weapon Tokens section of the transmog
-                      -- popup directly.
+        labels = {},
         tokenSources = {
             -- Main-Hand tokens
             -- Mystic (Druid, Hunter, Mage) -> Huntsman Altimor + Sire Denathrius
@@ -126,16 +68,7 @@ RetroRuns_Data[2296] = {
         },
     },
 
-    -- Raid skip quests. Account-wide unlock per Patch 11.0.5; check via
-    -- C_QuestLog.IsQuestFlaggedCompletedOnAccount. Per-character
-    -- IsQuestFlaggedCompleted does NOT reflect the unlock for alts that
-    -- did not personally complete the quest.
-    --
-    -- Only the questID for the difficulty actually completed returns
-    -- true; the in-game cascade that lets you use the skip on lower
-    -- difficulties happens at the skip NPC, NOT by backfilling the
-    -- per-difficulty quest flags. To detect "skip is available at any
-    -- difficulty", OR across all three IDs.
+    -- Raid skip quests (account-wide unlock).
     skipQuests = {
         normal = 62054,
         heroic = 62055,
@@ -148,30 +81,10 @@ RetroRuns_Data[2296] = {
         details   = "After killing ^Shriekwing^, speak to ^General Draven^ near the Huntsman Entrance to skip ahead to ^Sludgefist^.",
     },
 
-    -- Weapon-token appearance pools. Maps each pool to the set of
-    -- transmog appearances (and their source IDs) that a player can
-    -- unlock by redeeming a spherule/bead at the Covenant Sanctum
-    -- weaponsmith. Two slots (Main-Hand, Off-Hand) x two ilvl tiers
-    -- (lower, higher) x two difficulty contexts (non-mythic for
-    -- LFR/N/H, mythic for M) = 8 pools total.
-    --
-    -- All four main-hand token families (Mystic, Zenith, Venerated,
-    -- Abominable) redeem from the same underlying pool; class family
-    -- is cosmetic at the unlock level, and only the covenant chosen
-    -- at redemption determines the weapon's visual theme. The two
-    -- off-hand families (Apogee, Thaumaturgic) share one off-hand
-    -- pool in the same way. That's why pools are stored per-slot
-    -- rather than per-token.
-    --
-    -- Schema: [appearanceID] = { sourceID, sourceID, ... }. An
-    -- appearance is considered collected if any listed sourceID is
-    -- owned, or if the cross-source check returns collected for any
-    -- source (e.g. a Hunter who owns a Mystic-visual world-drop bow).
-    --
-    -- Data provenance: itemID seed list is derived from the
-    -- TokenTransmogTooltips addon's per-raid Wowhead-URL comments.
-    -- The appearance/source bindings are resolved via
-    -- C_TransmogCollection.GetItemInfo at build time.
+    -- Weapon-token appearance pools (per slot, per ilvl tier, per
+    -- difficulty context). Main-hand families share one pool, off-hand
+    -- families share another -- the covenant chosen at redemption
+    -- determines the visual theme.
     weaponTokenPools = {
         mainHandLowerNonMythic = {
             [41247] = { 112361 },
@@ -366,34 +279,10 @@ RetroRuns_Data[2296] = {
         },
     },
 
-    -- Covenant Sanctum weapon-vendor zones. Used by the UI to hint where
-    -- the player should redeem Anima Spherules/Beads for weapons. Keyed
-    -- by C_Covenants.GetActiveCovenantID() return value:
+    -- Covenant Sanctum weapon vendors. Keyed by C_Covenants.GetActiveCovenantID:
     --   1 = Kyrian, 2 = Venthyr, 3 = Night Fae, 4 = Necrolord.
-    --
-    -- Each covenant's Sanctum has multiple weapon vendors (one per
-    -- difficulty tier) with identical inventories, so directing the
-    -- player to the covenant's zone is sufficient; specific NPC names
-    -- are not listed.
-    --
-    -- Fields:
-    --   covenantName    -- display name, rendered in covenantColor.
-    --   covenantColor   -- WoW color escape in AARRGGBB hex (no "|c"
-    --                      prefix). Matches the in-game covenant theme
-    --                      (Kyrian blue, Venthyr red, Night Fae purple,
-    --                      Necrolord green).
-    --   zoneMain        -- zone name (Bastion, Revendreth, etc.), rendered
-    --                      in covenantColor.
-    --   zoneSub         -- Sanctum name (Elysian Hold, Sinfall, etc.),
-    --                      rendered in white for visual separation.
-    --   vendorName      -- the Mythic Nathrian Weaponsmith NPC name. Used
-    --                      in the Flight button's hover tooltip ("Travel
-    --                      to <vendorName>") so the player knows where
-    --                      they're being routed before clicking.
-    --   vendorMapID,
-    --   x, y            -- waypoint target. The Sanctum's interior mapID
-    --                      and the NPC's standing coords. Drives the
-    --                      Flight button via RR:NavigateToSanctum.
+    -- Each vendor's coords drive the Flight-button waypoint to that
+    -- covenant's Sanctum weaponsmith.
     weaponVendors = {
         [1] = {  -- Kyrian (blue)
             covenantName  = "Kyrian",
@@ -481,7 +370,7 @@ RetroRuns_Data[2296] = {
             name               = "Sun King's Salvation",
             journalEncounterID = 2422,
             aliases            = { "Sun King", "Kael'thas" },
-            soloTip            = "You have to heal Kael to win this fight. If you don't have an ability to heal others, you will need to bring bandages. Kill adds, and heal Kael when you get the chance.",
+            soloTip            = "Heal (or bandage) Kael. Kill Shade. Rinse/repeat as necessary.",
             achievements       = {
                 { id = 14608, name = "Burning Bright", meta = true, soloable = "yes" },
             },
@@ -550,7 +439,7 @@ RetroRuns_Data[2296] = {
             name               = "The Council of Blood",
             journalEncounterID = 2426,
             aliases            = { "Council of Blood", "Council" },
-            soloTip            = "Nuke down the bosses. During dance phase, run to the spotlight and get ready. Just walk in the direction of the other dancers 4-5 times and the phase will end. If you kill the bosses fast enough, you can skip the dance phase.\nMythic only: while dancing, keep jumping! You must do this to clear a debuff or you will die.",
+            soloTip            = "During dance phase, run to the spotlight. Walk in the direction of the other NPCs a few times. Jump to clear debuff stacks.",
             achievements       = {
                 { id = 14619, name = "Pour Decision Making", meta = true, soloable = "yes" },
             },
@@ -588,7 +477,7 @@ RetroRuns_Data[2296] = {
             name               = "Stone Legion Generals",
             journalEncounterID = 2425,
             aliases            = { "Stone Legion", "SLG", "Generals" },
-            soloTip            = "Kill the trash and approach the bosses to start the encounter. Walk over anima orbs to collect them, and bring them to Prince Renathal to free him (x2). When he's free, attack the bosses. If you kill the bosses fast enough, you can skip this mechanic.",
+            soloTip            = "Walk over anima orbs to collect them, and bring them to ^Prince Renathal^ to free him.",
             achievements       = {
                 { id = 14525, name = "Feed Me, Seymour!", meta = true, soloable = "yes" },
             },
@@ -641,7 +530,7 @@ RetroRuns_Data[2296] = {
             requires  = {},
             segments  = {
                 {
-                    mapID  = 1735,
+                    when   = { mapID = 1735 },
                     kind   = "path",
                     note   = "Upon zoning in, go up the stairs into the first room and watch some dialog. After that, engage ^Shriekwing^.",
                     points = {
@@ -664,7 +553,7 @@ RetroRuns_Data[2296] = {
             requires  = { 1 },
             segments  = {
                 {
-                    mapID  = 1735,
+                    when   = { mapID = 1735 },
                     kind   = "path",
                     note   = "After killing ^Shriekwing^, follow the north path out of the room and go down the stairs. Kill the trash, and ^General Draven^ will come open the gate. Kill a few trash mobs then engage ^Huntsman Altimor^.",
                     points = {
@@ -699,7 +588,7 @@ RetroRuns_Data[2296] = {
             requires  = { 2 },
             segments  = {
                 {
-                    mapID  = 1735,
+                    when   = { mapID = 1735 },
                     kind   = "path",
                     note   = "After killing ^Huntsman Altimor^, follow the path to a small room at the back, and jump into the sewer that the NPCs are standing next to. Make your way down the path to find ^Hungering Destroyer^.",
                     points = {
@@ -717,6 +606,16 @@ RetroRuns_Data[2296] = {
                         { 0.383, 0.348 },
                     },
                 },
+                {
+                    when            = { mapID = 1735 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    mapLabel        = "Jump in Sewer",
+                    mapLabelPos     = "right",
+                    mapLabelPulse   = true,
+                    points          = { { 0.671, 0.331 } },
+                },
             },
         },
 
@@ -733,7 +632,7 @@ RetroRuns_Data[2296] = {
             requires  = { 5 },
             segments  = {
                 {
-                    mapID  = 1735,
+                    when   = { mapID = 1735 },
                     kind   = "path",
                     note   = "After killing ^Hungering Destroyer^, take the stairs going up to ^The Purloined Stores^.",
                     points = {
@@ -745,7 +644,7 @@ RetroRuns_Data[2296] = {
                     },
                 },
                 {
-                    mapID  = 1744,
+                    when   = { mapID = 1744 },
                     kind   = "path",
                     note   = "After arriving in the room with ^Lady Inerva Darkvein^, kill all the trash to trigger some dialog, then kill the boss.",
                     points = {
@@ -779,7 +678,7 @@ RetroRuns_Data[2296] = {
             requires  = { 6 },
             segments  = {
                 {
-                    mapID  = 1744,
+                    when   = { mapID = 1744 },
                     kind   = "path",
                     note   = "After killing ^Lady Inerva Darkvein^, follow the path to take the exit ^General Draven^ is standing in. He will lead you back to the main entrance of the raid in ^The Grand Walk^.",
                     points = {
@@ -791,7 +690,7 @@ RetroRuns_Data[2296] = {
                     },
                 },
                 {
-                    mapID  = 1735,
+                    when   = { mapID = 1735 },
                     kind   = "path",
                     note   = "After arriving back in ^The Grand Walk^, follow the path up to where you killed ^Shriekwing^. This time, take the path right/south to end up in ^Halls of the Faithful^.",
                     points = {
@@ -802,7 +701,7 @@ RetroRuns_Data[2296] = {
                     },
                 },
                 {
-                    mapID  = 1745,
+                    when   = { mapID = 1745 },
                     kind   = "path",
                     note   = "In ^Halls of the Faithful^, wind your way around to the room overlooking the dancers. Clear the trash, and the NPCs will enter the room and open both gates. Follow the path opened by ^Prince Renathal^, and make your way up the stairs to ^Pride's Prison^.",
                     points = {
@@ -822,7 +721,7 @@ RetroRuns_Data[2296] = {
                     },
                 },
                 {
-                    mapID  = 1746,
+                    when   = { mapID = 1746 },
                     kind   = "path",
                     note   = "Upon reaching ^Pride's Prison^, follow the path to engage ^Sun King's Salvation^.",
                     points = {
@@ -849,7 +748,7 @@ RetroRuns_Data[2296] = {
             requires  = { 3 },
             segments  = {
                 {
-                    mapID  = 1746,
+                    when   = { mapID = 1746 },
                     kind   = "path",
                     note   = "After defeating ^Sun King's Salvation^, go back the way you came and return down the stairs to ^Halls of the Faithful^.",
                     points = {
@@ -863,7 +762,7 @@ RetroRuns_Data[2296] = {
                     },
                 },
                 {
-                    mapID  = 1745,
+                    when   = { mapID = 1745 },
                     kind   = "path",
                     note   = "After arriving back in ^Halls of the Faithful^, follow the path all the way around to ^Artificer Xy'mox^. Kill the trash, and ^Prince Renathal^ will show up to open the gate.",
                     points = {
@@ -891,7 +790,7 @@ RetroRuns_Data[2296] = {
             requires  = { 3, 4 },
             segments  = {
                 {
-                    mapID  = 1745,
+                    when   = { mapID = 1745 },
                     kind   = "path",
                     note   = "After defeating ^Artificer Xy'mox^, backtrack out of the room and follow the path to the stairs leading to ^Feast of Arrogance^.",
                     points = {
@@ -902,7 +801,7 @@ RetroRuns_Data[2296] = {
                     },
                 },
                 {
-                    mapID  = 1750,
+                    when   = { mapID = 1750 },
                     kind   = "path",
                     note   = "Once you arrive in ^Feast of Arrogance^, follow the path to find ^The Council of Blood^ at the far end of the room.",
                     points = {
@@ -933,7 +832,7 @@ RetroRuns_Data[2296] = {
             requires  = { 6, 7 },
             segments  = {
                 {
-                    mapID  = 1750,
+                    when   = { mapID = 1750 },
                     kind   = "path",
                     note   = "After killing ^Council of Blood^, take the south stairwell out of the room and return to the ^Halls of the Faithful^.",
                     points = {
@@ -945,7 +844,7 @@ RetroRuns_Data[2296] = {
                     },
                 },
                 {
-                    mapID  = 1745,
+                    when   = { mapID = 1745 },
                     kind   = "path",
                     note   = "Upon landing back in ^Halls of the Faithful^, follow the path to the right and ^Prince Renathal^ will guide you to a mirror portal. Take this teleport for a shortcut back to the main entrance lobby in ^The Grand Walk^.",
                     points = {
@@ -956,7 +855,7 @@ RetroRuns_Data[2296] = {
                     },
                 },
                 {
-                    mapID  = 1735,
+                    when   = { mapID = 1735 },
                     kind   = "path",
                     note   = "After teleporting back to ^The Grand Walk^, follow the path up to where you killed ^Shriekwing^ (again). After some dialog, ^Sludgefist^ will jump down to fight.",
                     points = {
@@ -978,7 +877,7 @@ RetroRuns_Data[2296] = {
             requires  = { 8 },
             segments  = {
                 {
-                    mapID  = 1735,
+                    when   = { mapID = 1735 },
                     kind   = "path",
                     note   = "After killing ^Sludgefist^, travel up the stairs behind him and walk through the mirror teleporter to land in ^Nightcloak Sanctum^.",
                     points = {
@@ -991,9 +890,9 @@ RetroRuns_Data[2296] = {
                     },
                 },
                 {
-                    mapID  = 1747,
+                    when   = { mapID = 1747 },
                     kind   = "path",
-                    note   = "After taking the teleporter to ^Nightcloak Sanctum^, follow the path around to the ^Stone Legion Generals^.",
+                    note   = "After taking the teleporter to ^Nightcloak Sanctum^, follow the path around to the ^Stone Legion Generals^. Clear trash to start the encounter.",
                     points = {
                         { 0.617, 0.320 },
                         { 0.546, 0.248 },
@@ -1022,7 +921,7 @@ RetroRuns_Data[2296] = {
             requires  = { 9 },
             segments  = {
                 {
-                    mapID  = 1747,
+                    when   = { mapID = 1747 },
                     kind   = "path",
                     note   = "After killing ^Stone Legion Generals^, simply walk into the room where ^Sire Denathrius^ is waiting for you.",
                     points = {

@@ -1,32 +1,14 @@
-# CurseForge packager configuration.
-# Docs: https://support.curseforge.com/en/support/solutions/articles/9000197281
+package-as: RetroRuns
 
-# Use CHANGELOG.md as the release notes source instead of auto-generated
-# git log output. Without this line, the packager falls back to listing
-# raw git commits, which exposes committer email addresses and clutters
-# the CurseForge changelog page.
-#
-# markup-type: markdown tells CurseForge to render the file with its
-# markdown renderer in BOTH the web view AND the desktop app. Without
-# this directive (when manual-changelog is just a string), CF defaults
-# the format to "text" and the desktop app shows raw markdown chars
-# (literal `#`, `**`, `-`) instead of formatted output. Reference:
-# https://support.curseforge.com/support/solutions/articles/9000197952
-# Pattern matches WeakAuras and Total RP 3's pkgmeta files.
-manual-changelog:
-    filename: CHANGELOG.md
-    markup-type: markdown
-
-# Use the existing MIT LICENSE file as the packager's license reference
-# rather than having it auto-generate a default one.
-license-output: LICENSE
-
-# Files and directories excluded from the built zip. Git-ignored files
-# are already excluded by default, but this is belt-and-suspenders for
-# anything that might slip through. ROADMAP.md is intentionally NOT
-# listed here -- it ships in the user zip as a visible project roadmap
-# per the 2026-04-22 session decision.
 ignore:
     - HANDOFF.md
     - .gitignore
-    - .pkgmeta
+    - .gitattributes
+    - .github
+    - _scrub_notes.md
+
+license-output: LICENSE
+
+manual-changelog:
+    filename: CHANGELOG.md
+    markup-type: markdown

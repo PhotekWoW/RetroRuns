@@ -37,16 +37,7 @@ RetroRuns_Data[2450] = {
         tokenSources = {},
     },
 
-    -- Raid skip quests. Account-wide unlock per Patch 11.0.5; check via
-    -- C_QuestLog.IsQuestFlaggedCompletedOnAccount. Per-character
-    -- IsQuestFlaggedCompleted does NOT reflect the unlock for alts that
-    -- did not personally complete the quest.
-    --
-    -- Only the questID for the difficulty actually completed returns
-    -- true; the in-game cascade that lets you use the skip on lower
-    -- difficulties happens at the skip NPC, NOT by backfilling the
-    -- per-difficulty quest flags. To detect "skip is available at any
-    -- difficulty", OR across all three IDs.
+    -- Raid skip quests (account-wide unlock).
     skipQuests = {
         normal = 64597,
         heroic = 64598,
@@ -59,8 +50,7 @@ RetroRuns_Data[2450] = {
         details   = "After killing ^The Tarragrue^, speak to the ^Ebon Blade Acolyte^ NPC located outside the boss room. He will conjure a portal that will send you straight to ^Kel'Thuzad^.",
     },
 
-    -- Glory meta-achievement for this raid. Completing all 10 per-boss
-    -- criteria below awards the Hand of Hrestimorak mount.
+    -- Glory of the Raider meta -- 10 criteria, awards the Hand of Hrestimorak mount.
     gloryMeta = {
         id   = 15130,
         name = "Glory of the Dominant Raider",
@@ -322,7 +312,7 @@ RetroRuns_Data[2450] = {
             requires  = {},
             segments  = {
                 {
-                    mapID  = 1998,
+                    when   = { mapID = 1998 },
                     kind   = "path",
                     note   = "Follow the map from the entrance to ^the Tarragrue^.",
                     points = {
@@ -347,13 +337,13 @@ RetroRuns_Data[2450] = {
             requires  = { 1 },
             segments  = {
                 {
-                    mapID  = 1998,
+                    when   = { mapID = 1998 },
                     kind   = "path",
                     note   = "After killing ^Tarragrue^, wait for dialog to complete, then walk through the portal marked as a map exit ^Shadowsteel Foundry^.",
                     points = {},
                 },
                 {
-                    mapID  = 1999,
+                    when   = { mapID = 1999 },
                     kind   = "path",
                     note   = "After teleporting, follow the path to ^Eye of the Jailer^ and clear all trash on his platform. To reach the far side, walk to the pile of chains and use the extra action button",
                     points = {
@@ -378,7 +368,7 @@ RetroRuns_Data[2450] = {
             requires  = { 2 },
             segments  = {
                 {
-                    mapID  = 1999,
+                    when   = { mapID = 1999 },
                     kind   = "path",
                     note   = "After killing ^The Eye of the Jailer^, follow the path all the way north to find ^The Nine^.",
                     points = {
@@ -404,8 +394,8 @@ RetroRuns_Data[2450] = {
             requires  = { 3 },
             segments  = {
                 {
-                    mapID  = 1999,
-                    kind   = "teleport",
+                    when   = { mapID = 1999 },
+                    kind   = "path",
                     note   = "After killing ^The Nine^, take the elevator to the left. You will arrive at ^The Torment Chambers^.",
                     points = {
                         { 0.400, 0.162 },
@@ -413,7 +403,7 @@ RetroRuns_Data[2450] = {
                     },
                 },
                 {
-                    mapID  = 2000,
+                    when   = { mapID = 2000 },
                     kind   = "path",
                     note   = "After arriving at ^The Torment Chambers^, follow the path to ^Soulrender Dormazain^.",
                     points = {
@@ -442,7 +432,7 @@ RetroRuns_Data[2450] = {
             requires  = { 5 },
             segments  = {
                 {
-                    mapID  = 2000,
+                    when   = { mapID = 2000 },
                     kind   = "path",
                     note   = "After killing ^Soulrender Dormazain^, follow the path to ^Remnant of Ner'zhul^. Kill the trash to engage the boss.",
                     points = {
@@ -473,7 +463,7 @@ RetroRuns_Data[2450] = {
             requires  = { 4 },
             segments  = {
                 {
-                    mapID  = 2000,
+                    when   = { mapID = 2000 },
                     kind   = "path",
                     note   = "After killing ^Remnant of Ner'zhul^, follow the path to loop back around to ^Painsmith Raznal^.",
                     points = {
@@ -502,8 +492,8 @@ RetroRuns_Data[2450] = {
             requires  = { 6 },
             segments  = {
                 {
-                    mapID  = 2000,
-                    kind   = "teleport",
+                    when   = { mapID = 2000 },
+                    kind   = "path",
                     note   = "After killing ^Painsmith Raznal^, walk out the new exit to the West and walk through the portal.",
                     points = {
                         { 0.638, 0.310 },
@@ -511,7 +501,7 @@ RetroRuns_Data[2450] = {
                     },
                 },
                 {
-                    mapID  = 2001,
+                    when   = { mapID = 2001 },
                     kind   = "path",
                     note   = "After arriving in ^Crown of Gorgoa^, follow the path North to ^Guardian of the First Ones^.",
                     points = {
@@ -534,7 +524,7 @@ RetroRuns_Data[2450] = {
             requires  = { 7 },
             segments  = {
                 {
-                    mapID  = 2001,
+                    when   = { mapID = 2001 },
                     kind   = "path",
                     note   = "After killing ^Guardian of the First Ones^, go back the way you came and follow the path to ^Fatescribe Roh-Kalo^. For a shortcut, you can jump off the ledge to respawn halfway there.",
                     points = {
@@ -566,7 +556,7 @@ RetroRuns_Data[2450] = {
             requires  = { 8 },
             segments  = {
                 {
-                    mapID  = 2001,
+                    when   = { mapID = 2001 },
                     kind   = "path",
                     note   = "After killing ^Fatescribe Roh-Kalo^, go back out the way you came and follow the path to ^Kel'Thuzad^.",
                     points = {
@@ -591,13 +581,13 @@ RetroRuns_Data[2450] = {
             requires  = { 9 },
             segments  = {
                 {
-                    mapID  = 2001,
+                    when   = { mapID = 2001 },
                     kind   = "path",
                     note   = "After killing ^Kel'Thuzad^, take the purple portal that appeared right behind him.",
                     points = {},
                 },
                 {
-                    mapID  = 2002,
+                    when   = { mapID = 2002 },
                     kind   = "path",
                     note   = "You arrive at ^Pinnacle of Domination^ right in front of ^Sylvanas Windrunner^. Walk towards the boss to trigger dialog and start the encounter.",
                     points = {},
