@@ -530,7 +530,7 @@ RetroRuns_Data[2549] = {
                 {
                     when    = { mapID = 2244 },
                     kind    = "path",
-                    triggeredBy = { yell = { npc = "Tyrande Whisperwind", match = "Amirdrassil will be defended" } },
+                    triggeredBy = { dialog = { npc = "Tyrande Whisperwind", match = "Amirdrassil will be defended" } },
                     note    = "After killing ^Larodar^, interact with the ^Seed of Life^ to unlock a portal at the back of the room. Walk through the portal to arrive back at the ^Wellspring Atrium^.",
                     points  = {
                         { 0.345, 0.289 },
@@ -620,7 +620,7 @@ RetroRuns_Data[2549] = {
                 {
                     when    = { mapID = 2240 },
                     kind    = "path",
-                    triggeredBy = { yell = { npc = "Merithra", match = "Seed of Life, we are one step closer" } },
+                    triggeredBy = { dialog = { npc = "Merithra", match = "Seed of Life, we are one step closer" } },
                     note    = "After killing ^Nymue^, walk up the stairs behind her to interact with the ^Seed of Life^. This opens a portal at the back of the room. Walk through the portal to return back to ^Wellspring Atrium^.",
                     points  = {
                         { 0.643, 0.277 },

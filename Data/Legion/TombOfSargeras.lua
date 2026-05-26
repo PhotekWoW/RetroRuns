@@ -392,7 +392,7 @@ RetroRuns_Data[1676] = {
         --          suppressed (noMarker = true); the "Click Hammer"
         --          map label and travel-note text carry the
         --          instruction. Image of Aegwynn says a flavor line
-        --          when the hammer is clicked, used as the yell
+        --          when the hammer is clicked, used as the dialog
         --          trigger so the segment progresses automatically
         --          when the click takes effect.
         --   seg 2: path west on mapID 850 (sub-zone "Conclave of
@@ -415,7 +415,7 @@ RetroRuns_Data[1676] = {
                     mapLabelPos     = "middle",
                     completionCheck = true,
                     note    = "Click the ^Hammer of Khaz'goroth^ in the middle of this room after killing ^Demonic Inquisition^.",
-                    triggeredBy = { yell = { npc = "Image of Aegwynn", match = "shatters the bonds of fate" } },
+                    triggeredBy = { dialog = { npc = "Image of Aegwynn", match = "shatters the bonds of fate" } },
                     points  = {
                         { 0.449, 0.195 },
                     },
@@ -499,7 +499,7 @@ RetroRuns_Data[1676] = {
         --          true); the "Click Tidestone" map label and
         --          travel-note text carry the instruction. An
         --          Aegwynn SAY event ("washes clean the darkness")
-        --          fires the yell trigger.
+        --          fires the dialog trigger.
         --   seg 2: path on mapID 851 (sub-zone "The Abyssal Throne",
         --          the wing's maps[] label). Backtrack northwest past
         --          a giant statue and climb a long winding staircase
@@ -522,7 +522,7 @@ RetroRuns_Data[1676] = {
                     mapLabelPos     = "middle",
                     completionCheck = true,
                     note    = "Click the ^Tidestone of Golganneth^ after killing ^Mistress Sassz'ine^.",
-                    triggeredBy = { yell = { npc = "Image of Aegwynn", match = "washes clean the darkness" } },
+                    triggeredBy = { dialog = { npc = "Image of Aegwynn", match = "washes clean the darkness" } },
                     points  = {
                         { 0.833, 0.824 },
                     },
@@ -606,7 +606,7 @@ RetroRuns_Data[1676] = {
         --          suppressed (noMarker = true); the "Click Tears"
         --          map label and travel-note text carry the
         --          instruction. An Aegwynn SAY event ("purify your
-        --          hearts") fires the yell trigger.
+        --          hearts") fires the dialog trigger.
         --   seg 2: path on mapID 852 (sub-zone "Befouled Sanctum",
         --          another finer-grained sub-area within the Terrace
         --          of the Moon wing). After clicking Tears,
@@ -635,7 +635,7 @@ RetroRuns_Data[1676] = {
                     mapLabelPos     = "above",
                     completionCheck = true,
                     note    = "Click the ^Tears of Elune^ in the middle of the room after killing ^The Desolate Host^.",
-                    triggeredBy = { yell = { npc = "Image of Aegwynn", match = "purify your hearts" } },
+                    triggeredBy = { dialog = { npc = "Image of Aegwynn", match = "purify your hearts" } },
                     points  = {
                         { 0.591, 0.235 },
                     },

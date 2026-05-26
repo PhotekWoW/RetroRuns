@@ -396,52 +396,52 @@ RetroRuns_Data[2522] = {
             bossIndex = 1,
             title     = "Eranog",
             requires  = {},
-            -- Eranog's approach has two phases divided by the dragon ride.
-            -- Pre-flight the player is on the dragon platform talking to
-            -- the five dragons and then to Khadgar -- no map line, just
-            -- an instruction in the travel pane. Once the player picks a
-            -- dragon, the assault begins and Raszageth yells "The skies
-            -- are mine to control!" at the end of the flight just as the
-            -- player lands.
+            -- Eranog's approach is split across two sub-zones of mapID 2119:
+            -- pre-flight on the dragon platform (The Outer Seal) and post-
+            -- flight in the boss area (The Primal Bulwark). The transition
+            -- between phases is gated entirely by sub-zone change -- no
+            -- dialog trigger needed -- so the panel and POI rendering swap
+            -- naturally when the player lands.
             --
-            -- Post-landing, two color-coded numbered lines (1)/(2) appear
-            -- for the walk to Volcanius and onward to Eranog. Volcanius is
-            -- a mini-boss along the path, not a registered raid encounter,
-            -- so both lines render together for the entire walk and the
-            -- player self-paces between the two kills.
-            renderAllSegments = true,
+            -- Three segments, all on mapID 2119:
+            --   1. dragon platform POI (red circle, "Talk to the 5 dragons")
+            --   2. Volcanius POI (red circle, label "Kill Volcanius")
+            --   3. arrow line from Volcanius up to Eranog
             segments  = {
                 {
-                    when    = { mapID = 2119 },
-                    note    = "Upon zoning in, talk to all 5 dragons. Then talk to ^Khadgar^ to begin the assault. Choose any dragon; doesn't matter.",
+                    when            = { mapID = 2119, subZone = "The Outer Seal" },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    mapLabel        = "Talk to the 5 dragons",
+                    mapLabelPos     = "above",
+                    completionCheck = true,
+                    note            = "Upon zoning in, talk to all 5 dragons. Then talk to ^Khadgar^ to begin the assault. Choose any dragon; doesn't matter.",
+                    points          = {
+                        { 0.620, 0.870 },
+                    },
                 },
                 {
-                    when        = { mapID = 2119 },
-                    triggeredBy = { yell = { npc = "Raszageth", match = "skies are mine to control" } },
-                    after       = { 1 },
-                    kind   = "path",
-                    -- Raszageth's yell at the end of the dragon ride is
-                    -- the cue to switch the panel from the pre-flight
-                    -- instruction to the post-landing approach.
-                    note   = "After landing, follow the path to kill |cffF259C7(1)|r ^Volcanius^, then |cffF259C7(2)|r ^Eranog^.",
-                    points = {
-                        { 0.566, 0.530 },
-                        { 0.511, 0.472 },
-                        { 0.535, 0.411 },
+                    when            = { mapID = 2119, subZone = "The Primal Bulwark" },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    mapLabel        = "Kill Volcanius",
+                    mapLabelPos     = "above",
+                    note            = "After landing, follow the path to kill |cffF259C7(1)|r ^Volcanius^, then |cffF259C7(2)|r ^Eranog^.",
+                    points          = {
                         { 0.561, 0.378 },
                     },
                 },
                 {
-                    when    = { mapID = 2119 },
-                    after   = { 1 },
-                    kind   = "path",
-                    points = {
+                    when    = { mapID = 2119, subZone = "The Primal Bulwark" },
+                    kind    = "path",
+                    points  = {
                         { 0.561, 0.377 },
                         { 0.512, 0.425 },
                         { 0.488, 0.339 },
-                        { 0.548, 0.222 },
+                        { 0.547, 0.223 },
                     },
-                    navPoint = { 0.549, 0.27 },
                 },
             },
         },

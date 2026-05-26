@@ -265,8 +265,8 @@ RetroRuns_Data[2164] = {
         -- DAG: fully linear chain.
         --   1. Sivara          requires {}
         --   2. Behemoth        requires { 1 }
-        --   3. Radiance        requires { 2 }   (yell-gated final approach)
-        --   4. Ashvane         requires { 3 }   (yell-gated final approach)
+        --   3. Radiance        requires { 2 }   (dialog-gated final approach)
+        --   4. Ashvane         requires { 3 }   (dialog-gated final approach)
         --   5. Orgozoa         requires { 4 }
         --   6. Queen's Court   requires { 5 }
         --   7. Za'qul          requires { 6 }
@@ -390,7 +390,7 @@ RetroRuns_Data[2164] = {
                     when    = { mapID = 1513 },
                     kind    = "path",
                     note    = "After clicking the first orb, follow the path all the way north to kill ^Radiance of Azshara^. Clear all the trash to start the encounter.",
-                    triggeredBy = { yell = { npc = "First Arcanist Thalyssra", match = "find the last font" } },
+                    triggeredBy = { dialog = { npc = "First Arcanist Thalyssra", match = "find the last font" } },
                     points  = {
                         { 0.474, 0.761 },
                         { 0.473, 0.808 },
@@ -438,7 +438,7 @@ RetroRuns_Data[2164] = {
                     when    = { mapID = 1513 },
                     kind    = "path",
                     note    = "After clicking the orb, the path opens to fight ^Lady Ashvane^.",
-                    triggeredBy = { yell = { npc = "First Arcanist Thalyssra", match = "barrier has fallen" } },
+                    triggeredBy = { dialog = { npc = "First Arcanist Thalyssra", match = "barrier has fallen" } },
                     points  = {
                         { 0.469, 0.226 },
                         { 0.428, 0.252 },

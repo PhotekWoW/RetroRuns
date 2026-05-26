@@ -5475,30 +5475,13 @@ local function GetOrCreateWhatsNewWindow()
     closeBtn:SetPoint("TOPRIGHT", -4, -4)
     closeBtn:SetScript("OnClick", function() f:Hide() end)
 
-    -- Scrollable body. The window height is clamped to MAX; when the
-    -- content exceeds that, it scrolls. UIPanelScrollFrameTemplate
-    -- provides a right-edge scrollbar widget; the scroll child's height
-    -- is set in RefreshContent based on the rendered FontString height.
-    local SCROLLBAR_WIDTH = 20
-    local contentWidth = WHATSNEW_WINDOW_WIDTH - (WHATSNEW_PAD_X * 2) - SCROLLBAR_WIDTH
-
-    local scroll = CreateFrame("ScrollFrame", "RetroRunsWhatsNewScroll",
-                               f, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT",     f, "TOPLEFT",      WHATSNEW_PAD_X,  -WHATSNEW_PAD_TOP)
-    scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -WHATSNEW_PAD_X - SCROLLBAR_WIDTH, WHATSNEW_PAD_BOTTOM)
-    f.scroll = scroll
-
-    local content = CreateFrame("Frame", nil, scroll)
-    content:SetSize(contentWidth, 1)  -- height set dynamically in RefreshContent
-    scroll:SetScrollChild(content)
-    f.scrollContent = content
-
-    -- Content FontString. Anchored inside the scroll child so it scrolls
-    -- with the rest of the content. Word-wrap width comes from the
-    -- content frame's width (set above).
-    f.body = content:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    f.body:SetPoint("TOPLEFT",  content, "TOPLEFT",  0, 0)
-    f.body:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, 0)
+    -- Content FontString. Multi-line, word-wrapped, anchored to the
+    -- top-left of the content area. The window's height is grown
+    -- dynamically by RefreshContent based on the rendered string's
+    -- height.
+    f.body = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    f.body:SetPoint("TOPLEFT",  f, "TOPLEFT",  WHATSNEW_PAD_X,         -WHATSNEW_PAD_TOP)
+    f.body:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WHATSNEW_PAD_X,        -WHATSNEW_PAD_TOP)
     f.body:SetJustifyH("LEFT")
     f.body:SetJustifyV("TOP")
     f.body:SetWordWrap(true)
@@ -5506,13 +5489,10 @@ local function GetOrCreateWhatsNewWindow()
 
     f.RefreshContent = function()
         f.body:SetText(BuildWhatsNewBody())
-        -- Set the scroll child's height to fit the rendered text. The
-        -- scrollbar appears automatically when this exceeds the visible
-        -- scroll-frame height. Grow the window height up to MAX to use
-        -- available space before scrolling kicks in.
+        -- Grow the window height to fit the rendered text, clamped to
+        -- MIN/MAX. The body's GetStringHeight returns the height of the
+        -- rendered (wrapped) text at its current width.
         local bodyH = f.body:GetStringHeight() or 0
-        content:SetHeight(math.max(1, bodyH))
-
         local desired = WHATSNEW_PAD_TOP + bodyH + WHATSNEW_PAD_BOTTOM
         if desired < WHATSNEW_WINDOW_MIN_HEIGHT then
             desired = WHATSNEW_WINDOW_MIN_HEIGHT
@@ -5520,10 +5500,6 @@ local function GetOrCreateWhatsNewWindow()
             desired = WHATSNEW_WINDOW_MAX_HEIGHT
         end
         f:SetHeight(desired)
-
-        -- Reset scroll position to top so the window opens at the
-        -- newest content rather than wherever the user last scrolled.
-        scroll:SetVerticalScroll(0)
     end
 
     whatsNewWindow = f

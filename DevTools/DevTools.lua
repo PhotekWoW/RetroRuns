@@ -9,7 +9,7 @@
 --   * Diag: consolidated dump (RetroEngine state + zone log + session log
 --           in one copy window)
 --   * Bring-up:  Tmog Verify, Raid Capture
---   * Recorder:  YellDebug (toggles on/off, label reflects state)
+--   * Recorder:  DialogDebug (toggles on/off, label reflects state)
 --   * Utility:   Reload
 --
 -- Toggle with /rr devtools. Position persists via RetroRunsDB.devtools.
@@ -124,16 +124,16 @@ local function GetOrCreateDevToolsFrame()
         SlashCmdList["RETRORUNS"]("raidcapture")
     end)
 
-    -- Row 3: YellDebug toggle. Label updates dynamically based on
-    -- RR:IsYellDebugActive(); tracked on the frame so the ticker can
+    -- Row 3: DialogDebug toggle. Label updates dynamically based on
+    -- RR:IsDialogDebugActive(); tracked on the frame so the ticker can
     -- refresh its text. Full-width because the toggle nature warrants
     -- the visual prominence; it's the recorder's main signal-capture
-    -- knob during bring-up of a new raid's yell triggers.
-    f.yellButton = MakeButton("YellDebug Start", L_X, -176, FULL_W, function()
-        if RR:IsYellDebugActive() then
-            RR:YellDebugStop()
+    -- knob during bring-up of a new raid's dialog triggers.
+    f.dialogButton = MakeButton("DialogDebug Start", L_X, -176, FULL_W, function()
+        if RR:IsDialogDebugActive() then
+            RR:DialogDebugStop()
         else
-            RR:YellDebugStart()
+            RR:DialogDebugStart()
         end
         RefreshReadout()
     end)
@@ -174,11 +174,11 @@ RefreshReadout = function()
     }
     readoutText:SetText(table.concat(lines, "\n"))
 
-    -- YellDebug toggle button: reflect current state so the button
+    -- DialogDebug toggle button: reflect current state so the button
     -- always shows the action that will fire on the NEXT click.
-    if devtoolsFrame and devtoolsFrame.yellButton then
-        local active = RR:IsYellDebugActive()
-        devtoolsFrame.yellButton:SetText(active and "YellDebug Stop" or "YellDebug Start")
+    if devtoolsFrame and devtoolsFrame.dialogButton then
+        local active = RR:IsDialogDebugActive()
+        devtoolsFrame.dialogButton:SetText(active and "DialogDebug Stop" or "DialogDebug Start")
     end
 end
 

@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "1.11.0"
+local VERSION    = "1.11.0a"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -729,25 +729,25 @@ local function CollectRaidDataIssues(scopeFilter)
                             if type(seg.triggeredBy) ~= "table" then
                                 add("error", raidLabel,
                                     sp .. (" segment %d triggeredBy must be a table"):format(si))
-                            elseif seg.triggeredBy.yell then
-                                local y = seg.triggeredBy.yell
-                                if type(y) ~= "table" then
+                            elseif seg.triggeredBy.dialog then
+                                local dialog = seg.triggeredBy.dialog
+                                if type(dialog) ~= "table" then
                                     add("error", raidLabel,
-                                        sp .. (" segment %d triggeredBy.yell must be a table"):format(si))
+                                        sp .. (" segment %d triggeredBy.dialog must be a table"):format(si))
                                 else
-                                    if not y.npc then
+                                    if not dialog.npc then
                                         add("error", raidLabel,
-                                            sp .. (" segment %d triggeredBy.yell missing npc field"):format(si))
+                                            sp .. (" segment %d triggeredBy.dialog missing npc field"):format(si))
                                     end
-                                    if not y.match then
+                                    if not dialog.match then
                                         add("error", raidLabel,
-                                            sp .. (" segment %d triggeredBy.yell missing match field"):format(si))
+                                            sp .. (" segment %d triggeredBy.dialog missing match field"):format(si))
                                     end
                                 end
                             else
                                 -- triggeredBy with no known sub-key (e.g. just empty {})
                                 add("warn", raidLabel,
-                                    sp .. (" segment %d triggeredBy has no recognized sub-key (expected yell)"):format(si))
+                                    sp .. (" segment %d triggeredBy has no recognized sub-key (expected dialog)"):format(si))
                             end
                         end
                         -- after must reference valid seg indices in same step:
@@ -1109,6 +1109,76 @@ end
 function RR:GetPerDifficultyKillCounts()
     if not self.currentRaid then return nil end
     return self:GetPerDifficultyKillCountsForRaid(self.currentRaid)
+end
+
+-- Diagnostic for stale-lockout contamination. Dumps GetSavedInstanceInfo
+-- for every saved instance, with C_RaidLocks.IsEncounterComplete probed
+-- per encounter for any raids we have data for. Looking for: expired
+-- entries (locked=false) where C_RaidLocks still returns true, which
+-- would mean the API surface is letting stale data leak into pill
+-- displays and bossesKilled.
+function RR:LockProbe()
+    if RequestRaidInfo then RequestRaidInfo() end
+
+    local lines = {}
+    local function add(s) lines[#lines + 1] = s end
+
+    local n = GetNumSavedInstances and GetNumSavedInstances() or 0
+    add(("GetNumSavedInstances() = %d"):format(n))
+    add("")
+
+    if n == 0 then
+        add("(no saved instances; nothing to dump)")
+        self:ShowCopyWindow("LockProbe", table.concat(lines, "\n"))
+        return
+    end
+
+    for i = 1, n do
+        local name, id, reset, difficultyId, locked, extended,
+              instanceIDMostSig, isRaid, maxPlayers, difficultyName,
+              numEncounters, encounterProgress, extendDisabled,
+              instanceID = GetSavedInstanceInfo(i)
+
+        add(("[%d] %s"):format(i, tostring(name)))
+        add(("    instanceID=%s  difficultyId=%s (%s)  isRaid=%s")
+            :format(tostring(instanceID), tostring(difficultyId),
+                    tostring(difficultyName), tostring(isRaid)))
+        add(("    locked=%s  extended=%s  reset=%ss  progress=%s/%s")
+            :format(tostring(locked), tostring(extended),
+                    tostring(reset),
+                    tostring(encounterProgress), tostring(numEncounters)))
+
+        if numEncounters and numEncounters > 0 then
+            for e = 1, numEncounters do
+                local bossName, _, isKilled = GetSavedInstanceEncounterInfo(i, e)
+                add(("      saved enc %d: %s  isKilled=%s")
+                    :format(e, tostring(bossName), tostring(isKilled)))
+            end
+        end
+
+        if isRaid and RetroRuns_Data and RetroRuns_Data[instanceID]
+            and C_RaidLocks and C_RaidLocks.IsEncounterComplete then
+            local raid = RetroRuns_Data[instanceID]
+            local jeToDe = self:GetEJMapForJournalInstance(raid.journalInstanceID)
+            if jeToDe and next(jeToDe) then
+                add(("    C_RaidLocks.IsEncounterComplete(%s, <de>, %s):")
+                    :format(tostring(instanceID), tostring(difficultyId)))
+                for _, b in ipairs(raid.bosses or {}) do
+                    local de = jeToDe[b.journalEncounterID]
+                    if de then
+                        local r = C_RaidLocks.IsEncounterComplete(
+                            instanceID, de, difficultyId)
+                        add(("      %s (de=%s): %s")
+                            :format(tostring(b.name), tostring(de),
+                                    tostring(r)))
+                    end
+                end
+            end
+        end
+        add("")
+    end
+
+    self:ShowCopyWindow("LockProbe", table.concat(lines, "\n"))
 end
 
 -- Raid-skip unlock detection. Skip quests are account-wide as of
@@ -1806,25 +1876,25 @@ function RR:PrintStatus()
 end
 
 -------------------------------------------------------------------------------
--- Yell-debug diagnostic (dev-only; not user-facing)
+-- Dialog-debug diagnostic (dev-only; not user-facing)
 --
--- One-shot capture tool for designing the v1.2 yell-trigger framework.
+-- One-shot capture tool for designing dialog-trigger framework data.
 -- Encounter scripts often emit chat-channel events (CHAT_MSG_MONSTER_YELL,
 -- CHAT_MSG_MONSTER_SAY, CHAT_MSG_RAID_BOSS_EMOTE) at gating moments --
--- e.g. after the player clicks an Eternal Palace orb, an NPC yells a
+-- e.g. after the player clicks an Eternal Palace orb, an NPC speaks a
 -- voiceline that's the only reliable signal the gate has been opened.
 -- This module captures every such event (across all three channels) into
 -- a dedicated buffer for later paste-back, with real-time chat
 -- confirmation so the player sees the capture happen the moment the
--- yell fires (one-shot mechanics like the Ashvane orbs only emit their
--- yell once per reset, so silent failure would mean re-clearing the raid).
+-- event fires (one-shot mechanics like the Ashvane orbs only emit their
+-- dialog once per reset, so silent failure would mean re-clearing the raid).
 --
--- Lifecycle: explicitly armed via /rr yelldebug start (zero perf cost
+-- Lifecycle: explicitly armed via /rr dialogdebug start (zero perf cost
 -- otherwise -- events are only registered while armed). Disarmed via
--- /rr yelldebug stop, which dumps to a copy window for paste-back.
+-- /rr dialogdebug stop, which dumps to a copy window for paste-back.
 -------------------------------------------------------------------------------
 
-local yellDebug = {
+local dialogDebug = {
     active = false,
     frame  = nil,        -- created lazily on first start
     buffer = nil,        -- session-fresh table, never evicted while active
@@ -1842,7 +1912,7 @@ local yellDebug = {
 --- skip secret args entirely; they get a "(secret)" placeholder in
 --- the dump so the player still sees that something fired but knows
 --- the content was protected by the engagement-script taint system.
-local function FormatYellCapture(event, ...)
+local function FormatDialogCapture(event, ...)
     local lines = {}
     table.insert(lines, ("[%s] %s"):format(date("%H:%M:%S"), tostring(event)))
     local args = { ... }
@@ -1871,28 +1941,28 @@ end
 --- continuing the run. Without this, we'd only know at end-of-session
 --- via the dump -- by which point the one-shot mechanic is spent.
 ---
---- Built with concatenation rather than :format() because yell text
+--- Built with concatenation rather than :format() because dialog text
 --- (especially boss flavor lines and rendered spell names) can contain
 --- literal `%` characters that would be misinterpreted as format
 --- specifiers and crash. Concatenation with tostring() is bulletproof
 --- for arbitrary input.
 ---
---- Same secret-value handling as FormatYellCapture: if speaker or
+--- Same secret-value handling as FormatDialogCapture: if speaker or
 --- text is secret-tainted (mid-encounter chat from boss scripts), we
 --- substitute a "(secret)" placeholder so the line still surfaces in
 --- chat without doing forbidden comparison ops.
-local function PrintYellConfirmation(event, text, speaker)
+local function PrintDialogConfirmation(event, text, speaker)
     local ev = tostring(event):gsub("^CHAT_MSG_", "")
     local speakerStr = (issecretvalue and issecretvalue(speaker)) and "(secret)" or tostring(speaker or "?")
     local textStr    = (issecretvalue and issecretvalue(text))    and "(secret)" or tostring(text    or "?")
-    RR:Print("|cff00ff88[YellDebug]|r " .. ev
+    RR:Print("|cff00ff88[DialogDebug]|r " .. ev
         .. " from |cffffff00" .. speakerStr .. "|r: "
         .. textStr)
 end
 
-local function YellEventHandler(_, event, ...)
-    if not yellDebug.active then return end
-    if not yellDebug.buffer then return end  -- defensive; shouldn't happen
+local function DialogEventHandler(_, event, ...)
+    if not dialogDebug.active then return end
+    if not dialogDebug.buffer then return end  -- defensive; shouldn't happen
     -- pcall wrap: chat-event payloads include arbitrary text from any
     -- NPC in earshot, including special characters that historically
     -- caused issues with formatters. A crash here would interrupt the
@@ -1900,65 +1970,65 @@ local function YellEventHandler(_, event, ...)
     -- during one-shot mechanics. Log any failure to ZoneLog for later
     -- diagnosis, then move on. The buffer + chat-confirmation paths
     -- below are the only places that touch arbitrary input; if they
-    -- fail, the whole capture for THIS yell is lost but YellDebug
+    -- fail, the whole capture for THIS event is lost but DialogDebug
     -- stays armed and ready for the next one.
     local args = { event, ... }
     local ok, err = pcall(function()
-        table.insert(yellDebug.buffer, FormatYellCapture(unpack(args)))
+        table.insert(dialogDebug.buffer, FormatDialogCapture(unpack(args)))
         -- arg1 = text, arg2 = sender name across all three CHAT_MSG_MONSTER_*
         -- and CHAT_MSG_RAID_BOSS_EMOTE events (consistent API surface).
         local text   = args[2]
         local sender = args[3]
-        PrintYellConfirmation(event, text, sender)
+        PrintDialogConfirmation(event, text, sender)
     end)
     if not ok then
-        RR:ZoneLog("[YellDebug] handler crash: " .. tostring(err))
+        RR:ZoneLog("[DialogDebug] handler crash: " .. tostring(err))
     end
 end
 
-function RR:YellDebugStart()
-    if yellDebug.active then
-        self:Print("|cff00ff88[YellDebug]|r already armed. /rr yelldebug stop to disarm.")
+function RR:DialogDebugStart()
+    if dialogDebug.active then
+        self:Print("|cff00ff88[DialogDebug]|r already armed. /rr dialogdebug stop to disarm.")
         return
     end
-    if not yellDebug.frame then
-        yellDebug.frame = CreateFrame("Frame")
-        yellDebug.frame:SetScript("OnEvent", YellEventHandler)
+    if not dialogDebug.frame then
+        dialogDebug.frame = CreateFrame("Frame")
+        dialogDebug.frame:SetScript("OnEvent", DialogEventHandler)
     end
-    yellDebug.buffer = {}
-    yellDebug.frame:RegisterEvent("CHAT_MSG_MONSTER_YELL")
-    yellDebug.frame:RegisterEvent("CHAT_MSG_MONSTER_SAY")
-    yellDebug.frame:RegisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
-    yellDebug.active = true
-    self:Print("|cff00ff88[YellDebug]|r ARMED. Capturing MONSTER_YELL, MONSTER_SAY, RAID_BOSS_EMOTE.")
-    self:Print("|cff00ff88[YellDebug]|r Each capture will print a confirmation line below. /rr yelldebug stop to dump.")
+    dialogDebug.buffer = {}
+    dialogDebug.frame:RegisterEvent("CHAT_MSG_MONSTER_YELL")
+    dialogDebug.frame:RegisterEvent("CHAT_MSG_MONSTER_SAY")
+    dialogDebug.frame:RegisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
+    dialogDebug.active = true
+    self:Print("|cff00ff88[DialogDebug]|r ARMED. Capturing MONSTER_YELL, MONSTER_SAY, RAID_BOSS_EMOTE.")
+    self:Print("|cff00ff88[DialogDebug]|r Each capture will print a confirmation line below. /rr dialogdebug stop to dump.")
 end
 
-function RR:YellDebugStop()
-    if not yellDebug.active then
-        self:Print("|cff00ff88[YellDebug]|r not armed. /rr yelldebug start to begin capture.")
+function RR:DialogDebugStop()
+    if not dialogDebug.active then
+        self:Print("|cff00ff88[DialogDebug]|r not armed. /rr dialogdebug start to begin capture.")
         return
     end
-    yellDebug.frame:UnregisterEvent("CHAT_MSG_MONSTER_YELL")
-    yellDebug.frame:UnregisterEvent("CHAT_MSG_MONSTER_SAY")
-    yellDebug.frame:UnregisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
-    yellDebug.active = false
-    local count = #yellDebug.buffer
-    self:Print(("|cff00ff88[YellDebug]|r DISARMED. Captured %d event(s). Opening dump window..."):format(count))
+    dialogDebug.frame:UnregisterEvent("CHAT_MSG_MONSTER_YELL")
+    dialogDebug.frame:UnregisterEvent("CHAT_MSG_MONSTER_SAY")
+    dialogDebug.frame:UnregisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
+    dialogDebug.active = false
+    local count = #dialogDebug.buffer
+    self:Print(("|cff00ff88[DialogDebug]|r DISARMED. Captured %d event(s). Opening dump window..."):format(count))
     local dump
     if count == 0 then
         dump = "(no events captured during this session)"
     else
-        dump = table.concat(yellDebug.buffer, "\n\n")
+        dump = table.concat(dialogDebug.buffer, "\n\n")
     end
-    self:ShowCopyWindow("RetroRuns -- YellDebug capture", dump)
-    yellDebug.buffer = nil  -- free memory; new buffer on next start
+    self:ShowCopyWindow("RetroRuns -- DialogDebug capture", dump)
+    dialogDebug.buffer = nil  -- free memory; new buffer on next start
 end
 
--- Read-only accessor for DevTools. The yellDebug table is file-local
+-- Read-only accessor for DevTools. The dialogDebug table is file-local
 -- so external modules can't read .active directly.
-function RR:IsYellDebugActive()
-    return yellDebug.active == true
+function RR:IsDialogDebugActive()
+    return dialogDebug.active == true
 end
 
 -------------------------------------------------------------------------------
@@ -2817,6 +2887,9 @@ SlashCmdList["RETRORUNS"] = function(input)
 
     elseif cmd == "ej" then
         RR:HarvestDiagnose()
+
+    elseif cmd == "lockprobe" then
+        RR:LockProbe()
 
     elseif cmd == "raidcapture" then
         RR:RaidCapture()
@@ -3913,12 +3986,12 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("Record: /rr record [start|stop|dump|reset|status|break|tp <dest>|note <text>]")
         end
 
-    elseif cmd == "yelldebug" then
+    elseif cmd == "dialogdebug" then
         local sub = args[2] or ""
-        if     sub == "start" then RR:YellDebugStart()
-        elseif sub == "stop"  then RR:YellDebugStop()
+        if     sub == "start" then RR:DialogDebugStart()
+        elseif sub == "stop"  then RR:DialogDebugStop()
         else
-            RR:Print("YellDebug: /rr yelldebug [start|stop]  (capture chat-channel yells for diagnosis)")
+            RR:Print("DialogDebug: /rr dialogdebug [start|stop]  (capture chat-channel NPC dialog for diagnosis)")
         end
 
     elseif cmd == "cancelnav" then
@@ -3965,7 +4038,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("  /rr  ejdiff <encID> [itemID]     (EJ per-difficulty probe)")
             RR:Print("  /rr  tmogsrc | tmogtrace         (transmog internals)")
             RR:Print("  /rr  ej                          (EJ + instance-info dump for bring-up)")
-            RR:Print("  /rr  yelldebug [start|stop]      (capture chat-channel yells for diagnosis)")
+            RR:Print("  /rr  dialogdebug [start|stop]    (capture chat-channel NPC dialog for diagnosis)")
             RR:Print("  /rr  devtools                    (toggle the DevTools panel)")
             RR:Print("  /rr  cancelnav                   (cancel an active entrance-navigation route)")
             RR:Print("  /rr  reset | refresh             (reset settings to defaults | re-render the main panel)")
@@ -3993,7 +4066,7 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
             C_Timer.After(0, function()
                 RR:RestorePanelPosition()
                 RR:InitMinimapButton()
-                RR:InitYellTriggers()
+                RR:InitDialogTriggers()
                 RR:RefreshAll()
             end)
         end

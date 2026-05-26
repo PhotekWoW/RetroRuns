@@ -24,6 +24,19 @@
 local RR = RetroRuns
 RR.WhatsNew = {
     {
+        version  = "1.11.0a",
+        date     = "2026-05-26",
+        sections = {
+            {
+                heading = "Fixed",
+                bullets = {
+                    "**Vault of the Incarnates -- Eranog route on the map.** After landing from the dragon flight, the pink route lines could partially disappear or the end arrow could detach from the rest of the path. Eranog's approach has been redesigned with red destination circles at the dragon platform and at Volcanius, plus a clean arrow line up to Eranog.",
+                },
+            },
+        },
+    },
+
+    {
         version  = "1.11.0",
         date     = "2026-05-26",
         sections = {

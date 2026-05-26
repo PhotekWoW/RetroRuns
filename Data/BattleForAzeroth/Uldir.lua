@@ -275,7 +275,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1149 },
                     kind    = "path",
                     note    = "After activating the ^Titan Console^, kill several waves of adds from the previous room to unlock the door to the next room.",
-                    triggeredBy = { yell = { npc = "Brann Bronzebeard", match = "get these doors open" } },
+                    triggeredBy = { dialog = { npc = "Brann Bronzebeard", match = "get these doors open" } },
                     points  = {},
                 },
                 {
@@ -283,7 +283,7 @@ RetroRuns_Data[1861] = {
                     kind    = "poi",
                     poiSize = 35,
                     note    = "After finishing the adds, proceed forward and defeat ^MOTHER^.",
-                    triggeredBy = { yell = { npc = "MOTHER", match = "decontamination chamber" } },
+                    triggeredBy = { dialog = { npc = "MOTHER", match = "decontamination chamber" } },
                     points  = {
                         { 0.507, 0.568 },
                     },

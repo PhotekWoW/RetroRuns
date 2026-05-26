@@ -298,22 +298,22 @@ function RR:ShowCurrentMapForStep()
 end
 
 -------------------------------------------------------------------------------
--- Yell-trigger advancement
+-- Dialog-trigger advancement
 -------------------------------------------------------------------------------
 -- Watches CHAT_MSG_MONSTER_YELL / _SAY / _RAID_BOSS_EMOTE for NPC
--- voicelines that signal a navigation gate (e.g. an orb-click yell
+-- voicelines that signal a navigation gate (e.g. an orb-click dialog
 -- that opens the next leg of the route). Matches against per-seg
--- `triggeredBy = { yell = { npc, match } }`. Outside-encounter
+-- `triggeredBy = { dialog = { npc, match } }`. Outside-encounter
 -- only -- mid-encounter chat carries secret-tainted payloads. English
 -- substring matching, no localization.
 
-local yellTriggerFrame = nil
+local dialogTriggerFrame = nil
 
-local function YellTriggerHandler(_, event, ...)
+local function DialogTriggerHandler(_, event, ...)
     -- pcall wrap so a malformed chat payload doesn't error mid-route.
     local args = { event, ... }
     local ok, err = pcall(function()
-        local text   = args[2]   -- arg1 = yell text
+        local text   = args[2]   -- arg1 = dialog text
         local sender = args[3]   -- arg2 = speaker name
 
         -- Secret-tainted (mid-encounter) payloads can't be compared.
@@ -326,23 +326,23 @@ local function YellTriggerHandler(_, event, ...)
         if not step or not step.segments then return end
         local stepIndex = step.step or step.priority or 0
 
-        RR:AdvanceProgress("npc-dialogue", { npc = sender, text = text })
+        RR:AdvanceProgress("npc-dialog", { npc = sender, text = text })
         RR.UI.Update()
         if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
     end)
     if not ok then
-        RR:ZoneLog("[YellTrigger] handler crash: " .. tostring(err))
+        RR:ZoneLog("[DialogTrigger] handler crash: " .. tostring(err))
     end
 end
 
--- Initialize the yell-trigger listener (idempotent).
-function RR:InitYellTriggers()
-    if yellTriggerFrame then return end
-    yellTriggerFrame = CreateFrame("Frame")
-    yellTriggerFrame:SetScript("OnEvent", YellTriggerHandler)
-    yellTriggerFrame:RegisterEvent("CHAT_MSG_MONSTER_YELL")
-    yellTriggerFrame:RegisterEvent("CHAT_MSG_MONSTER_SAY")
-    yellTriggerFrame:RegisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
+-- Initialize the dialog-trigger listener (idempotent).
+function RR:InitDialogTriggers()
+    if dialogTriggerFrame then return end
+    dialogTriggerFrame = CreateFrame("Frame")
+    dialogTriggerFrame:SetScript("OnEvent", DialogTriggerHandler)
+    dialogTriggerFrame:RegisterEvent("CHAT_MSG_MONSTER_YELL")
+    dialogTriggerFrame:RegisterEvent("CHAT_MSG_MONSTER_SAY")
+    dialogTriggerFrame:RegisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
 end
 
 function RR:IsPanelAllowed()

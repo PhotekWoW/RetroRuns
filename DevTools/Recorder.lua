@@ -954,7 +954,7 @@ function RR:BuildRecordingExport()
         -- one waypoint is almost certainly meant to be a POI marker
         -- (single-point paths don't render usefully). Saves the manual
         -- rewrite from "path" to "poi" at integration time. Empty-points
-        -- segments stay "path" -- they're the yell-gated kill-in-place
+        -- segments stay "path" -- they're the dialog-gated kill-in-place
         -- pattern (Uldir MOTHER), not a POI. Explicit teleport segments
         -- (kind = "teleport") are untouched.
         local kind = s.kind or "path"

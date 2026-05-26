@@ -12,8 +12,6 @@ RetroRuns_Data[1448] = {
     expansion         = "Warlords of Draenor",
     patch             = "6.2.0",
 
-    useStrictActiveSegPicker = false,
-
     entrance = {
         mapID = 534,
         x     = 0.4556,

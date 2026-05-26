@@ -88,9 +88,9 @@ function RR:RestorePersistedProgress()
     end
 end
 
--- Records that a gate event (yell, etc.) fired this lockout. Lets the
+-- Records that a gate event (NPC dialog, etc.) fired this lockout. Lets the
 -- seeder skip past gates whose triggers already happened on relog --
--- the addon can't replay yells.
+-- the addon can't replay dialog events.
 function RR:RecordTriggerFired(stepIndex, segIndex)
     if not stepIndex or not segIndex then return end
     self.state.triggersFired = self.state.triggersFired or {}
@@ -129,9 +129,9 @@ end
 
 function RR:HasTriggerFired(stepIndex, segIndex)
     if not stepIndex or not segIndex then return false end
-    local s = self.state.triggersFired
+    local stepTriggers = self.state.triggersFired
         and self.state.triggersFired[stepIndex]
-    return s and s[segIndex] == true
+    return stepTriggers and stepTriggers[segIndex] == true
 end
 
 -------------------------------------------------------------------------------
@@ -164,18 +164,18 @@ local function AfterSatisfied(seg, currentProgress)
     return true
 end
 
--- triggeredBy.yell fires on any NPC dialogue event (CHAT_MSG_MONSTER_YELL,
+-- triggeredBy.dialog fires on any NPC dialog event (CHAT_MSG_MONSTER_YELL,
 -- _SAY, _RAID_BOSS_EMOTE) whose npc + text matches the seg's trigger.
 local function TriggerMatches(seg, event, eventData)
     if not seg or not seg.triggeredBy then return true end
 
-    if seg.triggeredBy.yell then
-        if event ~= "npc-dialogue" then return false end
+    if seg.triggeredBy.dialog then
+        if event ~= "npc-dialog" then return false end
         if not eventData then return false end
-        local tb = seg.triggeredBy.yell
-        if eventData.npc ~= tb.npc then return false end
-        if not tb.match or not eventData.text then return false end
-        return string.find(eventData.text, tb.match, 1, true) ~= nil
+        local dialogTrigger = seg.triggeredBy.dialog
+        if eventData.npc ~= dialogTrigger.npc then return false end
+        if not dialogTrigger.match or not eventData.text then return false end
+        return string.find(eventData.text, dialogTrigger.match, 1, true) ~= nil
     end
 
     return false
@@ -200,8 +200,8 @@ end
 -------------------------------------------------------------------------------
 
 -- Walks from progress+1, advancing through segs whose conditions hold.
--- Stops after passing one noted seg (so decoration segs chain freely
--- but the player only sees one note transition per event).
+-- Stops after landing on the second noted seg so the player sees one
+-- panel-text transition per event. Noteless segs chain freely.
 local function ComputeAdvancedProgress(segments, progress, state, event, eventData, stepIndex)
     if not segments then return progress end
     local segCount = #segments
@@ -237,7 +237,7 @@ local function ComputeAdvancedProgress(segments, progress, state, event, eventDa
 
             if not movedDeeper then
                 local dialoguePasses = false
-                if event == "npc-dialogue" then
+                if event == "npc-dialog" then
                     if not progressSeg.triggeredBy then
                         dialoguePasses = true
                     elseif TriggerMatches(progressSeg, event, eventData) then
@@ -273,7 +273,7 @@ local function ComputeAdvancedProgress(segments, progress, state, event, eventDa
     return progress
 end
 
--- event: "zone" | "heartbeat" | "npc-dialogue" | "step-transition" | "pew"
+-- event: "zone" | "heartbeat" | "npc-dialog" | "step-transition" | "pew"
 function RR:AdvanceProgress(event, eventData)
     local step = self.state.activeStep
     if not step or not step.segments then return false end
@@ -285,20 +285,20 @@ function RR:AdvanceProgress(event, eventData)
     local subZone = (GetSubZoneText and GetSubZoneText()) or ""
     local state = { mapID = mapID, subZone = subZone }
 
-    local oldP = self:GetProgress(stepIndex)
-    local newP = ComputeAdvancedProgress(step.segments, oldP, state, event, eventData, stepIndex)
+    local oldProgress = self:GetProgress(stepIndex)
+    local newProgress = ComputeAdvancedProgress(step.segments, oldProgress, state, event, eventData, stepIndex)
 
-    if newP ~= oldP then
+    if newProgress ~= oldProgress then
         local prefix = "[RetroEngine]"
         if self.ZoneLog then
             self:ZoneLog(("%s advance: step %d progress %d -> %d (event=%s mapID=%s subZone=%q)")
-                :format(prefix, stepIndex, oldP, newP,
+                :format(prefix, stepIndex, oldProgress, newProgress,
                         tostring(event), tostring(mapID), tostring(subZone)))
         end
-        self:SetProgress(stepIndex, newP)
+        self:SetProgress(stepIndex, newProgress)
 
         -- Record any gates crossed by this advance.
-        for i = oldP + 1, newP do
+        for i = oldProgress + 1, newProgress do
             local seg = step.segments[i]
             if seg and seg.triggeredBy then
                 self:RecordTriggerFired(stepIndex, i)
@@ -415,7 +415,9 @@ end
 
 -- Called when the active step changes (boss kill, /reload, fresh login,
 -- raid entry). Picks the highest seg whose location matches the player,
--- capped at the seg before any uncompleted gate.
+-- capped at the seg before any uncompleted gate. The monotonic clamp at
+-- the end still protects against regressing past a player-completed
+-- point if persisted progress is higher.
 function RR:SeedProgress(step)
     if not step or not step.segments then return end
     local stepIndex = step.step or step.priority or 0
@@ -454,9 +456,9 @@ function RR:SeedProgress(step)
         end
     end
 
-    local oldP = self:GetProgress(stepIndex)
+    local oldProgress = self:GetProgress(stepIndex)
     -- Monotonic clamp: never reduce persisted progress.
-    local effective = (seed > oldP) and seed or oldP
+    local effective = (seed > oldProgress) and seed or oldProgress
     self:SetProgress(stepIndex, effective)
 
     -- Re-baseline the heartbeat poll so post-seed state doesn't look
@@ -468,7 +470,7 @@ function RR:SeedProgress(step)
     if self.ZoneLog then
         local prefix = "[RetroEngine]"
         self:ZoneLog(("%s seed: step %d progress %d -> %d (mapID=%s subZone=%q gateCeiling=%s)")
-            :format(prefix, stepIndex, oldP, effective,
+            :format(prefix, stepIndex, oldProgress, effective,
                     tostring(mapID), tostring(subZone),
                     tostring(gateCeiling or "none")))
     end
