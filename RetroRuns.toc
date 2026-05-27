@@ -2,7 +2,7 @@
 ## Title: RetroRuns
 ## Notes: Solo legacy raid navigator — routing, tips, and achievement tracking
 ## Author: Photek
-## Version: 1.11.0a
+## Version: 1.11.0b
 ## X-License: MIT
 ## SavedVariables: RetroRunsDB, RetroRunsDebug
 ## IconTexture: Interface\AddOns\RetroRuns\Media\MinimapIcon

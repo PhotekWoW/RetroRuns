@@ -1507,20 +1507,27 @@ function UI.AutoSize()
 
         -- Sanctum vendor line (Castle Nathria) lives on its own
         -- FontString below the main content. When shown, it adds one
-        -- line of text plus the 8px gap from the BOTTOMLEFT anchor.
-        -- Hidden -- which is the case for every non-CN raid and every
-        -- CN boss that doesn't drop weapon tokens -- contributes 0.
+        -- line of text plus the 2px gap from the BOTTOMLEFT anchor
+        -- (tight so the redeem line reads as a continuation of the
+        -- weapon-token heading directly above it). Hidden -- which
+        -- is the case for every non-CN raid and every CN boss that
+        -- doesn't drop weapon tokens -- contributes 0.
         local sanctumH = 0
         if tmogWindow.sanctumLine and tmogWindow.sanctumLine:IsShown() then
-            sanctumH = lineHeight + 8
+            sanctumH = lineHeight + 2
         end
+
+        -- Color legend always renders as a global footer below the
+        -- sanctum line (or below the main text when sanctum is
+        -- hidden). Two lines of text plus the 8px gap.
+        local legendH = 2 * lineHeight + 8
 
         -- Popup chrome: dropdown stack + title bar + margins.
         local chrome = 32      -- title bar
                      + 3 * 32  -- three dropdowns
                      + 10      -- gap between dropdowns and text
                      + 14      -- bottom margin
-        local desired = chrome + textH + sanctumH
+        local desired = chrome + textH + sanctumH + legendH
         local clamped = math.max(POPUP_CONTENT_MIN,
                                  math.min(POPUP_CONTENT_CEILING, desired))
         tmogWindow:SetHeight(clamped)
@@ -2149,10 +2156,9 @@ local function BuildPillsText()
     -- Order matches typical Blizzard UI: easiest -> hardest.
     -- difficultyID -> short label.
     local PILLS = {
-        { id = 17, label = "LFR" },
-        { id = 14, label = "N"   },
-        { id = 15, label = "H"   },
-        { id = 16, label = "M"   },
+        { id = 14, label = "N" },
+        { id = 15, label = "H" },
+        { id = 16, label = "M" },
     }
 
     local parts = {}
@@ -3729,8 +3735,13 @@ BuildTransmogDetail = function(stepOrCtx)
     local tokenPools   = raid and raid.weaponTokenPools
     local tokenSources = raid and raid.tierSets and raid.tierSets.tokenSources
     if tokenPools and tokenSources then
-        -- Determine which slots this boss drops tokens for.
-        local slotsHere = {}     -- { ["Main-Hand"]=true, ["Off-Hand"]=true }
+        -- Walk this boss's token drops. For each match, attribute the
+        -- token to its slot ("Main-Hand" / "Off-Hand") and collect
+        -- the union of classes that family is usable by. A single
+        -- boss can drop tokens from multiple families that share a
+        -- slot (e.g. Sire Denathrius drops all 4 Main-Hand families);
+        -- the per-slot class set unions across them.
+        local slotClasses = {}   -- ["Main-Hand"] = { [classID]=true, ... }
         for tokenID, bossIdxVal in pairs(tokenSources) do
             local matches = false
             if type(bossIdxVal) == "table" then
@@ -3744,87 +3755,65 @@ BuildTransmogDetail = function(stepOrCtx)
                 local tokenName = (GetItemInfo(tokenID))
                 local family = ParseTokenFamily(tokenName)
                 local info = family and TOKEN_FAMILY_INFO[family]
-                if info and info.slotLabel then
-                    slotsHere[info.slotLabel] = true
+                if info and info.slotLabel and info.classes then
+                    local bucket = slotClasses[info.slotLabel]
+                    if not bucket then
+                        bucket = {}
+                        slotClasses[info.slotLabel] = bucket
+                    end
+                    for _, classID in ipairs(info.classes) do
+                        bucket[classID] = true
+                    end
                 end
             end
         end
 
         local slotOrder = { "Main-Hand", "Off-Hand" }
-        local slotPoolKeys = {
-            ["Main-Hand"] = {
-                "mainHandLowerNonMythic",  "mainHandHigherNonMythic",
-                "mainHandLowerMythic",     "mainHandHigherMythic",
-            },
-            ["Off-Hand"] = {
-                "offHandLowerNonMythic",   "offHandHigherNonMythic",
-                "offHandLowerMythic",      "offHandHigherMythic",
-            },
-        }
+
+        -- Builds the class-list suffix for a slot's class set. WoW
+        -- exposes class IDs 1..13 in canonical UI order (1=Warrior,
+        -- 2=Paladin, ..., 13=Evoker). Each name renders in its
+        -- standard class color (paladin pink, mage cyan, etc.) via
+        -- RAID_CLASS_COLORS. When the slot's union covers every class
+        -- that has weapon access at that slot for this raid (4 of 4
+        -- Main-Hand families = all 13 classes, or 2 of 2 Off-Hand
+        -- families = 9 classes), the heading collapses to "All
+        -- classes" instead of an unwieldy colored list.
+        local function FormatClassList(classSet, slotLabel)
+            local ids = {}
+            for cid in pairs(classSet) do table.insert(ids, cid) end
+            table.sort(ids)
+            local allCount = (slotLabel == "Main-Hand") and 13 or 9
+            if #ids >= allCount then
+                return "All classes"
+            end
+            local parts = {}
+            for _, cid in ipairs(ids) do
+                local n = GetClassInfo and GetClassInfo(cid)
+                if n then
+                    local hex
+                    local token = CLASS_ID_TO_TOKEN[cid]
+                    if token and RAID_CLASS_COLORS and RAID_CLASS_COLORS[token] then
+                        local c = RAID_CLASS_COLORS[token]
+                        if c.colorStr then hex = c.colorStr end
+                    end
+                    if hex then
+                        table.insert(parts, ("|c%s%s|r"):format(hex, n))
+                    else
+                        table.insert(parts, n)
+                    end
+                end
+            end
+            return table.concat(parts, " / ")
+        end
 
         local tokenRows = {}
         for _, slot in ipairs(slotOrder) do
-            if slotsHere[slot] then
-                local keys = slotPoolKeys[slot]
-                local unionSources = {}   -- appearanceID -> { sourceID, ... }
-                for _, k in ipairs(keys) do
-                    local pool = tokenPools[k]
-                    if pool then
-                        for appID, srcs in pairs(pool) do
-                            local bucket = unionSources[appID]
-                            if not bucket then
-                                bucket = {}
-                                unionSources[appID] = bucket
-                            end
-                            for _, sid in ipairs(srcs) do
-                                local seen = false
-                                for _, ex in ipairs(bucket) do
-                                    if ex == sid then seen = true; break end
-                                end
-                                if not seen then table.insert(bucket, sid) end
-                            end
-                        end
-                    end
-                end
-
-                -- Count collected (boolean total: any owned? any missing?)
-                local hasCollected, hasUncollected = false, false
-                for _, srcs in pairs(unionSources) do
-                    local owned = false
-                    for _, sid in ipairs(srcs) do
-                        if C_TransmogCollection and
-                           C_TransmogCollection.PlayerHasTransmogItemModifiedAppearance and
-                           C_TransmogCollection.PlayerHasTransmogItemModifiedAppearance(sid) then
-                            owned = true; break
-                        end
-                        if C_TransmogCollection and
-                           C_TransmogCollection.GetAppearanceInfoBySource then
-                            local info = C_TransmogCollection.GetAppearanceInfoBySource(sid)
-                            if info and info.appearanceIsCollected then
-                                owned = true; break
-                            end
-                        end
-                    end
-                    if owned then hasCollected   = true
-                             else hasUncollected = true end
-                    -- Early exit once we know the 3-state result.
-                    if hasCollected and hasUncollected then break end
-                end
-
-                -- Map to 3-state label + color.
-                local stateLabel, stateColor
-                if hasCollected and not hasUncollected then
-                    stateLabel, stateColor = "all collected",  SPECIAL_COLLECTED
-                elseif hasCollected and hasUncollected then
-                    stateLabel, stateColor = "some collected", SPECIAL_PARTIAL
-                else
-                    stateLabel, stateColor = "none collected", SPECIAL_UNCOLLECTED
-                end
-
-                -- Row: "<Slot> Weapons:  [<state>]"
-                local label = ("%s Weapons:"):format(slot)
-                table.insert(tokenRows, ("|cffffffff%s|r  |cff777777[ |r|c%s%s|r|cff777777 ]|r"):format(
-                    label, stateColor, stateLabel))
+            local classSet = slotClasses[slot]
+            if classSet and next(classSet) then
+                local label = ("%s Weapon Token: %s"):format(
+                    slot, FormatClassList(classSet, slot))
+                table.insert(tokenRows, ("|cffffffff%s|r"):format(label))
             end
         end
 
@@ -3893,17 +3882,19 @@ BuildTransmogDetail = function(stepOrCtx)
         end
     end
 
-    -- Color legend. Renders always; the dots have the same meaning
-    -- whether or not the player is in a supported raid.
-    table.insert(lines, "")
-    table.insert(lines,
-        ("|c%sgreen|r|cff888888 = collected      |r|c%sgold|r|cff888888 = via another item|r"):format(
-            DOT_COLLECTED, DOT_SHARED))
-    table.insert(lines,
-        ("|c%swhite|r|cff888888 = needed (current difficulty)  |r|c%sgray|r|cff888888 = not collected|r"):format(
-            DOT_ACTIVE, DOT_INACTIVE))
-
     return table.concat(lines, "\n")
+end
+
+-- Color legend rendered as the bottom-most line in the Tmog window. The
+-- dot colors mean the same thing whether or not the player is in a
+-- supported raid, so it sits below the per-boss content and the
+-- weapon-token redemption hint (when present), as a global footer.
+local function BuildTmogLegendText()
+    return
+        ("|c%sgreen|r|cff888888 = collected      |r|c%sgold|r|cff888888 = via another item|r\n"):format(
+            DOT_COLLECTED, DOT_SHARED)
+     .. ("|c%swhite|r|cff888888 = needed (current difficulty)  |r|c%sgray|r|cff888888 = not collected|r"):format(
+            DOT_ACTIVE, DOT_INACTIVE)
 end
 
 -------------------------------------------------------------------------------
@@ -4289,14 +4280,32 @@ GetOrCreateTmogWindow = function()
     -- wrapping behaves consistently. Hidden when BuildSanctumLine
     -- returns nil (boss doesn't drop weapon tokens, or raid has no
     -- weaponVendors -- non-CN raids).
+    --
+    -- Gap to main text is tight (-2) so the redeem line reads as
+    -- the continuation of the weapon-token heading it sits beneath,
+    -- rather than as a separate paragraph.
     local sanctumLine = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    sanctumLine:SetPoint("TOPLEFT",  text, "BOTTOMLEFT",  0, -8)
+    sanctumLine:SetPoint("TOPLEFT",  text, "BOTTOMLEFT",  0, -2)
     sanctumLine:SetPoint("TOPRIGHT", f,    "TOPRIGHT",   -14, 0)   -- width only
     sanctumLine:SetJustifyH("LEFT")
     sanctumLine:SetJustifyV("TOP")
     sanctumLine:SetWordWrap(true)
     sanctumLine:Hide()
     f.sanctumLine = sanctumLine
+
+    -- Color legend. Lives at the bottom of the window as a global
+    -- footer. Anchored just below the sanctum line so the redemption
+    -- hint (when present) sits between the per-boss content and the
+    -- legend. When the sanctum line is hidden, RefreshContent
+    -- re-anchors the legend directly under the main text so the
+    -- vertical gap doesn't double.
+    local legendLine = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    legendLine:SetPoint("TOPLEFT",  sanctumLine, "BOTTOMLEFT",  0, -8)
+    legendLine:SetPoint("TOPRIGHT", f,           "TOPRIGHT",   -14, 0)
+    legendLine:SetJustifyH("LEFT")
+    legendLine:SetJustifyV("TOP")
+    legendLine:SetWordWrap(true)
+    f.legendLine = legendLine
 
     -- Flight button anchored against the sanctum line's RENDERED text
     -- width (GetStringWidth, not the FontString's frame width which
@@ -4468,6 +4477,21 @@ GetOrCreateTmogWindow = function()
             sanctumBtn:SetScript("OnEnter", CancelTmogHide)
             sanctumBtn:SetScript("OnLeave", ScheduleTmogHide)
         end
+
+        -- Legend: always rendered. Re-anchored so it sits directly
+        -- below whichever widget above it is visible -- under the
+        -- sanctum line when that's shown, otherwise directly under
+        -- the main text. Keeps the gap consistent (8px) in either
+        -- case rather than doubling when sanctum is hidden.
+        SetBodyFont(legendLine, fontSize - 1, "")
+        legendLine:SetText(BuildTmogLegendText())
+        legendLine:ClearAllPoints()
+        if sanctumLine:IsShown() then
+            legendLine:SetPoint("TOPLEFT",  sanctumLine, "BOTTOMLEFT",  0, -8)
+        else
+            legendLine:SetPoint("TOPLEFT",  text,        "BOTTOMLEFT",  0, -8)
+        end
+        legendLine:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, 0)
 
         -- The "Show all class tier" checkbox's enabled state depends on
         -- whether the currently-selected boss drops tier tokens. Refresh
@@ -5387,9 +5411,12 @@ end -- skips do block
 -- ============================================================================
 --
 -- Opens from the version-link button in the main panel footer. Renders the
--- release-notes data in RR.WhatsNew (defined in WhatsNew.lua) as a scroll-
--- free multi-line FontString. Same BackdropTemplate window shape as Skips
--- and Tmog, anchored at the right edge of the main panel.
+-- release-notes data in RR.WhatsNew (defined in WhatsNew.lua) as a multi-
+-- line FontString inside a ScrollFrame. Same BackdropTemplate window shape
+-- as Skips and Tmog, anchored at the right edge of the main panel. The
+-- window height tracks content up to a clamp; once content exceeds the
+-- clamp the scrollbar handles the overflow rather than letting the body
+-- text render past the window's bottom edge.
 --
 -- Wrapped in a do/end block to keep the supporting locals out of UI.lua's
 -- top-level scope (Lua 5.1 caps local-variable count at 200 per function;
@@ -5475,13 +5502,31 @@ local function GetOrCreateWhatsNewWindow()
     closeBtn:SetPoint("TOPRIGHT", -4, -4)
     closeBtn:SetScript("OnClick", function() f:Hide() end)
 
-    -- Content FontString. Multi-line, word-wrapped, anchored to the
-    -- top-left of the content area. The window's height is grown
-    -- dynamically by RefreshContent based on the rendered string's
-    -- height.
-    f.body = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    f.body:SetPoint("TOPLEFT",  f, "TOPLEFT",  WHATSNEW_PAD_X,         -WHATSNEW_PAD_TOP)
-    f.body:SetPoint("TOPRIGHT", f, "TOPRIGHT", -WHATSNEW_PAD_X,        -WHATSNEW_PAD_TOP)
+    -- Content area: ScrollFrame + scrollChild + body FontString. The
+    -- ScrollFrame is anchored to the inside-padding region of the
+    -- window. Its scrollChild is a Frame sized to (scrollFrame width,
+    -- body's rendered height); the body FontString lives inside the
+    -- scrollChild and is the actual word-wrapped text. The window's
+    -- own height clamps at MAX_HEIGHT regardless of content length,
+    -- and a mouse-wheel scroll moves the scrollChild up/down inside
+    -- the ScrollFrame viewport when content exceeds the clamp. Without
+    -- the ScrollFrame wrapper, a long body FontString rendered past
+    -- the window's bottom edge (the FontString isn't bounded by its
+    -- parent's height by default), bleeding out of the frame.
+    f.scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
+    f.scroll:SetPoint("TOPLEFT",     f, "TOPLEFT",      WHATSNEW_PAD_X,           -WHATSNEW_PAD_TOP)
+    f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -WHATSNEW_PAD_X - 22,       WHATSNEW_PAD_BOTTOM)
+    -- The -22 right-inset above leaves room for the scrollbar that the
+    -- UIPanelScrollFrameTemplate creates anchored 4px outside the
+    -- ScrollFrame's right edge.
+
+    f.scrollChild = CreateFrame("Frame", nil, f.scroll)
+    f.scrollChild:SetSize(WHATSNEW_WINDOW_WIDTH - 2 * WHATSNEW_PAD_X - 22, 1)
+    f.scroll:SetScrollChild(f.scrollChild)
+
+    f.body = f.scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    f.body:SetPoint("TOPLEFT",  f.scrollChild, "TOPLEFT",  0, 0)
+    f.body:SetPoint("TOPRIGHT", f.scrollChild, "TOPRIGHT", 0, 0)
     f.body:SetJustifyH("LEFT")
     f.body:SetJustifyV("TOP")
     f.body:SetWordWrap(true)
@@ -5489,10 +5534,13 @@ local function GetOrCreateWhatsNewWindow()
 
     f.RefreshContent = function()
         f.body:SetText(BuildWhatsNewBody())
-        -- Grow the window height to fit the rendered text, clamped to
-        -- MIN/MAX. The body's GetStringHeight returns the height of the
-        -- rendered (wrapped) text at its current width.
         local bodyH = f.body:GetStringHeight() or 0
+        -- Resize the scrollChild to fit the rendered body so the
+        -- ScrollFrame knows how far it can scroll.
+        f.scrollChild:SetHeight(math.max(1, bodyH))
+        -- Window height: padding + body height, clamped MIN..MAX.
+        -- When clamped to MAX, the ScrollFrame viewport stays at MAX
+        -- and the scrollbar handles the overflow.
         local desired = WHATSNEW_PAD_TOP + bodyH + WHATSNEW_PAD_BOTTOM
         if desired < WHATSNEW_WINDOW_MIN_HEIGHT then
             desired = WHATSNEW_WINDOW_MIN_HEIGHT
@@ -5500,6 +5548,9 @@ local function GetOrCreateWhatsNewWindow()
             desired = WHATSNEW_WINDOW_MAX_HEIGHT
         end
         f:SetHeight(desired)
+        -- Reset scroll position to top on every refresh so the user
+        -- sees the newest entry first when reopening the window.
+        f.scroll:SetVerticalScroll(0)
     end
 
     whatsNewWindow = f
@@ -5553,10 +5604,9 @@ local function BuildIdleListPills(raid)
     if not counts then return "" end
 
     local PILLS = {
-        { id = 17, label = "LFR" },
-        { id = 14, label = "N"   },
-        { id = 15, label = "H"   },
-        { id = 16, label = "M"   },
+        { id = 14, label = "N" },
+        { id = 15, label = "H" },
+        { id = 16, label = "M" },
     }
 
     -- Color constants are 6-char RGB; the format string prepends |cff.
@@ -6165,7 +6215,44 @@ function UI.Update()
         panel.mapBtn:Enable()
         panel.mapBtn:SetAlpha(1)
 
-        if step then
+        if currentDiff == 17 then
+            -- LFR mode: routing, segments, and per-boss progress are
+            -- not modeled. LFR wings have different boss subsets and
+            -- different paths than the Normal/Heroic/Mythic layout the
+            -- routing data is authored for, so showing those would lead
+            -- the player toward bosses or transitions that don't exist
+            -- in the wing they're standing in. The panel surfaces a
+            -- single message in place of the routing/encounter content.
+            -- The action button row (Achievements, Transmog, Skips,
+            -- Settings) sits outside this render path and stays visible,
+            -- so the still-working browsers remain one click away.
+            panel.next:SetText("|cffff9333RetroRuns doesn't support routing for LFR yet.|r")
+            panel.travel:SetText("")
+            panel.encounter.header.label:SetText("")
+            panel.encounter.header.clickable = false
+            panel.encounter.header:EnableMouse(false)
+            panel.encounter.achievements.label:SetText("")
+            panel.encounter.achievements:Hide()
+            panel.encounter.specialLoot.label:SetText("")
+            panel.encounter.specialLoot:Hide()
+            panel.encounter:Hide()
+            panel.transmog:SetText("")
+            panel.transmog:EnableMouse(false)
+            panel.transmog:Hide()
+
+            -- Map button does nothing without an active routing step.
+            -- Gray it out to match the idle / run-complete states.
+            panel.mapBtn:Disable()
+            panel.mapBtn:SetAlpha(0.45)
+
+            -- Release any list widgets left over from a prior in-progress
+            -- pass; nothing to render in their place.
+            ReleaseExpansionToggleButtons()
+            ReleaseEntranceButtons()
+            ReleaseIdleListLines()
+            ReleaseProgressListLines()
+            panel.listHeader:SetText("")
+        elseif step then
             local boss = RR:GetBossByIndex(step.bossIndex)
             -- Re-show the boss-encounter and transmog wrappers in case
             -- they were Hide()'d by a previous idle/run-complete pass
