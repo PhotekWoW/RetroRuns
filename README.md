@@ -30,6 +30,11 @@ Currently supports:
 * Trial of Valor (7.1)
 * The Emerald Nightmare (7.0.3)
 
+**Warlords of Draenor**
+* Hellfire Citadel (6.2)
+* Blackrock Foundry (6.0.3)
+* Highmaul (6.0.3)
+
 ## Installation
 
 1. Download the latest `RetroRuns.zip`.
