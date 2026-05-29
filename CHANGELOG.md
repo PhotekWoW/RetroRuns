@@ -2,7 +2,33 @@
 
 All notable changes to RetroRuns are documented here.
 
-## [1.11.0b] - 2026-05-26
+## [1.12.0] - 2026-05-29
+
+### Added
+
+- **Three Warlords of Draenor raids are now fully supported: Highmaul, Blackrock Foundry, and Hellfire Citadel.** Each has complete routing through every encounter with travel notes and map lines for every leg, including the portal and teleport transitions between sub-zones. Per-boss loot is tracked alongside the special weapon-enchant illusions and other unique drops, and each raid's Glory meta-achievement sub-achievements are rated for solo difficulty. Where a raid has skip paths, those are tracked too.
+
+- **The Skips window is now collapsible by expansion.** Each expansion is a header you can expand or collapse with the +/- button beside its name, matching how the supported-raids list on the main panel works. When you're inside a raid, that raid's expansion opens automatically so its skip status is visible right away; everything else stays collapsed until you open it.
+
+### Changed
+
+- **Boss Progress list order.** The in-raid Boss Progress checklist now lists bosses in the order RetroRuns routes you to them, rather than the Encounter Journal's default order. For most raids these match, but where the recommended kill order differs from the Journal, the list now lines up with the travel directions. This is adjustable in Settings if you prefer the Encounter Journal order.
+
+- **Double-skip raids show two skip indicators.** Raids with two independent skip paths (Antorus the Burning Throne and Hellfire Citadel) now show one diamond per path next to the raid name, each lit or dimmed based on whether that specific skip is unlocked, instead of a single combined indicator.
+
+- **Skips window close button and layout.** The window now closes with an X button in the top-right corner instead of an OK button, and the skip-detail popout no longer wraps its text awkwardly.
+
+### Fixed
+
+- **Transmog browser scaling on open.** The window now respects your saved window-scale setting from the moment it opens, instead of briefly rendering at 100% and then snapping to the correct size.
+
+- **Transmog browser "missing" indicator.** Items you've collected the appearance for but don't own are now marked with a red X that matches the size of the green check, so the status indicators line up cleanly down the column.
+
+- **Transmog browser bottom spacing.** The window's auto-sizing was leaving a sliver of empty space at the bottom; that gap is now reclaimed so the window fits its content.
+
+- **Settings panel height on first open.** The settings window could open far too tall on the first login of a session, correcting itself only after being moved. It now sizes correctly the first time it opens.
+
+- **Boss Progress checklist alignment.** The brackets next to each boss name (current, killed, upcoming) now line up consistently regardless of font size.
 
 ### Changed
 

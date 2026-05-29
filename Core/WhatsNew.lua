@@ -5,7 +5,8 @@
 -- Last-N release entries shown to players when they click the version link
 -- in the main panel footer. Hand-maintained at ship time: when CHANGELOG.md
 -- gains a new release, prepend a matching entry here and drop the oldest
--- if the list exceeds the display target (currently 2 versions).
+-- if the list exceeds the display target (currently 3 versions; the
+-- window is scrollable so longer note sets fit).
 --
 -- Voice matches CHANGELOG.md (player-facing, no internal jargon, no
 -- developer-facing implementation detail). Most entries are direct lifts
@@ -23,6 +24,38 @@
 
 local RR = RetroRuns
 RR.WhatsNew = {
+    {
+        version  = "1.12.0",
+        date     = "2026-05-29",
+        sections = {
+            {
+                heading = "Added",
+                bullets = {
+                    "**Three Warlords of Draenor raids are now fully supported: Highmaul, Blackrock Foundry, and Hellfire Citadel.** Each has complete routing through every encounter with travel notes and map lines for every leg, including the portal and teleport transitions between sub-zones. Per-boss loot is tracked alongside the special weapon-enchant illusions and other unique drops, and each raid's Glory meta-achievement sub-achievements are rated for solo difficulty. Where a raid has skip paths, those are tracked too.",
+                    "**The Skips window is now collapsible by expansion.** Each expansion is a header you can expand or collapse with the +/- button beside its name, matching how the supported-raids list on the main panel works. When you're inside a raid, that raid's expansion opens automatically so its skip status is visible right away; everything else stays collapsed until you open it.",
+                },
+            },
+            {
+                heading = "Changed",
+                bullets = {
+                    "**Boss Progress list order.** The in-raid Boss Progress checklist now lists bosses in the order RetroRuns routes you to them, rather than the Encounter Journal's default order. For most raids these match, but where the recommended kill order differs from the Journal, the list now lines up with the travel directions. This is adjustable in Settings if you prefer the Encounter Journal order.",
+                    "**Double-skip raids show two skip indicators.** Raids with two independent skip paths (Antorus the Burning Throne and Hellfire Citadel) now show one diamond per path next to the raid name, each lit or dimmed based on whether that specific skip is unlocked, instead of a single combined indicator.",
+                    "**Skips window close button and layout.** The window now closes with an X button in the top-right corner instead of an OK button, and the skip-detail popout no longer wraps its text awkwardly.",
+                },
+            },
+            {
+                heading = "Fixed",
+                bullets = {
+                    "**Transmog browser scaling on open.** The window now respects your saved window-scale setting from the moment it opens, instead of briefly rendering at 100% and then snapping to the correct size.",
+                    "**Transmog browser \"missing\" indicator.** Items you've collected the appearance for but don't own are now marked with a red X that matches the size of the green check, so the status indicators line up cleanly down the column.",
+                    "**Transmog browser bottom spacing.** The window's auto-sizing was leaving a sliver of empty space at the bottom; that gap is now reclaimed so the window fits its content.",
+                    "**Settings panel height on first open.** The settings window could open far too tall on the first login of a session, correcting itself only after being moved. It now sizes correctly the first time it opens.",
+                    "**Boss Progress checklist alignment.** The brackets next to each boss name (current, killed, upcoming) now line up consistently regardless of font size.",
+                },
+            },
+        },
+    },
+
     {
         version  = "1.11.0b",
         date     = "2026-05-26",
@@ -51,55 +84,6 @@ RR.WhatsNew = {
                 heading = "Fixed",
                 bullets = {
                     "**Vault of the Incarnates -- Eranog route on the map.** After landing from the dragon flight, the pink route lines could partially disappear or the end arrow could detach from the rest of the path. Eranog's approach has been redesigned with red destination circles at the dragon platform and at Volcanius, plus a clean arrow line up to Eranog.",
-                },
-            },
-        },
-    },
-
-    {
-        version  = "1.11.0",
-        date     = "2026-05-26",
-        sections = {
-            {
-                heading = "Added",
-                bullets = {
-                    "**Map markers and labels.** Points of interest on the world map can now carry a text label next to the icon -- useful for one-time interactive objects like teleport orbs, consoles, runes, and entrance arches that aren't obvious from a dot alone. Labels position around the icon to avoid colliding with map art, and can pulse gently while a click is pending, then switch to gray with a green check the moment the interaction completes. Red rings now highlight specific named map exits along a route. Star markers call out specific clickable objects. Visual cues like these have been added across several raids where the routing benefits from a more concrete pointer than a path line.",
-                    "**Zygor waypoint-arrow detection.** If Zygor is loaded but the waypoint arrow is disabled in your Zygor settings, the entrance legend below the raid list now shows a red \"Waypoint Arrow Disabled -- Click to Enable\" warning. Clicking the warning flips the Zygor setting on for you.",
-                    "**Suicide-jump shortcuts.** Several raids include ledge-jump shortcuts that skip a chunk of walking; travel notes now call these out where applicable.",
-                },
-            },
-            {
-                heading = "Changed",
-                bullets = {
-                    "**The travel-route navigation system has been rebuilt from the ground up.** Rolled out across all 17 supported raids. Map lines and travel directions follow you correctly when you backtrack to an earlier step's area instead of getting stuck on the latest step. Same-subZone cross-zone transitions advance cleanly without a transient flicker. Fewer \"Open the map and select a section...\" default-text flashes during zone transitions. Yell-triggered step advances now survive a mid-raid logout or reload -- both the advance memory and your step progress persist alongside the rest of your lockout, so reloading mid-step no longer rewinds your travel directions.",
-                    "**Special Loot, Achievements, and Skips brackets are now visually aligned.** The \"not collected / not done / not unlocked\" red X is now a proper texture matching the size of the green check, so the brackets line up cleanly instead of the X reading narrower than the check.",
-                    "**Per-difficulty kill-count pills now use the Boss Progress color palette.** Fully cleared difficulties (e.g. M 8/8) render in green, your active difficulty renders in yellow, and the rest render in gray -- matching the green-check / yellow-arrow / gray-pending grammar already used by the in-raid boss checklist below. A player sitting in a fully cleared difficulty sees green (complete trumps active).",
-                    "**Uldir achievement soloability ratings refreshed.** Edgelords (Zul) and Existential Crisis (Mythrax) both moved from \"kinda\" to \"yes\" based on recent solo-run reports -- Edgelords needs only that you avoid the central square, and Existential Crisis's \"no other player touches an Existence Fragment\" condition is satisfied for free when you're solo.",
-                    "**Solo strategy tips refreshed across several encounters.** Shorter, more direct, dropping mythic-only and class-specific caveats that weren't useful for solo runs.",
-                },
-            },
-            {
-                heading = "Fixed",
-                bullets = {
-                    "**Action buttons no longer occasionally appear with blank labels at game launch.** The Map / Tmog / Achieves / Skips / Settings buttons along the bottom of the panel previously used the addon's pixel font, applied with a direct font call that could fail on a cold startup if the font file wasn't fully cached yet -- leaving one of the buttons blank until a /reload. They now use the standard interface button font and render reliably on every launch.",
-                    "**Zygor flight buttons no longer silently do nothing.** When Zygor's waypoint arrow setting was disabled, the addon's entrance click-to-navigate buttons were calling Zygor's waypoint API but Zygor was silently dropping the call. The new detection (above) surfaces this state and offers a one-click fix.",
-                },
-            },
-        },
-    },
-
-    {
-        version  = "1.10.2",
-        date     = "2026-05-17",
-        sections = {
-            {
-                heading = "Added",
-                bullets = {
-                    "**WaypointUI is now a recognized navigation handoff target.** WaypointUI joins the existing list of supported providers (AzerothWaypoint, Zygor, Mapzeroth, TomTom, and Blizzard's native waypoint) for the raid-entrance click handoff. The entrance-legend below the raid list shows which components are active on your install.",
-                    "**The Skips window has been expanded with per-raid skip details.** Each row now has an [ i ] icon next to the raid name; click it to see exactly what unlocks the skip on that raid -- the quest name, the prerequisite kills, the teleporter or shortcut it opens up, and what difficulty levels the skip applies to.",
-                    "**\"What's New?\" footer link.** The version number in the bottom-right corner of the panel is now a clickable button that opens a window with recent release notes. A pulsing yellow [!] indicator next to the link draws attention until you've opened the window for the current version.",
-                    "**Launch mode setting.** Choose what RetroRuns does on login: open fully expanded, open in compact minimized mode, or stay hidden until you click the minimap icon. Setting lives in the Settings window. Default is minimized so the panel is reachable but not intrusive. Clicking \"Load\" on the in-raid prompt always opens the panel fully regardless of this setting -- you asked for the addon, you get the addon.",
-                    "**Body font options.** Three choices for the panel's body text: Friz Quadrata (the default; matches WoW's native UI text), 04B_03 (pixel font; matches the addon's title bar for full retro feel), and VT323 (a clean terminal-style font, retro feel with comfortable readability). Header chrome (title, action buttons, footer) stays consistent across all three. Setting lives in the Settings window.",
                 },
             },
         },

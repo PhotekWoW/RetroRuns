@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "1.11.0b"
+local VERSION    = "1.12.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -62,6 +62,10 @@ RetroRuns = {
         --   "vt323"    - VT323 terminal-style
         -- Frame headers + action buttons stay 04B_03 regardless.
         bodyFontStyle = "standard",
+        -- bossOrderMode: ordering of the Boss Progress list. Values:
+        --   "rr" - the route order this addon walks (default)
+        --   "ej" - the in-game Encounter Journal order
+        bossOrderMode = "rr",
     },
 }
 
@@ -1764,6 +1768,30 @@ function RR:PrintStatus()
     local lines = {}
     local function add(s) table.insert(lines, s) end
 
+    -- Live location block. Useful both inside a raid (cross-check
+    -- player coords against routing seg points) and outside one
+    -- (verify an entrance icon lands you at the saved coords during
+    -- new-raid bring-up). Printed before any raid-specific output.
+    local playerMapID = C_Map and C_Map.GetBestMapForUnit
+                        and C_Map.GetBestMapForUnit("player")
+    local px, py
+    if playerMapID and playerMapID > 0 and C_Map.GetPlayerMapPosition then
+        local pos = C_Map.GetPlayerMapPosition(playerMapID, "player")
+        if pos then px, py = pos:GetXY() end
+    end
+    local liveZone    = (GetZoneText    and GetZoneText())    or ""
+    local liveSubZone = (GetSubZoneText and GetSubZoneText()) or ""
+    if liveZone    == "" then liveZone    = "<empty>" end
+    if liveSubZone == "" then liveSubZone = "<empty>" end
+
+    if px and py then
+        add(("Live: mapID=%s  coords=%.1f, %.1f  zone=%q  subZone=%q"):format(
+            tostring(playerMapID or "?"), px * 100, py * 100, liveZone, liveSubZone))
+    else
+        add(("Live: mapID=%s  coords=(unavailable)  zone=%q  subZone=%q"):format(
+            tostring(playerMapID or "?"), liveZone, liveSubZone))
+    end
+
     if not self.currentRaid then
         add("Raid: (none loaded)")
         add("Open a supported raid to load state.")
@@ -1781,6 +1809,19 @@ function RR:PrintStatus()
     add(("Raid: %s%s"):format(
         raid.name,
         loaded and "" or "  (state not loaded -- key mismatch)"))
+
+    -- Entrance from data file. Printed verbatim so a bring-up step
+    -- can read this and confirm the saved entrance matches where the
+    -- player actually zones in. Coords stored in normalized 0-1 form
+    -- in raid.entrance; displayed here as percentages to match the
+    -- live coords line above for direct comparison.
+    if raid.entrance then
+        local e = raid.entrance
+        add(("Entrance (data): mapID=%s  coords=%.1f, %.1f  subZone=%q"):format(
+            tostring(e.mapID or "?"),
+            (e.x or 0) * 100, (e.y or 0) * 100,
+            e.subZone or ""))
+    end
 
     -- Instance IDs. Helpful when verifying that a new raid's skeleton
     -- has the right instanceID / journalInstanceID at first zone-in.
@@ -1818,8 +1859,6 @@ function RR:PrintStatus()
         return line
     end
 
-    local playerMapID = C_Map and C_Map.GetBestMapForUnit
-                        and C_Map.GetBestMapForUnit("player")
     if playerMapID then
         add(FormatMapLine("Player", playerMapID))
     end
@@ -1834,11 +1873,7 @@ function RR:PrintStatus()
     -- mapID. Flicker can drive UI re-renders that the kill-state path
     -- doesn't surface, so showing both here makes /rr status useful
     -- for sub-zone-driven debugging.
-    local zone    = (GetZoneText and GetZoneText())       or ""
-    local subZone = (GetSubZoneText and GetSubZoneText()) or ""
-    if zone == "" then zone = "<empty>" end
-    if subZone == "" then subZone = "<empty>" end
-    add(("Zone: %q  SubZone: %q"):format(zone, subZone))
+    add(("Zone: %q  SubZone: %q"):format(liveZone, liveSubZone))
 
     -- Step. activeStep is the routing-entry TABLE (set by ComputeNextStep
     -- from raid.routing). Pull the step index and title off it directly --
@@ -2177,6 +2212,24 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                         end
                     end
 
+                    -- Resolve the row's canonical appearanceID via
+                    -- GetItemInfo. Used by [E2] below to recognize the
+                    -- shared-appearance case (multiple items pointing
+                    -- at the same visual). Established for the first
+                    -- time during the Highmaul bring-up (2026-05-27):
+                    -- WoD-era loot routinely shares one appearanceID
+                    -- across 5+ items via per-difficulty modIDs and
+                    -- LFR-only shared pieces. The runtime
+                    -- appearance-collection check (the one the Tmog
+                    -- browser actually uses) treats all sources of a
+                    -- given appearance as interchangeable -- match that
+                    -- semantics here rather than requiring the
+                    -- bucket's source to "own" the row's itemID.
+                    local rowAppearanceID
+                    if C_TransmogCollection and C_TransmogCollection.GetItemInfo then
+                        rowAppearanceID = C_TransmogCollection.GetItemInfo(item.id)
+                    end
+
                     -- [E1] Fatal-nil per bucket.
                     for _, diffID in ipairs(DIFFS) do
                         local b = perBucket[diffID]
@@ -2193,12 +2246,29 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                     -- class items while the positional API still
                     -- works). Only flag when we got an apiItemID
                     -- and it's wrong.
+                    --
+                    -- Shared-appearance exception: if the source's
+                    -- visualID matches the row's canonical
+                    -- appearanceID, the source IS a valid source for
+                    -- this row's appearance even though the API says
+                    -- it "belongs to" a different itemID. This shape
+                    -- shows up routinely in WoD raids (one appearance
+                    -- spans several items via per-difficulty modIDs +
+                    -- LFR shared cloaks) and the runtime
+                    -- appearance-collection check considers all such
+                    -- sources interchangeable. Only flag when the
+                    -- itemID AND the visualID both diverge.
                     for _, diffID in ipairs(DIFFS) do
                         local b = perBucket[diffID]
                         if b and b.apiItemID and b.apiItemID ~= item.id then
-                            table.insert(findings, ("[ERR] %s src=%d: API itemID=%d, expected %d"):format(
-                                DIFF_NAME[diffID], b.src, b.apiItemID, item.id))
-                            T.item_mismatch = T.item_mismatch + 1
+                            local sharedAppearance =
+                                rowAppearanceID and b.visualID
+                                and b.visualID == rowAppearanceID
+                            if not sharedAppearance then
+                                table.insert(findings, ("[ERR] %s src=%d: API itemID=%d, expected %d"):format(
+                                    DIFF_NAME[diffID], b.src, b.apiItemID, item.id))
+                                T.item_mismatch = T.item_mismatch + 1
+                            end
                         end
                     end
 
@@ -2224,7 +2294,9 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                     -- review; most cases will be legit documented
                     -- exceptions but new occurrences deserve a look.
                     local srcCounts = {}  -- src -> count
+                    local visualSet = {}  -- visualID -> true (for same-visual detection)
                     local uniqueCount = 0
+                    local uniqueVisualCount = 0
                     local totalBuckets = 0
                     for _, diffID in ipairs(DIFFS) do
                         local b = perBucket[diffID]
@@ -2235,6 +2307,10 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                                 uniqueCount = uniqueCount + 1
                             end
                             srcCounts[b.src] = srcCounts[b.src] + 1
+                            if b.visualID and not visualSet[b.visualID] then
+                                visualSet[b.visualID] = true
+                                uniqueVisualCount = uniqueVisualCount + 1
+                            end
                         end
                     end
 
@@ -2248,9 +2324,36 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                         -- as a single bracketed indicator.
                         shapeTag = "binary"
                         T.shape_binary = (T.shape_binary or 0) + 1
+                    elseif uniqueVisualCount == 1 and totalBuckets >= 2 then
+                        -- Binary-by-visual: different sourceIDs across
+                        -- buckets, but they all resolve to the same
+                        -- visualID (Blackrock Foundry's "The Black Hand"
+                        -- pattern: sourceIDs 62893/62895 both -> visual
+                        -- 23383). From the player's perspective this is
+                        -- a single appearance; from the API's it's
+                        -- multiple acquisition paths. The UI's
+                        -- CollectionStateForSource handles the
+                        -- equivalence correctly (any-known check), so
+                        -- we recognize it here too instead of flagging
+                        -- a spurious "partial source duplication" WRN.
+                        shapeTag = "binary"
+                        T.shape_binary = (T.shape_binary or 0) + 1
                     elseif uniqueCount == totalBuckets and totalBuckets >= 2 then
                         -- Full per-difficulty shape.
                         shapeTag = "perdiff"
+                        T.shape_perdiff = (T.shape_perdiff or 0) + 1
+                    elseif raid.splitLootTables and totalBuckets == 1 and perBucket[17] then
+                        -- WoD LFR pool: only [17] populated. Renders as
+                        -- a single "[ LFR ]" bracket.
+                        shapeTag = "lfr-pool"
+                        T.shape_perdiff = (T.shape_perdiff or 0) + 1
+                    elseif raid.splitLootTables and totalBuckets == 3
+                           and perBucket[14] and perBucket[15] and perBucket[16]
+                           and uniqueCount == 3 then
+                        -- WoD N/H/M pool: [14],[15],[16] populated with
+                        -- distinct per-difficulty sources. Renders as
+                        -- "[ N | H | M ]".
+                        shapeTag = "nhm-pool"
                         T.shape_perdiff = (T.shape_perdiff or 0) + 1
                     else
                         -- Partial: 2 or 3 unique sources. Suspicious.
@@ -2902,6 +3005,14 @@ SlashCmdList["RETRORUNS"] = function(input)
 
     elseif cmd == "tmog" then
         RR.UI.ToggleTransmogBrowser()
+
+    elseif cmd == "tmogsize" then
+        -- Diagnostic: dump the tmog popup's sizing geometry. Tmog window
+        -- must be open first; select the boss to measure before running.
+        -- Used for "why is there blank space at the bottom of the tmog
+        -- popup?" / "why does the legend clip past the frame bottom?"
+        -- investigations.
+        RR.UI.DumpTmogSize()
 
     elseif cmd == "skips" then
         -- Open the raid-skip status window. Read-only display of which

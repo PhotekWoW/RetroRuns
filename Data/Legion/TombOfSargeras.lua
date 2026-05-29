@@ -697,11 +697,11 @@ RetroRuns_Data[1676] = {
                     destination     = "Chamber of the Avatar",
                     noMarker        = true,
                     mapLabel        = "Click Teleporter",
-                    mapLabelPos     = "above",
+                    mapLabelPos     = "middle",
                     completionCheck = true,
                     note        = "After killing ^Maiden of Vigilance^, click the nearby ^Teleportation Pad^ to be taken to ^Chamber of the Avatar^. Note: the pad will likely be under the boss corpse until she despawns, but you can still click it.",
                     points      = {
-                        { 0.501, 0.297 },
+                        { 0.501, 0.233 },
                     },
                 },
                 {

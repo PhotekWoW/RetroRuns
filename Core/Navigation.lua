@@ -219,24 +219,105 @@ function RR:GetProgressText()
     return ("%d/%d"):format(killed, total)
 end
 
+-- Returns the raid's bosses in the order the navigation picker directs
+-- the player to kill them. This is a pure simulation of the same
+-- selection rule ComputeNextStep uses (GetAvailableSteps -> take the
+-- first): repeatedly pick the step whose boss prerequisites (`requires`)
+-- are satisfied and whose `priority or step` key is lowest, "kill" its
+-- boss locally, and continue. It is the single source of truth for route
+-- order, shared by the Boss Progress list so the display can never drift
+-- from navigation. Mutates no engine state.
+--
+-- The tie-break (step, then array index) only matters when two ready
+-- steps share a `priority or step` value; the live picker's sort is
+-- unstable in that case, so making it deterministic here is strictly an
+-- improvement, not a divergence.
+function RR:GetRouteBossOrder()
+    local order = {}
+    if not self.currentRaid or not self.currentRaid.routing then return order end
+    local steps = self.currentRaid.routing
+    local placed = {}   -- bossIndex -> true once emitted (simulated kill)
+
+    local function reqMet(step)
+        if not step.requires then return true end
+        for _, req in ipairs(step.requires) do
+            if not placed[req] then return false end
+        end
+        return true
+    end
+
+    for _ = 1, #steps do
+        local best, bestKey, bestStep, bestIdx
+        for i, step in ipairs(steps) do
+            if not placed[step.bossIndex] and reqMet(step) then
+                local key = step.priority or step.step or 999
+                local st  = step.step or 999
+                if not best
+                    or key < bestKey
+                    or (key == bestKey and st < bestStep)
+                    or (key == bestKey and st == bestStep and i < bestIdx) then
+                    best, bestKey, bestStep, bestIdx = step, key, st, i
+                end
+            end
+        end
+        if not best then break end   -- unsatisfiable requires; stop cleanly
+        local boss = self:GetBossByIndex(best.bossIndex)
+        if boss then table.insert(order, boss) end
+        placed[best.bossIndex] = true
+    end
+    return order
+end
+
 function RR:GetProgressLines()
     local lines = {}
     if not self.currentRaid then return lines end
-    -- Three states: killed (green check), active (yellow >), pending
-    -- (gray). All non-active bosses look the same -- the player's only
-    -- forward marker is the yellow active step.
-    local KILLED_GLYPH = "|TInterface\\RaidFrame\\ReadyCheck-Ready:12:12|t"
-    for _, boss in ipairs(self.currentRaid.bosses) do
-        local marker, color
+    -- Three states, each framing an identical 12px marker slot so the
+    -- boss names left-align across all rows regardless of font size:
+    --   killed  -- green check texture
+    --   active  -- yellow arrow texture
+    --   pending -- transparent spacer (empty slot of the same width)
+    -- All three are bracket + 12px element + bracket. The previous
+    -- version mixed a 12px texture (killed) with space-padded text
+    -- (active "[ > ]", pending "[    ]"); spaces and a fixed-px texture
+    -- never share a width, and the gap drifted further as the user's
+    -- font-size slider scaled the spaces but not the texture -- so the
+    -- brackets never aligned. Uniform 12px textures remove the drift.
+    local KILLED_GLYPH  = "|TInterface\\RaidFrame\\ReadyCheck-Ready:12:12|t"
+    -- Yellow forward chevron. Vertex-color args tint the white source
+    -- texture to the active-yellow used elsewhere in the panel.
+    local ACTIVE_GLYPH  = "|TInterface\\ChatFrame\\ChatFrameExpandArrow:12:12:0:0:32:32:0:32:0:32:255:255:0|t"
+    -- Transparent 1x1 stretched to 12px: reserves the slot width with no
+    -- visible mark, so pending rows align with killed/active rows.
+    local PENDING_GLYPH = "|TInterface\\Common\\Spacer:12:12|t"
+
+    -- Two orderings. "rr" lists bosses in the order navigation directs
+    -- the player to kill them (GetRouteBossOrder, which simulates the
+    -- picker) so the list fills top-down as bosses fall. "ej" keeps the
+    -- in-game Encounter Journal order. Default is "rr".
+    local order
+    if self:GetSetting("bossOrderMode", "rr") == "ej" or not self.currentRaid.routing then
+        order = self.currentRaid.bosses
+    else
+        order = self:GetRouteBossOrder()
+    end
+
+    for _, boss in ipairs(order) do
         if self.state.bossesKilled[boss.index] then
-            marker, color = "[" .. KILLED_GLYPH .. "]", "ff00ff00"
+            -- Killed: gray brackets framing the green check (native green,
+            -- unaffected by color codes). Name green.
+            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff00ff00%s|r"):format(
+                KILLED_GLYPH, boss.name))
         elseif self.state.activeStep
             and self.state.activeStep.bossIndex == boss.index then
-            marker, color = "[>]", "ffffff00"
+            -- Active: gray brackets framing the yellow arrow. Name yellow.
+            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cffffff00%s|r"):format(
+                ACTIVE_GLYPH, boss.name))
         else
-            marker, color = "[ ]", "ff9d9d9d"
+            -- Pending: gray brackets framing the transparent spacer. Name
+            -- gray.
+            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff9d9d9d%s|r"):format(
+                PENDING_GLYPH, boss.name))
         end
-        table.insert(lines, ("|c%s%s %s|r"):format(color, marker, boss.name))
     end
     return lines
 end

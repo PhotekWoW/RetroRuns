@@ -613,6 +613,10 @@ end
 -- Public API
 -------------------------------------------------------------------------------
 
+function RR:IsRecording()
+    return self.recorder and self.recorder.active == true
+end
+
 function RR:StartRecording()
     local rec = self.recorder
     if rec.active then self:Print("Recorder is already running.") ; return end
@@ -963,11 +967,12 @@ function RR:BuildRecordingExport()
         end
 
         table.insert(out, "        {")
-        table.insert(out, ("            mapID = %d,"):format(s.mapID or 0))
-        table.insert(out, ("            kind  = %q,"):format(kind))
         if s.subZone and s.subZone ~= "" then
-            table.insert(out, ("            subZone = %q,"):format(s.subZone))
+            table.insert(out, ("            when    = { mapID = %d, subZone = %q },"):format(s.mapID or 0, s.subZone))
+        else
+            table.insert(out, ("            when    = { mapID = %d },"):format(s.mapID or 0))
         end
+        table.insert(out, ("            kind    = %q,"):format(kind))
         if s.gateBySubZone then
             table.insert(out, "            gateBySubZone = true,")
         end
@@ -975,9 +980,9 @@ function RR:BuildRecordingExport()
             table.insert(out, ("            destination = %q,"):format(s.destination))
         end
         if s.note then
-            table.insert(out, ("            note = %q,"):format(s.note))
+            table.insert(out, ("            note    = %q,"):format(s.note))
         end
-        table.insert(out, "            points = {")
+        table.insert(out, "            points  = {")
         for _, p in ipairs(s.points) do
             table.insert(out, ("                { %.3f, %.3f },"):format(p[1], p[2]))
         end

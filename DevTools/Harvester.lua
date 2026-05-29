@@ -548,6 +548,49 @@ function RR:HarvestDiagnose()
         add("   the raid, or zone into it, then retry.)")
     end
 
+    -- === Saved-instance boss names ===
+    -- GetSavedInstanceEncounterInfo returns the names Blizzard uses
+    -- internally in the lockout. These can differ from the EJ display
+    -- name (e.g. Tectus -> "Tectus, The Living Mountain") and they're
+    -- the names SyncFromSavedRaidInfo matches against. If a boss's
+    -- saved-instance name doesn't match its `name` or any alias,
+    -- post-reload state will be wrong. Add the mismatched name to
+    -- `aliases` in the raid data file.
+    add("")
+    add("=== Saved-instance boss names (current lockout) ===")
+    if RR.currentRaid then
+        local targetID = RR.currentRaid.instanceID
+        local numSaved = GetNumSavedInstances and GetNumSavedInstances() or 0
+        local matched = false
+        for i = 1, numSaved do
+            local _, _, _, _, _, _, _, isRaid, _, _, numEncounters, _, _, instanceID
+                = GetSavedInstanceInfo(i)
+            if isRaid and instanceID == targetID then
+                matched = true
+                for e = 1, numEncounters do
+                    local bossName, _, isKilled = GetSavedInstanceEncounterInfo(i, e)
+                    local resolved = bossName and RR:ResolveBoss(bossName) or nil
+                    local matchTag
+                    if not bossName then
+                        matchTag = "(nil name)"
+                    elseif resolved then
+                        matchTag = ("MATCH -> [%d] %s"):format(resolved.index, resolved.name)
+                    else
+                        matchTag = "NO MATCH -- add as alias"
+                    end
+                    add(("  [%d] %s  killed=%s  %s"):format(
+                        e, tostring(bossName), tostring(isKilled), matchTag))
+                end
+            end
+        end
+        if not matched then
+            add("  (no current lockout for this raid -- enter the raid")
+            add("   and kill at least one boss, then retry.)")
+        end
+    else
+        add("  (no raid loaded)")
+    end
+
     local body = table.concat(out, "\n")
     self:SetSetting("lastEjDump", body)
 
@@ -1675,6 +1718,20 @@ local function EnrichWithPerDifficultySources(journalInstanceID, journalEncounte
             -- `sources = { [17]=..., [14]=..., [15]=..., [16]=... }`
             -- or has neither (truly no transmog data, rare).
             for _, it in ipairs(items) do
+                -- LFR-only detection: if the LFR difficulty pass was the
+                -- ONLY one to natively return a source for this item, it's
+                -- a WoD-era LFR-only item (unique appearances that drop
+                -- only at Raid Finder difficulty, e.g. Highmaul's Sootfur
+                -- Garb set). Flagged here so the UI can group them under
+                -- a sub-header cueing the player to queue LFR specifically.
+                -- Evaluated BEFORE the case-(b) fill step, which would
+                -- destroy the signal by populating empty buckets.
+                local nd = it._nativeDiffs
+                if nd and nd[17] and not (nd[14] or nd[15] or nd[16]) then
+                    it.lfrOnly = true
+                end
+                it._nativeDiffs = nil
+
                 if it.sources then
                     -- Case (a) or (b): fill any empty buckets.
                     local fill
@@ -1748,6 +1805,47 @@ local function EnrichWithPerDifficultySources(journalInstanceID, journalEncounte
                     local info = C_EncounterJournal.GetLootInfoByIndex(i)
                     if info and info.itemID and info.encounterID == targetID then
                         local item = itemsByID[info.itemID]
+
+                        -- Discovery-at-enrichment: WoD-era raids have LFR-only
+                        -- items with unique appearances (e.g. Highmaul's
+                        -- Sootfur Garb set) that only the LFR difficulty pass
+                        -- of the EJ exposes. The primary harvest at
+                        -- HARVEST_DIFFICULTY (Normal) never sees them; the
+                        -- enrichment loop is the only path that walks LFR.
+                        -- If we encounter a new itemID here, construct an
+                        -- item entry on the fly so it joins the regular
+                        -- loot table and gets its sources populated like
+                        -- any other item. The remaining 3 difficulty passes
+                        -- in this same loop will either find a sourceID
+                        -- for it (multi-difficulty item that the primary
+                        -- pass somehow missed) or leave the bucket empty
+                        -- (LFR-only or other-diff-only item, normalized
+                        -- to a binary clone by case (c) below).
+                        if not item then
+                            local itemName, _, _, _, _, _, _, _, loc =
+                                GetItemInfo(info.itemID)
+                            local equipLocStr = loc or ""
+                            -- Skip non-equippable items here; the regular
+                            -- harvest's special-loot detection already
+                            -- handled mount/pet/toy at primary-difficulty.
+                            -- Special-loot items that ONLY drop on
+                            -- non-primary difficulties would need a
+                            -- separate audit; rare enough not to chase
+                            -- proactively (the v1.10.x harvest captured
+                            -- Mythic-only mounts via a dedicated late-pass).
+                            if not EXCLUDED_SLOTS[equipLocStr] then
+                                item = {
+                                    id      = info.itemID,
+                                    name    = info.name or itemName
+                                              or ("Unknown_%d"):format(info.itemID),
+                                    slot    = SLOT_LABEL[equipLocStr] or equipLocStr,
+                                    sources = {},
+                                }
+                                itemsByID[info.itemID] = item
+                                table.insert(items, item)
+                            end
+                        end
+
                         if item then
                             -- Resolve the source for this item AT THIS DIFFICULTY.
                             --
@@ -1770,6 +1868,15 @@ local function EnrichWithPerDifficultySources(journalInstanceID, journalEncounte
                             if srcID then
                                 item.sources = item.sources or {}
                                 item.sources[diffID] = srcID
+                                -- Track which difficulties NATIVELY returned
+                                -- a source for this item (vs. which ones get
+                                -- filled by the case-(b) clone step below).
+                                -- Used after all passes to detect LFR-only
+                                -- items (WoD-era Sootfur Garb pattern: the
+                                -- LFR pass is the only one returning a
+                                -- source).
+                                item._nativeDiffs = item._nativeDiffs or {}
+                                item._nativeDiffs[diffID] = true
                             end
                         end
                     end
@@ -1802,6 +1909,7 @@ local function FormatItemLine(item, classesField)
     local nameSafe  = item.name:gsub('"', '\\"')
     local srcStr    = FormatSources(item.sources)
     local classes   = classesField and (", classes = { " .. classesField .. " }") or ""
+    local lfrFlag   = item.lfrOnly and ", lfrOnly = true" or ""
     -- Trailing warning comment when this item's 4 per-difficulty sources
     -- all collapsed to the same sourceID after enrichment. Integration
     -- should verify against ATT / Wowhead before shipping.
@@ -1809,14 +1917,14 @@ local function FormatItemLine(item, classesField)
                       and "  -- COLLAPSED: verify per-difficulty sources" or ""
 
     if srcStr then
-        return ("    { id=%-7d, slot=\"%s\", name=\"%s\", sources=%s%s },%s"):format(
-            item.id, item.slot, nameSafe, srcStr, classes, suspect)
+        return ("    { id=%-7d, slot=\"%s\", name=\"%s\", sources=%s%s%s },%s"):format(
+            item.id, item.slot, nameSafe, srcStr, classes, lfrFlag, suspect)
     elseif item.singleAppearanceSource then
-        return ("    { id=%-7d, slot=\"%s\", name=\"%s\", singleAppearanceSource=%d%s },%s"):format(
-            item.id, item.slot, nameSafe, item.singleAppearanceSource, classes, suspect)
+        return ("    { id=%-7d, slot=\"%s\", name=\"%s\", singleAppearanceSource=%d%s%s },%s"):format(
+            item.id, item.slot, nameSafe, item.singleAppearanceSource, classes, lfrFlag, suspect)
     else
-        return ("    { id=%-7d, slot=\"%s\", name=\"%s\"%s },%s"):format(
-            item.id, item.slot, nameSafe, classes, suspect)
+        return ("    { id=%-7d, slot=\"%s\", name=\"%s\"%s%s },%s"):format(
+            item.id, item.slot, nameSafe, classes, lfrFlag, suspect)
     end
 end
 
@@ -1949,15 +2057,19 @@ local function BuildSetDescriptionMap(allSets, labelSet)
         end
     end
 
-    -- Step 2: collect unique descriptions from the actual sets in scope, find
-    -- the one that wasn't matched. With 4 difficulties and 3 already mapped,
-    -- exactly one description should remain unmatched -- that's LFR.
+    -- Step 2: walk the actual sets in scope and bucket their descriptions.
+    -- Count in-scope sets too -- distinguishes "raid has no LFR variant"
+    -- (in-scope sets exist, all descriptions match Step 1) from "cache
+    -- cold / no sets in scope yet" (no descriptions to check at all).
     local unmatchedDescs = {}
+    local inScopeSets    = 0
     for _, setInfo in ipairs(allSets or {}) do
         if setInfo.label and labelSet and labelSet[setInfo.label]
-           and setInfo.description and setInfo.description ~= ""
-           and not matched[setInfo.description] then
-            unmatchedDescs[setInfo.description] = true
+           and setInfo.description and setInfo.description ~= "" then
+            inScopeSets = inScopeSets + 1
+            if not matched[setInfo.description] then
+                unmatchedDescs[setInfo.description] = true
+            end
         end
     end
 
@@ -1970,14 +2082,22 @@ local function BuildSetDescriptionMap(allSets, labelSet)
         -- Exactly one leftover description: must be LFR.
         map[unmatchedList[1]] = 17
     elseif #unmatchedList == 0 then
-        -- Either GetDifficultyInfo's three names cover all difficulties in
-        -- scope (e.g. raid has no LFR variant -- not currently expected for
-        -- post-MoP raids), or no sets in scope have descriptions yet.
-        -- Either way, refuse to proceed -- if we miss the LFR description
-        -- and the raid actually has LFR sets, every LFR tier row gets
-        -- silently dropped.
+        -- No leftover descriptions. Two interpretations:
+        --   a) Raid has no LFR variant (e.g. WoD T17 BRF -- C_TransmogSets
+        --      only carries N/H/M per class). If we have in-scope sets and
+        --      Step 1 mapped all three, that's complete coverage; proceed.
+        --   b) Cache cold: no sets in scope yet, so we have nothing to
+        --      validate against. Refuse.
+        local mapN = 0
+        for _ in pairs(map) do mapN = mapN + 1 end
+        if inScopeSets > 0 and mapN == 3 then
+            -- All in-scope descriptions matched N/H/M. No LFR for this raid.
+            SET_DESCRIPTION_TO_DIFFICULTY = map
+            return true
+        end
         SET_DESCRIPTION_TO_DIFFICULTY = map
-        return false, "no leftover setInfo.description strings to identify as LFR"
+        return false, ("no leftover description strings (inScopeSets=%d, mapEntries=%d) -- cache may be cold"):format(
+            inScopeSets, mapN)
     else
         -- Multiple leftover descriptions: GetDifficultyInfo failed for one
         -- or more of Normal/Heroic/Mythic too. We can't tell which leftover
@@ -1987,12 +2107,12 @@ local function BuildSetDescriptionMap(allSets, labelSet)
             table.concat(unmatchedList, ", "))
     end
 
-    -- Step 3: sanity check.
+    -- Step 3: sanity check. Accept 3 (no-LFR raid) or 4 (full LFR raid).
     SET_DESCRIPTION_TO_DIFFICULTY = map
     local n = 0
     for _ in pairs(map) do n = n + 1 end
-    if n ~= 4 then
-        return false, ("expected 4 entries, got %d"):format(n)
+    if n ~= 3 and n ~= 4 then
+        return false, ("expected 3 or 4 entries, got %d"):format(n)
     end
     return true
 end
@@ -2090,9 +2210,70 @@ local function ParseItemClassRestriction(itemID)
 end
 
 -- Forward-declared; body below.
+-- BuildEJItemBossMap: returns { itemID -> bossIndex } via an EJ walk of
+-- the raid's encounters. Token-less fallback for tier boss attribution.
+--
+-- Background: CollectTierSets_Build's primary attribution path is
+-- token-based -- it parses each entry in `tierSets.tokenSources` to map
+-- (group, slot) -> bossIndex. Pre-Legion raids that drop tier directly
+-- (no tokens) have empty `tokenSources`, so every tier row ends up in
+-- bossIndex 0 ("no attribution") and gets emitted as a warning instead
+-- of being routed to a boss. This map provides the alternate path: look
+-- up each tier row's itemID and use the bossIndex the EJ reports for
+-- that drop.
+--
+-- Async: chains one WaitForEJLootSettled per encounter (the EJ delivers
+-- loot via EJ_LOOT_DATA_RECIEVED bursts, not synchronously), then calls
+-- `onDone(map)` when every boss has been walked.
+local function BuildEJItemBossMap(journalInstanceID, bosses, onDone)
+    local map = {}
+    if not journalInstanceID or not bosses or #bosses == 0 then
+        onDone(map); return
+    end
+    if not EJ_SelectInstance or not EJ_SelectEncounter
+       or not C_EncounterJournal or not C_EncounterJournal.GetLootInfoByIndex then
+        onDone(map); return
+    end
+
+    EJ_SelectInstance(journalInstanceID)
+
+    local idx = 0
+    local function ProcessNext()
+        idx = idx + 1
+        if idx > #bosses then
+            onDone(map); return
+        end
+        local boss = bosses[idx]
+        if not boss or not boss.journalEncounterID then
+            ProcessNext(); return
+        end
+        local jeid = boss.journalEncounterID
+        pcall(EJ_SelectEncounter, jeid)
+        RR:WaitForEJLootSettled(nil, nil, function(count)
+            for i = 1, count do
+                local info = C_EncounterJournal.GetLootInfoByIndex(i)
+                if info and info.itemID and info.encounterID == jeid then
+                    map[info.itemID] = idx
+                end
+            end
+            ProcessNext()
+        end)
+    end
+
+    ProcessNext()
+end
+
 local CollectTierSets_Build
 
-local function CollectTierSets(tierSets, onDone)
+-- CollectTierSets(tierSets, extras, onDone)
+--
+-- extras (optional): { journalInstanceID = N, bosses = { ... } }. When the
+--   raid has no `tokenSources` (e.g. WoD T17 BRF -- direct-drop tier),
+--   the token-based attribution path in CollectTierSets_Build produces
+--   bossIndex 0 for every row. Supplying extras enables a pre-pass EJ
+--   walk that builds { itemID -> bossIndex }; the build body uses that
+--   as a fallback attribution source when the token path comes up empty.
+local function CollectTierSets(tierSets, extras, onDone)
     if not tierSets or not C_TransmogSets then
         if onDone then onDone({}) end
         return
@@ -2151,16 +2332,38 @@ local function CollectTierSets(tierSets, onDone)
         GetItemInfo(tokenID)
     end
 
-    C_Timer.After(1.5, function()
-        local out = CollectTierSets_Build(tierSets)
-        if onDone then onDone(out) end
-    end)
+    -- Token-less raids need the EJ pre-pass to attribute rows to bosses.
+    -- When tokens are present, attribution is fully token-based and the
+    -- pre-pass would just be wasted EJ walks.
+    local hasTokens     = next(tokenSources) ~= nil
+    local needsFallback = (not hasTokens) and extras
+                          and extras.journalInstanceID and extras.bosses
+
+    local function FinishWithMap(ejItemToBoss)
+        C_Timer.After(1.5, function()
+            local out = CollectTierSets_Build(tierSets, ejItemToBoss)
+            if onDone then onDone(out) end
+        end)
+    end
+
+    if needsFallback then
+        BuildEJItemBossMap(extras.journalInstanceID, extras.bosses, function(m)
+            FinishWithMap(m)
+        end)
+    else
+        FinishWithMap(nil)
+    end
 end
 
 -- Synchronous row-building body. Extracted from CollectTierSets so the async
 -- wrapper above can await cache warming before invoking it. Same return shape
 -- as the original CollectTierSets: { [bossIndex] = { item, ... }, ... }.
-function CollectTierSets_Build(tierSets)
+--
+-- ejItemToBoss (optional): { itemID -> bossIndex } map built by
+-- BuildEJItemBossMap. Used as a fallback when token-based attribution
+-- produces bossIndex 0 (i.e. the raid has no `tokenSources` entries or
+-- coverage gaps in them). When nil, attribution is token-only.
+function CollectTierSets_Build(tierSets, ejItemToBoss)
     local result = {}
     if not tierSets or not C_TransmogSets then return result end
 
@@ -2362,6 +2565,20 @@ function CollectTierSets_Build(tierSets)
             local group  = classToGroup[row.classID]
             local bossID = group and groupSlotToBoss[group .. ":" .. row.slot] or 0
 
+            -- Fallback: when token-based attribution didn't resolve a boss
+            -- (raid has no tokenSources, or its coverage missed this row's
+            -- class+slot), try the EJ itemID -> bossIndex map. We walk all
+            -- difficulty buckets because any of them is a valid drop ID.
+            if bossID == 0 and ejItemToBoss then
+                for _, diffID in ipairs(DISPLAY_PREF) do
+                    local itemID = row.itemIDs[diffID]
+                    if itemID and ejItemToBoss[itemID] then
+                        bossID = ejItemToBoss[itemID]
+                        break
+                    end
+                end
+            end
+
             local item = {
                 id       = displayID,
                 name     = displayName or ("Unknown_%d"):format(displayID),
@@ -2475,9 +2692,18 @@ function RR:HarvestAllBosses(bossFilter, opts)
     -- Collect tier items up-front (they're indexed by boss for later lookup).
     -- CollectTierSets is async (it warms the GetItemInfo cache before reading
     -- names), so the rest of the setup runs inside the callback.
+    --
+    -- For token-less tier raids (e.g. WoD T17 BRF -- direct-drop tier with
+    -- no tokens), the `extras` table lets CollectTierSets do a pre-pass EJ
+    -- walk to build itemID -> bossIndex, used as a fallback when
+    -- token-based attribution comes up empty. Tokens-only raids ignore it.
     self:Print("Warming tier-item cache (~1.5s)...")
     local tierCfg = opts.tierCfgOverride or RR.currentRaid.tierSets
-    CollectTierSets(tierCfg, function(tierByBoss)
+    local tierExtras = {
+        journalInstanceID = journalInstanceID,
+        bosses            = bosses,
+    }
+    CollectTierSets(tierCfg, tierExtras, function(tierByBoss)
     local tierConfigured = tierCfg
                        and tierCfg.labels
                        and #tierCfg.labels > 0
@@ -2566,6 +2792,47 @@ function RR:HarvestAllBosses(bossFilter, opts)
             EnrichWithPerDifficultySources(journalInstanceID, journalID, regularItems,
             function()
                 local tierItems = tierByBoss[boss.index] or {}
+
+                -- Merge regular + tier captures. Both paths can produce a
+                -- row for the same itemID, with different shapes:
+                --   - Regular EJ scrape: full 4-difficulty sources (incl.
+                --     LFR), no class restriction.
+                --   - Tier scrape: 3-difficulty sources (N/H/M only --
+                --     C_TransmogSets has no LFR variant for legacy tier),
+                --     plus `classes = { N }`.
+                -- This overlap only happens for token-less tier (WoD T17 et
+                -- al.) where the EJ exposes per-class pieces directly. For
+                -- token-based tier (Legion+), the EJ exposes the token and
+                -- the class pieces only come through the tier scrape; the
+                -- overlap set is empty.
+                --
+                -- We want one row per itemID, with the regular row's full
+                -- 4-difficulty sources AND the tier row's classes field.
+                -- For each tier item with a matching regular item, copy the
+                -- regular's LFR source ([17]) into the tier item if absent,
+                -- and mark the regular item to be dropped from the output.
+                local tierByID = {}
+                for _, ti in ipairs(tierItems) do
+                    if ti.id then tierByID[ti.id] = ti end
+                end
+                local skipRegular = {}
+                for ri, item in ipairs(regularItems) do
+                    local ti = tierByID[item.id]
+                    if ti then
+                        if item.sources and item.sources[17] and ti.sources
+                           and not ti.sources[17] then
+                            ti.sources[17] = item.sources[17]
+                        end
+                        skipRegular[ri] = true
+                    end
+                end
+                local mergedRegular = {}
+                for ri, item in ipairs(regularItems) do
+                    if not skipRegular[ri] then
+                        table.insert(mergedRegular, item)
+                    end
+                end
+                regularItems = mergedRegular
 
                 -- Count how many items still lack any per-difficulty sources
                 -- (true single-source items, or items the EJ couldn't resolve).

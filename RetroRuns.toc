@@ -2,7 +2,7 @@
 ## Title: RetroRuns
 ## Notes: Solo legacy raid navigator — routing, tips, and achievement tracking
 ## Author: Photek
-## Version: 1.11.0b
+## Version: 1.12.0
 ## X-License: MIT
 ## SavedVariables: RetroRunsDB, RetroRunsDebug
 ## IconTexture: Interface\AddOns\RetroRuns\Media\MinimapIcon
@@ -26,9 +26,9 @@ Data\Legion\TrialOfValor.lua
 Data\Legion\Nighthold.lua
 Data\Legion\TombOfSargeras.lua
 Data\Legion\AntorusTheBurningThrone.lua
-# Data\WarlordsOfDraenor\HellfireCitadel.lua
-# Data\WarlordsOfDraenor\BlackrockFoundry.lua
-# Data\WarlordsOfDraenor\Highmaul.lua
+Data\WarlordsOfDraenor\HellfireCitadel.lua
+Data\WarlordsOfDraenor\BlackrockFoundry.lua
+Data\WarlordsOfDraenor\Highmaul.lua
 
 # ── Core ──────────────────────────────────────────────────────────────────────
 Core\Core.lua

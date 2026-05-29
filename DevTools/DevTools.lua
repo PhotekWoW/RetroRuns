@@ -10,6 +10,7 @@
 --           in one copy window)
 --   * Bring-up:  Tmog Verify, Raid Capture
 --   * Recorder:  DialogDebug (toggles on/off, label reflects state)
+--                Record (toggles on/off, label reflects state)
 --   * Utility:   Reload
 --
 -- Toggle with /rr devtools. Position persists via RetroRunsDB.devtools.
@@ -23,7 +24,7 @@ local tickerHandle     -- C_Timer.NewTicker handle while panel is shown
 local RefreshReadout   -- forward declaration; defined below GetOrCreateDevToolsFrame
 
 local PANEL_W = 280
-local PANEL_H = 260
+local PANEL_H = 288
 
 -- Build the frame on first toggle. Subsequent toggles just show/hide.
 local function GetOrCreateDevToolsFrame()
@@ -138,9 +139,25 @@ local function GetOrCreateDevToolsFrame()
         RefreshReadout()
     end)
 
-    -- Row 4: full-width Reload. Most-clicked action in any workflow --
+    -- Row 4: Record toggle. Same shape as the DialogDebug row above --
+    -- single full-width button whose label reflects current state.
+    -- Toggles the recorder's start/stop without needing to type
+    -- `/rr record start` and `/rr record stop` separately; the action
+    -- buttons that produce segments (note, teleport, break) stay as
+    -- slash commands since they're invoked mid-traversal, not from a
+    -- panel click.
+    f.recordButton = MakeButton("Record Start", L_X, -204, FULL_W, function()
+        if RR:IsRecording() then
+            RR:StopRecording()
+        else
+            RR:StartRecording()
+        end
+        RefreshReadout()
+    end)
+
+    -- Row 5: full-width Reload. Most-clicked action in any workflow --
     -- promoted to its own row to make it the easiest target.
-    MakeButton("Reload", L_X, -210, FULL_W, function()
+    MakeButton("Reload", L_X, -238, FULL_W, function()
         ReloadUI()
     end)
 
@@ -179,6 +196,12 @@ RefreshReadout = function()
     if devtoolsFrame and devtoolsFrame.dialogButton then
         local active = RR:IsDialogDebugActive()
         devtoolsFrame.dialogButton:SetText(active and "DialogDebug Stop" or "DialogDebug Start")
+    end
+
+    -- Record toggle button: same pattern.
+    if devtoolsFrame and devtoolsFrame.recordButton then
+        local active = RR:IsRecording()
+        devtoolsFrame.recordButton:SetText(active and "Record Stop" or "Record Start")
     end
 end
 
