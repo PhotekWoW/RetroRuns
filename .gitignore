@@ -15,7 +15,6 @@ Thumbs.db
 # Local dev scratch
 /tmp/
 scratch/
-
-# Internal-only docs — never commit
-HANDOFF.md
-dev-docs/
+*.local
+*.local.*
+_*.md

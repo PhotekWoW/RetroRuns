@@ -1,11 +1,9 @@
 package-as: RetroRuns
 
 ignore:
-    - HANDOFF.md
     - .gitignore
     - .gitattributes
     - .github
-    - _scrub_notes.md
 
 license-output: LICENSE
 
