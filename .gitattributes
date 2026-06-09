@@ -1,6 +1,6 @@
 # Treat all text files with LF line endings in the repo; convert on
 # checkout to the platform default. Prevents whole-file diffs caused
-# by Windows / macOS / Linux line-ending mismatch between contributors.
+# by Windows / macOS / Linux line-ending mismatch.
 * text=auto eol=lf
 
 # Binary files: never touch

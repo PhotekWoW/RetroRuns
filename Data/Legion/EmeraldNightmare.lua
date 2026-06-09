@@ -44,10 +44,10 @@ RetroRuns_Data[1520] = {
     -- gearing path here was the artifact-relic system, not tier sets.
     -- The raid's per-class loot table contains no `classes = { N }`
     -- rows because there are no class-restricted tier pieces to gate
-    -- on. Do not add labels here without a corresponding loot harvest;
-    -- the data shape matches Trial of Valor (same relic-only Legion
-    -- cohort) and contrasts with Nighthold/Tomb/Antorus (later Legion
-    -- raids that did ship tier sets).
+    -- on. Don't add labels here without matching loot rows; the data
+    -- shape matches Trial of Valor (same relic-only Legion cohort) and
+    -- contrasts with Nighthold/Tomb/Antorus (later Legion raids that
+    -- did ship tier sets).
     tierSets = {
         labels       = {},
         tokenSources = {},

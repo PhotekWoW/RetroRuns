@@ -230,8 +230,10 @@ RetroRuns_Data[1448] = {
             achievements       = {
                 { id = 9972, name = "A Race Against Slime", meta = true, soloable = "yes" },
             },
-            loot = {
+            specialLoot = {
                 { id = 138808, kind = "illusion", name = "Illusion: Mark of the Bleeding Hollow", sourceID = 5384 },
+            },
+            loot = {
                 { id = 124137, slot = "Back",               name = "Shawl of Sanguinary Ritual",                   sources = { [14]=69522, [15]=69523, [16]=69524 } },
                 { id = 124152, slot = "Hands",              name = "Velvet Bloodweaver Gloves",                    sources = { [14]=69570, [15]=69572, [16]=69573 } },
                 { id = 124169, slot = "Chest",              name = "Ancient Gorestained Wrap",                     sources = { [14]=69626, [15]=69628, [16]=69629 } },
@@ -309,8 +311,10 @@ RetroRuns_Data[1448] = {
             achievements       = {
                 { id = 9988, name = "Pro Toss", meta = true, soloable = "yes" },
             },
-            loot = {
+            specialLoot = {
                 { id = 127749, kind = "pet", name = "Corrupted Nest Guardian" },
+            },
+            loot = {
                 { id = 124134, slot = "Back",               name = "Cloak of Desperate Temerity",                  sources = { [14]=69513, [15]=69514, [16]=69515 } },
                 { id = 124170, slot = "Chest",              name = "Raiment of Divine Clarity",                    sources = { [14]=69630, [15]=69631, [16]=69632 } },
                 { id = 124175, slot = "Shoulder",           name = "Amice of Phantasmal Power",                    sources = { [14]=69646, [15]=69648, [16]=69649 } },
@@ -531,9 +535,9 @@ RetroRuns_Data[1448] = {
             },
             loot = {
                 { id = 124144, slot = "Back",               name = "Cloak of Incendiary Wrath",                    sources = { [14]=69543, [15]=69544, [16]=69545 } },
-                { id = 124159, slot = "Head",               name = "Demon Prince's Ascendant Crown",               sources = { [14]=69593 } },
-                { id = 124176, slot = "Shoulder",           name = "Mantle of the Eredar Lord",                    sources = { [14]=69650 } },
-                { id = 124200, slot = "Waist",              name = "Demonbuckle Sash of Argus",                    sources = { [14]=73423 } },
+                { id = 124159, slot = "Head",               name = "Demon Prince's Ascendant Crown",               sources = { [14]=69593, [15]=69593, [16]=69593, [17]=69593 } },
+                { id = 124176, slot = "Shoulder",           name = "Mantle of the Eredar Lord",                    sources = { [14]=69650, [15]=69650, [16]=69650, [17]=69650 } },
+                { id = 124200, slot = "Waist",              name = "Demonbuckle Sash of Argus",                    sources = { [14]=73423, [15]=73423, [16]=73423, [17]=73423 } },
                 { id = 124254, slot = "Hands",              name = "Felfinger Runegloves",                         sources = { [14]=69736, [15]=69738, [16]=69739 } },
                 { id = 124276, slot = "Waist",              name = "Waistwrap of Banishment",                      sources = { [14]=69812, [15]=69814, [16]=69815 } },
                 { id = 124291, slot = "Hands",              name = "Eredar Fel-Chain Gloves",                      sources = { [14]=69868, [15]=69870, [16]=69871 } },

@@ -50,11 +50,18 @@ function RR:GetBossByEncounterID(encounterID)
     local journalInstanceID = self.currentRaid.journalInstanceID
     if not journalInstanceID then return nil end
 
-    local jeToDe = self:GetEJMapForJournalInstance(journalInstanceID)
-    if not jeToDe then return nil end
+    -- EJ-derived journal->dungeon map. May be missing entries for hidden
+    -- bonus bosses the journal doesn't index (e.g. Ra-den), so it's not a
+    -- hard requirement -- the explicit dungeonEncounterID below covers those.
+    local jeToDe = self:GetEJMapForJournalInstance(journalInstanceID) or {}
 
     for _, boss in ipairs(self.currentRaid.bosses) do
         if boss.journalEncounterID and jeToDe[boss.journalEncounterID] == encounterID then
+            return boss
+        end
+        -- Explicit dungeonEncounterID in the data, for bosses the EJ doesn't
+        -- expose. Observed from the live ENCOUNTER_END event at bring-up.
+        if boss.dungeonEncounterID and boss.dungeonEncounterID == encounterID then
             return boss
         end
     end
@@ -144,8 +151,20 @@ end
 function RR:GetAvailableSteps()
     local results = {}
     if not self.currentRaid or not self.currentRaid.routing then return results end
+    -- Current difficulty as a display bucket, so a step whose boss doesn't
+    -- exist at this difficulty (e.g. Heroic-only Ra-den while on Normal) is
+    -- excluded from the route -- the panel then reaches run-complete after
+    -- the last reachable boss instead of pointing at an unkillable one.
+    -- When difficulty is unknown (not yet detected), don't filter -- better
+    -- to show the step than to hide it on a transient nil.
+    local activeBucket = self:FoldDifficulty(self.currentRaid, self.state.currentDifficultyID)
     for _, step in ipairs(self.currentRaid.routing) do
-        if not self:IsBossKilled(step.bossIndex)
+        local boss = self:GetBossByIndex(step.bossIndex)
+        local availableHere = (not activeBucket)
+            or (not boss)
+            or self:BossAvailableInBucket(boss, activeBucket)
+        if availableHere
+            and not self:IsBossKilled(step.bossIndex)
             and self:RequirementsMet(step.requires) then
             table.insert(results, step)
         end
@@ -301,8 +320,34 @@ function RR:GetProgressLines()
         order = self:GetRouteBossOrder()
     end
 
+    -- Current difficulty as a display bucket. A boss that doesn't exist at
+    -- this difficulty (e.g. Heroic-only Ra-den while on Normal) renders as a
+    -- grayed, uncounted row with a "(<difficulty> only)" tag so the player
+    -- knows the boss exists and why it's unreachable here -- rather than it
+    -- silently vanishing. nil bucket (difficulty not yet detected) disables
+    -- the restriction so nothing is hidden on a transient unknown.
+    local activeBucket = self:FoldDifficulty(self.currentRaid, self.state.currentDifficultyID)
+    local BUCKET_NAME  = { [14] = "Normal", [15] = "Heroic", [16] = "Mythic", [17] = "LFR" }
+
     for _, boss in ipairs(order) do
-        if self.state.bossesKilled[boss.index] then
+        local restrictedHere = activeBucket
+            and not self:BossAvailableInBucket(boss, activeBucket)
+
+        if restrictedHere then
+            -- Heroic-only (or otherwise difficulty-gated) boss on a
+            -- difficulty where it can't be engaged. Grayed, not counted
+            -- toward completion, tagged with the difficulty it requires.
+            -- A boss restricted to a single bucket names that bucket; one
+            -- restricted to several lists them.
+            local allowed = boss.availableDifficulties or {}
+            local names = {}
+            for _, b in ipairs(allowed) do
+                names[#names + 1] = BUCKET_NAME[b] or tostring(b)
+            end
+            local tag = (#names > 0) and (" |cff808080(" .. table.concat(names, "/") .. " only)|r") or ""
+            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff808080%s|r%s"):format(
+                PENDING_GLYPH, boss.name, tag))
+        elseif self.state.bossesKilled[boss.index] then
             -- Killed: gray brackets framing the green check (native green,
             -- unaffected by color codes). Name green.
             table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff00ff00%s|r"):format(
@@ -401,11 +446,29 @@ local function DialogTriggerHandler(_, event, ...)
         if issecretvalue and (issecretvalue(text) or issecretvalue(sender)) then
             return
         end
-        if not text or not sender then return end
+        -- Require text; sender is optional. System-style emotes -- notably
+        -- CHAT_MSG_RAID_BOSS_EMOTE lines like "Megaera rises from the
+        -- mists!" -- arrive with no speaker (sender nil/empty). Those are
+        -- exactly the events a no-npc text trigger is meant to catch, so
+        -- gating on sender would drop them. TriggerMatches only consults
+        -- npc when the trigger specifies one, so a nil sender is safe to
+        -- pass through.
+        if not text then return end
 
         local step = RR.state and RR.state.activeStep
         if not step or not step.segments then return end
         local stepIndex = step.step or step.priority or 0
+
+        -- Log the raw dialog (sender + text) so a diag captures exactly what
+        -- was heard, whether or not it matched a trigger -- useful for
+        -- verifying faction-specific trigger strings. Text truncated to keep
+        -- the log line readable.
+        if RR.ZoneLog then
+            local shown = tostring(text)
+            if #shown > 120 then shown = shown:sub(1, 120) .. "..." end
+            RR:ZoneLog(("[DialogTrigger] heard: npc=%q text=%q")
+                :format(tostring(sender or ""), shown))
+        end
 
         RR:AdvanceProgress("npc-dialog", { npc = sender, text = text })
         RR.UI.Update()
@@ -414,6 +477,16 @@ local function DialogTriggerHandler(_, event, ...)
     if not ok then
         RR:ZoneLog("[DialogTrigger] handler crash: " .. tostring(err))
     end
+end
+
+-- Drive the dialog path exactly as a real chat event would, including
+-- the sender guard. Used by /rr firedialog so tests exercise the same
+-- code a live emote hits (the prior direct-AdvanceProgress test bypassed
+-- the handler entirely, which is why a speakerless-emote regression could
+-- pass testing yet fail in a real raid). sender defaults to nil to mirror
+-- the speakerless CHAT_MSG_RAID_BOSS_EMOTE case.
+function RR:SimulateDialogEvent(text, sender, event)
+    DialogTriggerHandler(dialogTriggerFrame, event or "CHAT_MSG_RAID_BOSS_EMOTE", text, sender)
 end
 
 -- Initialize the dialog-trigger listener (idempotent).

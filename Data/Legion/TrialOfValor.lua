@@ -30,9 +30,9 @@ RetroRuns_Data[1648] = {
 
     -- Empty by design: Trial of Valor was a Legion mini-raid using
     -- the artifact-relic gearing path, not class tier sets. No tier
-    -- pieces to harvest, no class-restricted loot rows. The data shape
-    -- matches Emerald Nightmare (same relic-only Legion cohort) and
-    -- contrasts with Nighthold/Tomb/Antorus.
+    -- pieces and no class-restricted loot rows. The data shape matches
+    -- Emerald Nightmare (same relic-only Legion cohort) and contrasts
+    -- with Nighthold/Tomb/Antorus.
     tierSets = {
         labels       = {},
         tokenSources = {},

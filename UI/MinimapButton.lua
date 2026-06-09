@@ -48,16 +48,16 @@ local function UpdatePosition()
     local position = RR:GetSetting("minimapAngle", 220)
     local angle    = math.rad(position)
     local x, y     = math.cos(angle), math.sin(angle)
-    local q        = 1
-    if x < 0 then q = q + 1 end
-    if y > 0 then q = q + 2 end
+    local quadrant = 1
+    if x < 0 then quadrant = quadrant + 1 end
+    if y > 0 then quadrant = quadrant + 2 end
 
     local rounding = 10
     local width    = (Minimap:GetWidth()  * 0.5) + 5
     local height   = (Minimap:GetHeight() * 0.5) + 5
     local shape    = GetMinimapShape and GetMinimapShape() or "ROUND"
 
-    if MinimapShapes[shape] and MinimapShapes[shape][q] then
+    if MinimapShapes[shape] and MinimapShapes[shape][quadrant] then
         x, y = x * width, y * height
     else
         x = math.max(-width,  math.min(x * (math.sqrt(2 * width^2)  - rounding), width))

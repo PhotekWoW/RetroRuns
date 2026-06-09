@@ -173,7 +173,14 @@ local function TriggerMatches(seg, event, eventData)
         if event ~= "npc-dialog" then return false end
         if not eventData then return false end
         local dialogTrigger = seg.triggeredBy.dialog
-        if eventData.npc ~= dialogTrigger.npc then return false end
+        -- npc is optional. Some events -- notably CHAT_MSG_RAID_BOSS_EMOTE
+        -- for ambient "boss rises" lines -- carry an empty sender field, so
+        -- the speaker name isn't a reliable key. When a trigger omits npc,
+        -- match on the dialog text alone. When npc IS specified, it must
+        -- match exactly (unchanged behavior for every existing trigger).
+        if dialogTrigger.npc and eventData.npc ~= dialogTrigger.npc then
+            return false
+        end
         if not dialogTrigger.match or not eventData.text then return false end
         return string.find(eventData.text, dialogTrigger.match, 1, true) ~= nil
     end
@@ -181,7 +188,7 @@ local function TriggerMatches(seg, event, eventData)
     return false
 end
 
--- "Has the player left this seg?" — the test that powers stay-here.
+-- "Has the player left this seg?": the test that powers stay-here.
 -- For subZone-gated segs, only subZone change counts as leaving (mapID
 -- can flicker without the player having actually moved).
 local function HasLeft(seg, mapID, subZone)
@@ -654,5 +661,122 @@ function RR:DiagDump()
     local sessLines = self:BuildRecorderSessionLogLines(false)
     for _, line in ipairs(sessLines) do add(line) end
 
+    divider(4, "COMPLETION STATE",
+        "per-boss kill detection -- both sources side by side")
+    for _, line in ipairs(self:BuildCompletionDiagLines()) do add(line) end
+
     self:ShowCopyWindow("RetroRuns -- Diagnostic", table.concat(lines, "\n"))
+end
+
+-- Per-boss completion dump for the diag. The idle-list count and the
+-- in-raid kill list read completion from two different APIs, and they can
+-- disagree: the in-raid path reads saved-instance encounters positionally,
+-- while the idle path resolves each boss's dungeonEncounterID through the
+-- Encounter Journal map and asks C_RaidLocks.IsEncounterComplete. When the
+-- EJ map omits a boss (it omits Galakras on Horde, for one), the idle path
+-- can't see that boss and the count comes up short while the in-raid list
+-- still shows it killed. This section makes that visible: for each boss it
+-- shows how its dungeonEncID resolved (EJ map, data fallback, or neither)
+-- and the IsEncounterComplete result per bucket, so a killed-but-unmapped
+-- boss stands out instead of needing a separate probe to find.
+function RR:BuildCompletionDiagLines()
+    local out = {}
+    local function add(s) out[#out + 1] = s or "" end
+
+    local raid = self.currentRaid
+    if not raid then
+        add("(no raid loaded; zone into a raid to dump completion state)")
+        return out
+    end
+    if not C_RaidLocks or not C_RaidLocks.IsEncounterComplete then
+        add("(C_RaidLocks.IsEncounterComplete unavailable on this client)")
+        return out
+    end
+
+    local instanceID = raid.instanceID
+    local journalToDungeonEnc =
+        self:GetEJMapForJournalInstance(raid.journalInstanceID) or {}
+    local model = self:GetDifficultyModel(raid)
+
+    -- Live difficulty IDs grouped by display bucket, so completion can be
+    -- asked at every size that folds into a bucket (mirrors the count path).
+    local liveIdsForBucket = {}
+    for liveId, bucket in pairs(model.fold) do
+        liveIdsForBucket[bucket] = liveIdsForBucket[bucket] or {}
+        table.insert(liveIdsForBucket[bucket], liveId)
+    end
+
+    local BUCKET_LABEL = { [14] = "N", [15] = "H", [16] = "M", [17] = "LFR" }
+    local bucketOrder = model.buckets
+
+    add(("raid=%s  instanceID=%s  journalInstanceID=%s")
+        :format(tostring(raid.name), tostring(instanceID),
+                tostring(raid.journalInstanceID)))
+
+    local ejEntryCount = 0
+    for _ in pairs(journalToDungeonEnc) do ejEntryCount = ejEntryCount + 1 end
+    local bucketLabels = {}
+    for _, b in ipairs(bucketOrder) do
+        bucketLabels[#bucketLabels + 1] = BUCKET_LABEL[b] or tostring(b)
+    end
+    add(("EJ map entries: %d   buckets: %s")
+        :format(ejEntryCount, table.concat(bucketLabels, "/")))
+    add("")
+    add("boss                            dungeonEncID  source     per-bucket complete")
+    add(string.rep("-", 78))
+
+    local unresolved = 0
+    for _, b in ipairs(raid.bosses or {}) do
+        local fromEJ   = journalToDungeonEnc[b.journalEncounterID]
+        local fromData = b.dungeonEncounterID
+        local dungeonEncID = fromEJ or fromData
+
+        local source
+        if fromEJ then
+            source = "EJ map"
+        elseif fromData then
+            source = "data"
+        else
+            source = "NONE"
+            unresolved = unresolved + 1
+        end
+
+        local perBucket = {}
+        for _, bucket in ipairs(bucketOrder) do
+            local label = BUCKET_LABEL[bucket] or tostring(bucket)
+            if not self:BossAvailableInBucket(b, bucket) then
+                perBucket[#perBucket + 1] = label .. ":n/a"
+            elseif not dungeonEncID then
+                perBucket[#perBucket + 1] = label .. ":?"
+            else
+                local done = false
+                for _, liveId in ipairs(liveIdsForBucket[bucket] or {}) do
+                    if C_RaidLocks.IsEncounterComplete(
+                            instanceID, dungeonEncID, liveId) then
+                        done = true
+                        break
+                    end
+                end
+                perBucket[#perBucket + 1] =
+                    label .. ":" .. (done and "yes" or "no")
+            end
+        end
+
+        add(("%-30s  %-12s  %-9s  %s"):format(
+            (tostring(b.name)):sub(1, 30),
+            tostring(dungeonEncID or "nil"),
+            source,
+            table.concat(perBucket, "  ")))
+    end
+
+    add("")
+    if unresolved > 0 then
+        add(("WARNING: %d boss(es) have NO dungeonEncID (EJ map miss + no data "
+            .. "fallback). These are invisible to the idle-list count and will "
+            .. "under-report a full clear. Add an explicit dungeonEncounterID to "
+            .. "the boss entry."):format(unresolved))
+    else
+        add("All bosses resolved a dungeonEncID (EJ map or data fallback).")
+    end
+    return out
 end

@@ -226,8 +226,8 @@ end
 -- Place chevron textures along a polyline at a fixed pixel stride, each
 -- rotated to face along the local segment direction. The raid-target
 -- triangle texture's "forward" axis points DOWN (south, +y on screen)
--- at rotation 0 (determined empirically -- WoW's raid-target icons
--- aren't documented for orientation). WoW SetRotation uses
+-- at rotation 0 (WoW's raid-target icon orientation isn't documented, so
+-- this is from observed behavior). WoW SetRotation uses
 -- counter-clockwise radians, so rotation = atan2(dx, dy) aligns the
 -- triangle's tip with the screen-space travel direction.
 --
@@ -291,8 +291,8 @@ local function PlaceChevronsAlongPath(self, pts, W, H, startChevronIdx)
         local p, c = screenPts[i], screenPts[i+1]
         local dx, dy = c[1] - p[1], c[2] - p[2]
         -- Rotation: the raid-target triangle texture's "forward" axis
-        -- points DOWN (south, +y in screen coords) at rotation 0 --
-        -- determined empirically. WoW's SetRotation uses counter-clockwise
+        -- points DOWN (south, +y in screen coords) at rotation 0, from
+        -- observed behavior. WoW's SetRotation uses counter-clockwise
         -- radians. atan2(dx, dy) maps the screen-space travel direction
         -- (dx, dy where +y is DOWN) to the rotation needed to align the
         -- triangle's tip with travel direction.

@@ -19,8 +19,14 @@ local UI = RR.UI
 
 local PANEL_W    = 430
 local PANEL_H    = 460
-local PAD_LEFT   = 16
-local PAD_RIGHT  = 12
+-- Custom border frame thickness. Content is inset by these amounts on each edge
+-- so it sits inside the frame's opening rather than under the ornate border art.
+-- Horizontal inset is the rail thickness; vertical is a touch more to clear the
+-- taller corner caps at the top/bottom.
+local FRAME_INSET_X = 10
+local FRAME_INSET_Y = 16
+local PAD_LEFT   = 16 + FRAME_INSET_X
+local PAD_RIGHT  = 12 + FRAME_INSET_X
 local BODY_WIDTH = PANEL_W - PAD_LEFT - PAD_RIGHT - 10
 
 local TITLE_FONT = "Interface\\AddOns\\RetroRuns\\Media\\Fonts\\04B_03.TTF"
@@ -84,6 +90,15 @@ local function SetBodyFont(fs, baseSize, flags)
     fs:SetShadowColor(0, 0, 0, 1)
 end
 
+-- Exposed on RR so modules outside UI.lua (e.g. the Toaster) can resolve
+-- the user's body font the same way the panel does.
+function RR:GetBodyFont()
+    return GetBodyFont()
+end
+function RR:GetBodyFontSize(baseSize)
+    return GetBodyFontSize(baseSize)
+end
+
 -------------------------------------------------------------------------------
 -- Main panel
 -------------------------------------------------------------------------------
@@ -119,16 +134,49 @@ local browserState
 local skipsWindow
 local achievementsWindow
 local achState
-local whatsNewWindow
 local RefreshIdleList
+local PositionLegendDivider
 
-panel:SetBackdrop({
-    bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
-    edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-    tile = true, tileSize = 16, edgeSize = 16,
-    insets = { left = 3, right = 3, top = 3, bottom = 3 },
-})
-panel:SetBackdropColor(0.03, 0.03, 0.03, 0.92)
+-- Custom frame border via the engine's edgeFile nine-slice -- the standard,
+-- reliable mechanism (SetTextureSliceMargins silently no-ops on this client, so
+-- a single stretched texture distorted on resize). An edgeFile is a filmstrip
+-- of 8 equal slices (left/right/top/bottom edges + 4 corners) that the engine
+-- repeats the edges between fixed corners automatically, at any frame size.
+-- bgFile fills the interior (dark). edgeSize sets the on-screen corner/border
+-- thickness. This is how Blizzard's own dialog frames and most addons do it.
+--
+-- The minimized bar reuses the same edge art at a smaller edgeSize so the
+-- ornate corners stay on-theme without overwhelming the much shorter bar.
+local PANEL_EDGE_SIZE_FULL      = 26
+local PANEL_EDGE_SIZE_MINIMIZED = 14
+
+local function PanelBackdrop(edgeSize)
+    return {
+        bgFile   = "Interface\\AddOns\\RetroRuns\\Media\\panel-bg",
+        edgeFile = "Interface\\AddOns\\RetroRuns\\Media\\panel-edge",
+        tile = true, tileSize = 64,
+        edgeSize = edgeSize,
+        insets = { left = 7, right = 7, top = 7, bottom = 7 },
+    }
+end
+
+panel:SetBackdrop(PanelBackdrop(PANEL_EDGE_SIZE_FULL))
+panel:SetBackdropColor(1, 1, 1, RR:GetSetting("panelOpacity", 1.0))
+panel:SetBackdropBorderColor(1, 1, 1, 1)
+
+-- The edgeFile backdrop nine-slices at any frame size, but a single fixed
+-- edgeSize that looks right on the tall expanded panel reads as oversized
+-- ornate corners on the short minimized bar. Re-apply the backdrop at the
+-- smaller edgeSize while minimized and the full size when expanded. There is
+-- no edgeSize-only setter on this client, so the whole backdrop is re-set;
+-- that clears the border/background color, which is restored right after.
+local function ApplyBorderArtForState(minimized)
+    local edgeSize = minimized and PANEL_EDGE_SIZE_MINIMIZED
+                                or PANEL_EDGE_SIZE_FULL
+    panel:SetBackdrop(PanelBackdrop(edgeSize))
+    panel:SetBackdropColor(1, 1, 1, RR:GetSetting("panelOpacity", 1.0))
+    panel:SetBackdropBorderColor(1, 1, 1, 1)
+end
 
 -- Enable hyperlink clicks on the panel so achievement links in the
 -- encounter FontString become clickable. SetItemRef is Blizzard's global
@@ -165,20 +213,19 @@ end)
 
 -- Logo
 panel.logo = panel:CreateTexture(nil, "ARTWORK")
--- Logo size shrunk 34 -> 24 in v1.7 alongside the new minimize button
--- to rebalance the title bar. The original 34px was sized when the logo
--- was the only element competing with the close X for visual weight on
--- the title row; with a minimize button now occupying the right side,
--- 34 felt over-sized and the logo bulged below the title text. 24 is
--- closer to the cap-height of the 12pt title font's OUTLINE rendering,
--- so the logo sits as a peer to the text rather than dominating it.
+-- Logo sized to sit as a peer to the 12pt title text rather than dominating
+-- the title row alongside the minimize and close buttons.
+-- Logo retained as an object but hidden -- the title bar shows just the
+-- "RETRO RUNS" wordmark now (logo removed from the title row by request).
 panel.logo:SetSize(24, 24)
-panel.logo:SetPoint("TOPLEFT", PAD_LEFT - 4, -10)
+panel.logo:SetPoint("TOPLEFT", PAD_LEFT - 4, -10 - FRAME_INSET_Y)
 panel.logo:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\LogoSquare")
+panel.logo:Hide()
 
--- Title (two FontStrings, split only at colour boundary)
+-- Title (two FontStrings, split only at colour boundary). Anchored to the
+-- panel's top-left now that the logo is hidden.
 panel.titleRetro = panel:CreateFontString(nil, "OVERLAY")
-panel.titleRetro:SetPoint("LEFT", panel.logo, "RIGHT", 6, -1)
+panel.titleRetro:SetPoint("TOPLEFT", PAD_LEFT, -12 - FRAME_INSET_Y)
 panel.titleRetro:SetFont(BODY_FONT, 12, "OUTLINE")
 panel.titleRetro:SetText("RETRO")
 panel.titleRetro:SetTextColor(unpack(C_PINK))
@@ -195,7 +242,7 @@ panel.titleRuns:SetShadowColor(0, 0, 0, 1)
 
 -- Close button
 panel.closeButton = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
-panel.closeButton:SetPoint("TOPRIGHT", -4, -4)
+panel.closeButton:SetPoint("TOPRIGHT", -4 - FRAME_INSET_X, -4 - FRAME_INSET_Y)
 panel.closeButton:SetScript("OnClick", function()
     RR:SetSetting("showPanel", false)
     panel:Hide()
@@ -219,7 +266,7 @@ end)
 -- visually match the close X's painted glyph (not its 32x32 frame).
 panel.minimizeButton = CreateFrame("Button", nil, panel)
 panel.minimizeButton:SetSize(22, 22)
-panel.minimizeButton:SetPoint("TOPRIGHT", -30, -4)
+panel.minimizeButton:SetPoint("TOPRIGHT", -30 - FRAME_INSET_X, -4 - FRAME_INSET_Y)
 
 panel.minimizeButton:SetNormalTexture("Interface\\AddOns\\RetroRuns\\Media\\MinimizeIcon")
 panel.minimizeButton:SetPushedTexture("Interface\\AddOns\\RetroRuns\\Media\\MinimizeIcon")
@@ -230,7 +277,7 @@ panel.minimizeButton:SetHighlightTexture(
 -- Test-mode label, positioned to clear both the close X and the
 -- minimize button.
 panel.mode = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-panel.mode:SetPoint("TOPRIGHT", -56, -14)
+panel.mode:SetPoint("TOPRIGHT", -56 - FRAME_INSET_X, -14 - FRAME_INSET_Y)
 panel.mode:SetText("")
 panel.mode:SetFont(TITLE_FONT, 11, "OUTLINE")
 panel.mode:SetShadowOffset(1, -1)
@@ -250,13 +297,40 @@ local function AddField(anchor, anchorPoint, relPoint, offsetY, width, template)
 end
 
 panel.raid = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-panel.raid:SetPoint("TOPLEFT", panel, "TOPLEFT", PAD_LEFT, -52)
+panel.raid:SetPoint("TOPLEFT", panel, "TOPLEFT", PAD_LEFT, -30 - FRAME_INSET_Y)
 panel.raid:SetWidth(PANEL_W - PAD_LEFT - 80)
 panel.raid:SetJustifyH("LEFT")
 
 -- Per-difficulty kill-count pills row. Active difficulty in white,
 -- others in gray. Format: "[ LFR x/y | N x/y | H x/y | M x/y ]".
 panel.pills = AddField(panel.raid, "TOPLEFT", "BOTTOMLEFT", -2, BODY_WIDTH, "GameFontNormalSmall")
+
+-- Invisible hover region over the pills row. FontStrings can't take
+-- mouse scripts, so a sibling frame sits on top to surface the
+-- shared-lockout tooltip. It only arms its tooltip when the current
+-- raid is actually on a single-lockout model (set in UI.Update); when
+-- disarmed it still exists but shows nothing on hover.
+panel.pillsHover = CreateFrame("Frame", nil, panel)
+panel.pillsHover:SetPoint("TOPLEFT", panel.pills, "TOPLEFT", 0, 0)
+panel.pillsHover:SetPoint("BOTTOM", panel.pills, "BOTTOM", 0, 0)
+panel.pillsHover:SetWidth(1)
+panel.pillsHover:EnableMouse(true)
+panel.pillsHover._lockoutTip = false
+panel.pillsHover:SetScript("OnEnter", function(self)
+    if not self._lockoutTip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine("This raid only supports a single lockout per character", 1, 1, 1, true)
+    if GameTooltipTextSmall then
+        GameTooltipTextLeft1:SetFontObject(GameTooltipTextSmall)
+    end
+    GameTooltip:Show()
+end)
+panel.pillsHover:SetScript("OnLeave", function()
+    GameTooltip:Hide()
+    if GameTooltipText then
+        GameTooltipTextLeft1:SetFontObject(GameTooltipText)
+    end
+end)
 
 panel.progress  = AddField(panel.pills,    "TOPLEFT", "BOTTOMLEFT", -6,  BODY_WIDTH, "GameFontNormal")
 panel.next      = AddField(panel.progress, "TOPLEFT", "BOTTOMLEFT", -8,  BODY_WIDTH, "GameFontNormal")
@@ -325,7 +399,6 @@ end)
 local GetOrCreateTmogWindow
 local BuildTransmogDetail
 local BuildSpecialLootSection
-local settingsFrame
 
 -- Transmog browser selection state. Filled in by EnsureBrowserDefaults.
 browserState = {
@@ -666,6 +739,38 @@ panel.idleListLines        = {}
 panel.idleListLegendLines  = {}
 panel.idleListLinePool     = {}
 
+-- Single persistent divider drawn above the idle-list legend block, to
+-- separate the Routing/Waypoint/skip key rows from the last raid pill row.
+-- Created once, repositioned + shown/hidden per refresh.
+--
+-- The line texture is a pure-WHITE alpha-mask (the shape lives in the alpha
+-- channel: a thin band that fades out at both ends), tinted to the theme
+-- magenta in code via SetVertexColor. Baking color into the art and keying it
+-- out washed the color toward white and looked fuzzy; a white mask + vertex
+-- tint stays crisp and true. Texture sharpening is disabled
+-- (SetTexelSnappingBias/filter) to avoid the soft-edge blur. A small cyan gem
+-- texture sits centered on the line.
+panel.legendDivider = panel:CreateTexture(nil, "ARTWORK")
+panel.legendDivider:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-line")
+panel.legendDivider:SetVertexColor(C_PINK[1], C_PINK[2], C_PINK[3], 0.55)
+panel.legendDivider:SetHeight(6)
+if panel.legendDivider.SetTexelSnappingBias then
+    panel.legendDivider:SetTexelSnappingBias(0)
+    panel.legendDivider:SetSnapToPixelGrid(false)
+end
+panel.legendDivider:Hide()
+
+-- Cyan gem centered on the divider line.
+panel.legendDividerGem = panel:CreateTexture(nil, "OVERLAY")
+panel.legendDividerGem:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-gem")
+panel.legendDividerGem:SetSize(14, 14)
+panel.legendDividerGem:SetPoint("CENTER", panel.legendDivider, "CENTER", 0, 0)
+if panel.legendDividerGem.SetTexelSnappingBias then
+    panel.legendDividerGem:SetTexelSnappingBias(0)
+    panel.legendDividerGem:SetSnapToPixelGrid(false)
+end
+panel.legendDividerGem:Hide()
+
 -- Acquire a FontString for the next line. Caller is responsible for
 -- ClearAllPoints() + SetText() + SetPoint() + Show().
 local function AcquireIdleListLine()
@@ -707,6 +812,11 @@ local function ReleaseIdleListLines()
         table.insert(panel.idleListLinePool, fs)
     end
     wipe(panel.idleListLegendLines)
+    -- The divider is a persistent texture (not pooled); hide it here so a
+    -- teardown that isn't immediately followed by a legend re-render (e.g.
+    -- switching into in-raid boss-progress mode) doesn't leave it floating.
+    if panel.legendDivider then panel.legendDivider:Hide() end
+    if panel.legendDividerGem then panel.legendDividerGem:Hide() end
 end
 
 -- In-raid "Boss Progress" checklist: per-line FontString pool, same
@@ -738,48 +848,65 @@ local function ReleaseProgressListLines()
     wipe(panel.progressListLines)
 end
 
--- Footer (two rows, bottom-up):
---   Bottom row: "Created by Photek" on the left, version on the right,
---               anchored 8px up from the panel's bottom edge.
---   Action row: Map / Tmog / Skips / Settings buttons, anchored above
---               the credit row with a small gap. Standard Blizzard
---               UIPanelButtonTemplate buttons; centered horizontally.
---
--- The previous design used two TEXT rows here (a slash-command bar like
--- "/rr - Toggle | /rr settings | /rr reset | /rr tmog" plus a tagline
--- "Designed for max-level characters running legacy content."). Both
--- were promoted to actual buttons (the slash commands) and dropped
--- entirely (tagline -- redundant once the panel feels action-y rather
--- than informational). The action-button row is more discoverable than
--- a slash-command reference and matches modern WoW addon conventions.
---
--- AutoSize reserves vertical space for both rows via PANEL_FOOTER_RESERVE.
+-- Idle-list pillRow hover regions. FontStrings can't take mouse
+-- scripts, so locked-out pill rows get an invisible mouse-enabled frame
+-- on top to surface the shared-lockout tooltip. Pooled and recycled in
+-- lockstep with the line FontStrings (same lifecycle as the toggle /
+-- entrance button pools).
+panel.pillHoverFrames    = {}
+panel.pillHoverFramePool = {}
+
+local function AcquirePillHoverFrame()
+    local f = table.remove(panel.pillHoverFramePool)
+    if f then return f end
+    f = CreateFrame("Frame", nil, panel)
+    f:SetFrameLevel((panel:GetFrameLevel() or 0) + 10)
+    f:EnableMouse(true)
+    f:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("This raid only supports a single lockout per character", 1, 1, 1, true)
+        if GameTooltipTextSmall then
+            GameTooltipTextLeft1:SetFontObject(GameTooltipTextSmall)
+        end
+        GameTooltip:Show()
+    end)
+    f:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+        if GameTooltipText then
+            GameTooltipTextLeft1:SetFontObject(GameTooltipText)
+        end
+    end)
+    return f
+end
+
+local function ReleasePillHoverFrames()
+    for _, f in ipairs(panel.pillHoverFrames) do
+        f:Hide()
+        f:ClearAllPoints()
+        table.insert(panel.pillHoverFramePool, f)
+    end
+    wipe(panel.pillHoverFrames)
+end
+
+-- Footer, two rows anchored bottom-up: credit + version on the bottom row,
+-- the Map / Tmog / Skips / Settings buttons on the row above it. AutoSize
+-- reserves space for both via PANEL_FOOTER_RESERVE.
 panel.credit = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-panel.credit:SetPoint("BOTTOMLEFT", PAD_LEFT, 8)
+panel.credit:SetPoint("BOTTOMLEFT", PAD_LEFT, 8 + FRAME_INSET_Y)
 panel.credit:SetText("Created by |cff4DCCFFPhotek|r")
 -- Footer credit: standard font, locked at construction (footer doesn't
 -- scale with the user's font slider).
 panel.credit:SetFont(BODY_FONT, 10, "")
 
--- Right-side footer cluster: "What's New? [!] [v1.10.2]"
---
--- Layout (right-to-left from the panel's BOTTOMRIGHT):
---   panel.version          - clickable Button widget. Child FontString renders
---                            the bracketed version "[v1.10.2]" in link-cyan
---                            (matching the [ i ] convention in the Skips
---                            window). Click opens the What's New window.
---   panel.whatsNewLabel    - "What's New?" prefix, plus a pulsing yellow [!]
---                            until the player clicks the version link. The
---                            [!] is dropped from the label on first-ever
---                            click (account-wide). Text is rewritten each
---                            tick by the existing UI pulse driver so the
---                            [!] breathes the same way the encounter-card
---                            [!] does.
+-- Right-side footer cluster: "What's New?" label plus a clickable bracketed
+-- version link. A pulsing yellow [!] sits next to the label until the player
+-- clicks the version (account-wide, dropped on first click). The pulse reuses
+-- the same driver as the encounter-card [!].
 panel.version = CreateFrame("Button", nil, panel)
 panel.version:SetSize(70, 14)
-panel.version:SetPoint("BOTTOMRIGHT", -PAD_RIGHT, 8)
+panel.version:SetPoint("BOTTOMRIGHT", -PAD_RIGHT, 8 + FRAME_INSET_Y)
 panel.version.glyph = panel.version:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-panel.version.glyph:SetPoint("RIGHT", panel.version, "RIGHT", 0, 0)
+panel.version.glyph:SetPoint("BOTTOMRIGHT", panel.version, "BOTTOMRIGHT", 0, 0)
 panel.version.glyph:SetText("|cff7faaff[v" .. RetroRuns.VERSION .. "]|r")
 -- Footer version glyph: standard font, locked at construction (footer
 -- doesn't scale with the user's font slider).
@@ -807,11 +934,11 @@ panel.version:SetScript("OnClick", function()
     if panel.whatsNewLabel then
         panel.whatsNewLabel:SetText("|cff9d9d9dWhat's New?|r")
     end
-    if UI.ToggleWhatsNewWindow then UI.ToggleWhatsNewWindow() end
+    if UI.OpenSettingsToWhatsNew then UI.OpenSettingsToWhatsNew() end
 end)
 
 panel.whatsNewLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-panel.whatsNewLabel:SetPoint("RIGHT", panel.version, "LEFT", -4, 0)
+panel.whatsNewLabel:SetPoint("BOTTOMRIGHT", panel.version, "BOTTOMLEFT", -4, 0)
 panel.whatsNewLabel:SetText("|cff9d9d9dWhat's New?|r")
 -- Footer label: standard font, locked at construction. The pulse ticker
 -- at the bottom of this file rewrites this FontString's text every
@@ -819,28 +946,65 @@ panel.whatsNewLabel:SetText("|cff9d9d9dWhat's New?|r")
 -- here sticks across the lifetime of the addon.
 panel.whatsNewLabel:SetFont(BODY_FONT, 10, "")
 
--- Action button row. Five UIPanelButtonTemplate buttons, evenly
--- horizontally distributed across the panel width with a small gap
--- between each. Anchored above the credit/version row with enough
--- vertical breathing room to read as a separate band rather than
--- crowding the byline. Buttons use the template's default font;
--- no per-button SetFont call.
---
--- Order (left to right): Map, Tmog, Achieves, Skips, Settings. Map is
--- the primary in-raid action; Tmog / Achieves / Skips are reference
--- views grouped together; Settings is config.
---
--- panel.mapBtn keeps the same name as the previous header-button
--- version so existing Enable/Disable state-handling code (the in-raid
--- vs out-of-raid logic in UI.Update) continues to work without
--- modification. Same for panel.tmogBtn -- no rename means no caller
--- updates needed.
+-- Centered footer status: "Toaster:" + a colored arrow glyph mirroring the
+-- settings panel's Active Status (green up = active, amber down = travel to a
+-- supported raid, red down = disabled). At-a-glance state without opening
+-- settings. Locked font like the rest of the footer (no scaling). The label +
+-- arrow are grouped in a container so the pair centers as a unit on the row.
+panel.toastStatus = CreateFrame("Button", nil, panel)
+panel.toastStatus:SetSize(120, 14)
+panel.toastStatus:SetPoint("BOTTOM", 0, 8 + FRAME_INSET_Y)
+do
+    local f = panel.toastStatus
+    f.label = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    f.label:SetFont(BODY_FONT, 10, "")
+    f.label:SetText("Toaster:")
+    f.label:SetTextColor(0.62, 0.62, 0.62)
+
+    f.arrow = f:CreateTexture(nil, "OVERLAY")
+    f.arrow:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\ArrowDown")
+    f.arrow:SetSize(10, 10)
+
+    -- Center the label+arrow pair as a group on the footer's bottom baseline.
+    f.Layout = function()
+        local lw = f.label:GetStringWidth() or 0
+        local gap, aw = 4, 10
+        local total = lw + gap + aw
+        f.label:ClearAllPoints()
+        f.label:SetPoint("BOTTOMLEFT", f, "BOTTOM", -total / 2, 0)
+        f.arrow:ClearAllPoints()
+        f.arrow:SetPoint("BOTTOMLEFT", f.label, "BOTTOMRIGHT", gap, 0)
+        -- Tighten the click target to the rendered width so it doesn't capture
+        -- clicks across the whole footer.
+        f:SetWidth(total + 8)
+    end
+    f.Layout()
+
+    -- Clickable shortcut into the Toaster settings tab. Brighten the label
+    -- on hover to signal it's interactive (the arrow keeps its state color).
+    f:SetScript("OnEnter", function() f.label:SetTextColor(0.95, 0.95, 0.95) end)
+    f:SetScript("OnLeave", function() f.label:SetTextColor(0.62, 0.62, 0.62) end)
+    f:SetScript("OnClick", function()
+        if UI.OpenSettingsToToaster then UI.OpenSettingsToToaster() end
+    end)
+
+    -- Initial state matches the disabled default (red, down). The lifecycle
+    -- reconcile repaints with the live state at login and on every raid
+    -- enter/leave and toggle thereafter.
+    f.arrow:SetRotation(0)
+    f.arrow:SetVertexColor(0.95, 0.35, 0.35)
+end
+
+-- Action button row: Map, Tmog, Achieves, Skips, Settings, evenly distributed
+-- across the panel width above the credit/version row. Map is the primary
+-- in-raid action; Tmog/Achieves/Skips are reference views; Settings is config.
+-- UIPanelButtonTemplate, default font.
 local BUTTON_W   = 70
 local BUTTON_H   = 22
 local BUTTON_GAP = 6
 local TOTAL_W    = BUTTON_W * 5 + BUTTON_GAP * 4
 local START_X    = math.floor((PANEL_W - TOTAL_W) / 2)
-local BUTTON_Y   = 28   -- pixels up from the panel's bottom edge
+local BUTTON_Y   = 28 + FRAME_INSET_Y   -- pixels up from the panel's bottom edge (incl. frame inset)
 
 local function MakeActionButton(name, label, x, onClick)
     local btn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
@@ -913,22 +1077,11 @@ panel.settingsBtn = MakeActionButton("Settings", "Settings",
 -- version ~y=8) plus a visual gap above the buttons separating them
 -- from the dynamic content above. ~60px covers the layout with margin.
 local PANEL_FOOTER_RESERVE   = 64   -- pixels
-local POPUP_CONTENT_CEILING  = 600  -- transmog popup max height
+local POPUP_CONTENT_CEILING  = 900  -- transmog popup max height (tall enough
+                                    -- for the longest list -- Ra-den, ToT,
+                                    -- 41 items -- without overflow)
 local POPUP_CONTENT_MIN      = 240  -- transmog popup min height
 
--- Returns the pixel Y-distance from the panel top to the given widget's
--- bottom edge. Works regardless of how the widget is anchored because we
--- ask the widget for its own top-in-panel-space and add its measured
--- height.
-local function ContentBottomY(parent, widget)
-    if not widget then return 0 end
-    -- Widget coords are relative to parent because all our widgets are
-    -- parented to the panel. GetTop/GetBottom work in screen space; we
-    -- normalize by the parent top.
-    local parentTop = parent:GetTop() or 0
-    local widgetBot = widget:GetBottom() or parentTop
-    return parentTop - widgetBot
-end
 
 -- Sets a FontString's effective font + text safely and forces layout so
 -- GetStringHeight/Width return updated values on the next frame.
@@ -1100,32 +1253,45 @@ function UI.ApplySettings()
 
         if skipsWindow:IsShown() and skipsWindow.RefreshContent then
             local fontSize = RR:GetSetting("fontSize", 12)
-            -- Rebuild on a layout-input change (scale/font) or when the
-            -- raid transition above flagged a needed rebuild. Gating keeps
-            -- the per-tick churn away (which would eat toggle clicks).
+            local fontStyle = RR:GetSetting("bodyFontStyle", "standard")
+            -- Rebuild on a layout-input change (scale/font size/font family)
+            -- or when the raid transition above flagged a needed rebuild.
+            -- Gating keeps the per-tick churn away (which would eat toggle
+            -- clicks). Font FAMILY must be tracked too: changing the body font
+            -- (Friz / 04B_03 / VT323) without changing the size still needs a
+            -- rebuild so the rows pick up the new font, the same way the idle
+            -- list does via ApplySettings' targets table.
             if skipsWindow._lastScale ~= scale
                or skipsWindow._lastFontSize ~= fontSize
+               or skipsWindow._lastFontStyle ~= fontStyle
                or skipsWindow._needsRebuild then
                 skipsWindow._lastScale = scale
                 skipsWindow._lastFontSize = fontSize
+                skipsWindow._lastFontStyle = fontStyle
                 skipsWindow._needsRebuild = nil
                 skipsWindow.RefreshContent()
             end
         end
     end
-    -- Achievements window: scale applied like the others. The current
-    -- placeholder content is a single FontString; once real content
-    -- (per-achievement rows) lands, this may want a RefreshContent call
-    -- like skips does, or a font-only update like tmog does.
+    -- Achievements window: scale applied like the others. The window uses a
+    -- row pool (one frame per row, like skips), so font-size or font-family
+    -- changes affect row spacing and per-cell font metrics. Gate the rebuild
+    -- on those layout inputs rather than refreshing every tick -- the old
+    -- unconditional per-tick RefreshContent was wasteful and risked eating
+    -- row interactions the same way skips did before its gate.
     if achievementsWindow then
         achievementsWindow:SetScale(scale)
-        -- Achievements window uses a row pool (one frame per row, like
-        -- skips), not a single FontString. Font-size changes affect row
-        -- spacing and per-cell font metrics, so a full RefreshContent is
-        -- the simplest way to apply -- it rebuilds row positioning with
-        -- the new font size.
         if achievementsWindow:IsShown() and achievementsWindow.RefreshContent then
-            achievementsWindow:RefreshContent()
+            local fontSize = RR:GetSetting("fontSize", 12)
+            local fontStyle = RR:GetSetting("bodyFontStyle", "standard")
+            if achievementsWindow._lastScale ~= scale
+               or achievementsWindow._lastFontSize ~= fontSize
+               or achievementsWindow._lastFontStyle ~= fontStyle then
+                achievementsWindow._lastScale = scale
+                achievementsWindow._lastFontSize = fontSize
+                achievementsWindow._lastFontStyle = fontStyle
+                achievementsWindow:RefreshContent()
+            end
         end
     end
     -- (intentionally no scale applied to settingsFrame)
@@ -1143,10 +1309,12 @@ function UI.ApplySettings()
         if r then frame:SetBackdropColor(r, g, b, opacity) end
     end
     ApplyOpacity(panel)
+    -- The main panel's interior fill is the backdrop bgFile; fade it via the
+    -- backdrop color alpha (border stays full opacity for frame legibility).
+    if panel.SetBackdropColor then panel:SetBackdropColor(1, 1, 1, opacity) end
     ApplyOpacity(tmogWindow)
     ApplyOpacity(skipsWindow)
     ApplyOpacity(achievementsWindow)
-    ApplyOpacity(settingsFrame)
 
     -- Re-fit the panel + auxiliary frames now that fonts and scale changed.
     -- AutoSize computes heights from line counts (not GetStringHeight) so a
@@ -1192,8 +1360,10 @@ end
 -- Height of the minimized panel. The title bar is logo (34px) + small
 -- vertical padding above (10px) + below (~6px) = ~50px. We use 44px:
 -- the logo extends slightly below the panel's bottom edge by design,
--- which makes the bar feel less cramped than a flush 50.
-local MINIMIZED_PANEL_H = 44
+-- which makes the bar feel less cramped than a flush 50. The minimized bar
+-- art has thin top/bottom edges, so it doesn't take the full panel inset --
+-- the title/buttons are re-centered for the bar in ApplyMinimizedState.
+local MINIMIZED_PANEL_H = 52
 
 function UI.IsMinimized()
     return RR:GetSetting("minimized") and true or false
@@ -1210,6 +1380,7 @@ local function GetBodyAndFooterElements()
         panel.travel, panel.encounter, panel.transmog,
         panel.listHeader, panel.list,
         panel.credit, panel.version, panel.whatsNewLabel,
+        panel.toastStatus,
         panel.mapBtn, panel.tmogBtn, panel.achievesBtn,
         panel.skipsBtn, panel.settingsBtn,
     }
@@ -1234,6 +1405,12 @@ local function ApplyBodyVisibility(visible)
     for _, fs in ipairs(panel.idleListLegendLines or {}) do
         if visible then fs:Show() else fs:Hide() end
     end
+    if panel.legendDivider and #(panel.idleListLegendLines or {}) > 0 then
+        if visible then panel.legendDivider:Show() else panel.legendDivider:Hide() end
+        if panel.legendDividerGem then
+            if visible then panel.legendDividerGem:Show() else panel.legendDividerGem:Hide() end
+        end
+    end
     for _, fs in ipairs(panel.progressListLines or {}) do
         if visible then fs:Show() else fs:Hide() end
     end
@@ -1242,6 +1419,12 @@ local function ApplyBodyVisibility(visible)
     end
     for _, btn in ipairs(panel.entranceButtons or {}) do
         if visible then btn:Show() else btn:Hide() end
+    end
+    for _, f in ipairs(panel.pillHoverFrames or {}) do
+        if visible then f:Show() else f:Hide() end
+    end
+    if panel.pillsHover then
+        if visible then panel.pillsHover:Show() else panel.pillsHover:Hide() end
     end
 end
 
@@ -1270,17 +1453,34 @@ end
 -- because the title text's rendered width depends on the font face
 -- and OUTLINE flag, which could change via Settings or future
 -- redesigns.
---
--- Returns nil if the title text hasn't yet been rendered (GetRight()
--- returns nil for un-rendered FontStrings). Caller should fall back
--- to a sensible default in that case.
+
+-- Scale applied to the title wordmark and the title-row buttons. Used both
+-- when laying out the row and when computing the bar width from the title's
+-- string width, so it lives as one named value rather than a repeated literal.
+local TITLE_SCALE = 0.83
+
+-- Width of the minimized bar. Derived from the title's rendered STRING width
+-- (a constant for fixed "RETRO RUNS" text) rather than from live screen-edge
+-- positions. The earlier GetRight()-minus-GetLeft() approach re-measured
+-- absolute screen coords on every UI.Update, and those edges can resolve
+-- transiently wrong while layout is mid-flight on an unrelated event (opening
+-- a mailbox fires an event that runs UI.Update, and the bar grew because the
+-- measured right edge came back inflated for that frame). String width can't
+-- be perturbed that way, so the bar width stays stable.
 local function ComputeMinimizedPanelW()
-    if not panel.titleRuns then return nil end
-    local titleRightAbs = panel.titleRuns:GetRight()
-    local panelLeftAbs  = panel:GetLeft()
-    if not titleRightAbs or not panelLeftAbs then return nil end
-    -- Title's right edge in panel-local coords (distance from panel left)
-    local titleRightLocal = titleRightAbs - panelLeftAbs
+    if not panel.titleRetro or not panel.titleRuns then return nil end
+    local retroW = panel.titleRetro:GetStringWidth()
+    local runsW  = panel.titleRuns:GetStringWidth()
+    if not retroW or not runsW or retroW <= 0 or runsW <= 0 then
+        -- Text not yet rendered (e.g. first call after a fresh reload);
+        -- caller falls back to MINIMIZED_PANEL_W_FALLBACK for one frame.
+        return nil
+    end
+    -- The title is drawn at TITLE_SCALE while on the bar, so its on-screen
+    -- width is the rendered string width times that scale. The title's left
+    -- edge sits PAD_LEFT from the panel left.
+    local titleScreenW = (retroW + runsW) * TITLE_SCALE
+    local titleRightLocal = PAD_LEFT + titleScreenW
     -- Layout from the panel right edge:
     --   close button right edge at right-4 (TOPRIGHT -4,-4)
     --   close button visible glyph extends ~22px to its left = right-26
@@ -1313,10 +1513,70 @@ local MINIMIZED_PANEL_W_FALLBACK = 240
 -- (called later in UI.Update) acquires NEW FontStrings into
 -- idleListLines that need to inherit the current minimized visibility,
 -- and a short-circuit would leave them visible when we're minimized.
+-- Position the title wordmark and the top-right buttons for the current state.
+-- Expanded: top-anchored under the frame's top rail (offset by the vertical
+-- frame inset). Minimized: vertically centered in the short bar, where the bar
+-- art's thin top/bottom edges leave room. Without this, the expanded top-offset
+-- (-12 - FRAME_INSET_Y) strands the title near the bottom of the short bar with
+-- a void above it.
+local function ApplyTitleLayoutForState(minimized)
+    if minimized then
+        -- Shrink via SetScale (not SetFont/SetSize): scaling shrinks the glyph
+        -- AND the bounding box together, so the RETRO/RUNS spacing stays tight
+        -- and the close button's X actually shrinks (SetSize leaves the template
+        -- X glyph full-size). TITLE_SCALE = roughly 10pt-equivalent for the
+        -- 12pt title and ~10% off the buttons.
+        local s = TITLE_SCALE
+        panel.titleRetro:SetScale(s)
+        panel.titleRuns:SetScale(s)
+        panel.closeButton:SetScale(s)
+        panel.minimizeButton:SetScale(s)
+        -- Anchor to the panel's LEFT/RIGHT (vertical midline) so the title and
+        -- buttons are centered in the bar's interior regardless of the border
+        -- thickness. Offsets are in each element's own scaled space, so divide
+        -- the desired screen clearance by the scale.
+        local titleEdge = 26 / s   -- ~26px screen clearance so the title clears the corner art
+        local btnEdge   = 16 / s   -- buttons sit a bit closer to the right corner
+        panel.titleRetro:ClearAllPoints()
+        panel.titleRetro:SetPoint("LEFT", panel, "LEFT", titleEdge, 0)
+        panel.closeButton:ClearAllPoints()
+        panel.closeButton:SetPoint("RIGHT", panel, "RIGHT", -btnEdge, 0)
+        -- Center the minimize button on the close button's CENTER so the two
+        -- sit at exactly the same height despite differing frame sizes (close is
+        -- a 32px frame, minimize 22px). The x-offset tucks them close together
+        -- (~half each frame plus a small gap), in the minimize button's scaled
+        -- space.
+        panel.minimizeButton:ClearAllPoints()
+        panel.minimizeButton:SetPoint("CENTER", panel.closeButton, "CENTER", -26, 0)
+    else
+        -- Expanded panel: same compact scale as the minimized bar, and the
+        -- title row placed at the SAME distance from the top border as the
+        -- minimized bar (where the title centers in MINIMIZED_PANEL_H). This
+        -- keeps the title-to-top-border gap identical between the two states.
+        local s = TITLE_SCALE
+        panel.titleRetro:SetScale(s)
+        panel.titleRuns:SetScale(s)
+        panel.closeButton:SetScale(s)
+        panel.minimizeButton:SetScale(s)
+        -- The minimized bar centers the title at MINIMIZED_PANEL_H/2 below the
+        -- panel top; reuse that exact center Y here so the top margin matches.
+        local rowCenterY = -(MINIMIZED_PANEL_H / 2)   -- screen Y of the title row center
+        panel.closeButton:ClearAllPoints()
+        panel.closeButton:SetPoint("RIGHT", panel, "TOPRIGHT", (-16) / s, rowCenterY / s)
+        panel.minimizeButton:ClearAllPoints()
+        panel.minimizeButton:SetPoint("CENTER", panel.closeButton, "CENTER", -26, 0)
+        -- Title: left-anchored, vertical center matched to the button row center.
+        panel.titleRetro:ClearAllPoints()
+        panel.titleRetro:SetPoint("LEFT", panel, "TOPLEFT", PAD_LEFT / s, rowCenterY / s)
+    end
+end
+
 function UI.ApplyMinimizedState()
     local minimized = UI.IsMinimized()
     UpdateMinimizeIcon()
     ApplyBodyVisibility(not minimized)
+    ApplyBorderArtForState(minimized)
+    ApplyTitleLayoutForState(minimized)
 
     if minimized then
         -- Capture top + left edges before resize so we can re-anchor
@@ -1417,71 +1677,6 @@ panel.minimizeButton:SetScript("OnClick", function()
     UI.SetMinimized(not UI.IsMinimized())
 end)
 
--- Recomputes the settings frame's height from its current child layout.
--- Height = lowest top-down-flowing control + measured bottom row.
---
--- The bottom row holds three widgets (Reset button on the left, Submit-
--- bug button just to its right, minimap checkbox on the right). All
--- three are BOTTOM-anchored to the frame, so they place themselves
--- relative to whatever bottom edge SetHeight produces. The frame must
--- be tall enough that the top edge of the TALLEST bottom-row widget
--- still clears the lowest top-flowing slider with breathing room.
---
--- The margin is measured rather than hardcoded: walk the bottom-row
--- widgets, find the one whose top edge is highest from the frame's
--- bottom, and add a fixed breathing-room cushion above.
---
--- This relies on the children having valid rendered geometry
--- (GetTop/GetBottom return real screen coords), which is only true once
--- the frame has been shown. Called from AutoSize AND from the settings
--- frame's OnShow so the first on-screen layout is already correct -- the
--- guards below make a pre-render call a safe no-op rather than a
--- wrong-height application.
-local function RecomputeSettingsHeight()
-    if not settingsFrame then return end
-    -- Guard: if the frame has never rendered (no valid top), defer. The
-    -- OnShow path will call again once geometry is valid. Applying a
-    -- height now would compute against unrendered children and produce
-    -- the too-tall frame that only corrected after a manual nudge.
-    if not settingsFrame:GetTop() then return end
-
-    local lowestBottom = 0
-    for _, child in ipairs({ settingsFrame.fontSlider,
-                              settingsFrame.scaleSlider,
-                              settingsFrame.opacitySlider,
-                              -- The last radio in the boss-order stack
-                              -- (bossOrderRadioEJ) is the bottommost body
-                              -- widget; measuring it dominates the rows
-                              -- above.
-                              settingsFrame.fontRadioVT323,
-                              settingsFrame.bossOrderRadioEJ }) do
-        if child then
-            local y = ContentBottomY(settingsFrame, child)
-            if y > lowestBottom then lowestBottom = y end
-        end
-    end
-    if lowestBottom > 0 then
-        local bottomRowTopFromBottom = 0
-        for _, child in ipairs({ settingsFrame.resetButton,
-                                  settingsFrame.bugButton,
-                                  settingsFrame.minimapCheck }) do
-            if child then
-                local fBot = settingsFrame:GetBottom() or 0
-                local wTop = child:GetTop() or fBot
-                local topFromBottom = wTop - fBot
-                if topFromBottom > bottomRowTopFromBottom then
-                    bottomRowTopFromBottom = topFromBottom
-                end
-            end
-        end
-        -- 16px breathing room above the bottom row so the lowest slider
-        -- doesn't crowd it (matches the gap the old hardcoded +50 gave).
-        local BOTTOM_ROW_BREATHING_ROOM = 16
-        local reserve = bottomRowTopFromBottom + BOTTOM_ROW_BREATHING_ROOM
-        if reserve <= 0 then reserve = 50 end
-        settingsFrame:SetHeight(lowestBottom + reserve)
-    end
-end
 
 -- Resizes the main panel (and ancillary frames) to fit their current
 -- content. Safe to call at any time; idempotent.
@@ -1493,7 +1688,13 @@ function UI.AutoSize()
     -- Bottom of the layout is whichever pool is non-empty -- in-raid
     -- boss-progress lines, or idle supported-raids list.
     local fontSize   = RR:GetSetting("fontSize", 12)
-    local lineHeight = GetBodyFontSize(fontSize) + 4
+    -- Row height is the single-line FontString height (the font pixel
+    -- size). The progress/idle rows are bare FontStrings laid out at a
+    -- -2px stride (see the GetProgressLines / idle-list layout), so the
+    -- per-row advance is fontHeight + 2px gap. An earlier +4 here padded
+    -- every row by 4px the FontStrings don't occupy, inflating the panel
+    -- by ~4px * rowCount -- ~56px of dead space at SoO's 14 bosses.
+    local lineHeight = GetBodyFontSize(fontSize)
 
     local listH = 0
     local hasContent = false
@@ -1521,26 +1722,44 @@ function UI.AutoSize()
     end
 
     if hasContent then
-        -- Footer reserve covers (from the panel's bottom edge): credit
-        -- text row, action button row, and the skip/entrance legend
-        -- block (idle mode only). In-raid mode skips the legend so
-        -- just needs a small cushion above the action buttons.
-        -- Legend block height is computed at the active body font's
-        -- sizeFactor so the reserve scales with the user's font choice.
-        local buttonsTopFromBottom = BUTTON_Y + BUTTON_H  -- = 50 at defaults
+        -- Footer reserve covers (from the panel's bottom edge): the action
+        -- button row and, in idle mode, the skip/entrance legend block that
+        -- pins above it. The legend block bottom-anchors LEGEND_BOTTOM_OFFSET
+        -- px up from the panel bottom (see RefreshIdleList; that value already
+        -- clears the button row plus a cushion). The reserve must therefore
+        -- measure from that anchor, NOT from the button-row top -- the earlier
+        -- math used buttonsTopFromBottom (=50) as the legend base, undershooting
+        -- by the LEGEND_BOTTOM_OFFSET-vs-button-top gap and letting the list
+        -- overlap the Routing/Waypoint lines when a tall expansion is open.
+        -- Legend row metrics scale with the active body font's sizeFactor.
+        local buttonsTopFromBottom = BUTTON_Y + BUTTON_H  -- BUTTON_Y includes frame inset
         local isInRaidMode         = #panel.progressListLines > 0
-        local breathingRoom
+        local footerReserve
         if isInRaidMode then
-            breathingRoom = 7
+            -- No legend in-raid; small cushion above the action buttons.
+            footerReserve = buttonsTopFromBottom + 7
         else
-            -- 3 legend rows worst-case (skip + 2 entrance), each at
-            -- lineHeight = GetBodyFontSize(LEGEND_FONT_SIZE=10) + 4px
-            -- text-row padding. 2 inter-row gaps of LEGEND_INTER_GAP=4
-            -- between the 3 rows.
-            local legendLineHeight = GetBodyFontSize(10) + 4
-            breathingRoom          = 3 * legendLineHeight + 2 * 4
+            -- Must mirror RefreshIdleList's legend constants so the two stay
+            -- in sync. The legend block bottom sits at LEGEND_BOTTOM_OFFSET
+            -- from the panel bottom; above it stack up to 3 rows worst-case
+            -- (skip + Routing + Waypoint), each GetBodyFontSize(LEGEND_FONT_
+            -- SIZE=10) + 4px text-row padding, with LEGEND_INTER_GAP gaps
+            -- between them. A final cushion sits above the topmost legend row
+            -- to separate it from the last raid pill row.
+            local LEGEND_BOTTOM_OFFSET = BUTTON_Y + BUTTON_H + 12  -- BUTTON_Y includes frame inset
+            local LEGEND_INTER_GAP     = 4
+            local LEGEND_TOP_CUSHION   = 24  -- gap between last pill row and legend (room for the divider)
+            local legendLineHeight     = GetBodyFontSize(10) + 4
+            -- Reserve for the legend rows actually present (1-3) rather than a
+            -- fixed worst-case 3 -- reserving 3 when fewer show left a big empty
+            -- band above the footer in the idle view.
+            local legendRows           = #(panel.idleListLegendLines or {})
+            if legendRows < 1 then legendRows = 1 end
+            if legendRows > 3 then legendRows = 3 end
+            local legendBlockHeight    = legendRows * legendLineHeight
+                                       + math.max(0, legendRows - 1) * LEGEND_INTER_GAP
+            footerReserve = LEGEND_BOTTOM_OFFSET + legendBlockHeight + LEGEND_TOP_CUSHION
         end
-        local footerReserve        = buttonsTopFromBottom + breathingRoom
 
         local parentTop      = panel:GetTop()
         local listHeaderBot  = panel.listHeader and panel.listHeader:GetBottom()
@@ -1595,15 +1814,20 @@ function UI.AutoSize()
         end
     end
 
+    -- Now that the panel height (and thus the bottom-pinned legend's screen
+    -- position) is final, place the divider at the midpoint between the last
+    -- raid row and the legend top. Guarded internally for the no-legend case.
+    if PositionLegendDivider then PositionLegendDivider() end
+
     -- TRANSMOG POPUP -------------------------------------------------------
     -- Size the popup deterministically from the content's line count rather
     -- than measuring rendered text, because GetStringHeight is lazy after
     -- SetFont and produces a visible pop-in on the first frame. Line-height
     -- is approximated from the font size; the content widgets are all
-    -- rendered at fontSize-1 (see RefreshContent's SetBodyFont calls), and
-    -- empirically the per-line vertical advance for FRIZQT at that size
-    -- is about 11.3 px, so a +2 px per-line safety margin is enough to
-    -- absorb a modest amount of word-wrap without over-allocating.
+    -- rendered at fontSize-1 (see RefreshContent's SetBodyFont calls). The
+    -- per-line vertical advance for FRIZQT at that size is about 11.3 px, so
+    -- a +2 px per-line safety margin absorbs a modest amount of word-wrap
+    -- without over-allocating.
     if tmogWindow and tmogWindow.contentText then
         local text = tmogWindow.contentText
         local content = text:GetText() or ""
@@ -1615,8 +1839,17 @@ function UI.AutoSize()
         -- RefreshContent) and the active body font's sizeFactor so
         -- the height budget matches the rendered text for non-FRIZQT
         -- fonts too.
+        --
+        -- Per-line advance: measured against rendered text, the real vertical
+        -- advance is GetBodyFontSize plus a fraction of a pixel of leading
+        -- (e.g. a 43-line list rendered at size 11 measured 480.5px -> 11.17
+        -- px/line, vs GetBodyFontSize(11) = 11). The previous +2 budget left
+        -- ~1.8 px of slack per line, which on a 43-line list piled up into an
+        -- ~80px blank strip below the legend. A +0.5 pad covers the real
+        -- leading with a little rounding headroom while keeping the per-line
+        -- slack negligible (~0.3 px), so long lists no longer over-grow.
         local renderedSize = math.max(8, fontSize - 1)
-        local lineHeight   = GetBodyFontSize(renderedSize) + 2
+        local lineHeight   = GetBodyFontSize(renderedSize) + 0.5
         local textH        = lines * lineHeight
 
         -- Sanctum vendor line (Castle Nathria) lives on its own
@@ -1653,17 +1886,6 @@ function UI.AutoSize()
 
     -- ACHIEVEMENTS POPUP: sized inside RefreshContent (row-based layout,
     -- same pattern as skips). Nothing to do here.
-
-    -- SETTINGS PANEL -------------------------------------------------------
-    -- Height depends on the settings frame's children having valid
-    -- rendered geometry, which isn't true until the frame has been shown
-    -- at least once. Computing it here (from AutoSize, which can fire
-    -- while settings is still hidden on first login) produced a wrong,
-    -- often far-too-tall height that only corrected once the frame was
-    -- shown and nudged. The computation now lives in
-    -- RecomputeSettingsHeight and is also re-run from the settings
-    -- frame's OnShow, so the first on-screen layout is already correct.
-    RecomputeSettingsHeight()
 end
 
 -- Expose on the module and also keep backward-compatible reference
@@ -1674,456 +1896,25 @@ panel:Hide()
 -------------------------------------------------------------------------------
 -- Settings panel
 -------------------------------------------------------------------------------
-
--- settingsFrame is forward-declared near the top alongside transmog
--- forwards, so UI.AutoSize can close over it.
-
-local function BuildSettingsPanel()
-    local f = CreateFrame("Frame", "RetroRunsSettingsFrame", UIParent, "BackdropTemplate")
-    -- Width is fixed; height is computed by UI.AutoSize's settings
-    -- block (above), which walks the body widgets and adds a measured
-    -- footer reserve. The placeholder height here is just to give the
-    -- frame valid dimensions before the first AutoSize pass runs.
-    f:SetSize(300, 200)
-    -- Settings is a modal-ish control surface; keep it above the main panel
-    -- and the tmog popup so opening it from the main panel isn't occluded.
-    f:SetFrameStrata("DIALOG")
-    f:SetToplevel(true)
-    f:SetBackdrop({
-        bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    f:SetBackdropColor(0.03, 0.03, 0.03, 0.95)
-    f:Hide()
-
-    -- Draggable, with persisted position (like the main panel).
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetClampedToScreen(true)
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        -- See main-panel OnDragStop above for why we normalize the anchor
-        -- to CENTER/CENTER here before reading offsets.
-        local cx, cy   = self:GetCenter()
-        local pcx, pcy = UIParent:GetCenter()
-        local fscale   = self:GetEffectiveScale()
-        local pscale   = UIParent:GetEffectiveScale()
-        -- See main-panel drag handler for the fscale-vs-pscale rationale.
-        local x = (cx * fscale - pcx * pscale) / fscale
-        local y = (cy * fscale - pcy * pscale) / fscale
-        self:ClearAllPoints()
-        self:SetPoint("CENTER", UIParent, "CENTER", x, y)
-        RR:SetSetting("settingsX", math.floor(x + 0.5))
-        RR:SetSetting("settingsY", math.floor(y + 0.5))
-    end)
-
-    f.RestorePosition = function(self)
-        self:ClearAllPoints()
-        local x = RR:GetSetting("settingsX", 290)
-        local y = RR:GetSetting("settingsY", 60)
-        self:SetPoint("CENTER", UIParent, "CENTER", x, y)
-    end
-    f:RestorePosition()
-
-    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.title:SetPoint("TOPLEFT", 14, -12)
-    f.title:SetText("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  Settings")
-    -- Use the 04B_03 retro pixel font for auxiliary window titles to
-    -- match the main panel's RETRO RUNS branding. Sized 16px so the
-    -- pixel grid renders cleanly (smaller breaks the pixel shapes).
-    -- Shadow rather than OUTLINE because OUTLINE on pixel fonts at
-    -- this size adds noise that hurts the crisp blocky look.
-    f.title:SetFont(TITLE_FONT, 16, "")
-    f.title:SetShadowOffset(1, -1)
-    f.title:SetShadowColor(0, 0, 0, 1)
-
-    f.versionLabel = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    f.versionLabel:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -4)
-    f.versionLabel:SetText("v" .. RetroRuns.VERSION)
-
-    f.closeButton = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-    f.closeButton:SetPoint("TOPRIGHT", -4, -4)
-
-    -- ---- Body ------------------------------------------------------------
-    -- Layout strategy: every body widget anchors top-down from the
-    -- widget above (versionLabel -> font slider -> scale slider ->
-    -- opacity slider -> "On login" label -> 3 radios). The panel's
-    -- final height is computed at the bottom of this block from the
-    -- last body widget's position plus a fixed footer reserve, so the
-    -- panel always grows to fit content without bottom-anchored
-    -- widgets fighting top-anchored ones (the previous failure mode).
-
-    -- Slider helper. Builds an OptionsSliderTemplate slider with a
-    -- live-updating label that shows the current value inline with the
-    -- name ("Font Size: 12"). `formatValue` (optional) maps the raw
-    -- slider value to the display string; defaults to integer rounding.
-    -- Used by the scale slider to display 80-130 as "1.00x"-style.
-    local function MakeSlider(frameName, label, min, max, step, anchorWidget, offsetY, formatValue)
-        local s = CreateFrame("Slider", frameName, f, "OptionsSliderTemplate")
-        s:SetPoint("TOPLEFT", anchorWidget, "BOTTOMLEFT", 0, offsetY)
-        s:SetPoint("RIGHT", f, "RIGHT", -24, 0)
-        s:SetMinMaxValues(min, max)
-        s:SetValueStep(step)
-        s:SetObeyStepOnDrag(true)
-        s.Low:SetText(tostring(min))
-        s.High:SetText(tostring(max))
-        s.labelBase   = label
-        s.formatValue = formatValue or function(v) return tostring(math.floor(v + 0.5)) end
-        s.RefreshLabel = function(self)
-            self.Text:SetText(self.labelBase .. ": " .. self.formatValue(self:GetValue()))
-        end
-        s:RefreshLabel()
-        return s
-    end
-
-    f.fontSlider  = MakeSlider("RetroRunsFontSlider",  "Font Size",    10, 18,  1, f.versionLabel, -28)
-    f.scaleSlider = MakeSlider("RetroRunsScaleSlider", "Window Scale", 80, 130, 5, f.fontSlider, -34,
-        function(v)
-            -- Slider stores 80-130 (percentage * 100); display as "1.00x"
-            -- so the user sees the multiplier rather than the raw int.
-            return ("%.2fx"):format(v / 100)
-        end)
-    f.scaleSlider.Low:SetText("0.8")
-    f.scaleSlider.High:SetText("1.3")
-
-    f.opacitySlider = MakeSlider("RetroRunsOpacitySlider", "Panel Opacity", 20, 100, 5, f.scaleSlider, -34,
-        function(v) return ("%d%%"):format(math.floor(v + 0.5)) end)
-    f.opacitySlider.Low:SetText("20%")
-    f.opacitySlider.High:SetText("100%")
-
-    -- Launch-mode radio group. Three mutually-exclusive options that
-    -- govern what RetroRuns does to the main panel on addon load:
-    -- leave it closed, open minimized, or open fully expanded. Stored
-    -- as a string in RetroRunsDB.launchMode; applied at init time by
-    -- Core.lua's RR:InitializeDB. Order is "minimized first" (the
-    -- default) so users land on the recommended option first.
-    --
-    -- Wider gap above (-50) than between sliders (-34) to signal the
-    -- topic shift from appearance to behavior, in lieu of a section
-    -- header line.
-    f.launchQuestion = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.launchQuestion:SetPoint("TOPLEFT", f.opacitySlider, "BOTTOMLEFT", 0, -50)
-    f.launchQuestion:SetText("On login, show RetroRuns:")
-
-    local function MakeLaunchRadio(value, label, anchorWidget, offsetY)
-        local r = CreateFrame("CheckButton", nil, f, "UIRadioButtonTemplate")
-        r:SetPoint("TOPLEFT", anchorWidget, "BOTTOMLEFT", 0, offsetY)
-        r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        r.text:SetPoint("LEFT", r, "RIGHT", 4, 1)
-        r.text:SetText(label)
-        r.value = value
-        r:SetScript("OnClick", function(self)
-            RR:SetSetting("launchMode", self.value)
-            if f.SyncLaunchRadios then f:SyncLaunchRadios() end
-        end)
-        return r
-    end
-
-    f.launchRadioMinimized = MakeLaunchRadio("minimized", "Open minimized", f.launchQuestion,       -6)
-    f.launchRadioFull      = MakeLaunchRadio("full",      "Open full",      f.launchRadioMinimized, -2)
-    f.launchRadioHidden    = MakeLaunchRadio("hidden",    "Don't open",     f.launchRadioFull,      -2)
-
-    f.SyncLaunchRadios = function(self)
-        local current = RR:GetSetting("launchMode", "minimized")
-        self.launchRadioHidden:SetChecked(current    == "hidden")
-        self.launchRadioMinimized:SetChecked(current == "minimized")
-        self.launchRadioFull:SetChecked(current      == "full")
-    end
-    f:SyncLaunchRadios()
-
-    -- Body-font radio group. Two mutually-exclusive options that govern
-    -- which font is used for body-level text inside the main panel
-    -- (action buttons, idle-state raid list, legend rows). Frame
-    -- headers (auxiliary window titles, the main panel's RETRO RUNS
-    -- title) always use the retro font regardless of this setting --
-    -- the toggle is body-scoped. Default is "retro" (04B_03).
-    --
-    -- Same layout pattern as the launch radio group above: wide gap
-    -- below the previous block, question label, then radios.
-    f.fontQuestion = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.fontQuestion:SetPoint("TOPLEFT", f.launchRadioHidden, "BOTTOMLEFT", 0, -18)
-    f.fontQuestion:SetText("Body font:")
-
-    local function MakeFontRadio(value, label, anchorWidget, offsetY)
-        local r = CreateFrame("CheckButton", nil, f, "UIRadioButtonTemplate")
-        r:SetPoint("TOPLEFT", anchorWidget, "BOTTOMLEFT", 0, offsetY)
-        r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        r.text:SetPoint("LEFT", r, "RIGHT", 4, 1)
-        r.text:SetText(label)
-        r.value = value
-        r:SetScript("OnClick", function(self)
-            RR:SetSetting("bodyFontStyle", self.value)
-            if f.SyncFontRadios then f:SyncFontRadios() end
-            -- Re-apply across body surfaces. The idle list is redrawn
-            -- by invalidating its fingerprint cache and triggering a
-            -- refresh; ApplySettings walks the body-widget targets
-            -- table and re-fonts the in-raid surface (raid name,
-            -- pills, Next, travel, encounter card, etc.) plus the
-            -- idle headers. Skips + Achievements windows are auto-
-            -- refreshed via ApplySettings if currently shown. The
-            -- Tmog window is NOT auto-refreshed by ApplySettings
-            -- (its RefreshContent is gated to avoid heartbeat-tick
-            -- reflow), so we force it explicitly here. Action
-            -- buttons + title bar + footer are locked to 04B_03 and
-            -- don't need a re-paint here.
-            if UI.InvalidateIdleListCache then UI.InvalidateIdleListCache() end
-            UI.ApplySettings()
-            if tmogWindow and tmogWindow:IsShown() and tmogWindow.RefreshContent then
-                tmogWindow:RefreshContent()
-            end
-        end)
-        return r
-    end
-
-    f.fontRadioStandard = MakeFontRadio("standard", "Friz Quadrata (Default)", f.fontQuestion,        -6)
-    f.fontRadioRetro    = MakeFontRadio("retro",    "04B_03",                  f.fontRadioStandard,   -2)
-    f.fontRadioVT323    = MakeFontRadio("vt323",    "VT323",                   f.fontRadioRetro,      -2)
-
-    f.SyncFontRadios = function(self)
-        local current = RR:GetSetting("bodyFontStyle", "standard")
-        self.fontRadioStandard:SetChecked(current == "standard")
-        self.fontRadioRetro:SetChecked(current    == "retro")
-        self.fontRadioVT323:SetChecked(current    == "vt323")
-    end
-    f:SyncFontRadios()
-
-    -- Boss-progress order radio group. Governs the order of the Boss
-    -- Progress list: "rr" follows the route this addon walks (so the
-    -- list fills top-down as bosses are cleared), "ej" follows the
-    -- in-game Encounter Journal order. Cosmetic only -- no effect on
-    -- routing or kill tracking. Same layout pattern as the groups above.
-    f.bossOrderQuestion = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.bossOrderQuestion:SetPoint("TOPLEFT", f.fontRadioVT323, "BOTTOMLEFT", 0, -18)
-    f.bossOrderQuestion:SetText("Boss Progress Display")
-
-    local function MakeBossOrderRadio(value, label, anchorWidget, offsetY)
-        local r = CreateFrame("CheckButton", nil, f, "UIRadioButtonTemplate")
-        r:SetPoint("TOPLEFT", anchorWidget, "BOTTOMLEFT", 0, offsetY)
-        r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        r.text:SetPoint("LEFT", r, "RIGHT", 4, 1)
-        r.text:SetText(label)
-        r.value = value
-        r:SetScript("OnClick", function(self)
-            RR:SetSetting("bossOrderMode", self.value)
-            if f.SyncBossOrderRadios then f:SyncBossOrderRadios() end
-            UI.Update()
-        end)
-        return r
-    end
-
-    f.bossOrderRadioRR = MakeBossOrderRadio("rr", "Kill Order (Default)", f.bossOrderQuestion,  -6)
-    f.bossOrderRadioEJ = MakeBossOrderRadio("ej", "Blizzard Journal Order", f.bossOrderRadioRR, -2)
-
-    f.SyncBossOrderRadios = function(self)
-        local current = RR:GetSetting("bossOrderMode", "rr")
-        self.bossOrderRadioRR:SetChecked(current == "rr")
-        self.bossOrderRadioEJ:SetChecked(current == "ej")
-    end
-    f:SyncBossOrderRadios()
+-- Settings are built natively with the Blizzard Settings API in
+-- UI/SettingsCanvas.lua and live in Options > AddOns. There is no custom
+-- settings frame here anymore.
 
 
-    local function MakeCheckbox(label, anchorPoint, anchorWidget, anchorRel, offsetX, offsetY, getter, setter)
-        local cb = CreateFrame("CheckButton", nil, f, "InterfaceOptionsCheckButtonTemplate")
-        cb:SetPoint(anchorPoint, anchorWidget, anchorRel, offsetX, offsetY)
-        cb.Text:SetText(label)
-        cb:SetScript("OnClick", function(self)
-            setter(self:GetChecked())
-            UI.ApplySettings()
-        end)
-        cb.Sync = function(self) self:SetChecked(getter()) end
-        return cb
-    end
-
-    f.resetButton = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    f.resetButton:SetSize(80, 22)
-    f.resetButton:SetPoint("BOTTOMLEFT", 14, 12)
-    f.resetButton:SetText("Defaults")
-    f.resetButton:SetScript("OnClick", function()
-        SlashCmdList["RETRORUNS"]("reset")
-    end)
-
-    -- Submit-bug button: 22x22 icon button right of Defaults. Click
-    -- pops the GitHub Issues URL in a Ctrl+C copy popup.
-    f.bugButton = CreateFrame("Button", nil, f)
-    f.bugButton:SetSize(22, 22)
-    f.bugButton:SetPoint("LEFT", f.resetButton, "RIGHT", 6, 0)
-
-    f.bugButton:SetNormalTexture("Interface\\AddOns\\RetroRuns\\Media\\BugIcon")
-    f.bugButton:SetPushedTexture("Interface\\AddOns\\RetroRuns\\Media\\BugIcon")
-    f.bugButton:SetHighlightTexture(
-        "Interface\\Buttons\\CheckButtonHilight", "ADD")
-
-    -- White-source TGA tinted to RETRO pink via vertex color.
-    local nt = f.bugButton:GetNormalTexture()
-    if nt then nt:SetVertexColor(0.95, 0.35, 0.78, 1) end
-    local pt = f.bugButton:GetPushedTexture()
-    if pt then pt:SetVertexColor(0.95, 0.35, 0.78, 1) end
-
-    f.bugButton:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:AddLine("Report a bug")
-        GameTooltip:AddLine(
-            "Open a copy window with a link to the GitHub issue tracker.",
-            1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    f.bugButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
-    f.bugButton:SetScript("OnClick", function()
-        StaticPopup_Show("RETRORUNS_BUG_URL", nil, nil, {
-            url = "https://github.com/PhotekWoW/RetroRuns/issues",
-        })
-    end)
-
-    -- CurseForge-comments button: same pattern as the bug button,
-    -- tinted RETRO cyan to distinguish.
-    f.chatButton = CreateFrame("Button", nil, f)
-    f.chatButton:SetSize(22, 22)
-    f.chatButton:SetPoint("LEFT", f.bugButton, "RIGHT", 6, 0)
-
-    f.chatButton:SetNormalTexture("Interface\\AddOns\\RetroRuns\\Media\\ChatIcon")
-    f.chatButton:SetPushedTexture("Interface\\AddOns\\RetroRuns\\Media\\ChatIcon")
-    f.chatButton:SetHighlightTexture(
-        "Interface\\Buttons\\CheckButtonHilight", "ADD")
-
-    -- Texture region scaled up beyond the 22x22 hit-area so the
-    -- silhouette visually matches the bug icon next to it.
-    local cnt = f.chatButton:GetNormalTexture()
-    if cnt then
-        cnt:ClearAllPoints()
-        cnt:SetSize(30, 30)
-        cnt:SetPoint("CENTER", f.chatButton, "CENTER", 0, 0)
-        cnt:SetVertexColor(0.30, 0.80, 1.00, 1)
-    end
-    local cpt = f.chatButton:GetPushedTexture()
-    if cpt then
-        cpt:ClearAllPoints()
-        cpt:SetSize(30, 30)
-        cpt:SetPoint("CENTER", f.chatButton, "CENTER", 0, 0)
-        cpt:SetVertexColor(0.30, 0.80, 1.00, 1)
-    end
-
-    f.chatButton:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:AddLine("Comments and feedback")
-        GameTooltip:AddLine(
-            "Open a copy window with a link to the CurseForge comments page.",
-            1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    f.chatButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
-    f.chatButton:SetScript("OnClick", function()
-        StaticPopup_Show("RETRORUNS_CHAT_URL", nil, nil, {
-            url = "https://www.curseforge.com/wow/addons/retroruns/comments",
-        })
-    end)
-
-    -- Minimap toggle at the bottom-right, sharing the action band with
-    -- the Defaults / bug / chat buttons on the left. Repositioned post-
-    -- create against the measured label width so the label's right edge
-    -- sits 14px from the panel's right edge.
-    f.minimapCheck = MakeCheckbox(
-        "Minimap button",
-        "BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 8,
-        -- showMinimap default is true; only an explicit `false` hides.
-        function() return RR:GetSetting("showMinimap") ~= false end,
-        function(val)
-            RR:SetSetting("showMinimap", val)
-            if RR.minimapButton then
-                if val then RR.minimapButton:Show()
-                else RR.minimapButton:Hide() end
-            end
-        end)
-
-    if f.minimapCheck and f.minimapCheck.Text then
-        local labelWidth = f.minimapCheck.Text:GetStringWidth() or 80
-        f.minimapCheck:ClearAllPoints()
-        -- Total horizontal space the compound needs: label width +
-        -- a small gap between the checkbox-square and the label
-        -- (the template's built-in spacing is ~4px) + the label's
-        -- right margin to the panel edge (14px). The checkbox
-        -- square itself is ~26px wide.
-        f.minimapCheck:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT",
-            -(labelWidth + 14), 8)
-    end
-
-    f.fontSlider:SetScript("OnValueChanged", function(self, value)
-        if not RetroRunsDB then return end
-        RR:SetSetting("fontSize", math.floor(value + 0.5))
-        self:RefreshLabel()
-        -- Font size affects how idle-list rows render even though the
-        -- row DATA is unchanged -- invalidate the cache so the next
-        -- RefreshIdleList actually rebuilds at the new size.
-        if UI.InvalidateIdleListCache then UI.InvalidateIdleListCache() end
-        -- Same reasoning for the achievements window's row table.
-        if UI.InvalidateAchievementsCache then UI.InvalidateAchievementsCache() end
-        UI.ApplySettings()
-    end)
-
-    f.scaleSlider:SetScript("OnValueChanged", function(self, value)
-        if not RetroRunsDB then return end
-        RR:SetSetting("windowScale", value / 100)
-        self:RefreshLabel()
-        if UI.InvalidateIdleListCache then UI.InvalidateIdleListCache() end
-        UI.ApplySettings()
-    end)
-
-    f.opacitySlider:SetScript("OnValueChanged", function(self, value)
-        if not RetroRunsDB then return end
-        RR:SetSetting("panelOpacity", value / 100)
-        self:RefreshLabel()
-        UI.ApplySettings()
-    end)
-
-    f:SetScript("OnShow", function(self)
-        UI.SyncSettingsControls()
-        -- Recompute height now that the frame is rendering. Deferred one
-        -- frame so child GetTop/GetBottom report settled geometry; this
-        -- is what makes the first on-screen open correctly sized instead
-        -- of opening too-tall until manually nudged.
-        if C_Timer and C_Timer.After then
-            C_Timer.After(0, RecomputeSettingsHeight)
-        else
-            RecomputeSettingsHeight()
-        end
-    end)
-    return f
-end
-
-settingsFrame = BuildSettingsPanel()
-RetroRunsSettingsFrame = settingsFrame
+-- Settings now live in the Blizzard Options > AddOns window, built natively
+-- with the Settings API in UI/SettingsCanvas.lua. There is no custom settings
+-- frame to construct or sync; the native controls read RetroRunsDB directly
+-- through their proxy settings.
 
 function UI.SyncSettingsControls()
-    if not RetroRunsDB or not settingsFrame then return end
-    settingsFrame.fontSlider:SetValue(RR:GetSetting("fontSize", 12))
-    settingsFrame.scaleSlider:SetValue(
-        math.floor((RR:GetSetting("windowScale", 1.0) * 100) + 0.5))
-    settingsFrame.opacitySlider:SetValue(
-        math.floor((RR:GetSetting("panelOpacity", 1.0) * 100) + 0.5))
-    -- SetValue only fires OnValueChanged if the value actually changes, so
-    -- on first sync (slider at construction-time min, DB matches) the label
-    -- wouldn't update. Force a refresh to cover that edge case.
-    settingsFrame.fontSlider:RefreshLabel()
-    settingsFrame.scaleSlider:RefreshLabel()
-    settingsFrame.opacitySlider:RefreshLabel()
-    settingsFrame.minimapCheck:Sync()
-    if settingsFrame.SyncLaunchRadios then settingsFrame:SyncLaunchRadios() end
-    if settingsFrame.SyncFontRadios   then settingsFrame:SyncFontRadios()   end
-    if settingsFrame.SyncBossOrderRadios then settingsFrame:SyncBossOrderRadios() end
+    -- No-op. The native settings panel reads RetroRunsDB on demand and stays
+    -- in sync without an explicit push; this stays for callers that expect it.
 end
 
 function UI.ToggleSettings()
-    if settingsFrame:IsShown() then
-        settingsFrame:Hide()
-    else
-        settingsFrame:Show()
-        settingsFrame:Raise()   -- force above other dialogs (e.g. tmog popup)
-    end
+    -- Open the Blizzard settings window to the RetroRuns category.
+    -- (UI.OpenSettings is defined in UI/SettingsCanvas.lua.)
+    if UI.OpenSettings then UI.OpenSettings() end
 end
 
 -------------------------------------------------------------------------------
@@ -2257,18 +2048,39 @@ local function BuildPillsText()
     local counts = RR:GetPerDifficultyKillCounts()
     if not counts then return "" end
 
-    local activeDiff = RR.state and RR.state.currentDifficultyID
+    local raid = RR.currentRaid
+    -- Active difficulty is a live ID; fold it to its display bucket so it
+    -- lines up with the bucket-keyed counts under any difficulty model.
+    local activeDiff = RR:FoldDifficulty(raid, RR.state and RR.state.currentDifficultyID)
     local COMPLETE_HEX = "00ff00"
     local ACTIVE_HEX   = "ffff00"
     local PENDING_HEX  = "9d9d9d"
 
-    -- Order matches typical Blizzard UI: easiest -> hardest.
-    -- difficultyID -> short label.
-    local PILLS = {
-        { id = 14, label = "N" },
-        { id = 15, label = "H" },
-        { id = 16, label = "M" },
-    }
+    -- Short label per display bucket. LFR (17) is intentionally absent:
+    -- like the rest of the addon, the pill row covers Normal and up,
+    -- while LFR sources live in the transmog browser. Mists raids drop
+    -- Mythic (16); the model's bucket list handles that automatically.
+    local BUCKET_LABEL = { [14] = "N", [15] = "H", [16] = "M" }
+
+    -- Order matches typical Blizzard UI: easiest -> hardest. Built from
+    -- the raid's difficulty model so Mists raids show N | H and modern
+    -- raids show N | H | M without a per-era branch here.
+    local model = RR:GetDifficultyModel(raid)
+    local PILLS = {}
+    for _, bucket in ipairs(model.buckets) do
+        local label = BUCKET_LABEL[bucket]
+        if label then
+            table.insert(PILLS, { id = bucket, label = label })
+        end
+    end
+
+    -- Mists shared lockout: the Normal/Heroic sibling of a committed mode
+    -- is locked for the week. Lock glyph marks it (no recolor; see the
+    -- idle builder for why color alone won't read here).
+    local lockedBucket = RR:GetLockedOutBucket(raid, counts)
+    -- yOffset drops the icon onto the text baseline; trailing RGB tints it
+    -- gold (the LFG lock is the locked-out marker).
+    local LOCK_GLYPH = " |TInterface\\PetBattles\\PetBattle-LockIcon:12:12:0:0|t"
 
     local parts = {}
     for _, p in ipairs(PILLS) do
@@ -2282,8 +2094,9 @@ local function BuildPillsText()
             else
                 hex = PENDING_HEX
             end
-            table.insert(parts, ("|cff%s%s %d/%d|r"):format(
-                hex, p.label, c.complete, c.total))
+            local lock = (p.id == lockedBucket) and LOCK_GLYPH or ""
+            table.insert(parts, ("|cff%s%s %d/%d|r%s"):format(
+                hex, p.label, c.complete, c.total, lock))
         end
     end
     if #parts == 0 then return "" end
@@ -2356,13 +2169,9 @@ function RR:GetPulseColor()
     return ENCOUNTER_PULSE_COLORS[encounterPulsePhase] or "|cffffff00"
 end
 
--- Parallel pulse table for map labels: same cosine cadence, but
--- modulates all three RGB channels so the text breathes gray->white
--- instead of dim-yellow->bright-yellow. Range 0.60..1.00 (hex 99..ff)
--- to give a visible gray-to-white sweep that reads as "attention" but
--- stays within the addon's existing white-text vocabulary on the
--- world map, where saturated yellow stood out from neighboring labels
--- (boss names, path numbers) and broke visual consistency.
+-- Pulse table for map labels: same cadence as the encounter [!], but sweeps
+-- all three RGB channels so text breathes gray->white (0.60..1.00) instead of
+-- dim-to-bright yellow, keeping map labels in the white-text vocabulary.
 local LABEL_PULSE_COLORS = {}
 for i = 0, ENCOUNTER_PULSE_STEPS - 1 do
     local phase = (i / ENCOUNTER_PULSE_STEPS) * 2 * math.pi
@@ -3083,6 +2892,10 @@ BuildSpecialLootSection = function(boss)
             local kindInner = kindLabel
             if item.mythicOnly then
                 kindInner = kindLabel .. ", |r|cffF259C7Mythic only|r|c" .. kindColor
+            elseif item.lfrOnly then
+                kindInner = kindLabel .. ", |r|cffF259C7LFR only|r|c" .. kindColor
+            elseif item.normalHeroicOnly then
+                kindInner = kindLabel .. ", |r|cffF259C7Normal/Heroic only|r|c" .. kindColor
             end
 
             -- Bracketed state indicator before the name, matching the
@@ -3113,15 +2926,24 @@ end
 
 -- Is an item a "display candidate" for the transmog popup?
 local function ItemIsTransmogCandidate(item)
+    -- Special-loot entries (pets, mounts, toys, illusions, manuscripts,
+    -- decor) carry a `kind` and belong in the boss specialLoot list, which
+    -- the core UI surfaces separately. They have no equip slot and no
+    -- per-difficulty appearance sources, so they must never appear in the
+    -- transmog browser regardless of which array they were authored into.
+    if item.kind then return false end
     if TRANSMOG_EXCLUDED_SLOTS[item.slot] then return false end
     if not ItemIsForPlayer(item) then return false end
     return true
 end
 
--- Is the "active" (current in-game) difficulty known to be one of the four
--- tracked ones? Used to choose the white vs gray dot colour.
+-- The "active" (current in-game) difficulty, folded to its display
+-- bucket so it lines up with the 14/15/16/17 keys the source data uses.
+-- Under the Mists model a live size variant (e.g. 25-player Heroic)
+-- folds to its Heroic bucket; under the modern model the id is returned
+-- unchanged. Used to choose the white vs gray dot colour in the browser.
 local function ActiveDifficulty()
-    return RR.state and RR.state.currentDifficultyID
+    return RR:FoldDifficulty(RR.currentRaid, RR.state and RR.state.currentDifficultyID)
 end
 
 -- Strict per-difficulty rollup state for an item:
@@ -3414,8 +3236,8 @@ local function ItemShape(item)
     -- ways the source data expresses this:
     --   (a) Single sourceID cloned across buckets -- e.g. Sepulcher's
     --       Gavel of the First Arbiter (all 4 diffs same source), or
-    --       WoD N/H/M items where Normal/Heroic/Mythic all resolved
-    --       to the same source during harvest.
+    --       WoD N/H/M items where Normal/Heroic/Mythic all resolve
+    --       to the same source.
     --   (b) Multiple sourceIDs that all resolve to ONE visualID. WoW's
     --       transmog system tracks per-(item x difficulty) acquisition
     --       paths even when they share a visual; Blackrock Foundry's
@@ -3481,11 +3303,8 @@ end
 
 -- Renders a binary-shape row: "[ <glyph> ]" bracket with the glyph colored
 -- per state. Single sourceID drives a single CollectionStateForSource call.
--- Defensive fallback to FallbackStateForItem when sources is nil/empty:
--- harvested data always populates sources, so this branch is unreachable
--- from current Data/*.lua files, but it remains as a safety net for
--- hand-edited entries that forgot the sources field. Without it, a typo'd
--- entry would render with state=nil and crash BinaryStateRendering.
+-- Falls back to FallbackStateForItem when sources is nil/empty so an entry
+-- missing that field renders safely instead of crashing BinaryStateRendering.
 local function BuildBinaryRow(item)
     local debugEnabled = RR:GetSetting("debug")
     local state
@@ -3791,10 +3610,46 @@ BuildTransmogDetail = function(stepOrCtx)
         for _ in pairs(item.sources or {}) do n = n + 1 end
         return n
     end
+    -- A stable signature of which difficulty buckets an item drops from, so
+    -- items with the same bucket count cluster by their actual difficulties
+    -- rather than interleaving alphabetically. For WoD split-loot bosses this
+    -- keeps the single-bucket group from mixing Normal-only ({[14]}) items in
+    -- with the Raid Finder ({[17]}) pool -- they share bucketCount 1 but are
+    -- different drop sources and shouldn't be intermingled. Lower difficulty
+    -- IDs sort first (Normal 14 before LFR 17).
+    local function bucketSignature(item)
+        local ids = {}
+        for diffID in pairs(item.sources or {}) do ids[#ids + 1] = diffID end
+        table.sort(ids)
+        return table.concat(ids, ",")
+    end
     table.sort(binaryItems, function(a, b) return (a.name or "") < (b.name or "") end)
+    -- Tier rows (those carrying `item.classes`) sort as a block ABOVE the
+    -- regular gear, ordered by class ID then name. Regular (non-tier) rows
+    -- keep the bucket-count -> signature -> name ordering. This makes the
+    -- tier separation deliberate across every tier raid rather than an
+    -- incidental side effect of tier's bucket signature differing from
+    -- regular gear (which only happened to cluster on raids like SoO whose
+    -- tier has a 3-bucket shape distinct from 4-bucket regular drops).
+    local function isTier(item)
+        return item.classes and #item.classes > 0
+    end
     table.sort(perDiffItems, function(a, b)
+        local ta, tb = isTier(a), isTier(b)
+        if ta ~= tb then return ta end           -- tier block first
+        if ta then
+            -- Within tier: class ID ascending, then name.
+            local ka = a.classes[1] or 0
+            local kb = b.classes[1] or 0
+            if ka ~= kb then return ka < kb end
+            return (a.name or "") < (b.name or "")
+        end
+        -- Within regular gear: shorter bucket strips first, then a stable
+        -- difficulty signature, then name.
         local ca, cb = bucketCount(a), bucketCount(b)
         if ca ~= cb then return ca < cb end
+        local sa, sb = bucketSignature(a), bucketSignature(b)
+        if sa ~= sb then return sa < sb end
         return (a.name or "") < (b.name or "")
     end)
 
@@ -3910,24 +3765,26 @@ BuildTransmogDetail = function(stepOrCtx)
     end
 
     -- Emit per-difficulty group. Items are pre-sorted by bucket count
-    -- ascending; insert a blank line at each transition so the WoD-pool
-    -- groups (1-bucket LFR-only items, then 3-bucket N/H/M, then full
-    -- 4-bucket) visually separate without needing explicit sub-headers.
-    local lastBucketCount
+    -- ascending, then by bucket signature, so groups separate by both shape
+    -- and difficulty: for WoD split-loot bosses the single-bucket Normal-only
+    -- ({[14]}) items and the Raid Finder ({[17]}) pool each get their own
+    -- block with a blank line between, then the 3-bucket N/H/M items, then
+    -- any full 4-bucket items -- no explicit sub-headers needed.
+    local lastSignature
     for _, item in ipairs(perDiffItems) do
-        local n = bucketCount(item)
-        if lastBucketCount and n ~= lastBucketCount then
+        local sig = bucketSignature(item)
+        if lastSignature and sig ~= lastSignature then
             table.insert(lines, "")
         end
-        lastBucketCount = n
+        lastSignature = sig
         table.insert(lines, FormatItemRow(item))
         MaybeAppendAcquisitionNote(item)
     end
 
     -- Weapon-token section (Castle Nathria, Sanctum of Domination).
-    -- Tokens are covenant-partitioned in ways our harvested data
-    -- doesn't capture, so we render a 3-state (none/some/all) per
-    -- slot rather than an inaccurate X/N ratio.
+    -- Tokens are covenant-partitioned in ways the data doesn't capture,
+    -- so each slot renders as 3-state (none/some/all) rather than an
+    -- inaccurate X/N ratio.
     local raid = RR.currentRaid
     -- Browser may display a non-current raid; resolve raid from boss.
     if not raid or (raid.bosses and raid.bosses[boss.index] ~= boss) then
@@ -4170,8 +4027,8 @@ end
 local function EnumerateRaids()
     local byExpansion = {}
     for _, raid in pairs(RetroRuns_Data or {}) do
-        -- Skip dev-stub placeholder entries (instanceID = 0). See
-        -- BuildIdleListRows for the full rationale.
+        -- Skip incomplete entries (instanceID = 0); they have no resolved
+        -- journal IDs and would render as all-dash pills.
         if raid.instanceID and raid.instanceID > 0 then
             local exp = raid.expansion or "Unknown"
             byExpansion[exp] = byExpansion[exp] or {}
@@ -4219,10 +4076,8 @@ local function CountExpansionLoot(expansion, byExpansion)
     return n, s, t
 end
 
--- Dropdown label suffix. Currently a no-op — the three browser dropdowns
+-- Dropdown label suffix. Currently a no-op; the three browser dropdowns
 -- (expansion, raid, boss) render their entries without a per-entry count.
--- Counters retained at call sites so totals can be re-surfaced later
--- (e.g. via a settings toggle) without touching dispatch.
 local function FormatCountSuffix(_, _, _)
     return ""
 end
@@ -4815,6 +4670,37 @@ function UI.UpdateTmogWindow(step)
     tmogWindow:RefreshAll()
 end
 
+-- Force a content refresh of the tmog window if it's open. Used by the
+-- settings body-font control: ApplySettings deliberately does NOT refresh the
+-- tmog window on its heartbeat tick (that caused a once-per-second reflow), so
+-- a font-family change has to repaint it explicitly.
+function UI.RefreshTmogWindowIfShown()
+    if tmogWindow and tmogWindow:IsShown() and tmogWindow.RefreshContent then
+        tmogWindow:RefreshContent()
+    end
+end
+
+-- Update the centered footer "Toaster:" arrow to match the live state:
+-- green up = active (enabled + in a supported raid), amber down = enabled but
+-- not in a supported raid, red down = disabled. Mirrors the settings panel's
+-- Active Status so both surfaces agree. Safe to call any time.
+function UI.RefreshFooterToasterStatus()
+    local f = panel.toastStatus
+    if not f or not f.arrow then return end
+    local enabled = RR:GetSetting("toasterEnabled", false) ~= false
+    local inRaid  = RR.currentRaid ~= nil
+    local color, up
+    if not enabled then
+        color, up = { 0.95, 0.35, 0.35 }, false   -- red, down
+    elseif inRaid then
+        color, up = { 0.40, 0.90, 0.45 }, true     -- green, up
+    else
+        color, up = { 1.00, 0.55, 0.20 }, false    -- amber, down
+    end
+    f.arrow:SetRotation(up and math.pi or 0)       -- asset points down natively
+    f.arrow:SetVertexColor(color[1], color[2], color[3])
+end
+
 -- Public entry point for "/rr tmog" and any other "open the browser from
 -- anywhere" callers. Opens the popup in BROWSE mode: it stays until the
 -- user clicks the close button; the grace-timer auto-hide doesn't apply.
@@ -4900,9 +4786,12 @@ function UI.DumpTmogSize()
     widgetSummary("legendLine",  legendLine)
 
     -- Mirror the AutoSize calculation so we can compare against actual.
-    local fontSize   = RR:GetSetting("fontSize", 12)
-    local bodySize   = GetBodyFontSize and GetBodyFontSize(fontSize) or fontSize
-    local lineHeight = bodySize + 4
+    -- Must match AutoSize exactly: rendered size is fontSize-1 (RefreshContent
+    -- renders the body at fontSize-1), and the per-line pad is +0.5.
+    local fontSize     = RR:GetSetting("fontSize", 12)
+    local renderedSize = math.max(8, fontSize - 1)
+    local bodySize     = GetBodyFontSize and GetBodyFontSize(renderedSize) or renderedSize
+    local lineHeight   = bodySize + 0.5
     local content    = (text and text:GetText()) or ""
     local lineCount  = 1
     for _ in content:gmatch("\n") do lineCount = lineCount + 1 end
@@ -4914,7 +4803,7 @@ function UI.DumpTmogSize()
     end
     local legendH = 2 * lineHeight + 8
 
-    local chrome = 32 + 3 * 32 + 10 + 14
+    local chrome = 32 + (3 * 32 - 8) + 10 + 14
     local desired = chrome + textH + sanctumH + legendH
 
     add("")
@@ -4925,7 +4814,7 @@ function UI.DumpTmogSize()
     add(("  textH (calculated) = %d"):format(textH))
     add(("  sanctumH = %d"):format(sanctumH))
     add(("  legendH = %d"):format(legendH))
-    add(("  chrome = 32 + 96 + 10 + 14 = %d"):format(chrome))
+    add(("  chrome = 32 + 88 + 10 + 14 = %d"):format(chrome))
     add(("  desired = chrome + textH + sanctumH + legendH = %d"):format(desired))
     add(("  set frame height = %.1f"):format(fH))
 
@@ -5085,7 +4974,7 @@ local SKIPS_WINDOW_MAX_HEIGHT   = 600
 -- name column starts at frame-left + content padding and runs up to
 -- the first cell; the three cell columns are right-aligned around their
 -- center x-positions so a glyph and the header letter both sit
--- visually centered. Offsets chosen empirically for SKIPS_WINDOW_WIDTH=400.
+-- visually centered. Offsets are tuned for SKIPS_WINDOW_WIDTH=400.
 --
 -- Difficulty order: Mythic / Heroic / Normal (left to right). Hardest
 -- first matches a player's typical mental model when checking "do I have
@@ -5109,10 +4998,10 @@ local SKIPS_COL_NORMAL_X   = 360
 local SKIPS_LINE_GAP       = 1.7
 
 -- Divider offset from the row's bottom edge. Positive value moves the
--- divider UP into the row band (toward the text). Tuned empirically
--- so the row text + glyphs sit visually centered between two
--- consecutive dividers. With SKIPS_LINE_GAP = 1.7 and fontSize=12,
--- lineHeight is ~20px; the FontString has a few px of internal
+-- divider UP into the row band (toward the text), set so the row text +
+-- glyphs sit visually centered between two consecutive dividers. With
+-- SKIPS_LINE_GAP = 1.7 and fontSize=12, lineHeight is ~20px; the
+-- FontString has a few px of internal
 -- top-padding, so the divider needs to sit a few px above the bottom
 -- of the band to make the text appear centered.
 local SKIPS_ROW_DIVIDER_INSET = 5
@@ -5134,6 +5023,14 @@ local SKIPS_CELL_LOCKED   = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14:0
 -- exists but you haven't unlocked it yet" (which is what the locked-X
 -- means in the other two states).
 local SKIPS_CELL_NA       = "|cff888888N/A|r"
+-- Unknown state: used by the Siege of Orgrimmar Garrosh scroll when no
+-- account-wide achievement proves a kill and the current character's
+-- kill statistics are all zero. The skip may still be unlocked by a kill
+-- on another character that left no readable account-wide trace, so this
+-- communicates "can't determine" rather than the locked-X's "not
+-- unlocked." Waiting texture from the same RaidFrame family as the check
+-- and X so column widths and the visual midline stay consistent.
+local SKIPS_CELL_UNKNOWN  = "|TInterface\\RaidFrame\\ReadyCheck-Waiting:14:14|t"
 
 local GetOrCreateSkipsWindow
 
@@ -5163,8 +5060,8 @@ local function BuildSkipsRows()
     local byExp = {}
     local expOrder = {}
     for _, raid in pairs(RetroRuns_Data or {}) do
-        -- Skip dev-stub placeholder entries (instanceID = 0). See
-        -- BuildIdleListRows for the full rationale.
+        -- Skip incomplete entries (instanceID = 0); they have no resolved
+        -- journal IDs and would render as all-dash pills.
         if raid.instanceID and raid.instanceID > 0 then
             local exp = raid.expansion or "Unknown"
             if not byExp[exp] then
@@ -5226,14 +5123,10 @@ local function BuildSkipsRows()
         -- with nothing under it.
         local expRows = {}
         for _, raid in ipairs(raids) do
-            local sk = raid.skipQuests
-            local sa = raid.skipAchievement
-            -- Raids without skipQuests OR skipAchievement configured are
-            -- simply omitted from the table -- there's no useful "no
-            -- skip data" row to render for them. Earlier versions added
-            -- a "(no skip data)" row, but that just clutters the table
-            -- for raids the player can't skip into anyway.
-            if sk or sa then
+            -- Raids without any skip mechanic configured are omitted;
+            -- there's no useful "no skip data" row for raids the player
+            -- can't skip into anyway.
+            if RR:RaidHasSkipMechanic(raid) then
                 local cascading = RR:RaidSkipIsCascading(raid)
                 -- Three-state cells: true = unlocked, false = locked,
                 -- "na" = not applicable for this raid (only Mythic exists).
@@ -5281,7 +5174,13 @@ local function BuildSkipsRows()
                     -- "locked".
                     local ceiling = RR:GetRaidSkipUnlockedCeiling(raid)
                     local mCell, hCell, nCell
-                    if cascading then
+                    if raid.skipGarrosh then
+                        -- Garrosh scroll: per-difficulty states are not a
+                        -- simple cascade from one ceiling (Normal can be
+                        -- "unknown" while Heroic is not-confirmed), so the
+                        -- cells come straight from the four-tier resolver.
+                        mCell, hCell, nCell = RR:GetGarroshSkipStates(raid)
+                    elseif cascading then
                         mCell = ceiling and ceiling >= 16 or false
                         hCell = ceiling and ceiling >= 15 or false
                         nCell = ceiling and ceiling >= 14 or false
@@ -5431,7 +5330,7 @@ local function GetSkipsRowSlot(parent, idx)
 
     -- Info button (the "[i]" glyph rendered as a clickable Button). Sits
     -- just right of the name FontString on rows whose raid has skipTrigger
-    -- text authored. Click opens RETRORUNS_SKIP_TRIGGER StaticPopup with
+    -- text authored. Click opens the skip-detail frame with the trigger
     -- the trigger text. Hidden on rows without skipTrigger so we don't
     -- light up empty popups.
     --
@@ -5565,15 +5464,33 @@ local function RefreshSkipsContent()
             SetSkipsToggleTextures(btn, shown)
             btn:ClearAllPoints()
             btn:SetPoint("LEFT", slot.expHeader, "LEFT", 0, 0)
+            local autoExp = RR.currentRaid and RR.currentRaid.expansion or nil
             btn:SetScript("OnClick", function()
                 RR.state = RR.state or {}
-                RR.state.skipsExpandedExpansions = RR.state.skipsExpandedExpansions or {}
-                -- Write the explicit opposite of what's currently shown.
-                -- Toggling off the displayed state (not the raw table value)
-                -- means the first click on an auto-expanded current-raid
-                -- section correctly collapses it, even though the table
-                -- entry was still nil (auto-open came from the live check).
-                RR.state.skipsExpandedExpansions[exp] = not shown
+                -- Single-expand accordion: opening one expansion closes
+                -- any other that's currently open, matching the main-UI
+                -- idle list. Keeps the window short and focused.
+                --
+                -- Toggle decision keys on the DISPLAYED state (shown), not
+                -- the raw table value, so the first click on an
+                -- auto-expanded current-raid section correctly collapses
+                -- it even though its table entry was still nil.
+                --
+                -- Reset everything to a clean slate, then re-open just the
+                -- clicked section if it wasn't already open. Because the
+                -- current raid's section auto-opens via the live isExpanded
+                -- check when its table entry is nil, an empty table would
+                -- leave that section open alongside the one just clicked.
+                -- To keep the accordion to one open section, pin the
+                -- auto-open expansion to an explicit false unless it's the
+                -- one being opened.
+                RR.state.skipsExpandedExpansions = {}
+                if not shown then
+                    RR.state.skipsExpandedExpansions[exp] = true
+                end
+                if autoExp and autoExp ~= exp then
+                    RR.state.skipsExpandedExpansions[autoExp] = false
+                end
                 RefreshSkipsContent()
             end)
             btn:Show()
@@ -5642,16 +5559,8 @@ local function RefreshSkipsContent()
                 local raidRef = row.raidRef
                 slot.infoBtn:SetScript("OnClick", function()
                     -- Toggle: re-click same row closes; click on a
-                    -- different row swaps.
-                    local visible = StaticPopup_Visible("RETRORUNS_SKIP_TRIGGER")
-                    local popupFrame = visible and _G[visible]
-                    if popupFrame and popupFrame.rrSkipRaidID
-                       and raidRef and popupFrame.rrSkipRaidID == raidRef.instanceID then
-                        StaticPopup_Hide("RETRORUNS_SKIP_TRIGGER")
-                        return
-                    end
-                    StaticPopup_Show("RETRORUNS_SKIP_TRIGGER",
-                        row.name, nil, { raid = raidRef })
+                    -- different row swaps; first click opens.
+                    UI.ToggleSkipDetail(raidRef)
                 end)
                 slot.infoBtn:Show()
             end
@@ -5663,6 +5572,7 @@ local function RefreshSkipsContent()
             -- Heroic columns are not applicable.
             local function cellText(v)
                 if v == "na" then return SKIPS_CELL_NA end
+                if v == "?" then return SKIPS_CELL_UNKNOWN end
                 if v then return SKIPS_CELL_UNLOCKED end
                 return SKIPS_CELL_LOCKED
             end
@@ -5797,6 +5707,12 @@ GetOrCreateSkipsWindow = function()
     f:SetFrameStrata("HIGH")
     f:Hide()
 
+    -- The skip-detail frame is conceptually a child of this window (it
+    -- opens from a row's [ i ] button). Hide it whenever this window
+    -- hides, so it doesn't linger after the Skips window is closed or
+    -- mutexed away by another auxiliary window.
+    f:HookScript("OnHide", function() UI.HideSkipDetail() end)
+
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 14, -10)
     title:SetText("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  Raid Skips")
@@ -5867,28 +5783,18 @@ end
 end -- skips do block
 
 -- ============================================================================
--- What's New window
+-- What's New (release-notes body builder)
 -- ============================================================================
 --
--- Opens from the version-link button in the main panel footer. Renders the
--- release-notes data in RR.WhatsNew (defined in WhatsNew.lua) as a multi-
--- line FontString inside a ScrollFrame. Same BackdropTemplate window shape
--- as Skips and Tmog, anchored at the right edge of the main panel. The
--- window height tracks content up to a clamp; once content exceeds the
--- clamp the scrollbar handles the overflow rather than letting the body
--- text render past the window's bottom edge.
+-- Renders the release-notes data in RR.WhatsNew (defined in WhatsNew.lua) into
+-- a single multi-line, color-coded string. Consumed by the Settings "What's
+-- New" tab (the footer version link opens that tab). There is no longer a
+-- standalone popup window -- the tab is the single What's New surface.
 --
 -- Wrapped in a do/end block to keep the supporting locals out of UI.lua's
 -- top-level scope (Lua 5.1 caps local-variable count at 200 per function;
 -- this file's main chunk is close to that ceiling).
 do
-local WHATSNEW_WINDOW_WIDTH      = 460
-local WHATSNEW_WINDOW_MIN_HEIGHT = 200
-local WHATSNEW_WINDOW_MAX_HEIGHT = 600
-local WHATSNEW_PAD_X             = 14
-local WHATSNEW_PAD_TOP           = 36
-local WHATSNEW_PAD_BOTTOM        = 14
-
 -- Build the multi-line body text from RR.WhatsNew. One FontString worth
 -- of output -- version headers, subheaders, and bulleted lines, joined
 -- by newlines. Returns the rendered string.
@@ -5916,8 +5822,7 @@ local function BuildWhatsNewBody()
                 -- Render **bold** spans as bright-white inline color.
                 -- The CHANGELOG voice puts the lead-in headline-style
                 -- phrase in **bold** before the supporting prose, so
-                -- bright-white-on-grey gives the same visual emphasis
-                -- in the rendered popup.
+                -- bright-white-on-grey gives the same visual emphasis.
                 local rendered = bullet:gsub("%*%*(.-)%*%*",
                     "|cffffffff%1|r")
                 table.insert(lines, "  - |cffaaaaaa" .. rendered .. "|r")
@@ -5928,116 +5833,8 @@ local function BuildWhatsNewBody()
     return table.concat(lines, "\n")
 end
 
-local function GetOrCreateWhatsNewWindow()
-    if whatsNewWindow then return whatsNewWindow end
-
-    local f = CreateFrame("Frame", "RetroRunsWhatsNewWindow",
-                          UIParent, "BackdropTemplate")
-    f:SetSize(WHATSNEW_WINDOW_WIDTH, WHATSNEW_WINDOW_MIN_HEIGHT)
-    f:SetBackdrop({
-        bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    f:SetBackdropColor(0.03, 0.03, 0.03, RR:GetSetting("panelOpacity", 1.0))
-    f:SetPoint("TOPLEFT", panel, "TOPRIGHT", 6, 0)
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop",  f.StopMovingOrSizing)
-    f:SetClampedToScreen(true)
-    f:SetFrameStrata("HIGH")
-    f:Hide()
-
-    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("TOPLEFT", WHATSNEW_PAD_X, -10)
-    title:SetText("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  What's New")
-    title:SetFont(TITLE_FONT, 16, "")
-    title:SetShadowOffset(1, -1)
-    title:SetShadowColor(0, 0, 0, 1)
-
-    local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-    closeBtn:SetPoint("TOPRIGHT", -4, -4)
-    closeBtn:SetScript("OnClick", function() f:Hide() end)
-
-    -- Content area: ScrollFrame + scrollChild + body FontString. The
-    -- ScrollFrame is anchored to the inside-padding region of the
-    -- window. Its scrollChild is a Frame sized to (scrollFrame width,
-    -- body's rendered height); the body FontString lives inside the
-    -- scrollChild and is the actual word-wrapped text. The window's
-    -- own height clamps at MAX_HEIGHT regardless of content length,
-    -- and a mouse-wheel scroll moves the scrollChild up/down inside
-    -- the ScrollFrame viewport when content exceeds the clamp. Without
-    -- the ScrollFrame wrapper, a long body FontString rendered past
-    -- the window's bottom edge (the FontString isn't bounded by its
-    -- parent's height by default), bleeding out of the frame.
-    f.scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-    f.scroll:SetPoint("TOPLEFT",     f, "TOPLEFT",      WHATSNEW_PAD_X,           -WHATSNEW_PAD_TOP)
-    f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -WHATSNEW_PAD_X - 22,       WHATSNEW_PAD_BOTTOM)
-    -- The -22 right-inset above leaves room for the scrollbar that the
-    -- UIPanelScrollFrameTemplate creates anchored 4px outside the
-    -- ScrollFrame's right edge.
-
-    f.scrollChild = CreateFrame("Frame", nil, f.scroll)
-    f.scrollChild:SetSize(WHATSNEW_WINDOW_WIDTH - 2 * WHATSNEW_PAD_X - 22, 1)
-    f.scroll:SetScrollChild(f.scrollChild)
-
-    f.body = f.scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    f.body:SetPoint("TOPLEFT",  f.scrollChild, "TOPLEFT",  0, 0)
-    f.body:SetPoint("TOPRIGHT", f.scrollChild, "TOPRIGHT", 0, 0)
-    f.body:SetJustifyH("LEFT")
-    f.body:SetJustifyV("TOP")
-    f.body:SetWordWrap(true)
-    f.body:SetSpacing(2)
-
-    f.RefreshContent = function()
-        f.body:SetText(BuildWhatsNewBody())
-        local bodyH = f.body:GetStringHeight() or 0
-        -- Resize the scrollChild to fit the rendered body so the
-        -- ScrollFrame knows how far it can scroll.
-        f.scrollChild:SetHeight(math.max(1, bodyH))
-        -- Window height: padding + body height, clamped MIN..MAX.
-        -- When clamped to MAX, the ScrollFrame viewport stays at MAX
-        -- and the scrollbar handles the overflow.
-        local desired = WHATSNEW_PAD_TOP + bodyH + WHATSNEW_PAD_BOTTOM
-        if desired < WHATSNEW_WINDOW_MIN_HEIGHT then
-            desired = WHATSNEW_WINDOW_MIN_HEIGHT
-        elseif desired > WHATSNEW_WINDOW_MAX_HEIGHT then
-            desired = WHATSNEW_WINDOW_MAX_HEIGHT
-        end
-        f:SetHeight(desired)
-        -- Reset scroll position to top on every refresh so the user
-        -- sees the newest entry first when reopening the window.
-        f.scroll:SetVerticalScroll(0)
-    end
-
-    whatsNewWindow = f
-    return f
-end
-
-function UI.OpenWhatsNewWindow()
-    -- Mutex with other auxiliary windows that share the panel's right
-    -- edge -- same rule the Skips / Tmog / Achievements windows follow.
-    if tmogWindow         and tmogWindow:IsShown()         then tmogWindow:Hide() end
-    if skipsWindow        and skipsWindow:IsShown()        then skipsWindow:Hide() end
-    if achievementsWindow and achievementsWindow:IsShown() then achievementsWindow:Hide() end
-
-    local w = GetOrCreateWhatsNewWindow()
-    local scale = RR:GetSetting("windowScale", 1.0)
-    w:SetScale(scale)
-    w.RefreshContent()
-    w:Show()
-end
-
-function UI.ToggleWhatsNewWindow()
-    if whatsNewWindow and whatsNewWindow:IsShown() then
-        whatsNewWindow:Hide()
-    else
-        UI.OpenWhatsNewWindow()
-    end
-end
+-- Exposed so the Settings "What's New" tab can render the body.
+UI.BuildWhatsNewBody = BuildWhatsNewBody
 end -- do block
 
 
@@ -6051,37 +5848,49 @@ end -- do block
 --   dim "-" = difficulty doesn't apply to this raid (rare; some legacy
 --             raids predate certain difficulties)
 --
--- Skip-cascade granularity used to live here as per-pill stars (e.g.
--- "N* 0/9" = skip works at Normal). That decoration was removed when
--- the leading raid-name star (in emitRaid) became the single skip
--- indicator on this surface. Per-difficulty granularity now lives
--- exclusively in the dedicated Skips window, accessed via the action
--- button. The supported-raids list shows binary "skip unlocked /
--- not unlocked / no skip mechanic" via the leading star and points
--- the user to Skips for the breakdown.
+-- The supported-raids list shows a binary skip indicator via the leading
+-- raid-name star (in emitRaid): skip unlocked / not unlocked / no skip
+-- mechanic. Per-difficulty skip granularity lives in the dedicated Skips
+-- window, reached via the action button.
 local function BuildIdleListPills(raid)
     local counts = RR:GetPerDifficultyKillCountsForRaid(raid)
     if not counts then return "" end
 
-    local PILLS = {
-        { id = 14, label = "N" },
-        { id = 15, label = "H" },
-        { id = 16, label = "M" },
-    }
+    -- Build from the raid's difficulty model so Mists raids show N | H
+    -- and modern raids show N | H | M without a per-era branch. LFR (17)
+    -- is intentionally absent from the label map, matching the in-raid
+    -- pill row -- LFR sources live in the transmog browser.
+    local BUCKET_LABEL = { [14] = "N", [15] = "H", [16] = "M" }
+    local model = RR:GetDifficultyModel(raid)
+    local PILLS = {}
+    for _, bucket in ipairs(model.buckets) do
+        local label = BUCKET_LABEL[bucket]
+        if label then
+            table.insert(PILLS, { id = bucket, label = label })
+        end
+    end
 
     -- Color constants are 6-char RGB; the format string prepends |cff.
-    -- Earlier version included the alpha byte in these and produced
-    -- malformed |cffff00ff00... output (extra "00" leaked as visible
-    -- characters before the pill label).
+    -- No alpha byte here, or it leaks as visible characters before the label.
     local CLEARED  = "00ff00"  -- matches SPECIAL_COLLECTED RGB
     local PARTIAL  = "ff9333"  -- matches SPECIAL_PARTIAL RGB
     local FRESH    = "888888"  -- matches SPECIAL_UNCOLLECTED RGB
     local INACTIVE = "555555"  -- doesn't apply
 
+    -- Mists shared lockout: once a mode is committed for the week, its
+    -- Normal/Heroic sibling is unreachable. Mark that sibling with a lock
+    -- glyph (no recolor -- an untouched pill is already gray, so color
+    -- alone couldn't distinguish "locked this week" from "not yet done").
+    local lockedBucket = RR:GetLockedOutBucket(raid, counts)
+    -- yOffset drops the icon onto the text baseline; trailing RGB tints it
+    -- gold (the LFG lock is the locked-out marker).
+    local LOCK_GLYPH = " |TInterface\\PetBattles\\PetBattle-LockIcon:12:12:0:0|t"
+
     local parts = {}
     for _, p in ipairs(PILLS) do
         local c = counts[p.id]
         local label = p.label
+        local lock = (p.id == lockedBucket) and LOCK_GLYPH or ""
 
         if c and c.total > 0 then
             local hex
@@ -6092,10 +5901,10 @@ local function BuildIdleListPills(raid)
             else
                 hex = FRESH
             end
-            table.insert(parts, ("|cff%s%s %d/%d|r"):format(
-                hex, label, c.complete, c.total))
+            table.insert(parts, ("|cff%s%s %d/%d|r%s"):format(
+                hex, label, c.complete, c.total, lock))
         else
-            table.insert(parts, ("|cff%s%s -|r"):format(INACTIVE, label))
+            table.insert(parts, ("|cff%s%s -|r%s"):format(INACTIVE, label, lock))
         end
     end
     if #parts == 0 then return "" end
@@ -6122,22 +5931,17 @@ end
 local function BuildIdleListRows()
     local byExpansion = {}
     for _, raid in pairs(RetroRuns_Data or {}) do
-        -- Skip dev-stub placeholder entries. New-raid bring-ups stub the
-        -- data file with instanceID = 0 (and journalInstanceID = 0) until
-        -- the in-raid /rr ej capture replaces the placeholders with real
-        -- IDs. Without this filter, the placeholder shows up in the idle
-        -- list as a raid with all-dash pills (because journalEncounterID = 0
-        -- doesn't resolve to any encounter, so total-bosses-detectable = 0
-        -- and the pill renderer takes the "doesn't apply" branch).
+        -- Skip incomplete entries (instanceID = 0). These have no resolved
+        -- journal IDs yet, so they'd render as a raid with all-dash pills
+        -- (journalEncounterID = 0 resolves to no encounter, detectable bosses
+        -- = 0, and the pill renderer takes the "doesn't apply" branch).
         if raid.instanceID and raid.instanceID > 0 then
-            -- Faction-aware swap: when the player is Horde and we have
-            -- Horde-specific data for this raid (currently only BfD), use
-            -- that instead of the shared Alliance copy. Without this, the
-            -- idle-list pill row would compute kills against Alliance
-            -- jeids on a Horde character and report 0/6 instead of 2/9
-            -- because Horde kills register against Horde-variant encounter
-            -- IDs that don't appear in the Alliance bosses[] table. Mirror
-            -- of the dispatch in GetSupportedRaid / GetRaidByInstanceID;
+            -- Faction-aware swap: a Horde player with Horde-specific data for
+            -- a raid (currently only BfD) uses that instead of the shared
+            -- Alliance copy. Otherwise the idle-list pill row counts kills
+            -- against Alliance encounter IDs on a Horde character and reports
+            -- 0/6 instead of 2/9, since Horde kills register against the
+            -- Horde-variant IDs absent from the Alliance bosses[] table.
             -- Alliance and Neutral characters get the shared raid object.
             local resolved = RR:GetRaidByInstanceID(raid.instanceID) or raid
             local exp = resolved.expansion or "Unknown"
@@ -6177,8 +5981,9 @@ local function BuildIdleListRows()
         --   skip unlocked      -> gold
         --   skip exists, not unlocked -> dim
         --   no skip mechanic   -> transparent (reserves column width)
-        -- "Skip mechanic" covers raids with skipQuests OR skipAchievement.
-        local hasSkipMechanic = (raid.skipQuests ~= nil) or (raid.skipAchievement ~= nil)
+        -- "Skip mechanic" covers raids with skipQuests, skipAchievement,
+        -- or the Garrosh scroll (skipGarrosh).
+        local hasSkipMechanic = RR:RaidHasSkipMechanic(raid)
         local leading
         if not hasSkipMechanic then
             leading = SKIP_MARKER_LED_NONE
@@ -6221,7 +6026,12 @@ local function BuildIdleListRows()
             -- Indent the pill row two spaces under the raid name so the
             -- visual hierarchy is clear: name on the bullet line,
             -- lockout summary on the sub-line.
-            table.insert(rows, { kind = "pillRow", text = "  " .. pills })
+            local counts = RR:GetPerDifficultyKillCountsForRaid(raid)
+            table.insert(rows, {
+                kind = "pillRow",
+                text = "  " .. pills,
+                lockedOut = (RR:GetLockedOutBucket(raid, counts) ~= nil),
+            })
         end
     end
 
@@ -6316,12 +6126,11 @@ local function FingerprintIdleRows(rows)
 end
 
 RefreshIdleList = function()
-    -- panel.list is the legacy multi-line FontString. It used to render
-    -- both the supported-raids idle list and the in-raid boss-progress
-    -- checklist as one big multi-line string. Both surfaces have been
-    -- migrated to per-line FontString pools (idleListLines /
-    -- progressListLines) for drift-immune row layout. Clear panel.list
-    -- and release any progress lines on entry: this function is called
+    -- panel.list is a multi-line FontString no longer used for row layout;
+    -- the idle list and in-raid progress checklist render through per-line
+    -- FontString pools (idleListLines / progressListLines) for stable rows.
+    -- Clear panel.list and release any progress lines on entry: this function
+    -- is called
     -- when transitioning INTO an idle/run-complete state, where the
     -- in-raid boss-progress list (if any was on screen) needs to go.
     if panel.list then panel.list:SetText("") end
@@ -6351,6 +6160,7 @@ RefreshIdleList = function()
     ReleaseIdleListLines()
     ReleaseExpansionToggleButtons()
     ReleaseEntranceButtons()
+    ReleasePillHoverFrames()
 
     local fontSize = RR:GetSetting("fontSize", 12)
 
@@ -6420,6 +6230,21 @@ RefreshIdleList = function()
                 fs:SetPoint("TOPLEFT", panel.listHeader, "BOTTOMLEFT", 0, -8)
             end
             fs:Show()
+
+            -- Locked-out pill rows get an invisible hover frame on top
+            -- so the shared-lockout tooltip can fire (the FontString
+            -- itself can't take mouse events). Sized to the rendered pill
+            -- string, not the full column width, so the hit area matches
+            -- what's visible.
+            if row.kind == "pillRow" and row.lockedOut then
+                local hf = AcquirePillHoverFrame()
+                hf:ClearAllPoints()
+                hf:SetPoint("TOPLEFT", fs, "TOPLEFT", 0, 0)
+                hf:SetPoint("BOTTOMRIGHT", fs, "BOTTOMLEFT",
+                    (fs:GetStringWidth() or 0), 0)
+                hf:Show()
+                table.insert(panel.pillHoverFrames, hf)
+            end
 
             -- Position the toggle button against this FontString if it's
             -- an expansion header.
@@ -6504,7 +6329,7 @@ RefreshIdleList = function()
     -- the panel bottom (above the action button row) regardless of how
     -- long the raid list is. Multi-row legends chain upward from the
     -- bottom-anchored row.
-    local LEGEND_BOTTOM_OFFSET = BUTTON_Y + BUTTON_H + 12  -- 28 + 22 + 12 = 62
+    local LEGEND_BOTTOM_OFFSET = BUTTON_Y + BUTTON_H + 12  -- BUTTON_Y already includes the frame inset
     local LEGEND_INTER_GAP = 4  -- compact spacing between legend rows
     -- Row 2+ left indent (skip past the marker + " = ") so labels
     -- align under row 1's label.
@@ -6630,6 +6455,53 @@ RefreshIdleList = function()
             lastLegendTopFS = topFS
         end
     end
+
+    -- Divider above the legend block. The legend anchors upward from the
+    -- panel bottom, so its final screen position isn't settled until
+    -- AutoSize runs (after this function). Stash the topmost legend row
+    -- here and do the actual divider placement in PositionLegendDivider,
+    -- called at the tail of AutoSize once geometry is final -- that lets
+    -- the divider sit at the true midpoint between the legend top and the
+    -- last raid row above it, whatever the gap turns out to be.
+    panel._legendTopRow = lastLegendTopFS
+    if not lastLegendTopFS then
+        panel.legendDivider:Hide()
+        if panel.legendDividerGem then panel.legendDividerGem:Hide() end
+    end
+end
+
+-- Place the legend divider at the vertical midpoint between the bottom of
+-- the last raid-list row and the top of the topmost legend row. Both
+-- positions are read live, so this MUST run after AutoSize has set the
+-- final panel height (the legend pins to the panel bottom, so its screen
+-- Y depends on that height).
+-- (forward-declared above so AutoSize, defined earlier, can call it)
+PositionLegendDivider = function()
+    local topRow  = panel._legendTopRow
+    local lastList = panel.idleListLines and panel.idleListLines[#panel.idleListLines]
+    if not (topRow and lastList) then
+        if panel.legendDivider then panel.legendDivider:Hide() end
+        if panel.legendDividerGem then panel.legendDividerGem:Hide() end
+        return
+    end
+    local rowBottom    = lastList:GetBottom()
+    local legendTop    = topRow:GetTop()
+    if not (rowBottom and legendTop) then
+        panel.legendDivider:Hide()
+        if panel.legendDividerGem then panel.legendDividerGem:Hide() end
+        return
+    end
+    -- True midpoint between the last raid row's bottom and the legend's top.
+    -- Anchor the divider by its CENTER to that point so its visual center IS the
+    -- midpoint (anchoring by TOPLEFT instead would hang the divider + its taller
+    -- gem below the midpoint by half their height -- the off-center bug).
+    local mid       = (rowBottom + legendTop) / 2   -- midpoint Y (screen coords)
+    local dyFromRow = rowBottom - mid               -- downward distance from the row bottom to the midpoint
+    panel.legendDivider:ClearAllPoints()
+    panel.legendDivider:SetPoint("CENTER", lastList, "BOTTOMLEFT", BODY_WIDTH / 2, -dyFromRow)
+    panel.legendDivider:SetWidth(BODY_WIDTH)
+    panel.legendDivider:Show()
+    if panel.legendDividerGem then panel.legendDividerGem:Show() end
 end
 
 -------------------------------------------------------------------------------
@@ -6652,22 +6524,17 @@ function UI.Update()
     panel.mode:SetText(RR.state.testMode and "|cffffff00[ TEST MODE ]|r" or "")
 
     if raid and loaded then
-        -- Pills row now carries per-difficulty kill state, so the raid
-        -- name line shows just the raid name (no trailing "(Heroic)").
-        -- A trailing yellow-star marker appears when the player's
-        -- current difficulty is at or below the account's cascade
-        -- ceiling -- meaning the in-game skip NPC will actually let
-        -- them use it. Showing the star purely on "any unlock exists"
-        -- would mislead a Mythic player whose ceiling is only Heroic;
-        -- they'd see the star and walk to the skip NPC for nothing.
-        -- Faction marker for raids with separate per-faction data.
-        -- BfD is the only such raid currently. Symmetric raids get no
-        -- marker -- showing [A] on every raid an Alliance player visits
-        -- would just be visual noise.
+        -- The raid name line shows just the raid name; per-difficulty kill
+        -- state lives in the pills row below. A trailing yellow-star marker
+        -- appears when the player's current difficulty is at or below the
+        -- account's cascade ceiling, i.e. when the in-game skip NPC will
+        -- actually let them use it.
+        -- Faction marker for raids with separate per-faction data (currently
+        -- only BfD); symmetric raids get no marker.
         --
         -- Alliance blue / Horde red roughly matching Blizzard's faction
-        -- color conventions. Bracketed letter pattern matches the [!]
-        -- style used on the boss-encounter line for consistency.
+        -- colors. Bracketed-letter pattern matches the [!] style on the
+        -- boss-encounter line.
         local raidLabel = "Raid: " .. raid.name
         if RetroRuns_DataHorde and RetroRuns_DataHorde[raid.instanceID] then
             local faction = UnitFactionGroup("player")
@@ -6705,6 +6572,17 @@ function UI.Update()
         end
         panel.raid:SetText(raidLabel)
         panel.pills:SetText(BuildPillsText())
+        -- Arm the lockout tooltip only when a mode is actually claimed
+        -- this week (the lock glyph is showing); otherwise hovering the
+        -- pills row says nothing.
+        if panel.pillsHover then
+            local counts = RR:GetPerDifficultyKillCounts()
+            local locked = (RR:GetLockedOutBucket(raid, counts) ~= nil)
+            panel.pillsHover._lockoutTip = locked
+            if locked then
+                panel.pillsHover:SetWidth((panel.pills:GetStringWidth() or 0) + 2)
+            end
+        end
         -- Progress line was "Progress: X/Y" -- the player's current-
         -- difficulty kill count -- but the pills row now displays the
         -- same number (the active-difficulty pill, e.g. "H 0/8").
@@ -6933,6 +6811,7 @@ function UI.Update()
         -- because in-raid mode populates it with the raid name.
         panel.raid:SetText("")
         panel.pills:SetText("")
+        if panel.pillsHover then panel.pillsHover._lockoutTip = false end
 
         if raid then
             -- Case: raid was detected (we're zoned into a supported raid)
@@ -7095,166 +6974,230 @@ StaticPopupDialogs["RETRORUNS_BUG_URL"] = {
 -- Body: Quest / Quest IDs / Skip Details labeled lines. Quest IDs
 -- are derived from raid.skipQuests at render time (clickable hyperlinks
 -- to the Wowhead URL popup).
-StaticPopupDialogs["RETRORUNS_SKIP_TRIGGER"] = {
-    -- Title: "Skip:" in retro pink (C_PINK = f259c7), then the raid name.
-    -- Left-aligned (anchor override done in OnShow since the default
-    -- title FontString is center-anchored).
-    text         = "|cffF259C7Skip:|r %s",
-    button1      = OKAY or "Okay",
-    timeout      = 0,
-    whileDead    = true,
-    hideOnEscape = true,
-    preferredIndex = 3,
-    OnShow = function(self, data)
-        -- Left-align the title and re-anchor it to the top-left of the
-        -- dialog. Blizzard's default StaticPopup title is center-aligned
-        -- and anchored centrally; we override per-show because the
-        -- pooled popup frame may have been left in another popup's
-        -- alignment state.
-        if self.text then
-            self.text:SetJustifyH("LEFT")
-            self.text:ClearAllPoints()
-            self.text:SetPoint("TOPLEFT", self, "TOPLEFT", 16, -16)
-            self.text:SetPoint("TOPRIGHT", self, "TOPRIGHT", -16, -16)
+-- Skip-detail window. A standalone RetroRuns-owned frame (not a
+-- StaticPopup) so that opening the Wowhead URL StaticPopup from a quest
+-- link doesn't trigger Blizzard's popup-stack relayout -- which used to
+-- yank this frame to screen-center and flicker a duplicate of it. The
+-- frame is created once and reused; ShowSkipDetail repopulates it.
+local skipDetailFrame
+local function GetOrCreateSkipDetailFrame()
+    if skipDetailFrame then return skipDetailFrame end
+
+    local f = CreateFrame("Frame", "RetroRunsSkipDetailFrame", UIParent, "BackdropTemplate")
+    f:SetSize(312, 120)  -- placeholder; ShowSkipDetail sizes to content
+    f:SetBackdrop({
+        bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
+        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    f:SetBackdropColor(0.03, 0.03, 0.03, RR:GetSetting("panelOpacity", 1.0))
+    f:SetFrameStrata("DIALOG")  -- above the Skips window it spawns from
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:SetClampedToScreen(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:Hide()
+
+    -- Title: "Skip:" in retro pink, then the raid name. Left-aligned,
+    -- anchored top-left with a 16px inset.
+    local title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    title:SetJustifyH("LEFT")
+    title:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -14)
+    f.titleText = title
+
+    -- Body: the labeled detail lines. Anchored below the title; width is
+    -- set per-show once the content width is measured.
+    local body = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    body:SetJustifyH("LEFT")
+    body:SetWordWrap(true)
+    body:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -40)
+    f.bodyText = body
+
+    local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -4, -4)
+    closeBtn:SetScript("OnClick", function() f:Hide() end)
+
+    -- Hyperlink routing on the body FontString's parent frame. Quest
+    -- links open the Wowhead URL StaticPopup; native achievement links
+    -- fall through to SetItemRef (opens the in-game Achievement frame).
+    -- Because this frame is not a StaticPopup, spawning the URL popup
+    -- doesn't relayout or move it.
+    f:SetHyperlinksEnabled(true)
+    f:SetScript("OnHyperlinkClick", function(_, link, text, button)
+        local questID = link and link:match("^RR_quest:(%d+)$")
+        if questID then
+            local raid = f.rrRaid
+            UI.ShowWowheadQuestPopup(tonumber(questID),
+                (raid and raid.name) or "?",
+                (raid and raid.skipTrigger and raid.skipTrigger.questName)
+                    or ("Quest " .. questID))
+            return
         end
+        SetItemRef(link, text, button)
+    end)
+    f:SetScript("OnHyperlinkEnter", function(self2, link)
+        -- In-game tooltip for native achievement links on hover. RR_quest
+        -- links carry no resolvable tooltip, so skip them.
+        if link and link:match("^RR_quest:") then return end
+        GameTooltip:SetOwner(self2, "ANCHOR_RIGHT")
+        GameTooltip:SetHyperlink(link)
+        GameTooltip:Show()
+    end)
+    f:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
 
-        -- Lazily create the body FontString once per popup frame instance.
-        -- StaticPopup recycles a small pool of dialog frames, so we attach
-        -- the body to whatever instance is currently in use.
-        if not self.rrTriggerBody then
-            local fs = self:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-            fs:SetJustifyH("LEFT")
-            fs:SetWordWrap(true)
-            self.rrTriggerBody = fs
-        end
-        local fs = self.rrTriggerBody
-        fs:ClearAllPoints()
-        -- Anchor the body to the frame directly (TOPLEFT, fixed 16px
-        -- inset) rather than inheriting the title's anchors. The title
-        -- is itself anchored to the frame with insets, so chaining the
-        -- body off it made the body's effective width ambiguous and let
-        -- it wrap/bleed when the frame was resized. Width is set
-        -- explicitly below once the frame width is computed.
-        fs:SetPoint("TOPLEFT", self, "TOPLEFT", 16, -44)
+    -- Hidden tag for the [ i ]-button toggle: which raid is currently
+    -- displayed. Cleared on hide.
+    f:SetScript("OnHide", function(self) self.rrSkipRaidID = nil end)
 
-        -- Enable hyperlinks on the popup frame so RR_quest links in the
-        -- body FontString are clickable. Routed to the standard Wowhead
-        -- URL popup. Set per-show because the pooled popup frame is
-        -- shared across StaticPopup types and we don't want our handler
-        -- intercepting unrelated popups' clicks.
-        self:SetHyperlinksEnabled(true)
-        self:SetScript("OnHyperlinkClick", function(_, link, text, button)
-            local questID = link and link:match("^RR_quest:(%d+)$")
-            if questID then
-                UI.ShowWowheadQuestPopup(tonumber(questID),
-                    (data and data.raid and data.raid.name) or "?",
-                    (data and data.raid and data.raid.skipTrigger
-                          and data.raid.skipTrigger.questName) or
-                    ("Quest " .. questID))
-                return
-            end
-            SetItemRef(link, text, button)
-        end)
+    skipDetailFrame = f
+    return f
+end
 
-        -- Build the three-line body. Render lines that have content;
+-- Populate and show the skip-detail frame for a raid, positioned at the
+-- cursor. Mirrors the old StaticPopup body-build verbatim.
+function UI.ShowSkipDetail(raid)
+    local f  = GetOrCreateSkipDetailFrame()
+    local fs = f.bodyText
+
+    f.rrRaid = raid
+    f.titleText:SetText("|cffF259C7Skip:|r " .. ((raid and raid.name) or "?"))
+
+    do
+        -- Build the labeled body lines. Render lines that have content;
         -- skip lines whose source data is missing so partially-authored
         -- raids degrade gracefully rather than showing "Quest: nil".
-        local raid = data and data.raid
         local trig = raid and raid.skipTrigger or {}
         local lines = {}
 
-        if trig.questName and trig.questName ~= "" then
-            table.insert(lines,
-                "|cff9d9d9dQuest:|r " .. trig.questName)
-        elseif trig.achievementName and trig.achievementName ~= "" then
-            -- Achievement-gated skips (BfD) render an Achievement name
-            -- line in the same slot a Quest name occupies for
-            -- quest-gated raids -- visual symmetry across the two
-            -- skip-mechanic shapes.
-            table.insert(lines,
-                "|cff9d9d9dAchievement:|r " .. trig.achievementName)
-        elseif trig.questNames and type(trig.questNames) == "table" then
-            -- Multi-chain raids (Antorus): one quest name per chain.
-            -- Rendered as a labeled bulleted list to match the
-            -- multi-chain Quest IDs section below. Chain order
-            -- follows raid.skipQuests so the Quest names list and
-            -- Quest IDs list line up row-for-row visually.
-            local sqList = raid and raid.skipQuests
-            if sqList and sqList[1] and type(sqList[1]) == "table" then
-                local nameLines = {}
-                for _, chain in ipairs(sqList) do
-                    local qname = trig.questNames[chain.label]
-                    if qname and qname ~= "" then
-                        local label = chain.label
-                            and ("|cffaaaaaa" .. chain.label .. ":|r ") or ""
-                        table.insert(nameLines, label .. qname)
-                    end
-                end
-                if #nameLines > 0 then
-                    table.insert(lines,
-                        "|cff9d9d9dQuests:|r\n  - " .. table.concat(nameLines, "\n  - "))
-                end
-            end
-        end
-
-        -- Quest IDs line: pull from raid.skipQuests, supporting both
-        -- single-chain (flat normal/heroic/mythic) and multi-chain
-        -- (array of { label, normal, heroic, mythic }) shapes. Order
-        -- Mythic / Heroic / Normal to match the Skips window's column
-        -- order. Each ID is wrapped in an RR_quest hyperlink with
-        -- bracket display, matching the link-affordance convention
-        -- used elsewhere in the addon.
+        -- Link builders. Both render the same cyan [id] bracket so quest
+        -- and achievement links read identically, even though they route
+        -- differently on click (quest -> Wowhead URL popup; achievement
+        -- -> in-game Achievement frame, with a hover tooltip).
+        local LINK_COLOR = "ff7faaff"
         local function questLink(id)
             if not id then return nil end
-            return ("|HRR_quest:%d|h|cff7faaff[%d]|r|h"):format(id, id)
+            return ("|HRR_quest:%d|h|c%s[%d]|r|h"):format(id, LINK_COLOR, id)
         end
+        -- Build a native |Hachievement:|h link but display it as the same
+        -- cyan [id] bracket as quest links. GetAchievementLink returns
+        -- "|cffhex|Hachievement:ID:...|h[Name]|h|r"; we strip its embedded
+        -- color wrapper, swap the [Name] display for [id], and re-wrap in
+        -- our cyan. The |H...|h payload (which carries the achievement ID
+        -- for SetItemRef and the hover tooltip) is preserved, so clicking
+        -- and hovering still work. Falls back to a plain cyan [id] if the
+        -- link can't be built (achievement not in the client cache yet).
+        local function achievementLink(id)
+            if not id then return nil end
+            local raw = GetAchievementLink and GetAchievementLink(id)
+            if not raw then
+                return ("|c%s[%d]|r"):format(LINK_COLOR, id)
+            end
+            raw = raw:gsub("^|cff%x%x%x%x%x%x", ""):gsub("|r$", "")
+            raw = raw:gsub("|h%[.-%]|h", ("|h[%d]|h"):format(id), 1)
+            return ("|c%s%s|r"):format(LINK_COLOR, raw)
+        end
+
+        -- A "Detection:" row: a gray difficulty label and a value (one or
+        -- more links, or plain text). Empty values are skipped by callers.
+        local function detectionLine(label, value)
+            return ("|cff9d9d9d%s Detection:|r %s"):format(label, value)
+        end
+
+        -- Header line: the human-readable name of the unlock, type-
+        -- specific but parallel in form. Garrosh has no single name, so
+        -- its panel goes straight to the Detection rows.
+        if trig.questName and trig.questName ~= "" then
+            table.insert(lines, "|cff9d9d9dQuest:|r " .. trig.questName)
+        elseif trig.achievementName and trig.achievementName ~= "" then
+            table.insert(lines, "|cff9d9d9dAchievement:|r " .. trig.achievementName)
+        end
+
+        -- Detection rows. Every skip type renders the same per-difficulty
+        -- "<label> Detection:" grammar so the panels read consistently.
         local sq = raid and raid.skipQuests
-        if sq then
-            local function fmtTriplet(m, h, n)
-                local parts = {}
-                local lm = questLink(m)
-                local lh = questLink(h)
-                local ln = questLink(n)
-                if lm then table.insert(parts, "|cffaaaaaaMythic|r " .. lm) end
-                if lh then table.insert(parts, "|cffaaaaaaHeroic|r " .. lh) end
-                if ln then table.insert(parts, "|cffaaaaaaNormal|r " .. ln) end
-                return table.concat(parts, "  ")
-            end
-            if sq[1] and type(sq[1]) == "table" then
-                -- Multi-chain shape. One bullet line per chain, prefixed
-                -- by the chain label. Bullet style matches Skip Details
-                -- list ("  - " two-space indent + dash + space).
-                local chainLines = {}
-                for _, chain in ipairs(sq) do
-                    local label = chain.label and ("|cffaaaaaa" .. chain.label .. ":|r ") or ""
-                    table.insert(chainLines, label
-                        .. fmtTriplet(chain.mythic, chain.heroic, chain.normal))
+        if sq and sq[1] and type(sq[1]) == "table" then
+            -- Multi-chain quest (Antorus, HFC). One block per chain: a
+            -- "<Chain> Detection:" header (with the chain's quest name in
+            -- parens when known) and an indented Mythic/Heroic/Normal
+            -- triplet. The two-line shape keeps the frame narrow even
+            -- with long chain names.
+            local names = (trig and trig.questNames) or {}
+            for _, chain in ipairs(sq) do
+                local chainLabel = chain.label or "Skip"
+                local qname = names[chain.label]
+                local header = ("|cff9d9d9d%s Detection:|r"):format(chainLabel)
+                if qname and qname ~= "" then
+                    header = header .. (" |cffaaaaaa(%s)|r"):format(qname)
                 end
-                table.insert(lines,
-                    "|cff9d9d9dQuest IDs:|r\n  - " .. table.concat(chainLines, "\n  - "))
-            else
-                -- Single-chain (flat) shape.
-                table.insert(lines,
-                    "|cff9d9d9dQuest IDs:|r " .. fmtTriplet(sq.mythic, sq.heroic, sq.normal))
+                table.insert(lines, header)
+
+                local parts = {}
+                local lm, lh, ln = questLink(chain.mythic), questLink(chain.heroic), questLink(chain.normal)
+                if lm then table.insert(parts, "|cffaaaaaaM|r " .. lm) end
+                if lh then table.insert(parts, "|cffaaaaaaH|r " .. lh) end
+                if ln then table.insert(parts, "|cffaaaaaaN|r " .. ln) end
+                table.insert(lines, "  " .. table.concat(parts, "   "))
             end
+        elseif sq then
+            -- Single-chain quest. One Detection row per difficulty.
+            local lm, lh, ln = questLink(sq.mythic), questLink(sq.heroic), questLink(sq.normal)
+            if lm then table.insert(lines, detectionLine("Mythic", lm)) end
+            if lh then table.insert(lines, detectionLine("Heroic", lh)) end
+            if ln then table.insert(lines, detectionLine("Normal", ln)) end
         elseif raid and raid.skipAchievement then
-            -- Achievement-gated skip (BfD). Render the achievement ID
-            -- in place of quest IDs; same Mythic-only convention as
-            -- the skips window. Routed through the existing
-            -- RR_wowhead achievement link prefix. Label is
-            -- "Achievement ID:" to parallel the Quest / Quest IDs
-            -- split used for quest-gated raids -- avoids duplicating
-            -- the "Achievement:" label that already appears at the
-            -- top of the popup for the achievement name.
+            -- Achievement-gated skip (BfD). Mythic-only.
             local sa = raid.skipAchievement
             if sa.mythic then
-                table.insert(lines, ("|cff9d9d9dAchievement ID:|r |cffaaaaaaMythic|r |HRR_wowhead:%d|h|cff7faaff[%d]|r|h"):format(sa.mythic, sa.mythic))
+                table.insert(lines, detectionLine("Mythic", achievementLink(sa.mythic)))
+            end
+        elseif raid and raid.skipGarrosh then
+            -- Account-wide scroll skip (SoO). Detection sources by
+            -- difficulty: the Mythic achievement, the faction Heroic
+            -- achievements, and the per-character Normal kill statistics.
+            local sg = raid.skipGarrosh
+            if sg.mythicAchievement then
+                table.insert(lines, detectionLine("Mythic", achievementLink(sg.mythicAchievement)))
+            end
+            if sg.heroicAchievements and #sg.heroicAchievements > 0 then
+                local achParts = {}
+                for _, achID in ipairs(sg.heroicAchievements) do
+                    table.insert(achParts, achievementLink(achID))
+                end
+                -- The faction-alternative achievements (Conqueror /
+                -- Liberator) are mutually exclusive -- only one applies
+                -- per character -- so join them with "or".
+                table.insert(lines, detectionLine("Heroic",
+                    table.concat(achParts, " |cffaaaaaaor|r ")))
+            end
+            if sg.normalStatistics and #sg.normalStatistics > 0 then
+                local statParts = {}
+                for _, statID in ipairs(sg.normalStatistics) do
+                    table.insert(statParts, ("%d"):format(statID))
+                end
+                table.insert(lines, detectionLine("Normal",
+                    "|cffaaaaaaStatistic Check on Normal Kills (This Char) - ID "
+                    .. table.concat(statParts, ", ") .. "|r"))
             end
         end
 
         if trig.details and trig.details ~= "" then
+            -- Swap the legend tokens for the same glyphs the difficulty
+            -- columns render, so a note's legend reads against its marks.
+            -- Raids without these tokens are unaffected (gsub no-ops).
+            -- The textures are written as literals here rather than via
+            -- the SKIPS_CELL_* file-locals: UI.lua's chunk exceeds Lua
+            -- 5.1's 200-local limit, so those locals read as nil this far
+            -- down the file. These strings must stay in sync with the
+            -- SKIPS_CELL_UNLOCKED / _LOCKED / _UNKNOWN definitions.
+            local detailText = trig.details
+                :gsub("{check}", "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t")
+                :gsub("{x}", "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14:0:-2|t")
+                :gsub("{unknown}", "|TInterface\\RaidFrame\\ReadyCheck-Waiting:14:14|t")
             table.insert(lines,
-                "|cff9d9d9dSkip Details:|r " .. HighlightNames(trig.details))
+                "|cff9d9d9dSkip Details:|r " .. HighlightNames(detailText))
         end
 
         fs:SetText(table.concat(lines, "\n\n"))
@@ -7282,137 +7225,77 @@ StaticPopupDialogs["RETRORUNS_SKIP_TRIGGER"] = {
         end
 
         -- Frame width hugs the widest rendered line: body width is the
-        -- measured maximum exactly, and the frame adds one INSET on each
-        -- side (symmetric left/right margin). No extra per-line margin is
-        -- baked into the body width -- that produced a doubled right-side
-        -- gap that made the frame wider than the content needed. Floor
-        -- the body at a minimum so short-content popups stay readable.
+        -- Frame width hugs the widest rendered line, floored at a
+        -- minimum so short-content panels stay readable and capped at a
+        -- maximum so a long Skip Details paragraph wraps within the
+        -- border instead of stretching the frame across the screen. The
+        -- short Detection / ID lines fall well under the cap and stay on
+        -- one line; only long prose hits it and wraps.
         local INSET    = 16
         local MIN_BODY = 280
-        local bodyW    = math.max(MIN_BODY, widest)
-        local frameW   = bodyW + 2 * INSET
-        self:SetWidth(frameW)
+        local MAX_BODY = 420
+        local bodyW    = math.max(MIN_BODY, math.min(MAX_BODY, widest))
+        f:SetWidth(bodyW + 2 * INSET)
 
         -- Give the body an explicit width matching the frame's inset box
         -- and restore wrap, so the multi-paragraph Skip Details flows
-        -- within the border while the (shorter) Quest ID lines stay on
+        -- within the border while the (shorter) Detection lines stay on
         -- one line. Anchored TOPLEFT only, so width must be set here.
         fs:SetWidth(bodyW)
         fs:SetWordWrap(true)
         fs:SetText(table.concat(lines, "\n\n"))
 
-        -- Replace the default OK button with a top-right close [X].
-        -- Lazily created per pooled popup-frame instance (same pattern as
-        -- the body FontString) and reused on subsequent shows. The
-        -- default button1 is hidden; closing is via the X or Escape.
-        local btn = self.button1 or _G[self:GetName() .. "Button1"]
-        if btn then btn:Hide() end
-        if not self.rrCloseButton then
-            local x = CreateFrame("Button", nil, self, "UIPanelCloseButton")
-            x:SetScript("OnClick", function() self:Hide() end)
-            self.rrCloseButton = x
-        end
-        self.rrCloseButton:ClearAllPoints()
-        self.rrCloseButton:SetPoint("TOPRIGHT", self, "TOPRIGHT", -4, -4)
-        self.rrCloseButton:Show()
+        -- Compute total height: top padding, title height, gap, body
+        -- height, bottom padding. The close [X] overlays the top-right
+        -- corner rather than occupying vertical space.
+        local titleH = f.titleText:GetStringHeight() or 16
+        local bodyH  = fs:GetStringHeight() or 0
+        f:SetHeight(20 + titleH + 10 + bodyH + 18)
 
-        -- Make the popup draggable, matching every other movable window
-        -- in the addon (SetMovable + EnableMouse + LeftButton drag).
-        -- Applied per-show because the pooled StaticPopup frame is shared
-        -- across dialog types; OnHide reverts it so other popups that
-        -- reuse this frame aren't left movable. The drag scripts are set
-        -- once (idempotent) and the movable/mouse flags toggled per show.
-        self:SetMovable(true)
-        self:EnableMouse(true)
-        self:SetClampedToScreen(true)
-        if not self.rrDragHooked then
-            self:RegisterForDrag("LeftButton")
-            self:SetScript("OnDragStart", self.StartMoving)
-            self:SetScript("OnDragStop",  self.StopMovingOrSizing)
-            self.rrDragHooked = true
-        end
+        -- Tag the frame with the raid's instanceID so the [ i ] button
+        -- can recognize "already open for this raid" and toggle closed.
+        f.rrSkipRaidID = raid and raid.instanceID or nil
+    end
 
-        -- Compute total height from scratch rather than incrementing
-        -- self:GetHeight() (which accumulates across re-shows since
-        -- Blizzard doesn't always reset the frame between shows of
-        -- different content). Components: top padding, title text
-        -- height, gap, body height, bottom padding. No button row is
-        -- reserved -- the OK button is hidden and the close [X] overlays
-        -- the top-right corner rather than occupying vertical space.
-        local titleH  = (self.text and self.text:GetStringHeight()) or 16
-        local bodyH   = fs:GetStringHeight() or 0
-        self:SetHeight(20 + titleH + 10 + bodyH + 18)
+    -- Apply the user's window scale before positioning so the cursor
+    -- math below uses the frame's final effective scale (mismatched
+    -- scale would offset the anchor by the scale factor).
+    f:SetScale(RR:GetSetting("windowScale", 1.0))
 
-        -- Tag the popup frame with the raid's instanceID so a re-click
-        -- of the SAME row's [ i ] can recognize "popup is already up
-        -- for this raid" and toggle it closed, while a click on a
-        -- DIFFERENT row's [ i ] still re-shows the popup with the new
-        -- raid's content. Cleared in OnHide so a stale ID can't leak
-        -- to a future show of an unrelated raid.
-        self.rrSkipRaidID = raid and raid.instanceID or nil
+    -- Position at the cursor, hanging down-and-right of the click point
+    -- so the [ i ] button stays uncovered. GetCursorPosition returns
+    -- UIParent-space pixels; divide by the frame's own effective scale
+    -- so the anchor lands at the cursor regardless of windowScale. Clamp
+    -- so popups near a screen edge slide back into view.
+    local mx, my = GetCursorPosition()
+    local effScale = f:GetEffectiveScale() or 1
+    f:ClearAllPoints()
+    if mx and my and effScale > 0 then
+        f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT",
+            mx / effScale + 16, my / effScale - 16)
+    else
+        f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    end
 
-        -- Reposition the popup at the cursor instead of screen center.
-        -- StaticPopup defaults anchor center-screen via the popup-stack
-        -- layout in StaticPopup_DisplayedFrames; we override after the
-        -- stack has placed us. Anchor TOPLEFT down-and-right of the
-        -- cursor so the [ i ] button the user just clicked stays
-        -- uncovered (the popup hangs off the lower-right of the click
-        -- point). Without this offset the popup overlays the button
-        -- and there's no easy way to toggle it back closed. Clamp to
-        -- screen via SetClampedToScreen so popups near the right or
-        -- bottom edge slide back into view.
-        local mx, my = GetCursorPosition()
-        local effScale = UIParent:GetEffectiveScale() or 1
-        if mx and my and effScale > 0 then
-            self:ClearAllPoints()
-            self:SetClampedToScreen(true)
-            self:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT",
-                mx / effScale + 16, my / effScale - 16)
-        end
-    end,
-    OnHide = function(self)
-        -- Clear the raid-ID tag so a future show of an unrelated
-        -- raid (or of this popup type by some other caller) starts
-        -- from a clean slate -- the toggle check in the [ i ] button
-        -- OnClick relies on this not lingering.
-        self.rrSkipRaidID = nil
-        if self.rrTriggerBody then
-            self.rrTriggerBody:SetText("")
-            self.rrTriggerBody:Hide()
-        end
-        -- Restore the OK button to its default visibility and anchor so
-        -- re-use of this pooled popup frame by other StaticPopup types
-        -- doesn't inherit our hidden state or custom anchor. Default
-        -- StaticPopup button1 anchor is BOTTOM of the frame, offset 16px.
-        local btn = self.button1 or _G[self:GetName() .. "Button1"]
-        if btn then
-            btn:ClearAllPoints()
-            btn:SetPoint("BOTTOM", self, "BOTTOM", 0, 16)
-            btn:Show()
-        end
-        -- Hide our close [X] so it doesn't linger on an unrelated popup
-        -- that reuses this pooled frame.
-        if self.rrCloseButton then
-            self.rrCloseButton:Hide()
-        end
-        -- Restore the title FontString to its default center alignment
-        -- so other StaticPopup types don't inherit our left-align.
-        if self.text then
-            self.text:SetJustifyH("CENTER")
-        end
-        -- Drop our hyperlink handler so subsequent popups using this
-        -- pooled frame don't inherit a stale OnHyperlinkClick.
-        self:SetScript("OnHyperlinkClick", nil)
-        -- Revert the draggable setup so other StaticPopup types that
-        -- reuse this pooled frame aren't left movable. StopMovingOrSizing
-        -- guards against the frame being hidden mid-drag.
-        self:StopMovingOrSizing()
-        self:SetScript("OnDragStart", nil)
-        self:SetScript("OnDragStop",  nil)
-        self.rrDragHooked = nil
-        self:SetMovable(false)
-    end,
-}
+    f:Show()
+    f:Raise()
+end
+
+function UI.HideSkipDetail()
+    if skipDetailFrame then skipDetailFrame:Hide() end
+end
+
+-- Toggle for the [ i ] button: re-click the same row closes; click on a
+-- different row swaps content; first click opens.
+function UI.ToggleSkipDetail(raid)
+    if skipDetailFrame and skipDetailFrame:IsShown()
+       and skipDetailFrame.rrSkipRaidID
+       and raid and skipDetailFrame.rrSkipRaidID == raid.instanceID then
+        skipDetailFrame:Hide()
+        return
+    end
+    UI.ShowSkipDetail(raid)
+end
 
 -- Public so the achievements window's hyperlink handler can call it.
 function UI.ShowWowheadPopup(achievementID, bossName, achievementName)
@@ -7455,8 +7338,8 @@ end
 --   "header"   -- column header row. Static labels.
 --   "achRow"   -- one boss + one achievement. Fields: bossName,
 --                 achievementID, achievementName, completed, soloable, meta.
---                 Bosses with N achievements produce N rows (boss name
---                 repeats by design -- the column makes scanning easier).
+--                 Bosses with N achievements produce N rows; the boss name
+--                 repeats so the column stays easy to scan.
 --   "naRow"    -- boss has zero achievements. Fields: bossName.
 --                 Renders "N/A" in the achievement and status columns.
 local function BuildAchievementRows(raid)
@@ -7899,17 +7782,15 @@ GetOrCreateAchievementsWindow = function()
     -- rendered width of each row's text BEFORE laying it out, so columns
     -- and the overall window can auto-size to fit the widest content.
     -- GetStringWidth is synchronous after SetText/SetFont (unlike
-    -- GetStringHeight, which is lazy after SetFont) -- the trick is to
-    -- call SetFont *first* with the measurement font, then SetText, then
-    -- read GetStringWidth. Hidden because we don't want it visible.
+    -- GetStringHeight, which is lazy after SetFont): call SetFont first
+    -- with the measurement font, then SetText, then read GetStringWidth.
+    -- Hidden so it never appears on screen.
     f.measureFS = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     f.measureFS:Hide()
 
     -- Legend below the table. Two FontStrings: meta-key on the left,
     -- soloable color key on the right. Splitting them lets the soloable
-    -- key anchor to BOTTOMRIGHT independently of the meta-key text width
-    -- (which used to push the soloable text leftward and made the right
-    -- side of the table feel cluttered when the window grew wide).
+    -- key anchor to BOTTOMRIGHT independently of the meta-key text width.
     --
     -- Star colors match GetSoloableStar() exactly:
     --   green  = soloable (any class)
@@ -8299,18 +8180,9 @@ GetOrCreateAchievementsWindow = function()
                     UI.ShowWowheadPopup(achID, bossName, achName)
                 end)
                 slot.wowhead:ClearAllPoints()
-                -- Vertically center the 14px-tall button in the row's
-                -- ~15px visible band. The math says anchoring TOPRIGHT
-                -- at y should put button top at row top with 1px gap
-                -- to the divider below -- but UIPanelButtonTemplate's
-                -- chrome (the textured edges) doesn't fill its SetSize
-                -- bounds uniformly: the visible button graphics sit
-                -- biased toward the bottom of the SetSize box, so a
-                -- y-anchored button reads as bottom-heavy with empty
-                -- space above. Empirical adjustment (tuned by eye over
-                -- several iterations): y+2 lands closest to the visual
-                -- center of the row band. y+3 read slightly too high,
-                -- y+0 too low.
+                -- UIPanelButtonTemplate's chrome sits low in its SetSize box,
+                -- so the visible button reads bottom-heavy if anchored at y.
+                -- The +2 nudges it to the row's visual center.
                 slot.wowhead:SetPoint("TOPRIGHT", f, "TOPRIGHT", -ACH_WOWHEAD_RIGHT_INSET, y + 2)
                 slot.wowhead:Show()
 
@@ -8475,19 +8347,11 @@ function UI.ToggleAchievementsWindow()
 end
 end -- achievements do block
 
--- "[!] view special note" subtle pulse driver. Advances
--- encounterPulsePhase through 0..15 every 0.1s (1.6s round trip), and
--- calls UI.Update so BuildEncounterText re-renders the [!] glyph at
--- the new brightness. Pulse is purely cosmetic; it only re-runs the
--- existing UI.Update path. Gated to "panel is allowed and raid is
--- loaded" to avoid wasted work on the login screen / non-raid maps,
--- and to "encounter section is collapsed" since the [!] is only
--- visible in that state.
---
--- Why a separate ticker rather than piggy-backing on the 1Hz Core
--- heartbeat: heartbeat fires every 1s, way too slow for smooth
--- breathing. 0.1s gives 16 phases over the 1.6s cycle, fine enough
--- to read as gradual rather than stepping.
+-- "[!] view special note" pulse driver. Advances encounterPulsePhase through
+-- 0..15 every 0.1s (1.6s round trip) and calls UI.Update so the [!] glyph
+-- re-renders at the new brightness. Purely cosmetic. Runs at 0.1s (not the 1s
+-- heartbeat) so the breathing reads as smooth, and only when the panel is
+-- allowed, a raid is loaded, and the encounter section is collapsed.
 C_Timer.NewTicker(0.1, function()
     -- Cheap exit if there's nothing to display the pulse on.
     if not RR:IsPanelAllowed() then return end

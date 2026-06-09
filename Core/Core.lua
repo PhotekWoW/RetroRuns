@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "1.12.0"
+local VERSION    = "1.13.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -66,6 +66,17 @@ RetroRuns = {
         --   "rr" - the route order this addon walks (default)
         --   "ej" - the in-game Encounter Journal order
         bossOrderMode = "rr",
+        -- toasterEnabled: master switch for the Toaster feature. When on,
+        -- toasts auto-activate in supported raids and deactivate elsewhere.
+        -- Default OFF -- the feature is opt-in; users enable it in Settings.
+        toasterEnabled = false,
+        -- toasterDuration: seconds a toast stays at full opacity before fading.
+        -- User-adjustable in Customize (1.5..8.0). Floor keeps a two-line name
+        -- readable.
+        toasterDuration = 3.0,
+        -- toasterStayUntilClick: when true, toasts never auto-fade -- they hold
+        -- until the user clicks them to dismiss. Overrides toasterDuration.
+        toasterStayUntilClick = false,
     },
 }
 
@@ -95,7 +106,7 @@ end
 --- Prefixed chat output.
 function RR:Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(
-        "|cff7fbfffRetroRuns:|r " .. tostring(msg))
+        "|cff4DCCFFR|cffF259C7R|r|cff7f7f7f:|r " .. tostring(msg))
 end
 
 --- Debug output (only when the debug setting is enabled).
@@ -112,11 +123,9 @@ end
 function RR:ZoneLog(msg)
     local buf = self.state.zoneLog
     table.insert(buf, ("[%s] %s"):format(date("%H:%M:%S"), tostring(msg)))
-    -- Buffer cap: 1000 entries. Bumped from 200 in v1.7 because the 1Hz
-    -- heartbeat tick logger (when /rr debug is on) produced 60 entries/min,
-    -- exhausting a 200-entry buffer in ~3 minutes and pushing useful HLC-
-    -- fire entries out before they could be reviewed. 1000 covers ~16 min
-    -- of continuous debug-mode heartbeat plus headroom for actual events.
+    -- Buffer cap: 1000 entries. With /rr debug on, the 1Hz heartbeat logger
+    -- adds ~60 entries/min, so 1000 covers ~16 min of continuous debug output
+    -- plus headroom for actual events before old lines roll off.
     while #buf > 1000 do table.remove(buf, 1) end
 end
 
@@ -1013,14 +1022,14 @@ local function GetEJMapForJournalInstance(journalInstanceID)
         EJ_SelectInstance(journalInstanceID)
     end
 
-    local jeToDe = {}
+    local journalToDungeonEnc = {}
     local count  = 0
     local i = 1
     while true do
-        local _, _, je, _, _, _, de = EJ_GetEncounterInfoByIndex(i, journalInstanceID)
-        if not je then break end
-        if de then
-            jeToDe[je] = de
+        local _, _, journalEncID, _, _, _, dungeonEncID = EJ_GetEncounterInfoByIndex(i, journalInstanceID)
+        if not journalEncID then break end
+        if dungeonEncID then
+            journalToDungeonEnc[journalEncID] = dungeonEncID
             count = count + 1
         end
         i = i + 1
@@ -1038,9 +1047,9 @@ local function GetEJMapForJournalInstance(journalInstanceID)
     -- the next call to retry, not to lock in the empty result for
     -- the rest of the session.
     if count > 0 then
-        ejMapCache[journalInstanceID] = jeToDe
+        ejMapCache[journalInstanceID] = journalToDungeonEnc
     end
-    return jeToDe
+    return journalToDungeonEnc
 end
 
 -- Expose on the RR namespace so other files (Navigation.lua's
@@ -1051,6 +1060,75 @@ function RR:GetEJMapForJournalInstance(journalInstanceID)
     return GetEJMapForJournalInstance(journalInstanceID)
 end
 
+-- Difficulty models.
+--
+-- Most raids RetroRuns covers use the modern scheme: one difficulty ID
+-- per tier, Normal/Heroic/Mythic plus Raid Finder, and the loot data
+-- keys its sources by those same IDs (14/15/16/17). For those raids the
+-- bucket IDs and the live difficulty IDs are one and the same.
+--
+-- Mists-of-Pandaria raids are different. They predate Mythic and split
+-- Normal and Heroic by raid size, so the game hands back four separate
+-- raid difficulties -- 10-player Normal (3), 25-player Normal (4),
+-- 10-player Heroic (5), 25-player Heroic (6) -- plus Raid Finder (7).
+-- The loot and appearances are identical across size, so we fold the
+-- two sizes into a single Normal and a single Heroic. Each model below
+-- lists the live difficulty IDs the game can report and the display
+-- bucket each one folds into. Display buckets reuse the modern IDs
+-- (17=LFR, 14=Normal, 15=Heroic) so the loot browser and source data
+-- speak one language regardless of era.
+--
+-- A raid opts into a model with `difficultyModel` in its data file;
+-- absent means "modern".
+local DIFFICULTY_MODELS = {
+    modern = {
+        -- live id -> display bucket (identity)
+        fold    = { [17] = 17, [14] = 14, [15] = 15, [16] = 16 },
+        -- display buckets in pill / browser order
+        buckets = { 17, 14, 15, 16 },
+    },
+    mop = {
+        -- 7=LFR, 3/4=Normal (10/25), 5/6=Heroic (10/25)
+        fold    = { [7] = 17, [3] = 14, [4] = 14, [5] = 15, [6] = 15 },
+        buckets = { 17, 14, 15 },
+    },
+}
+
+-- Resolve a raid's difficulty model, defaulting to modern.
+function RR:GetDifficultyModel(raid)
+    local key = raid and raid.difficultyModel or "modern"
+    return DIFFICULTY_MODELS[key] or DIFFICULTY_MODELS.modern
+end
+
+-- Fold a live difficulty ID (what GetInstanceInfo / GetSavedInstanceInfo
+-- report) into the display bucket for a raid. Returns the id unchanged
+-- if the raid's model doesn't remap it.
+function RR:FoldDifficulty(raid, liveDifficultyID)
+    if not liveDifficultyID then return liveDifficultyID end
+    local model = self:GetDifficultyModel(raid)
+    return model.fold[liveDifficultyID] or liveDifficultyID
+end
+
+-- Is a boss available at a given DISPLAY bucket (14/15/16/17)?
+--
+-- Most bosses exist at every difficulty their raid offers, so the default
+-- (no `availableDifficulties` field) is "available everywhere" -> true.
+-- A boss that only exists at certain difficulties (e.g. Ra-den in Throne
+-- of Thunder is Heroic-only) declares `availableDifficulties = { 15 }`;
+-- this returns true only when the queried bucket is in that list.
+--
+-- bucket is a display bucket, not a live difficulty ID -- callers that
+-- hold a live ID should FoldDifficulty it first.
+function RR:BossAvailableInBucket(boss, bucket)
+    if not boss then return false end
+    local allowed = boss.availableDifficulties
+    if not allowed then return true end  -- unrestricted: exists everywhere
+    for _, b in ipairs(allowed) do
+        if b == bucket then return true end
+    end
+    return false
+end
+
 -- Compute per-difficulty kill counts for ANY raid (not just the
 -- currently-loaded one). Used by both the in-raid pill row and the
 -- idle-state supported-raids list.
@@ -1059,6 +1137,12 @@ end
 -- caller is responsible for the MAX-with-bossesKilled trick that lets
 -- ENCOUNTER_END register kills before the saved-instance cache catches
 -- up. This function reads PURELY from cache; no live state.
+--
+-- Results are keyed by DISPLAY bucket (17/14/15/16), not by the live
+-- difficulty IDs. Under the Mists model, a boss counts as cleared on a
+-- bucket if it was killed at EITHER size that folds into it -- killing
+-- Stone Guard at 10-player Normal marks the Normal bucket complete even
+-- if you never touched 25-player.
 function RR:GetPerDifficultyKillCountsForRaid(raid)
     if not raid then return nil end
     if not C_RaidLocks or not C_RaidLocks.IsEncounterComplete then return nil end
@@ -1067,42 +1151,76 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
     local instanceID        = raid.instanceID
     if not journalInstanceID or not instanceID then return nil end
 
-    local jeToDe = GetEJMapForJournalInstance(journalInstanceID)
-    if not jeToDe then return nil end
+    local journalToDungeonEnc = GetEJMapForJournalInstance(journalInstanceID)
+    if not journalToDungeonEnc then return nil end
 
-    -- 17=LFR, 14=Normal, 15=Heroic, 16=Mythic.
-    local difficulties = { 17, 14, 15, 16 }
+    local model = self:GetDifficultyModel(raid)
     local result = {}
-    local total  = 0
-    for _, b in ipairs(raid.bosses or {}) do
-        local de = jeToDe[b.journalEncounterID]
-        if de then total = total + 1 end
+
+    -- Group the live difficulty IDs by the display bucket they fold into,
+    -- so we can ask "is this boss done on Normal?" by checking every size
+    -- that maps to Normal.
+    local liveIdsForBucket = {}
+    for liveId, bucket in pairs(model.fold) do
+        liveIdsForBucket[bucket] = liveIdsForBucket[bucket] or {}
+        table.insert(liveIdsForBucket[bucket], liveId)
     end
-    for _, dID in ipairs(difficulties) do
+
+    for _, bucket in ipairs(model.buckets) do
         local complete = 0
+        local total    = 0
         for _, b in ipairs(raid.bosses or {}) do
-            local de = jeToDe[b.journalEncounterID]
-            if de and C_RaidLocks.IsEncounterComplete(instanceID, de, dID) then
-                complete = complete + 1
+            -- A boss counts toward a bucket's TOTAL if it exists at that
+            -- difficulty (BossAvailableInBucket) -- independent of whether
+            -- the Encounter Journal exposes a dungeonEncounterID for it.
+            -- This matters for hidden bonus bosses: Ra-den is a real Heroic
+            -- encounter but the EJ doesn't index him, so journalToDungeonEnc
+            -- has no entry. Gating the total on the ID (as before) silently
+            -- dropped him from the Heroic denominator, showing H 12 instead
+            -- of 13.
+            if self:BossAvailableInBucket(b, bucket) then
+                total = total + 1
+                -- Completion is checked through the lockout API, which
+                -- needs the dungeonEncounterID. When the EJ doesn't expose
+                -- one (hidden boss), use an explicit dungeonEncounterID from
+                -- the data if present (Ra-den), so lockout-based completion
+                -- still resolves on the idle list. Failing both, the
+                -- in-memory bossesKilled floor below credits the active run.
+                local dungeonEncID = journalToDungeonEnc[b.journalEncounterID]
+                    or b.dungeonEncounterID
+                if dungeonEncID then
+                    for _, liveId in ipairs(liveIdsForBucket[bucket] or {}) do
+                        if C_RaidLocks.IsEncounterComplete(instanceID, dungeonEncID, liveId) then
+                            complete = complete + 1
+                            break
+                        end
+                    end
+                end
             end
         end
-        result[dID] = { complete = complete, total = total }
+        result[bucket] = { complete = complete, total = total }
     end
 
     -- The instance cache updates asynchronously after a kill -- use
     -- in-memory bossesKilled as a floor for the active difficulty so
-    -- pills update immediately on kill.
+    -- pills update immediately on kill. The active difficulty is a live
+    -- ID (e.g. a Mists size variant), so fold it to its display bucket
+    -- before applying the floor.
     if self.currentRaid and raid == self.currentRaid then
-        local activeDifficulty = self.state.currentDifficultyID
-        if activeDifficulty and result[activeDifficulty] then
+        local activeBucket = self:FoldDifficulty(raid, self.state.currentDifficultyID)
+        if activeBucket and result[activeBucket] then
             local localCount = 0
             for _, b in ipairs(raid.bosses or {}) do
-                if self.state.bossesKilled[b.index] then
+                -- Only count toward the active bucket if the boss exists
+                -- there -- mirrors the per-bucket total above so the floor
+                -- can't push complete past total.
+                if self.state.bossesKilled[b.index]
+                    and self:BossAvailableInBucket(b, activeBucket) then
                     localCount = localCount + 1
                 end
             end
-            if localCount > result[activeDifficulty].complete then
-                result[activeDifficulty].complete = localCount
+            if localCount > result[activeBucket].complete then
+                result[activeBucket].complete = localCount
             end
         end
     end
@@ -1113,6 +1231,25 @@ end
 function RR:GetPerDifficultyKillCounts()
     if not self.currentRaid then return nil end
     return self:GetPerDifficultyKillCountsForRaid(self.currentRaid)
+end
+
+-- Mists raids share one lockout across Normal and Heroic: killing a boss
+-- on one mode commits the ID to that mode for the week, so the other mode
+-- is unreachable until reset. Given the per-bucket counts, return the
+-- display bucket that is locked OUT this lockout -- the Normal/Heroic
+-- sibling of whichever one already has a kill. Returns nil when nothing
+-- is committed yet (both zero), when both somehow show kills, or for any
+-- raid that isn't on the shared-lockout model. Callers use this to mark
+-- the locked pill; it does not change counts or gate anything.
+function RR:GetLockedOutBucket(raid, counts)
+    if not raid or not counts then return nil end
+    if (raid.difficultyModel or "modern") ~= "mop" then return nil end
+
+    local nDone = counts[14] and counts[14].complete > 0
+    local hDone = counts[15] and counts[15].complete > 0
+    if nDone and not hDone then return 15 end
+    if hDone and not nDone then return 14 end
+    return nil
 end
 
 -- Diagnostic for stale-lockout contamination. Dumps GetSavedInstanceInfo
@@ -1163,17 +1300,17 @@ function RR:LockProbe()
         if isRaid and RetroRuns_Data and RetroRuns_Data[instanceID]
             and C_RaidLocks and C_RaidLocks.IsEncounterComplete then
             local raid = RetroRuns_Data[instanceID]
-            local jeToDe = self:GetEJMapForJournalInstance(raid.journalInstanceID)
-            if jeToDe and next(jeToDe) then
-                add(("    C_RaidLocks.IsEncounterComplete(%s, <de>, %s):")
+            local journalToDungeonEnc = self:GetEJMapForJournalInstance(raid.journalInstanceID)
+            if journalToDungeonEnc and next(journalToDungeonEnc) then
+                add(("    C_RaidLocks.IsEncounterComplete(%s, <dungeonEncID>, %s):")
                     :format(tostring(instanceID), tostring(difficultyId)))
                 for _, b in ipairs(raid.bosses or {}) do
-                    local de = jeToDe[b.journalEncounterID]
-                    if de then
+                    local dungeonEncID = journalToDungeonEnc[b.journalEncounterID]
+                    if dungeonEncID then
                         local r = C_RaidLocks.IsEncounterComplete(
-                            instanceID, de, difficultyId)
-                        add(("      %s (de=%s): %s")
-                            :format(tostring(b.name), tostring(de),
+                            instanceID, dungeonEncID, difficultyId)
+                        add(("      %s (dungeonEncID=%s): %s")
+                            :format(tostring(b.name), tostring(dungeonEncID),
                                     tostring(r)))
                     end
                 end
@@ -1280,6 +1417,112 @@ end
 -- For multi-chain raids, returns the MAX ceiling across all chains. The
 -- ceiling-per-chain detail (needed by the Skips UI to render two rows)
 -- lives in GetSkipChainCeilings.
+-- Detection for the Siege of Orgrimmar Garrosh skip (raid.skipGarrosh).
+-- Returns true if the account has unlocked the skip. Two arms, OR'd:
+--
+--   * statistics: any of the per-difficulty Garrosh kill statistics
+--     reading > 0. Covers LFR / Flexible / Normal / Heroic kills. The
+--     in-game "--" (no kills) reads as a non-number, so tonumber()..or 0
+--     treats it as zero.
+--
+--   * mythicAchievement: the Mythic Garrosh achievement completed (4th
+--     return of GetAchievementInfo, account-wide). Covers Mythic kills,
+--     which the kill statistics do not track.
+-- Per-difficulty skip state for the Siege of Orgrimmar Garrosh scroll.
+-- The scroll is account-wide and difficulty-agnostic: one Garrosh kill
+-- on any character at any difficulty unlocks it everywhere. But the
+-- client has no single account-wide "any kill" signal, so we infer the
+-- state per difficulty from the strongest proof available, four tiers,
+-- most-conclusive first:
+--
+--   Tier 1  Mythic Garrosh achievement (account-wide) completed
+--           -> proof of a kill; cascades down. M / H / N all unlocked.
+--   Tier 2  either faction's Heroic-or-higher kill achievement
+--           (Conqueror = Alliance, Liberator = Horde; both account-wide)
+--           completed, no Mythic -> H / N unlocked, M not confirmed.
+--   Tier 3  any per-difficulty kill statistic > 0. Statistics are
+--           CHARACTER-scoped, so this only confirms the *current*
+--           character killed Garrosh -- but a kill is a kill, so the
+--           account-wide skip is genuinely unlocked. N unlocked; H/M
+--           not confirmed (no achievement to prove the difficulty).
+--   Tier 4  nothing proven. The skip may still be unlocked by a kill on
+--           another character that left no account-wide trace we can
+--           read, so Normal is "unknown" (?) rather than a hard locked;
+--           H / M stay not-confirmed.
+--
+-- Cell values match the Skips renderer's vocabulary:
+--   true  = unlocked (green check)
+--   false = not confirmed (red X)
+--   "?"   = unknown (waiting glyph)
+--
+-- Returns mythic, heroic, normal.
+-- Per-difficulty skip state for the Siege of Orgrimmar Garrosh scroll.
+-- The scroll unlocks account-wide on a Garrosh kill, but the client has
+-- no single account-wide "any kill" signal, so we grade each difficulty
+-- from the strongest proof available, most-conclusive first:
+--
+--   Tier 1  Mythic Garrosh achievement (account-wide) completed
+--           -> Mythic / Heroic / Normal all unlocked.
+--   Tier 2  either faction's Heroic-or-higher kill achievement
+--           (Conqueror = Alliance, Liberator = Horde; both account-wide)
+--           completed, no Mythic -> Heroic + Normal unlocked, Mythic
+--           locked.
+--   Tier 3  a Normal-difficulty kill statistic > 0, no achievement.
+--           Statistics are CHARACTER-scoped, so this confirms only the
+--           current character's Normal kill -> Normal unlocked, Heroic
+--           and Mythic locked.
+--   Tier 4  nothing proven -> Heroic + Mythic locked, Normal unknown
+--           ("?"), since a kill on another character may have unlocked
+--           the scroll without leaving a trace we can read here.
+--
+-- Cell values match the Skips renderer's vocabulary:
+--   true  = unlocked (green check)
+--   false = locked (red X)
+--   "?"   = unknown (waiting glyph)
+--
+-- Returns mythic, heroic, normal.
+local function GarroshSkipStates(cfg)
+    if not cfg then return false, false, "?" end
+
+    local function achDone(id)
+        if not id or not GetAchievementInfo then return false end
+        local _, _, _, completed = GetAchievementInfo(id)
+        return completed and true or false
+    end
+
+    -- Tier 1: Mythic achievement.
+    if achDone(cfg.mythicAchievement) then
+        return true, true, true
+    end
+
+    -- Tier 2: either faction's Heroic-or-higher kill achievement.
+    if cfg.heroicAchievements then
+        for _, id in ipairs(cfg.heroicAchievements) do
+            if achDone(id) then
+                return false, true, true
+            end
+        end
+    end
+
+    -- Tier 3: a Normal-difficulty kill statistic > 0 (current character).
+    if cfg.normalStatistics and GetStatistic then
+        for _, statID in ipairs(cfg.normalStatistics) do
+            -- GetStatistic can return a boolean (not a count) when stats
+            -- data isn't loaded yet, so only a string/number is a real
+            -- reading. The in-game "--" (no kills) is a non-numeric
+            -- string -> tonumber nil -> 0.
+            local raw = GetStatistic(statID)
+            local t = type(raw)
+            if (t == "number" or t == "string") and (tonumber(raw) or 0) > 0 then
+                return false, false, true
+            end
+        end
+    end
+
+    -- Tier 4: nothing proven.
+    return false, false, "?"
+end
+
 function RR:GetRaidSkipUnlockedCeiling(raid)
     if not raid then return nil end
 
@@ -1307,7 +1550,32 @@ function RR:GetRaidSkipUnlockedCeiling(raid)
         return nil
     end
 
+    -- Siege of Orgrimmar's "Scroll of Past Deeds" skip. Per-difficulty
+    -- state lives in GarroshSkipStates; for the single-value ceiling
+    -- consumers (idle-list marker, IsRaidSkipAvailableAtDifficulty) we
+    -- collapse to a ceiling: the highest difficulty whose cell is a
+    -- confirmed unlock. "?" (unknown) does not count as unlocked here --
+    -- the marker should reflect what we can prove, and availability
+    -- checks shouldn't assert a skip we haven't confirmed.
+    if raid.skipGarrosh then
+        local m, h, n = GarroshSkipStates(raid.skipGarrosh)
+        if m == true then return 16 end
+        if h == true then return 15 end
+        if n == true then return 14 end
+        return nil
+    end
+
     return nil
+end
+
+-- Public accessor for the Siege of Orgrimmar per-difficulty skip cells.
+-- Returns mythic, heroic, normal as true / false / "?" (see
+-- GarroshSkipStates). Returns nil if the raid has no skipGarrosh config,
+-- so callers can fall back to the ceiling-based rendering used by every
+-- other skip mechanism.
+function RR:GetGarroshSkipStates(raid)
+    if not raid or not raid.skipGarrosh then return nil end
+    return GarroshSkipStates(raid.skipGarrosh)
 end
 
 -- True iff the raid's skip mechanic uses the standard cascade-down rule
@@ -1317,7 +1585,23 @@ function RR:RaidSkipIsCascading(raid)
     if not raid then return false end
     if raid.skipQuests then return true end
     if raid.skipAchievement then return false end
+    -- Garrosh scroll: once unlocked it applies at every difficulty the
+    -- player can enter, so the downward cascade from its Mythic ceiling
+    -- is the correct model.
+    if raid.skipGarrosh then return true end
     return false
+end
+
+-- True iff the raid has any skip mechanic configured (regardless of
+-- whether it's currently unlocked). Single gate for the UI sites that
+-- decide whether to surface the skip column / detail row at all, so a
+-- new mechanism only has to be added here rather than at every call
+-- site.
+function RR:RaidHasSkipMechanic(raid)
+    if not raid then return false end
+    return (raid.skipQuests ~= nil)
+        or (raid.skipAchievement ~= nil)
+        or (raid.skipGarrosh ~= nil)
 end
 
 -- Returns true if the skip is available at the given difficulty,
@@ -1527,6 +1811,12 @@ function RR:HandleLocationChange()
         self.state.lastUnsupportedRaid   = nil
         self.state.lastPlayerMapID       = nil
         self:UnloadCurrentRaid()
+        -- Reconcile Toaster here too: this branch returns early (before the
+        -- end-of-function reconcile), so leaving a raid would otherwise leave
+        -- the toast active. currentRaid is now nil, so this deactivates it.
+        if self.RefreshToasterLifecycle then
+            self:RefreshToasterLifecycle()
+        end
         return
     end
 
@@ -1652,6 +1942,16 @@ function RR:HandleLocationChange()
             self.state.lastUnsupportedRaid = info.name
             self:Print(info.name .. " is not supported yet.")
         end
+    end
+
+    -- currentRaid is now resolved for this location (a supported raid, or nil).
+    -- Reconcile the Toaster lifecycle here so it activates/deactivates in
+    -- step with supported-raid state on every location change -- not just on
+    -- PLAYER_ENTERING_WORLD. This is the single point where currentRaid is set
+    -- or cleared, so it's the right place to keep the toast scoped to raids we
+    -- support.
+    if self.RefreshToasterLifecycle then
+        self:RefreshToasterLifecycle()
     end
 end
 
@@ -1791,6 +2091,19 @@ function RR:PrintStatus()
         add(("Live: mapID=%s  coords=(unavailable)  zone=%q  subZone=%q"):format(
             tostring(playerMapID or "?"), liveZone, liveSubZone))
     end
+
+    -- WorldMap mapID: the ID of the map currently shown in the world-map
+    -- frame. The route-line overlay draws against THIS value (not the player
+    -- mapID above), and the two can differ -- on the SoO Galakras bridge the
+    -- player mapID and the open map's ID disagreed, which is why a line can
+    -- look "missing" while actually drawing on the other map. Surfacing it
+    -- here makes line-placement debugging key off the value the overlay uses.
+    local worldMapID = WorldMapFrame and WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()
+    add(("WorldMap mapID: %s%s"):format(
+        tostring(worldMapID or "(map closed)"),
+        (worldMapID and self.currentRaid and self.currentRaid.maps
+            and self.currentRaid.maps[worldMapID])
+            and ("  %q"):format(self.currentRaid.maps[worldMapID]) or ""))
 
     if not self.currentRaid then
         add("Raid: (none loaded)")
@@ -2067,6 +2380,106 @@ function RR:IsDialogDebugActive()
 end
 
 -------------------------------------------------------------------------------
+-- LootProbe: discovery tool for the Toaster intercept feature.
+--
+-- The native loot popups (the center-screen "you received" toasts) are driven
+-- by a set of events the AlertFrame listens for. Which event fires depends on
+-- the TYPE of drop (regular gear vs mount vs pet vs transmog source), not on
+-- the expansion of the raid -- legacy solo drops come through the current
+-- client's delivery path regardless of which raid they're from. This probe
+-- arms a listener on the candidate event set and logs every fire with its
+-- full payload, so the suppress/replace lists can be built against what the
+-- live client actually emits rather than guessed.
+--
+-- Arm with /rr lootprobe start, loot a mix of drops in a legacy raid, then
+-- /rr lootprobe stop to dump the capture to a copy window.
+local lootProbe = { active = false, frame = nil, buffer = nil }
+
+-- Candidate events: the delivery/notification events that produce a native
+-- toast. Captured together so a single boss-loot pass shows which one(s)
+-- fire for each drop type.
+local LOOTPROBE_EVENTS = {
+    "SHOW_LOOT_TOAST",
+    "SHOW_LOOT_TOAST_UPGRADE",
+    "SHOW_LOOT_TOAST_LEGENDARY_LOOTED",
+    "SHOW_PVP_FACTION_LOOT_TOAST",
+    "LOOT_ITEM_ROLL_WON",
+    "NEW_MOUNT_ADDED",
+    "NEW_PET_ADDED",
+    "NEW_TOY_ADDED",
+    "TRANSMOG_COLLECTION_SOURCE_ADDED",
+    "TRANSMOG_COSMETIC_COLLECTION_SOURCE_ADDED",
+    "CHAT_MSG_LOOT",
+}
+
+local function FormatLootCapture(event, ...)
+    local n = select("#", ...)
+    local parts = {}
+    for i = 1, n do
+        local v = select(i, ...)
+        parts[i] = ("arg%d=%s"):format(i, tostring(v))
+    end
+    local stamp = date("%H:%M:%S")
+    if n == 0 then
+        return ("[%s] %s  (no args)"):format(stamp, event)
+    end
+    return ("[%s] %s\n    %s"):format(stamp, event, table.concat(parts, "\n    "))
+end
+
+local function LootEventHandler(_, event, ...)
+    if not lootProbe.active then return end
+    lootProbe.buffer[#lootProbe.buffer + 1] = FormatLootCapture(event, ...)
+    -- Lightweight confirmation so Photek sees captures land live without
+    -- having to stop the probe; full payload goes to the dump window.
+    RR:Print(("|cff00ff88[LootProbe]|r %s (%d arg(s))"):format(event, select("#", ...)))
+end
+
+function RR:LootProbeStart()
+    if lootProbe.active then
+        self:Print("|cff00ff88[LootProbe]|r already armed. /rr lootprobe stop to disarm.")
+        return
+    end
+    if not lootProbe.frame then
+        lootProbe.frame = CreateFrame("Frame")
+        lootProbe.frame:SetScript("OnEvent", LootEventHandler)
+    end
+    lootProbe.buffer = {}
+    for _, ev in ipairs(LOOTPROBE_EVENTS) do
+        -- pcall: a few candidates may not exist on every client build; an
+        -- unknown event name errors on RegisterEvent. Skip those quietly.
+        pcall(lootProbe.frame.RegisterEvent, lootProbe.frame, ev)
+    end
+    lootProbe.active = true
+    self:Print(("|cff00ff88[LootProbe]|r ARMED. Listening for %d loot/toast events."):format(#LOOTPROBE_EVENTS))
+    self:Print("|cff00ff88[LootProbe]|r Loot a mix of drops (gear, mount, pet, transmog), then /rr lootprobe stop.")
+end
+
+function RR:LootProbeStop()
+    if not lootProbe.active then
+        self:Print("|cff00ff88[LootProbe]|r not armed. /rr lootprobe start to begin capture.")
+        return
+    end
+    for _, ev in ipairs(LOOTPROBE_EVENTS) do
+        pcall(lootProbe.frame.UnregisterEvent, lootProbe.frame, ev)
+    end
+    lootProbe.active = false
+    local count = #lootProbe.buffer
+    self:Print(("|cff00ff88[LootProbe]|r DISARMED. Captured %d event(s). Opening dump window..."):format(count))
+    local dump
+    if count == 0 then
+        dump = "(no events captured during this session)"
+    else
+        dump = table.concat(lootProbe.buffer, "\n\n")
+    end
+    self:ShowCopyWindow("RetroRuns -- LootProbe capture", dump)
+    lootProbe.buffer = nil
+end
+
+function RR:IsLootProbeActive()
+    return lootProbe.active == true
+end
+
+-------------------------------------------------------------------------------
 -- VerifyOneRaid: run the tmogverify pipeline (E1-E7 + special-loot checks +
 -- async EJ-driven coverage pass) on a single raid table. Async because the
 -- coverage pass requires driving the EJ at each difficulty per boss.
@@ -2083,9 +2496,8 @@ end
 --             text (array of strings ready for table.concat). T is the counter
 --             table tallying findings.
 --
--- Extracted from the /rr tmogverify dispatcher branch in v1.10.0 so the same
--- pipeline can be reused by /rr tmogverifyall without code duplication. See
--- the tmogverify docblock above the dispatcher for the per-check semantics.
+-- Shared by /rr tmogverify and /rr tmogverifyall. See the tmogverify docblock
+-- above the dispatcher for the per-check semantics.
 -------------------------------------------------------------------------------
 function RR:VerifyOneRaid(raid, opts, onDone)
     opts = opts or {}
@@ -2137,7 +2549,13 @@ function RR:VerifyOneRaid(raid, opts, onDone)
             special_kind_mismatch = 0, -- S2
             special_item_unknown  = 0, -- S1
         }
-        local DIFFS = { 17, 14, 15, 16 }
+        -- Difficulty buckets to check. Mists raids have no Mythic, so
+        -- driving difficulty 16 just wastes a settle-timeout per boss and
+        -- checks a bucket the data never carries. The mop model also
+        -- stores a separate itemID per tier (see the E2 note below), so
+        -- the per-item checks need to know which model they're in.
+        local isMop = (raid.difficultyModel == "mop")
+        local DIFFS = isMop and { 17, 14, 15 } or { 17, 14, 15, 16 }
         local DIFF_NAME = { [17]="LFR", [14]="N", [15]="H", [16]="M" }
 
         if verbose then add(("tmogverify: raid=%s"):format(tostring(raid.name or "?"))) end
@@ -2214,17 +2632,13 @@ function RR:VerifyOneRaid(raid, opts, onDone)
 
                     -- Resolve the row's canonical appearanceID via
                     -- GetItemInfo. Used by [E2] below to recognize the
-                    -- shared-appearance case (multiple items pointing
-                    -- at the same visual). Established for the first
-                    -- time during the Highmaul bring-up (2026-05-27):
-                    -- WoD-era loot routinely shares one appearanceID
-                    -- across 5+ items via per-difficulty modIDs and
-                    -- LFR-only shared pieces. The runtime
-                    -- appearance-collection check (the one the Tmog
-                    -- browser actually uses) treats all sources of a
-                    -- given appearance as interchangeable -- match that
-                    -- semantics here rather than requiring the
-                    -- bucket's source to "own" the row's itemID.
+                    -- shared-appearance case (multiple items pointing at the
+                    -- same visual). WoD-era loot routinely shares one
+                    -- appearanceID across 5+ items via per-difficulty modIDs
+                    -- and LFR-only shared pieces. The runtime appearance check
+                    -- the Tmog browser uses treats all sources of an appearance
+                    -- as interchangeable, so match that here rather than
+                    -- requiring the bucket's source to own the row's itemID.
                     local rowAppearanceID
                     if C_TransmogCollection and C_TransmogCollection.GetItemInfo then
                         rowAppearanceID = C_TransmogCollection.GetItemInfo(item.id)
@@ -2261,10 +2675,23 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                     for _, diffID in ipairs(DIFFS) do
                         local b = perBucket[diffID]
                         if b and b.apiItemID and b.apiItemID ~= item.id then
+                            -- Mists model: a piece exists as three
+                            -- separate itemIDs (Normal / Heroic / LFR),
+                            -- and the row deliberately carries only the
+                            -- Normal itemID while storing each tier's
+                            -- own sourceID. So a bucket source belonging
+                            -- to a different itemID is EXPECTED here --
+                            -- it's the tier-sibling item, not a wrong
+                            -- source. db2 cross-reference (the mop loot
+                            -- audit) already confirms these per tier;
+                            -- the live check that still matters is E1
+                            -- (does the source resolve at all), which
+                            -- runs above. So skip the equality assertion
+                            -- for mop raids.
                             local sharedAppearance =
                                 rowAppearanceID and b.visualID
                                 and b.visualID == rowAppearanceID
-                            if not sharedAppearance then
+                            if not sharedAppearance and not isMop then
                                 table.insert(findings, ("[ERR] %s src=%d: API itemID=%d, expected %d"):format(
                                     DIFF_NAME[diffID], b.src, b.apiItemID, item.id))
                                 T.item_mismatch = T.item_mismatch + 1
@@ -2284,15 +2711,12 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                     -- 4-dot strip. So an item with `{L=X, N=X, H=X,
                     -- M=X}` is intentional, not broken.
                     --
-                    -- The real red flag is PARTIAL duplication:
-                    -- 2 or 3 unique sources across 4 buckets. That
-                    -- pattern suggests a harvest that half-resolved
-                    -- (known example: Rae'shalare,
-                    -- {L=new, N=old, H=old, M=old}, because ATT
-                    -- stores it as bonusID variants that our batch
-                    -- rewrite didn't handle). Flag as WRN for manual
-                    -- review; most cases will be legit documented
-                    -- exceptions but new occurrences deserve a look.
+                    -- The real red flag is PARTIAL duplication: 2 or 3 unique
+                    -- sources across 4 buckets. One known case is Rae'shalare,
+                    -- {L=new, N=old, H=old, M=old}, where ATT stores it as
+                    -- bonusID variants. Flag as WRN for manual review; most are
+                    -- legitimate documented exceptions, but new ones deserve a
+                    -- look.
                     local srcCounts = {}  -- src -> count
                     local visualSet = {}  -- visualID -> true (for same-visual detection)
                     local uniqueCount = 0
@@ -2354,6 +2778,21 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                         -- distinct per-difficulty sources. Renders as
                         -- "[ N | H | M ]".
                         shapeTag = "nhm-pool"
+                        T.shape_perdiff = (T.shape_perdiff or 0) + 1
+                    elseif totalBuckets == 4
+                           and perBucket[14] and perBucket[15]
+                           and perBucket[16] and perBucket[17]
+                           and uniqueCount == 3
+                           and perBucket[14].src == perBucket[15].src then
+                        -- Normal+Heroic shared-appearance shape. Siege of
+                        -- Orgrimmar-era gear carries one appearance at modID 0
+                        -- that covers BOTH Normal and Heroic, with distinct
+                        -- Mythic (modID 3) and LFR (modID 4) appearances. That
+                        -- yields four populated buckets but only three unique
+                        -- sources, with [14] and [15] sharing. The UI's
+                        -- collection check handles the shared source correctly;
+                        -- this is the intended encoding, not a partial gap.
+                        shapeTag = "nh-shared"
                         T.shape_perdiff = (T.shape_perdiff or 0) + 1
                     else
                         -- Partial: 2 or 3 unique sources. Suspicious.
@@ -2441,15 +2880,28 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                                     outlier and perBucket[outlier].visualID or 0))
                                 T.shape_outlier = T.shape_outlier + 1
                             else
-                                -- Build a compact "visualID=count" summary.
-                                local parts = {}
-                                for v, c in pairs(vCounts) do
-                                    table.insert(parts, ("%d=%dx"):format(v, c))
+                                -- Mists model: each tier (Normal /
+                                -- Heroic / LFR) is its own appearance,
+                                -- and tiers often pair up (e.g. Normal
+                                -- and LFR share one visual while Heroic
+                                -- differs), giving "2 visuals across 3
+                                -- buckets". That's the expected shape
+                                -- for this era, not a half-resolved
+                                -- outlier, so don't warn for mop raids.
+                                -- The nh-shared shape (Siege-era N+H
+                                -- sharing one appearance) is likewise
+                                -- expected, not a defect.
+                                if not isMop and shapeTag ~= "nh-shared" then
+                                    -- Build a compact "visualID=count" summary.
+                                    local parts = {}
+                                    for v, c in pairs(vCounts) do
+                                        table.insert(parts, ("%d=%dx"):format(v, c))
+                                    end
+                                    table.sort(parts)
+                                    table.insert(findings, ("[WRN] shape mixed (%d unique visualIDs across %d buckets): %s"):format(
+                                        vDistinct, vTotal, table.concat(parts, " ")))
+                                    T.shape_mixed = T.shape_mixed + 1
                                 end
-                                table.sort(parts)
-                                table.insert(findings, ("[WRN] shape mixed (%d unique visualIDs across %d buckets): %s"):format(
-                                    vDistinct, vTotal, table.concat(parts, " ")))
-                                T.shape_mixed = T.shape_mixed + 1
                             end
                         end
                     end
@@ -2555,7 +3007,10 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                             end
                         end
                     end
-                    local mythicTag = sp.mythicOnly and " [Mythic only]" or ""
+                    local mythicTag = sp.mythicOnly and " [Mythic only]"
+                        or (sp.lfrOnly and " [LFR only]")
+                        or (sp.normalHeroicOnly and " [Normal/Heroic only]")
+                        or ""
                     if #findings == 0 then
                         if verbose then
                             add(("  [OK]  %-7d  (%s) %s%s"):format(
@@ -2584,18 +3039,46 @@ function RR:VerifyOneRaid(raid, opts, onDone)
         -- ---------------------------------------------------------
         if verbose then
             add("=== Coverage Pass (E6 / E7) ===")
-            add("Driving the EJ at every difficulty and comparing exposed")
-            add("sourceIDs + items against shipped data. This catches the")
-            add("harvester-skip class of bug that E1-E4 cannot see.")
+            add("Driving the live journal at each difficulty and comparing")
+            add("the sources + appearances it exposes against shipped data.")
+            add("E6 flags sources the journal shows that we don't ship in")
+            add("that bucket; E7 flags appearances the journal exposes that")
+            add("we ship nowhere. Catches gaps the per-item pass can't see.")
             add("")
+        end
+
+        -- Coverage pass drives the live Encounter Journal at each
+        -- difficulty and reads back the loot it exposes. Two distinct
+        -- ID spaces are in play:
+        --   * DIFFS_LIST  -- the DISPLAY buckets we compare against
+        --                    (what the data file keys sources by).
+        --   * ejDriveIDs  -- the LIVE difficulty IDs we actually set on
+        --                    the journal via EJ_SetDifficulty.
+        -- For modern raids these coincide (14/15/16/17 are both the live
+        -- IDs and the buckets). For Mists they don't: the live journal
+        -- only responds to 3/4/5/6/7, and each folds into a bucket
+        -- (3,4 -> 14 Normal; 5,6 -> 15 Heroic; 7 -> 17 LFR). Driving the
+        -- modern IDs against a MoP raid exposed nothing AND timed out on
+        -- the non-existent Mythic pass -- the cause of the apparent hang.
+        local DIFFS_LIST = isMop and { 17, 14, 15 } or { 17, 14, 15, 16 }
+        local model      = RR:GetDifficultyModel(raid)
+        local ejDriveIDs
+        if isMop then
+            -- Drive the live IDs (fold keys), sorted for determinism.
+            ejDriveIDs = {}
+            for liveID in pairs(model.fold) do
+                table.insert(ejDriveIDs, liveID)
+            end
+            table.sort(ejDriveIDs)
+        else
+            ejDriveIDs = DIFFS_LIST
         end
 
         if opts and opts.banner then
             RR:Print(("tmogverify: starting coverage pass (~%ds, %d boss(es))..."):format(
-                (#raid.bosses) * 4, #raid.bosses))
+                (#raid.bosses) * #ejDriveIDs, #raid.bosses))
         end
 
-        local DIFFS_LIST = { 17, 14, 15, 16 }
         local bossIdx    = 0
 
         local function FinishSummary()
@@ -2627,11 +3110,10 @@ function RR:VerifyOneRaid(raid, opts, onDone)
             add("        Edge of Night for Sanctum). Run /rr tmogverify")
             add("        again after warming by opening the tmog browser")
             add("        once; remaining WRNs need a look.")
-            add("  E6 / E7 require driving the EJ at each difficulty;")
-            add("        E6 catches items where EJ exposes sourceIDs we")
-            add("        didn't ship (harvester missed sources). E7")
-            add("        catches items present in EJ loot but absent")
-            add("        from our data.")
+            add("  E6 / E7 drive the journal at each difficulty;")
+            add("        E6 flags a source the journal exposes that we")
+            add("        don't ship in that bucket. E7 flags an appearance")
+            add("        the journal exposes that we ship nowhere.")
             add("  Binary-shape items are rendered by the UI as a single")
             add("  bracketed indicator (not a 4-dot strip); the cloned-")
             add("  across-buckets encoding in the data file is the")
@@ -2678,67 +3160,116 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                     bossIdx, #raid.bosses, boss.name or "?"))
             end
 
-            -- Build lookup: shipped sourceIDs per (itemID, diffID).
-            -- (itemID, diffID) -> shipped sourceID.
-            local shippedByKey = {}
-            -- itemID -> our row reference (for name lookup, e7 detection).
-            local shippedByItem = {}
+            -- Shipped lookups. Two shapes:
+            --   shippedSrcByBucket[bucket] = { [sourceID]=item, ... }
+            --     -- every source we ship, grouped by display bucket.
+            --   shippedAppearance[visualID] = true
+            --     -- every appearance we ship anywhere for this boss,
+            --        used by E7 to decide "did we miss this look?".
+            -- Keying by source (not itemID) is what makes this correct
+            -- for the Mists model, where one piece spans three itemIDs
+            -- but each tier is just another source in a bucket.
+            local shippedSrcByBucket = {}
+            local shippedAppearance  = {}
+            for _, d in ipairs(DIFFS_LIST) do shippedSrcByBucket[d] = {} end
             for _, it in ipairs(boss.loot) do
-                shippedByItem[it.id] = it
                 if it.sources then
                     for _, d in ipairs(DIFFS_LIST) do
                         local src = it.sources[d]
                         if src then
-                            shippedByKey[it.id .. ":" .. d] = src
+                            shippedSrcByBucket[d][src] = it
+                            -- Record the appearance this source carries.
+                            if C_TransmogCollection
+                               and C_TransmogCollection.GetAppearanceInfoBySource then
+                                local ai = C_TransmogCollection.GetAppearanceInfoBySource(src)
+                                if ai and ai.appearanceID then
+                                    shippedAppearance[ai.appearanceID] = true
+                                end
+                            end
                         end
                     end
                 end
             end
 
-            -- EJ-exposed data: (itemID, diffID) -> srcID, and a set
-            -- of all itemIDs seen across all difficulties.
-            local ejByKey   = {}
-            local ejByItem  = {}
+            -- EJ-exposed data, keyed by display bucket:
+            --   ejSrcByBucket[bucket] = { [sourceID]=itemID, ... }
+            -- plus the appearance each exposed source carries, so E7 can
+            -- ask "is this look shipped anywhere" rather than matching by
+            -- itemID (which differs per tier under the Mists model).
+            local ejSrcByBucket    = {}
+            local ejAppearance     = {}   -- visualID -> { itemID, bucket }
+            for _, d in ipairs(DIFFS_LIST) do ejSrcByBucket[d] = {} end
 
             local diffIdx = 0
             local function NextDiff()
                 diffIdx = diffIdx + 1
-                if diffIdx > #DIFFS_LIST then
-                    -- Done with this boss's 4 passes. Compare and
-                    -- accumulate E6 / E7 findings.
+                if diffIdx > #ejDriveIDs then
+                    -- All difficulty passes for this boss are done.
+                    -- Compare exposed sources/appearances against shipped
+                    -- data and accumulate E6 / E7 findings.
                     local bossHeader = ("--- E6/E7 for Boss %d: %s ---"):format(
                         boss.index or 0, boss.name or "?")
                     local bossFindings = {}
 
-                    -- E6: for each item/diff we shipped, did EJ
-                    -- expose a different sourceID? (Mismatch = our
-                    -- sourceID is wrong.) AND: for each item/diff
-                    -- EJ exposes a sourceID for, did we ship one?
-                    -- (Missing per-diff bucket = harvester gap.)
-                    for _, it in ipairs(boss.loot) do
-                        for _, d in ipairs(DIFFS_LIST) do
-                            local key      = it.id .. ":" .. d
-                            local shipped  = shippedByKey[key]
-                            local ejSrc    = ejByKey[key]
-                            if ejSrc and not shipped then
-                                table.insert(bossFindings, ("[ERR] E6 %d %s %s: EJ exposes src=%d but our [%d] bucket is empty"):format(
-                                    it.id, DIFF_NAME[d] or tostring(d), it.name or "?", ejSrc, d))
+                    -- E6: per display bucket, compare the SET of sources
+                    -- the EJ exposed against the set we shipped.
+                    --   * EJ exposed a source we don't ship in that
+                    --     bucket -> coverage gap (we missed a source).
+                    --   * We ship a source the EJ never exposed for that
+                    --     bucket -> suspicious (source may be wrong or
+                    --     belong elsewhere).
+                    -- Source-keyed, so it's correct regardless of how
+                    -- many itemIDs a piece spans (the Mists multi-itemID
+                    -- model included).
+                    for _, d in ipairs(DIFFS_LIST) do
+                        local shippedSet = shippedSrcByBucket[d] or {}
+                        local ejSet      = ejSrcByBucket[d] or {}
+                        for ejSrc, ejItemID in pairs(ejSet) do
+                            if not shippedSet[ejSrc] then
+                                local nm = GetItemInfo(ejItemID) or "?"
+                                table.insert(bossFindings, ("[ERR] E6 %s %s: EJ exposes src=%d (item %d), not in our [%s] bucket"):format(
+                                    DIFF_NAME[d] or tostring(d), nm, ejSrc, ejItemID, DIFF_NAME[d] or tostring(d)))
                                 T.coverage_gap = T.coverage_gap + 1
-                            elseif ejSrc and shipped and ejSrc ~= shipped then
-                                table.insert(bossFindings, ("[ERR] E6 %d %s %s: EJ exposes src=%d, we shipped src=%d"):format(
-                                    it.id, DIFF_NAME[d] or tostring(d), it.name or "?", ejSrc, shipped))
-                                T.coverage_gap = T.coverage_gap + 1
+                            end
+                        end
+                        for shSrc, it in pairs(shippedSet) do
+                            if not ejSet[shSrc] then
+                                -- N/H shared-appearance: Siege-era gear ships
+                                -- one source in BOTH Normal [14] and Heroic
+                                -- [15]. When the EJ is driven to one of those
+                                -- difficulties it exposes the shared source
+                                -- under the other bucket, so a strict
+                                -- per-bucket match misses it. If the source
+                                -- shows up in the EJ set for the paired
+                                -- bucket, it's covered, not a gap.
+                                local paired = (d == 14 and 15) or (d == 15 and 14) or nil
+                                local pairedCovered = paired
+                                    and ejSrcByBucket[paired]
+                                    and ejSrcByBucket[paired][shSrc]
+                                if not pairedCovered then
+                                    table.insert(bossFindings, ("[WRN] E6 %s %s: we ship src=%d but EJ didn't expose it in this bucket"):format(
+                                        DIFF_NAME[d] or tostring(d), it.name or "?", shSrc))
+                                -- Counted as a soft coverage note, not a
+                                -- hard gap -- EJ occasionally omits a
+                                -- source on a cold cache. Keep it
+                                -- visible but uncounted to avoid muddying
+                                -- the ERR total. (Intentionally no T bump.)
+                                end
                             end
                         end
                     end
 
-                    -- E7: items EJ exposes for this boss at any
-                    -- difficulty that aren't in our data at all.
-                    for itemID, _ in pairs(ejByItem) do
-                        if not shippedByItem[itemID] then
-                            local name = GetItemInfo(itemID) or "?"
-                            table.insert(bossFindings, ("[ERR] E7 %d %s: EJ exposes this item, not in our data"):format(
-                                itemID, name))
+                    -- E7: an appearance the EJ exposes for this boss that
+                    -- we ship NOWHERE (no bucket, no tier). Matching by
+                    -- appearance (visualID) instead of itemID is what
+                    -- makes this correct under the Mists model: a tier's
+                    -- itemID differs from our row id, but if we ship that
+                    -- look in any bucket, it's covered.
+                    for visualID, meta in pairs(ejAppearance) do
+                        if not shippedAppearance[visualID] then
+                            local nm = GetItemInfo(meta.itemID) or "?"
+                            table.insert(bossFindings, ("[ERR] E7 visual=%d (item %d %s): EJ exposes this appearance, not in our data"):format(
+                                visualID, meta.itemID, nm))
                             T.missing_item = T.missing_item + 1
                         end
                     end
@@ -2755,7 +3286,11 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                     return
                 end
 
-                local diffID = DIFFS_LIST[diffIdx]
+                local diffID = ejDriveIDs[diffIdx]
+                -- Fold the live difficulty into the display bucket the
+                -- data file keys against (identity for modern raids;
+                -- 3/4->14, 5/6->15, 7->17 for Mists).
+                local bucket = RR:FoldDifficulty(raid, diffID)
                 EJ_SetDifficulty(diffID)
                 EJ_SelectInstance(raid.journalInstanceID or 0)
                 EJ_ResetLootFilter()
@@ -2782,19 +3317,28 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                                     hasAppearance = (apID ~= nil)
                                 end
 
-                                if hasAppearance then
-                                    ejByItem[info.itemID] = true
-
-                                    -- Resolve per-difficulty sourceID
-                                    -- via the link form (carries the
+                                if hasAppearance and info.link and bucket then
+                                    -- Resolve per-difficulty sourceID via
+                                    -- the link form (carries the
                                     -- itemContext bonus needed for the
                                     -- right per-difficulty variant).
-                                    -- Some EJ rows have nil .link --
-                                    -- guard before calling.
-                                    if info.link then
-                                        local _, srcID = C_TransmogCollection.GetItemInfo(info.link)
-                                        if srcID then
-                                            ejByKey[info.itemID .. ":" .. diffID] = srcID
+                                    local _, srcID = C_TransmogCollection.GetItemInfo(info.link)
+                                    if srcID then
+                                        ejSrcByBucket[bucket] = ejSrcByBucket[bucket] or {}
+                                        ejSrcByBucket[bucket][srcID] = info.itemID
+                                        -- Record the appearance this
+                                        -- source carries, for E7's
+                                        -- by-appearance "did we miss this
+                                        -- look" check.
+                                        if C_TransmogCollection.GetAppearanceInfoBySource then
+                                            local ai = C_TransmogCollection.GetAppearanceInfoBySource(srcID)
+                                            if ai and ai.appearanceID
+                                               and not ejAppearance[ai.appearanceID] then
+                                                ejAppearance[ai.appearanceID] = {
+                                                    itemID = info.itemID,
+                                                    bucket = bucket,
+                                                }
+                                            end
                                         end
                                     end
                                 end
@@ -2840,17 +3384,6 @@ SlashCmdList["RETRORUNS"] = function(input)
         elseif RetroRunsUI then
             RetroRunsUI:Hide()
         end
-
-    elseif cmd == "show" then
-        RR:SetSetting("showPanel", true)
-        if RR.currentRaid then
-            RR.state.loadedRaidKey = RR:GetRaidContextKey()
-        end
-        RR:RefreshAll()
-
-    elseif cmd == "hide" then
-        RR:SetSetting("showPanel", false)
-        if RetroRunsUI then RetroRunsUI:Hide() end
 
     elseif cmd == "settings" then
         RR.UI.ToggleSettings()
@@ -2994,6 +3527,14 @@ SlashCmdList["RETRORUNS"] = function(input)
     elseif cmd == "lockprobe" then
         RR:LockProbe()
 
+    elseif cmd == "garroshskip" then
+        -- Discovery probe for the Siege of Orgrimmar Garrosh skip. Dumps
+        -- the per-difficulty Garrosh kill statistics (ID + value), their
+        -- sum, and the completed flag of the Mythic Garrosh achievement,
+        -- then prints the OR'd unlock verdict. Used to confirm the
+        -- statistic IDs and account-wide behavior before codifying.
+        RR:GarroshSkipProbe()
+
     elseif cmd == "raidcapture" then
         RR:RaidCapture()
 
@@ -3021,8 +3562,28 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- UI.OpenSkipsWindow for the rendering.
         RR.UI.ToggleSkipsWindow()
 
-    elseif cmd == "devtools" then
+    elseif cmd == "devtools" or cmd == "dt" then
         RR:ToggleDevTools()
+
+    elseif cmd == "firedialog" then
+        -- Test hook: inject a synthetic NPC-dialog event into the same path
+        -- a real boss emote/yell would take, so dialog-gated routing (e.g.
+        -- the Megaera bell mechanic) can be tested on demand without waiting
+        -- for the live event or a fresh lockout. Case-sensitive: pulls the
+        -- text from the RAW input (not the lowercased copy) because dialog
+        -- matches are exact-substring. Sender is left empty, matching how
+        -- boss-rise emotes actually arrive (text-only triggers).
+        --   Usage: /rr firedialog Megaera rises from the mists!
+        local rawRest = RR.Trim(input:sub(#cmd + 1))
+        if rawRest == "" then
+            RR:Print("Usage: /rr firedialog <dialog text>  (simulates a speakerless raid emote through the real dialog handler)")
+        else
+            RR:Print("|cff00ff88[firedialog]|r simulating speakerless emote: " .. rawRest)
+            -- Route through the real handler (no sender), so this exercises
+            -- the same guard + dispatch a live CHAT_MSG_RAID_BOSS_EMOTE hits
+            -- -- not a direct AdvanceProgress call that skips the handler.
+            RR:SimulateDialogEvent(rawRest, nil)
+        end
 
     elseif cmd == "tmogsrc" then
         RR:DebugTransmogSources()
@@ -3253,21 +3814,20 @@ SlashCmdList["RETRORUNS"] = function(input)
 
     elseif cmd == "ejprobe" then
         -- Dump everything EJ knows about the currently-selected encounter's
-        -- loot. Used for "why doesn't /rr harvest see this item?" diagnosis.
+        -- loot. Diagnoses why a given item isn't being picked up from the EJ.
         -- Optional needle itemID highlights a specific item and probes
         -- additional EJ paths if the iteration didn't find it.
         RR:EjProbe(args[2])
 
     elseif cmd == "tierprobe" then
         -- Dump what C_TransmogSets returns for a given tier itemID.
-        -- Read-only diagnostic. Used for "why is the harvester writing
-        -- the wrong sourceIDs in this tier row?" diagnosis.
+        -- Read-only diagnostic for tracking down wrong sourceIDs in a tier row.
         RR:TierProbe(args[2])
 
     elseif cmd == "specialtest" then
         -- Probe a single itemID against every special-loot detection API
         -- (mount / pet / toy / decor). Diagnoses the Mythic-sweep path:
-        -- if the harvester fails to detect 190768 (Jailer's mount), run
+        -- if a known mount like 190768 (Jailer's) isn't detected, run
         -- /rr specialtest 190768 to see which APIs respond on this client.
         local id = tonumber(args[2])
         if not id then
@@ -3673,7 +4233,10 @@ SlashCmdList["RETRORUNS"] = function(input)
                         local state = RR.SpecialCollectionStateForItem(sp)
                         local ch = STATE_CHAR[state] or "?"
                         specialTotals[state] = (specialTotals[state] or 0) + 1
-                        local mythicTag = sp.mythicOnly and " [Mythic only]" or ""
+                        local mythicTag = sp.mythicOnly and " [Mythic only]"
+                            or (sp.lfrOnly and " [LFR only]")
+                            or (sp.normalHeroicOnly and " [Normal/Heroic only]")
+                            or ""
                         add(("  [%s]  %-7d  (%s) %s%s"):format(
                             ch, sp.id or 0, sp.kind or "?",
                             sp.name or "?", mythicTag))
@@ -3751,38 +4314,28 @@ SlashCmdList["RETRORUNS"] = function(input)
         --        4-dot strip. Classification:
         --          1 unique source  -> binary shape (expected; informational)
         --          N unique (N=buckets) -> perdiff shape (expected; informational)
-        --          2-3 unique        -> PARTIAL (WRN): harvest may have
+        --          2-3 unique        -> PARTIAL (WRN): source data may have
         --                               half-resolved. Rae'shalare is a
         --                               known instance (bonusID variants
         --                               ATT stores differently than modID).
         --   [E5] Retired (was: difficulty-bucket mismatch via itemContext).
-        --        The check depended on GetSourceInfo(src).itemLink, which
-        --        is nil in tmogverify's runtime context across every shipped
-        --        raid (audited 2026-05-15). Removed in v1.10.x rather than
-        --        kept as silent no-op. Patch-boundary bucket-assignment
-        --        regressions are now caught by the offline
-        --        wago_loot_audit.py pipeline against db2; in-game, E3
-        --        visualID shape outliers catch the same class of bug
-        --        indirectly when a misbucketed variant has a different
-        --        visual.
+        --        The check depended on GetSourceInfo(src).itemLink, which is
+        --        nil in this runtime context across every shipped raid. E3
+        --        visualID shape outliers catch the same class of bug indirectly
+        --        when a misbucketed variant has a different visual.
         --
         -- Coverage checks (require driving the EJ at each difficulty;
         -- async pass that runs after the per-row metadata checks):
         --   [E6] Coverage gap: EJ exposes more sourceIDs for this item at
-        --        this difficulty than we shipped. Catches the harvester-
-        --        skip class of bug (Antorus pre-v1.10.0): the harvester's
-        --        fast path returned one sourceID, the EJ-sweep would
-        --        have caught 4, the gate skipped the sweep, we shipped
-        --        binary. Without this check, tmogverify on binary-shape
-        --        data is clean but uninformative -- E1-E4 all pass on
-        --        valid binary data even when the items SHOULD be per-
-        --        difficulty.
-        --   [E7] Missing item: EJ exposes an item at this boss that's not
-        --        in our data file at all. Indicates a boss whose loot
-        --        table was never fully harvested, or an item added by
-        --        Blizzard post-harvest. Cross-difficulty: only flagged
-        --        if missing at every difficulty (so a Mythic-only item
-        --        that's also exposed at Normal won't false-positive).
+        --        this difficulty than the data file ships. Without this check,
+        --        E1-E4 all pass on valid binary data even when the items
+        --        should be per-difficulty, so the verify is clean but
+        --        uninformative.
+        --   [E7] Missing item: EJ exposes an item at this boss that's not in
+        --        the data file at all. Indicates a boss whose loot table is
+        --        incomplete, or an item Blizzard added later. Cross-difficulty:
+        --        only flagged if missing at every difficulty (so a Mythic-only
+        --        item also exposed at Normal won't false-positive).
         --
         -- Special-loot checks (kind = mount/pet/toy/decor):
         --   [S1] itemID resolves via GetItemInfo (non-nil name).
@@ -3841,7 +4394,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             -- (see Core.lua just above the dispatcher). The dispatcher's job
             -- here is just to resolve which raid to verify and render the
             -- result. Cache-warm + the 1s wait both live inside VerifyOneRaid.
-            RR:VerifyOneRaid(raid, { verbose = true, banner = true }, function(lines, T)
+            RR:VerifyOneRaid(raid, { verbose = true, banner = true, progress = true }, function(lines, T)
                 RetroRunsDebug = RetroRunsDebug or {}
                 RetroRunsDebug.tmogverify = table.concat(lines, "\n")
                 RR:ShowCopyWindow(
@@ -4105,6 +4658,21 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("DialogDebug: /rr dialogdebug [start|stop]  (capture chat-channel NPC dialog for diagnosis)")
         end
 
+    elseif cmd == "lootprobe" then
+        local sub = args[2] or ""
+        if     sub == "start" then RR:LootProbeStart()
+        elseif sub == "stop"  then RR:LootProbeStop()
+        else
+            RR:Print("LootProbe: /rr lootprobe [start|stop]  (capture loot/toast events to build the suppress list)")
+        end
+
+    elseif cmd == "toaster" then
+        local sub = args[2] or ""
+        if     sub == "on"   then RR:EnableToaster()
+        elseif sub == "off"  then RR:DisableToaster()
+        else                      RR:ToggleToaster()
+        end
+
     elseif cmd == "cancelnav" then
         if RR.state.activeRoute then
             RR:CancelNavRoute()
@@ -4117,14 +4685,12 @@ SlashCmdList["RETRORUNS"] = function(input)
         RR:PrintStatus()
 
     else
-        -- Help text. Default output is a short user-facing list; dev /
-        -- diagnostic commands are hidden behind `/rr help dev` to keep
-        -- the normal help from overwhelming alpha testers who might
-        -- otherwise poke at record / harvest / kill / test and corrupt
-        -- their state.
+        -- Help text. Default output is a short user-facing list; dev and
+        -- diagnostic commands are hidden behind `/rr help dev` so the normal
+        -- help stays focused on what players actually use.
         local subcmd = args[2] or ""
         if subcmd == "dev" then
-            RR:Print("RetroRuns dev / maintainer commands:")
+            RR:Print("RetroRuns dev commands:")
             RR:Print("  /rr  debug                       (toggle verbose logging)")
             RR:Print("  /rr  test | next | real          (test-mode stepping)")
             RR:Print("  /rr  resetsegments               (clear persisted segment state)")
@@ -4150,13 +4716,12 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print("  /rr  tmogsrc | tmogtrace         (transmog internals)")
             RR:Print("  /rr  ej                          (EJ + instance-info dump for bring-up)")
             RR:Print("  /rr  dialogdebug [start|stop]    (capture chat-channel NPC dialog for diagnosis)")
-            RR:Print("  /rr  devtools                    (toggle the DevTools panel)")
+            RR:Print("  /rr  devtools (or dt)             (toggle the DevTools panel)")
             RR:Print("  /rr  cancelnav                   (cancel an active entrance-navigation route)")
             RR:Print("  /rr  reset | refresh             (reset settings to defaults | re-render the main panel)")
         else
             RR:Print("RetroRuns commands:")
             RR:Print("  /rr                  (toggle main panel)")
-            RR:Print("  /rr  show | hide     (show / hide main panel)")
             RR:Print("  /rr  status          (current raid, step, kill state)")
             RR:Print("  /rr  tmog            (open transmog browser)")
             RR:Print("  /rr  skips           (account-wide raid skip status)")
