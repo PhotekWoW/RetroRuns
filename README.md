@@ -30,6 +30,18 @@ Currently supports:
 * Trial of Valor (7.1)
 * The Emerald Nightmare (7.0.3)
 
+**Warlords of Draenor**
+* Hellfire Citadel (6.2)
+* Blackrock Foundry (6.1)
+* Highmaul (6.0)
+
+**Mists of Pandaria**
+* Siege of Orgrimmar (5.4)
+* Throne of Thunder (5.2)
+* Terrace of Endless Spring (5.0)
+* Heart of Fear (5.0)
+* Mogu'shan Vaults (5.0)
+
 ## Installation
 
 1. Download the latest `RetroRuns.zip`.
