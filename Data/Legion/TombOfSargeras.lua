@@ -65,7 +65,6 @@ RetroRuns_Data[1676] = {
         rewardItemID       = 101426,
         rewardMountSpellID = 249870,
         rewardName         = "Micronax Controller",
-        rewardKind         = "pet",
         rewardTitle        = "the Tomb Raider",
     },
 
@@ -330,6 +329,139 @@ RetroRuns_Data[1676] = {
             },
         },
     },
+
+    -- Skip route: after Goroth, the door behind Image of Aegwynn opens
+    -- (Aegwynn's Path), skipping straight to Maiden of Vigilance, then
+    -- Fallen Avatar and Kil'jaeden. Goroth, Fallen Avatar, and Kil'jaeden
+    -- segments match the standard route.
+    skipToBoss = "Maiden of Vigilance",
+
+    skipRoute = {
+
+        -- 1. Goroth (same as standard)
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Goroth",
+            requires  = {},
+            segments  = {
+                {
+                    when   = { mapID = 850 },
+                    kind    = "path",
+                    note    = "After zoning in, proceed straight ahead to engage ^Goroth^.",
+                    points  = {
+                        { 0.450, 0.893 },
+                        { 0.451, 0.604 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Maiden of Vigilance via Aegwynn's Path.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 7,
+            title     = "Maiden of Vigilance",
+            requires  = { 1 },
+            segments  = {
+                {
+                    when            = { mapID = 850 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    mapLabel        = "Go Here",
+                    mapLabelPos     = "above",
+                    note            = "After killing ^Goroth^, go down the staircase behind ^Image of Aegwynn^.",
+                    points          = {
+                        { 0.451, 0.423 },
+                    },
+                },
+                {
+                    when   = { mapID = 853 },
+                    kind    = "path",
+                    note    = "When you reach the bottom of the stairwell, cross the room and engage ^Maiden of Vigilance^.",
+                    points  = {
+                        { 0.484, 0.863 },
+                        { 0.500, 0.812 },
+                        { 0.499, 0.543 },
+                        { 0.418, 0.450 },
+                        { 0.419, 0.335 },
+                        { 0.474, 0.278 },
+                    },
+                },
+            },
+        },
+
+        -- 3. Fallen Avatar (same as standard)
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 8,
+            title     = "Fallen Avatar",
+            requires  = { 7 },
+            segments  = {
+                {
+                    when            = { mapID = 853 },
+                    kind            = "poi",
+                    destination     = "Chamber of the Avatar",
+                    noMarker        = true,
+                    mapLabel        = "Click Teleporter",
+                    mapLabelPos     = "middle",
+                    completionCheck = true,
+                    note        = "After killing ^Maiden of Vigilance^, click the nearby ^Teleportation Pad^ to be taken to ^Chamber of the Avatar^. Note: the pad will likely be under the boss corpse until she despawns, but you can still click it.",
+                    points      = {
+                        { 0.501, 0.233 },
+                    },
+                },
+                {
+                    when   = { mapID = 854 },
+                    kind    = "path",
+                    note    = "In the ^Chamber of the Avatar^, move forward and kill trash to open the door, then watch some dialog before engaging with ^Fallen Avatar^.",
+                    points  = {
+                        { 0.503, 0.731 },
+                        { 0.501, 0.221 },
+                    },
+                },
+            },
+        },
+
+        -- 4. Kil'jaeden (same as standard)
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 9,
+            title     = "Kil'jaeden",
+            requires  = { 8 },
+            segments  = {
+                {
+                    when   = { mapID = 855 },
+                    kind    = "path",
+                    note    = "After killing ^Fallen Avatar^, continue straight ahead across the slime to the map exit labeled ^The Twisting Nether^. Walk into the green swirly portal.",
+                    points  = {
+                        { 0.525, 0.301 },
+                        { 0.532, 0.189 },
+                    },
+                },
+                {
+                    when   = { mapID = 856 },
+                    kind    = "path",
+                    note    = "After arriving in ^The Twisting Nether^, work your way down the path, killing trash all the way until you reach ^Kil'Jaeden^.",
+                    points  = {
+                        { 0.158, 0.468 },
+                        { 0.394, 0.456 },
+                        { 0.499, 0.352 },
+                        { 0.564, 0.348 },
+                        { 0.626, 0.372 },
+                        { 0.700, 0.425 },
+                    },
+                },
+            },
+        },
+    },
+
+    exitNote = "Talk to Image of Aegwynn to teleport back to the entrance.",
 
     routing = {
         -- 1. Goroth

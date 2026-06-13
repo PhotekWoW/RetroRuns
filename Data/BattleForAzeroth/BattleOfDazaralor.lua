@@ -279,6 +279,36 @@ RetroRuns_Data[2070] = {
         },
     },
 
+    -- Skip route: talk to Ensign Roberts at the entrance to jump straight
+    -- to Lady Jaina Proudmoore. Mythic-only (achievement-gated).
+    skipToBoss = "Lady Jaina Proudmoore",
+
+    skipRoute = {
+
+        -- 1. Lady Jaina Proudmoore via the entrance skip.
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 9,
+            title     = "Lady Jaina Proudmoore",
+            requires  = {},
+            segments  = {
+                {
+                    when        = { mapID = 1352, subZone = "Port of Zandalar" },
+                    kind        = "poi",
+                    mapLabel    = "Ensign Roberts",
+                    mapLabelPos = "above",
+                    note        = "After zoning in, talk with ^Ensign Roberts^ to skip straight to ^Lady Jaina Proudmoore^.",
+                    points      = {
+                        { 0.487, 0.874 },
+                    },
+                },
+            },
+        },
+    },
+
+    exitNote = "Talk to Anduin Wrynn to be teleported out of the instance.",
+
     routing = {
         -- Routing: linear progression for Alliance.
         --   1. Champion of the Light    requires {}

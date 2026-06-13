@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "1.13.0"
+local VERSION    = "1.14.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -25,6 +25,13 @@ RetroRuns = {
         manualTargetBossIndex = nil,
         loadedRaidKey         = nil,
         lastSeenRaidKey       = nil,
+        -- Set true once UPDATE_INSTANCE_INFO has fired, meaning the async
+        -- saved-instance data (GetSavedInstanceInfo / GetCurrentLockoutId)
+        -- has been delivered at least once. The load decision defers only
+        -- while this is false; after the data has had its chance to arrive,
+        -- a still-nil lockout is treated as a genuinely fresh lockout and
+        -- the dialog is shown rather than deferring forever.
+        instanceInfoSeen      = false,
         lastUnsupportedRaid   = nil,
         currentDifficultyID   = nil,
         currentDifficultyName = nil,
@@ -1604,6 +1611,15 @@ function RR:RaidHasSkipMechanic(raid)
         or (raid.skipGarrosh ~= nil)
 end
 
+-- True if a skip route has been authored for this raid. Independent of
+-- whether the player has unlocked the skip -- this is content
+-- availability, not unlock state. Drives the "Routed" cell color in the
+-- Skips window. Routes are added raid by raid; raids without one return
+-- false and their unlocked cells stay green.
+function RR:RaidHasSkipRoute(raid)
+    return raid ~= nil and raid.skipRoute ~= nil
+end
+
 -- Returns true if the skip is available at the given difficulty,
 -- accounting for the downward cascade rule (completing X unlocks
 -- everything <= X). difficultyID should be one of the raid difficulty
@@ -1756,11 +1772,30 @@ function RR:RestoreRealRaidState()
     self:RefreshAll()
 end
 
-function RR:LoadCurrentRaid()
+function RR:LoadCurrentRaid(variant)
     if not self.currentRaid then return end
     self.state.loadedRaidKey = self:GetRaidContextKey()
 
+    -- Restore persisted progress first. This also pulls the saved route
+    -- variant into state.activeRouteVariant when one exists for this
+    -- lockout, so a silent reload (no explicit variant arg) keeps running
+    -- the route the player chose.
     self:RestorePersistedProgress()
+
+    -- Variant resolution:
+    --   explicit arg ("skip"/"standard") -- the player is choosing on the
+    --     load dialog; honor and persist it.
+    --   no arg -- programmatic load (e.g. silent reload restore); keep the
+    --     variant restored above, defaulting to "standard" if none saved.
+    if variant ~= nil then
+        self.state.activeRouteVariant = (variant == "skip") and "skip" or "standard"
+        self:PersistRouteVariant(self.state.activeRouteVariant)
+    else
+        if not self.state.activeRouteVariant then
+            self.state.activeRouteVariant = "standard"
+        end
+        self:PersistRouteVariant(self.state.activeRouteVariant)
+    end
 
     -- Force the panel to fully-expanded mode (visible + un-minimized)
     -- regardless of the user's launchMode setting. Clicking "Load" on
@@ -1779,26 +1814,9 @@ end
 
 function RR:UnloadCurrentRaid()
     self.state.loadedRaidKey = nil
+    self.state.activeRouteVariant = nil
     self:RefreshAll()
 end
-
-StaticPopupDialogs["RETRORUNS_LOAD_RAID"] = {
-    text = "|cffF259C7RETRO|r|cff4DCCFFRUNS|r\n\n"
-        .. "Route data found for:\n|cffffff00%s|r\n\n"
-        .. "Load navigation?\n\n"
-        .. "|cffc0c0c0This addon is in early development.\nPlease report bugs if you encounter issues!|r",
-    button1        = "Load",
-    button2        = "Not Now",
-    OnAccept       = function() RetroRuns:LoadCurrentRaid() end,
-    OnCancel       = function() RetroRuns:UnloadCurrentRaid() end,
-    OnShow         = function(self)
-        if self.text then self.text:SetJustifyH("CENTER") end
-    end,
-    timeout        = 0,
-    whileDead      = true,
-    hideOnEscape   = true,
-    preferredIndex = 3,
-}
 
 function RR:HandleLocationChange()
     local info = self:GetCurrentInstanceInfo()
@@ -1811,6 +1829,12 @@ function RR:HandleLocationChange()
         self.state.lastUnsupportedRaid   = nil
         self.state.lastPlayerMapID       = nil
         self:UnloadCurrentRaid()
+        -- The load dialog is a custom frame (not a StaticPopup), so it
+        -- isn't auto-dismissed on zone change; hide it explicitly when
+        -- the player leaves the raid.
+        if RR.UI and RR.UI.HideLoadDialog then
+            RR.UI.HideLoadDialog()
+        end
         -- Reconcile Toaster here too: this branch returns early (before the
         -- end-of-function reconcile), so leaving a raid would otherwise leave
         -- the toast active. currentRaid is now nil, so this deactivates it.
@@ -1908,6 +1932,23 @@ function RR:HandleLocationChange()
 
         local key = self:GetRaidContextKey(supported, info)
         if self.state.lastSeenRaidKey ~= key then
+            -- Saved-instance data (GetSavedInstanceInfo) arrives async after
+            -- RequestRaidInfo. On a fresh zone-in HandleLocationChange can
+            -- run before it's ready, so GetCurrentLockoutId() returns nil and
+            -- HasPersistedProgressForCurrentLockout() can't see a committed
+            -- run -- which would wrongly show the load dialog for a raid the
+            -- player already loaded this lockout. If we have a saved progress
+            -- store for this raid+faction but can't yet confirm the lockout,
+            -- defer: don't set lastSeenRaidKey, don't prompt. UPDATE_INSTANCE_
+            -- INFO re-drives HandleLocationChange once the data lands, and we
+            -- decide then with a valid lockout. A raid with no saved store is
+            -- genuinely fresh -- prompt immediately, nothing to defer for.
+            if self:HasSavedRouteStore()
+                and not self:GetCurrentLockoutId()
+                and not self.state.instanceInfoSeen then
+                return
+            end
+
             -- New raid context (different raid, or same raid but
             -- different difficulty). Wipe in-memory bossesKilled before
             -- showing the load popup, otherwise the new raid would
@@ -1919,11 +1960,23 @@ function RR:HandleLocationChange()
             -- reports no kills.
             wipe(self.state.bossesKilled)
             self.state.lastSeenRaidKey = key
-            self.state.loadedRaidKey   = nil
-            self:SetSetting("showPanel", false)
-            if RetroRunsUI then RetroRunsUI:Hide() end
-            StaticPopup_Show("RETRORUNS_LOAD_RAID",
-                self:GetRaidDisplayName() or supported.name)
+
+            if self:HasPersistedProgressForCurrentLockout() then
+                -- Already loaded a route this lockout (e.g. /reload mid-run).
+                -- Don't re-prompt -- that would let the player switch route
+                -- variant after committing. Silently restore the route they
+                -- were running (LoadCurrentRaid picks up the persisted
+                -- variant via RestorePersistedProgress) and show the panel.
+                self.state.loadedRaidKey = key
+                self:LoadCurrentRaid()
+            else
+                self.state.loadedRaidKey = nil
+                self:SetSetting("showPanel", false)
+                if RetroRunsUI then RetroRunsUI:Hide() end
+                if RR.UI and RR.UI.ShowLoadDialog then
+                    RR.UI.ShowLoadDialog(self:GetRaidDisplayName() or supported.name)
+                end
+            end
         elseif self.state.loadedRaidKey == key then
             self:RefreshAll()
         end
@@ -1936,6 +1989,7 @@ function RR:HandleLocationChange()
         wipe(self.state.bossesKilled)
         self.currentRaid                 = nil
         self.state.loadedRaidKey         = nil
+        self.state.instanceInfoSeen      = false
         self.state.currentDifficultyID   = nil
         self.state.currentDifficultyName = nil
         if info.name and self.state.lastUnsupportedRaid ~= info.name then
@@ -4668,9 +4722,10 @@ SlashCmdList["RETRORUNS"] = function(input)
 
     elseif cmd == "toaster" then
         local sub = args[2] or ""
-        if     sub == "on"   then RR:EnableToaster()
-        elseif sub == "off"  then RR:DisableToaster()
-        else                      RR:ToggleToaster()
+        if     sub == "on"    then RR:EnableToaster()
+        elseif sub == "off"   then RR:DisableToaster()
+        elseif sub == "debug" then RR:ToasterDebug()
+        else                       RR:ToggleToaster()
         end
 
     elseif cmd == "cancelnav" then
@@ -4841,6 +4896,7 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         C_Timer.After(0.5, function() RR:HandleLocationChange() end)
 
     elseif event == "UPDATE_INSTANCE_INFO" then
+        RR.state.instanceInfoSeen = true
         if not RR.state.testMode
             and RR.currentRaid
             and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
@@ -4851,6 +4907,16 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
                 RR.UI.Update()
                 if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
             end
+        elseif not RR.state.testMode
+            and RR.currentRaid
+            and not RR.state.loadedRaidKey then
+            -- In a supported raid but no route loaded yet. This fires when
+            -- the load decision was deferred at zone-in because saved-
+            -- instance data wasn't ready (lockout unreadable). Now that the
+            -- data has landed, re-run the location handler so it can decide
+            -- prompt-vs-silent-restore with a valid lockout.
+            RR:ZoneLog("UPDATE_INSTANCE_INFO handler: re-driving deferred load decision")
+            RR:HandleLocationChange()
         end
 
     elseif event == "ENCOUNTER_END" then

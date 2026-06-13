@@ -12,6 +12,9 @@ RetroRuns_Data[2296] = {
     expansion         = "Shadowlands",
     patch             = "9.0",
 
+    -- Shown one line below the run-complete banner.
+    exitNote = "Talk to Prince Renathal to teleport back to Sludgefist's platform, then run west to reach the exit.",
+
     -- World coordinates of the raid entrance portal in Revendreth
     -- (uiMapID 1525). The entrance sits in the central spire of the
     -- zone; closest flight master is Charred Ramparts. Used by
@@ -78,7 +81,7 @@ RetroRuns_Data[2296] = {
     -- Surfaced to players via the Skips window's per-row info button.
     skipTrigger = {
         questName = "Castle Nathria: Getting a Head",
-        details   = "After killing ^Shriekwing^, speak to ^General Draven^ near the Huntsman Entrance to skip ahead to ^Sludgefist^.",
+        details   = "After killing ^Shriekwing^, speak to ^General Draven^ near the north exit to skip to ^Sludgefist^. He will spawn behind you in the normal location.",
     },
 
     -- Weapon-token appearance pools (per slot, per ilvl tier, per
@@ -934,4 +937,112 @@ RetroRuns_Data[2296] = {
         },
 
     },  -- routing
+
+    -- Skip route: after Shriekwing, General Draven spawns Sludgefist behind
+    -- the player at the north exit, bypassing bosses 2-7. Kept bosses:
+    -- Shriekwing (1) -> Sludgefist (8) -> Stone Legion Generals (9) ->
+    -- Sire Denathrius (10).
+    skipToBoss = "Sludgefist",
+
+    skipRoute = {
+
+        -- 1. Shriekwing (same as standard)
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Shriekwing",
+            requires  = {},
+            segments  = {
+                {
+                    when   = { mapID = 1735 },
+                    kind   = "path",
+                    note   = "Upon zoning in, go up the stairs into the first room and watch some dialog. After that, engage ^Shriekwing^.",
+                    points = {
+                        { 0.384, 0.808 },
+                        { 0.571, 0.807 },
+                    },
+                },
+            },
+        },
+
+        -- 2. General Draven spawns Sludgefist behind the player. No approach
+        -- path -- the boss appears at the north exit where Draven stands.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 8,
+            title     = "Sludgefist",
+            requires  = { 1 },
+            segments  = {
+                {
+                    when     = { mapID = 1735, subZone = "The Grand Walk" },
+                    kind     = "poi",
+                    mapLabel = "General Draven",
+                    mapLabelPos = "above",
+                    note     = "After killing ^Shriekwing^, speak to ^General Draven^ near the north exit to skip to ^Sludgefist^. He will spawn behind you in the normal location.",
+                    points   = {
+                        { 0.597, 0.729 },
+                    },
+                },
+            },
+        },
+
+        -- 3. Stone Legion Generals (same as standard)
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 9,
+            title     = "Stone Legion Generals",
+            requires  = { 1, 8 },
+            segments  = {
+                {
+                    when   = { mapID = 1735 },
+                    kind   = "path",
+                    note   = "After killing ^Sludgefist^, travel up the stairs behind him and walk through the mirror teleporter to land in ^Nightcloak Sanctum^.",
+                    points = {
+                        { 0.631, 0.806 },
+                        { 0.644, 0.754 },
+                        { 0.670, 0.733 },
+                        { 0.696, 0.755 },
+                        { 0.700, 0.778 },
+                        { 0.740, 0.811 },
+                    },
+                },
+                {
+                    when   = { mapID = 1747 },
+                    kind   = "path",
+                    note   = "After taking the teleporter to ^Nightcloak Sanctum^, follow the path around to the ^Stone Legion Generals^. Clear trash to start the encounter.",
+                    points = {
+                        { 0.617, 0.320 },
+                        { 0.546, 0.248 },
+                        { 0.448, 0.234 },
+                        { 0.292, 0.482 },
+                    },
+                },
+            },
+        },
+
+        -- 4. Sire Denathrius (same as standard)
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 10,
+            title     = "Sire Denathrius",
+            requires  = { 1, 8, 9 },
+            segments  = {
+                {
+                    when   = { mapID = 1747 },
+                    kind   = "path",
+                    note   = "After killing ^Stone Legion Generals^, simply walk into the room where ^Sire Denathrius^ is waiting for you.",
+                    points = {
+                        { 0.352, 0.518 },
+                        { 0.433, 0.516 },
+                        { 0.492, 0.520 },
+                    },
+                },
+            },
+        },
+
+    },  -- skipRoute
 }

@@ -148,9 +148,54 @@ function RR:RequirementsMet(requirements)
     return true
 end
 
+-- Returns the active routing array for the current raid: the skip route
+-- when the player loaded the skip variant and one is authored, otherwise
+-- the standard route. The engine reads navigation steps through this so a
+-- skip run follows a different step array (different order, skipped
+-- bosses) without mutating the shared raid data. Cross-raid validation
+-- and the idle/Skips lists still read raid.routing (the standard route)
+-- directly -- those are not variant-sensitive.
+function RR:GetActiveRouting()
+    local raid = self.currentRaid
+    if not raid then return nil end
+    if self.state.activeRouteVariant == "skip" and raid.skipRoute then
+        return raid.skipRoute
+    end
+    return raid.routing
+end
+
+-- True when every boss in the active route has been killed -- the run is
+-- complete for whichever variant is loaded. Keys off actual boss kills
+-- rather than comparing step count to total boss count, so a skip route
+-- (fewer steps than bosses) completes correctly when its final boss dies
+-- instead of never reaching "complete." Difficulty-excluded bosses (a
+-- step whose boss doesn't exist at the current difficulty) don't block
+-- completion, matching the same filter GetAvailableSteps applies, so the
+-- run can complete after the last boss that's actually killable here.
+-- Returns false if the active route has no steps (nothing authored yet),
+-- so an uncaptured raid stays distinguishable from a finished one.
+function RR:IsActiveRouteComplete()
+    local routing = self:GetActiveRouting()
+    if not routing or #routing == 0 then return false end
+    local activeBucket = self:FoldDifficulty(self.currentRaid, self.state.currentDifficultyID)
+    for _, step in ipairs(routing) do
+        local boss = self:GetBossByIndex(step.bossIndex)
+        local availableHere = (not activeBucket)
+            or (not boss)
+            or self:BossAvailableInBucket(boss, activeBucket)
+        if availableHere
+            and step.bossIndex
+            and not self:IsBossKilled(step.bossIndex) then
+            return false
+        end
+    end
+    return true
+end
+
 function RR:GetAvailableSteps()
     local results = {}
-    if not self.currentRaid or not self.currentRaid.routing then return results end
+    local routing = self:GetActiveRouting()
+    if not routing then return results end
     -- Current difficulty as a display bucket, so a step whose boss doesn't
     -- exist at this difficulty (e.g. Heroic-only Ra-den while on Normal) is
     -- excluded from the route -- the panel then reaches run-complete after
@@ -158,7 +203,7 @@ function RR:GetAvailableSteps()
     -- When difficulty is unknown (not yet detected), don't filter -- better
     -- to show the step than to hide it on a transient nil.
     local activeBucket = self:FoldDifficulty(self.currentRaid, self.state.currentDifficultyID)
-    for _, step in ipairs(self.currentRaid.routing) do
+    for _, step in ipairs(routing) do
         local boss = self:GetBossByIndex(step.bossIndex)
         local availableHere = (not activeBucket)
             or (not boss)
@@ -253,8 +298,8 @@ end
 -- improvement, not a divergence.
 function RR:GetRouteBossOrder()
     local order = {}
-    if not self.currentRaid or not self.currentRaid.routing then return order end
-    local steps = self.currentRaid.routing
+    local steps = self:GetActiveRouting()
+    if not steps then return order end
     local placed = {}   -- bossIndex -> true once emitted (simulated kill)
 
     local function reqMet(step)
@@ -314,7 +359,7 @@ function RR:GetProgressLines()
     -- picker) so the list fills top-down as bosses fall. "ej" keeps the
     -- in-game Encounter Journal order. Default is "rr".
     local order
-    if self:GetSetting("bossOrderMode", "rr") == "ej" or not self.currentRaid.routing then
+    if self:GetSetting("bossOrderMode", "rr") == "ej" or not self:GetActiveRouting() then
         order = self.currentRaid.bosses
     else
         order = self:GetRouteBossOrder()
@@ -405,8 +450,14 @@ function RR:GetFirstIncompleteSegment(step)
 end
 
 function RR:ShowCurrentMapForStep()
+    if not WorldMapFrame then return end
     local step = self.state.activeStep
-    if not step or not WorldMapFrame then return end
+    -- No active routing step (idle, run-complete, or out in the world):
+    -- just open the world map to wherever the player currently is.
+    if not step then
+        if not WorldMapFrame:IsShown() then ToggleWorldMap() end
+        return
+    end
     local currentMapID = WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()
     local stepMaps     = self:GetStepMaps(step)
     local activeSeg    = self:GetFirstIncompleteSegment(step)

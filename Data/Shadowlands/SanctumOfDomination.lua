@@ -12,6 +12,9 @@ RetroRuns_Data[2450] = {
     expansion         = "Shadowlands",
     patch             = "9.1",
 
+    -- Shown one line below the run-complete banner.
+    exitNote = "Exit portal nearby.",
+
     -- Entrance is in Desmotaeron, the back of Helgarde Keep, in The Maw
     -- (uiMapID 1543).
     entrance = {
@@ -47,7 +50,7 @@ RetroRuns_Data[2450] = {
     -- Surfaced to players via the Skips window's per-row info button.
     skipTrigger = {
         questName = "Sanctum of Domination - Damned If You Don't",
-        details   = "After killing ^The Tarragrue^, speak to the ^Ebon Blade Acolyte^ NPC located outside the boss room. He will conjure a portal that will send you straight to ^Kel'Thuzad^.",
+        details   = "After killing ^The Tarragrue^, speak to the ^Ebon Blade Acolyte^ NPC located inside the boss room. He will conjure a portal that will send you straight to ^Kel'Thuzad^.",
     },
 
     -- Glory of the Raider meta -- 10 criteria, awards the Hand of Hrestimorak mount.
@@ -581,10 +584,14 @@ RetroRuns_Data[2450] = {
             requires  = { 9 },
             segments  = {
                 {
-                    when   = { mapID = 2001 },
-                    kind   = "path",
-                    note   = "After killing ^Kel'Thuzad^, take the purple portal that appeared right behind him.",
-                    points = {},
+                    when     = { mapID = 2001, subZone = "Throne of the Damned" },
+                    kind     = "poi",
+                    mapLabel = "Take Portal",
+                    mapLabelPos = "above",
+                    note     = "After killing ^Kel'Thuzad^, take the purple portal that appeared right behind him.",
+                    points   = {
+                        { 0.269, 0.519 },
+                    },
                 },
                 {
                     when   = { mapID = 2002 },
@@ -596,4 +603,102 @@ RetroRuns_Data[2450] = {
         },
 
     },  -- routing
+
+    -- Skip route: after The Tarragrue, the Ebon Blade Acolyte conjures a
+    -- portal to Crown of Gorgoa, bypassing bosses 2-8. Kept bosses: The
+    -- Tarragrue (1) -> Kel'Thuzad (9) -> Sylvanas Windrunner (10).
+    skipToBoss = "Kel'Thuzad",
+
+    skipRoute = {
+
+        -- 1. The Tarragrue (same as standard)
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "The Tarragrue",
+            requires  = {},
+            segments  = {
+                {
+                    when   = { mapID = 1998 },
+                    kind   = "path",
+                    note   = "Follow the map from the entrance to ^the Tarragrue^.",
+                    points = {
+                        { 0.346, 0.785 },
+                        { 0.382, 0.739 },
+                        { 0.360, 0.688 },
+                        { 0.395, 0.551 },
+                        { 0.427, 0.530 },
+                        { 0.437, 0.494 },
+                        { 0.522, 0.491 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Ebon Blade Acolyte portal to Kel'Thuzad.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 9,
+            title     = "Kel'Thuzad",
+            requires  = { 1 },
+            segments  = {
+                {
+                    when     = { mapID = 1998, subZone = "Torghast, Tower of the Damned" },
+                    kind     = "poi",
+                    mapLabel = "Ebon Blade Acolyte",
+                    mapLabelPos = "above",
+                    note     = "After killing ^The Tarragrue^, speak to the ^Ebon Blade Acolyte^ NPC located inside the boss room. He will conjure a portal that will send you straight to ^Kel'Thuzad^.",
+                    points   = {
+                        { 0.483, 0.496 },
+                    },
+                },
+                {
+                    when   = { mapID = 2001, subZone = "Crown of Gorgoa" },
+                    kind   = "path",
+                    note   = "After taking the portal, follow the path around to reach ^Kel'Thuzad^.",
+                    points = {
+                        { 0.582, 0.520 },
+                        { 0.577, 0.564 },
+                        { 0.554, 0.605 },
+                        { 0.516, 0.634 },
+                        { 0.484, 0.632 },
+                        { 0.442, 0.598 },
+                        { 0.429, 0.562 },
+                        { 0.430, 0.521 },
+                        { 0.319, 0.523 },
+                    },
+                },
+            },
+        },
+
+        -- 3. Sylvanas Windrunner (same as standard)
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 10,
+            title     = "Sylvanas Windrunner",
+            requires  = { 1, 9 },
+            segments  = {
+                {
+                    when     = { mapID = 2001, subZone = "Throne of the Damned" },
+                    kind     = "poi",
+                    mapLabel = "Take Portal",
+                    mapLabelPos = "above",
+                    note     = "After killing ^Kel'Thuzad^, take the purple portal that appeared right behind him.",
+                    points   = {
+                        { 0.269, 0.519 },
+                    },
+                },
+                {
+                    when   = { mapID = 2002 },
+                    kind   = "path",
+                    note   = "You arrive at ^Pinnacle of Domination^ right in front of ^Sylvanas Windrunner^. Walk towards the boss to trigger dialog and start the encounter.",
+                    points = {},
+                },
+            },
+        },
+
+    },  -- skipRoute
 }

@@ -32,15 +32,15 @@ Currently supports:
 
 **Warlords of Draenor**
 * Hellfire Citadel (6.2)
-* Blackrock Foundry (6.1)
-* Highmaul (6.0)
+* Blackrock Foundry (6.0.3)
+* Highmaul (6.0.3)
 
 **Mists of Pandaria**
 * Siege of Orgrimmar (5.4)
 * Throne of Thunder (5.2)
-* Terrace of Endless Spring (5.0)
-* Heart of Fear (5.0)
-* Mogu'shan Vaults (5.0)
+* Terrace of Endless Spring (5.0.4)
+* Heart of Fear (5.0.4)
+* Mogu'shan Vaults (5.0.4)
 
 ## Installation
 
@@ -113,7 +113,7 @@ Main commands, type in chat:
 
 ## Status
 
-Version **1.13.0**
+Version **1.14.0**
 
 ## Reporting bugs / requesting features
 

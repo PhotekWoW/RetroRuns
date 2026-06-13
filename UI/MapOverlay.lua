@@ -508,7 +508,7 @@ function overlay:DrawSegmentsForMap(mapID)
                             -- gray/checkmark end-state. Used when the seg
                             -- represents an interactable with no detectable
                             -- completion signal (e.g. clicking an object
-                            -- that fires no event Claude can hook). The
+                            -- that fires no event the addon can hook). The
                             -- label breathes yellow on the same shared phase
                             -- counter as completionCheck pulses.
                             local color = (RR.GetLabelPulseColor and RR:GetLabelPulseColor())

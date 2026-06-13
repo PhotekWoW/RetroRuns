@@ -25,6 +25,38 @@
 local RR = RetroRuns
 RR.WhatsNew = {
     {
+        version  = "1.14.0",
+        date     = "2026-06-13",
+        sections = {
+            {
+                heading = "Added",
+                bullets = {
+                    "**Skip routes for every raid that has a skip shortcut.** All sixteen raids with an in-raid skip now have a full route, guiding you from the entry boss through the shortcut straight to the end bosses, with map markers and circles for the NPCs, portals, and runestones that open each one. Where a raid has more than one skip destination, the route covers the furthest, and the Skips window notes which one is built. When you open a raid with a skip available, the load dialog's SKIP option names the destination boss; raids with no skip read \"N/A,\" and skips that exist only on Mythic read \"Mythic only.\"",
+                    "**An exit note now appears after the final boss** for raids that have one, with an exit icon, telling you how to get back out: a teleport NPC, a portal, or a jump that sends you to the exit.",
+                },
+            },
+            {
+                heading = "Changed",
+                bullets = {
+                    "**The action buttons are now neon icons** (Map, Tmog, Achieves, Skips, Settings) instead of text, brightening on hover with the button's name shown above it.",
+                    "**The window's title bar and control buttons were restyled** with the neon theme, and the close and minimize buttons are now matched in size. The minimized bar's spacing was tightened.",
+                    "**The Map button now works anywhere**, opening the world map to your current location when you're not on an active route step, instead of being greyed out.",
+                    "**Smaller completion stars on the idle panel.**",
+                    "**Mounts, pets, toys, and housing decor now show as Special** in the loot summary line when you loot them, alongside appearances and vendor-grade, instead of being miscounted as vendor-grade.",
+                },
+            },
+            {
+                heading = "Fixed",
+                bullets = {
+                    "**Loot toasts cascade consistently** from top to bottom when several appear at once, instead of occasionally stacking out of order.",
+                    "**A duplicate pet or mount you already own no longer pops a \"new collection\" toast** when you learn it.",
+                    "**The \"Run complete!\" screen now opens with all expansions collapsed**, instead of leaving an expansion open from earlier.",
+                },
+            },
+        },
+    },
+
+    {
         version  = "1.13.0",
         date     = "2026-06-09",
         sections = {

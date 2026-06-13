@@ -12,6 +12,8 @@ RetroRuns_Data[1520] = {
     expansion         = "Legion",
     patch             = "7.0.3",
 
+    exitNote = "Run past the pond to find an exit portal among the trees.",
+
     -- Entrance is in Val'sharah (mapID 641), subZone Shaladrassil,
     -- under the corrupted World Tree. The player walks through a
     -- portal at the tree's base to zone into the raid.
@@ -536,5 +538,117 @@ RetroRuns_Data[1520] = {
                 },
             },
         },
+    },
+
+    skipToBoss = "Cenarius",
+
+
+    skipRoute = {
+
+        -- 1. Nythendra (same as standard run).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Nythendra",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 777 },
+                    kind    = "path",
+                    note    = "After zoning in, proceed forward and clear the slimes to begin the encounter with ^Nythendra^.",
+                    points  = {
+                        { 0.446, 0.570 },
+                        { 0.526, 0.523 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Cenarius via the Nightmare Iris, used early after Nythendra
+        --    (skips Il'gynoth, Elerethe, Ursoc, Dragons of Nightmare).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 6,
+            title     = "Cenarius",
+            requires  = { 1 },
+            segments  = {
+                {
+                    when    = { mapID = 777 },
+                    kind    = "path",
+                    note    = "After defeating ^Nythendra^, follow the path up and around towards the map exit labeled ^Core of the Nightmare^.",
+                    points  = {
+                        { 0.562, 0.460 },
+                        { 0.698, 0.377 },
+                        { 0.567, 0.228 },
+                        { 0.406, 0.328 },
+                        { 0.356, 0.513 },
+                        { 0.341, 0.773 },
+                    },
+                },
+                {
+                    when    = { mapID = 778, subZone = "Clutch of Corruption" },
+                    kind    = "path",
+                    note    = "Work your way up to ^Malfurion Stormrage^ and talk to him to open the ^Nightmare Iris^. Interact with it to skip ahead to ^Cenarius^.",
+                    points  = {
+                        { 0.288, 0.818 },
+                        { 0.222, 0.743 },
+                        { 0.233, 0.652 },
+                        { 0.284, 0.591 },
+                        { 0.373, 0.550 },
+                        { 0.439, 0.533 },
+                    },
+                },
+                {
+                    when     = { mapID = 778, subZone = "Core of the Nightmare" },
+                    kind     = "poi",
+                    mapLabel = "Talk to Malfurion",
+                    points   = {
+                        { 0.561, 0.485 },
+                    },
+                },
+                {
+                    when    = { mapID = 787 },
+                    kind    = "path",
+                    note    = "Once inside ^Moonglade^, work your way down to ^Cenarius^ and kill him.",
+                    points  = {
+                        { 0.360, 0.840 },
+                        { 0.471, 0.407 },
+                        { 0.574, 0.354 },
+                    },
+                },
+            },
+        },
+
+        -- 3. Xavius (same as standard run).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 7,
+            title     = "Xavius",
+            requires  = { 6 },
+            segments  = {
+                {
+                    when    = { mapID = 787 },
+                    kind    = "path",
+                    note    = "After killing ^Cenarius^, jump into the portal behind him to reach the ^Rift of Aln^.",
+                    points  = {
+                        { 0.627, 0.339 },
+                        { 0.685, 0.363 },
+                    },
+                },
+                {
+                    when    = { mapID = 788 },
+                    kind    = "path",
+                    note    = "After landing in ^Rift of Aln^, start killing trash. They will continue coming in waves until finally, you will meet ^Xavius^.",
+                    points  = {
+                        { 0.374, 0.770 },
+                        { 0.467, 0.528 },
+                    },
+                },
+            },
+        },
+
     },
 }

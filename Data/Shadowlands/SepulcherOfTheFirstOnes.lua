@@ -12,6 +12,10 @@ RetroRuns_Data[2481] = {
     expansion         = "Shadowlands",
     patch             = "9.2",
 
+    -- Shown one line below the run-complete banner. No exit shortcut --
+    -- the exit portal is right beside the final boss.
+    exitNote = "Exit portal nearby.",
+
     -- Entrance is on a floating island in eastern Zereth Mortis
     -- (uiMapID 1970). Coords from Wowhead/gamingcy. Reaching the door
     -- requires the Ancient Translocator near Pilgrim's Grace, OR the
@@ -704,4 +708,160 @@ RetroRuns_Data[2481] = {
         },
 
     },  -- routing
+
+    -- Skip route: after Vigilant Guardian, Bolvar's portal sends the
+    -- player to Domination's Grasp, bypassing Skolex, Xy'mox, Dausegne,
+    -- Prototype Pantheon, Lihuvim, and Halondrus. Kept bosses: Vigilant
+    -- Guardian (1) -> Anduin (8) -> Lords of Dread (9) -> Rygelon (10)
+    -- -> The Jailer (11).
+    skipToBoss = "Anduin Wrynn",
+
+    skipRoute = {
+
+        -- 1. Vigilant Guardian (same as standard)
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Vigilant Guardian",
+            requires  = {},
+            segments  = {
+                {
+                    when   = { mapID = 2047 },
+                    kind   = "path",
+                    note   = "After zoning in, follow the main path to ^Vigilant Guardian^.",
+                    points = {
+                        { 0.100, 0.516 },
+                        { 0.243, 0.518 },
+                        { 0.246, 0.399 },
+                        { 0.442, 0.428 },
+                        { 0.503, 0.516 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Bolvar's portal to Domination's Grasp, then the approach to Anduin.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 8,
+            title     = "Anduin Wrynn",
+            requires  = { 1 },
+            segments  = {
+                {
+                    when     = { mapID = 2047, subZone = "Immortal Hearth" },
+                    kind     = "poi",
+                    mapLabel = "Talk to Bolvar",
+                    mapLabelPos = "below",
+                    note     = "After killing ^Vigilant Guardian^, proceed up the bridge and speak to ^Highlord Bolvar Fordragon^ and then take the portal to ^Domination's Grasp^.",
+                    points   = {
+                        { 0.877, 0.529 },
+                    },
+                },
+                {
+                    when   = { mapID = 2050 },
+                    kind   = "path",
+                    note   = "After landing in ^Domination's Grasp^, proceed up the ramp. After some dialog, you can engage ^Anduin Wrynn^.",
+                    points = {
+                        { 0.161, 0.518 },
+                        { 0.377, 0.520 },
+                    },
+                },
+            },
+        },
+
+        -- 3. Lords of Dread (same as standard)
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 9,
+            title     = "Lords of Dread",
+            requires  = { 1, 8 },
+            segments  = {
+                {
+                    when        = { mapID = 2050 },
+                    kind        = "path",
+                    destination = "The Grand Design",
+                    note        = "Cross the bridge behind ^Anduin^ to the teleporter. Select ^Proceed^.",
+                    points      = {
+                        { 0.435, 0.519 },
+                        { 0.857, 0.517 },
+                    },
+                },
+                {
+                    when   = { mapID = 2052 },
+                    kind   = "path",
+                    note   = "Follow the path through ^The Grand Design^, killing trash on the way to ^Lords of Dread^.",
+                    points = {
+                        { 0.484, 0.202 },
+                        { 0.607, 0.204 },
+                        { 0.630, 0.289 },
+                        { 0.607, 0.437 },
+                    },
+                },
+            },
+        },
+
+        -- 4. Rygelon (same as standard)
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 10,
+            title     = "Rygelon",
+            requires  = { 1, 8, 9 },
+            segments  = {
+                {
+                    when   = { mapID = 2052 },
+                    kind   = "path",
+                    note   = "After killing ^Lords of Dread^, you will find a teleporter behind them. Use it to take a shortcut back to the beginning of the room, and follow the path to ^Rygelon^.",
+                    points = {
+                        { 0.607, 0.440 },
+                        { 0.641, 0.340 },
+                        { 0.635, 0.317 },
+                        { 0.639, 0.292 },
+                        { 0.608, 0.204 },
+                        { 0.377, 0.206 },
+                        { 0.344, 0.279 },
+                        { 0.300, 0.280 },
+                        { 0.287, 0.303 },
+                        { 0.306, 0.360 },
+                        { 0.325, 0.360 },
+                        { 0.363, 0.463 },
+                    },
+                },
+            },
+        },
+
+        -- 5. The Jailer (same as standard)
+        {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 11,
+            title     = "The Jailer",
+            requires  = { 1, 8, 9, 10 },
+            segments  = {
+                {
+                    when   = { mapID = 2052 },
+                    kind   = "path",
+                    note   = "After killing ^Rygelon^, follow the path straight behind him all the way to ^The Jailer^.",
+                    points = {
+                        { 0.395, 0.545 },
+                        { 0.425, 0.621 },
+                        { 0.492, 0.625 },
+                        { 0.604, 0.898 },
+                    },
+                },
+                {
+                    when   = { mapID = 2051 },
+                    kind   = "path",
+                    note   = "Continue forward to ^The Jailer^'s platform and end this.",
+                    points = {
+                        { 0.500, 0.500 },
+                    },
+                },
+            },
+        },
+
+    },  -- skipRoute
 }

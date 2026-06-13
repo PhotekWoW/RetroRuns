@@ -12,6 +12,8 @@ RetroRuns_Data[2164] = {
     expansion         = "Battle for Azeroth",
     patch             = "8.2",
 
+    exitNote = "Talk to First Arcanist Thalyssra to be teleported out of the instance.",
+
     -- Entrance is the whirlpool at the Gate of the Queen in northern
     -- Nazjatar (uiMapID 1355), in front of the Azshara statue. Coords
     -- from gamingcy. The whirlpool teleports the player into the
@@ -614,12 +616,15 @@ RetroRuns_Data[2164] = {
             requires  = { 7 },
             segments  = {
                 {
-                    when    = { mapID = 1519 },
-                    kind    = "path",
+                    when     = { mapID = 1519 },
+                    kind     = "poi",
+                    noMarker = true,
+                    highlightCircle = true,
+                    mapLabel = "Click Portal",
+                    mapLabelPos = "above",
                     note    = "After killing ^Za'qul^, watch a brief dialog while waiting on a portal to spawn behind the boss. Take the portal, marked on the map as an exit labeled ^The Last Prison^.",
-                    points  = {
-                        { 0.155, 0.500 },
-                        { 0.112, 0.471 },
+                    points   = {
+                        { 0.112, 0.456 },
                     },
                 },
                 {

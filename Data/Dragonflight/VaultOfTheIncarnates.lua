@@ -12,6 +12,10 @@ RetroRuns_Data[2522] = {
     expansion         = "Dragonflight",
     patch             = "10.0",
 
+    -- Shown one line below the run-complete banner. No exit shortcut --
+    -- the player spawns in front of the exit after the Raszageth cutscene.
+    exitNote = "Exit portal nearby.",
+
     -- Entrance is at the eastern end of Thaldraszus (uiMapID 2025),
     -- behind the complex of Tyrhold. Coords from Wowpedia/Warcraft
     -- Wiki. Designed for dragonriding approach -- ground mount is
@@ -780,6 +784,141 @@ RetroRuns_Data[2522] = {
             bossIndex = 8,
             title     = "Raszageth",
             requires  = { 1, 2, 3, 4, 5, 6, 7 },
+            segments  = {
+                {
+                    when     = { mapID = 2126 },
+                    kind     = "poi",
+                    note     = "After killing ^Broodkeeper Diurna^, click any nearby dragon to fly to the ^Vault of the Incarnates^.",
+                    mapLabel = "Click Dragon",
+                    mapLabelPos = "above",
+                    completionCheck = true,
+                    points   = {
+                        { 0.380, 0.469 },
+                    },
+                },
+                {
+                    when    = { mapID = 2125 },
+                    note    = "After a brief dialog, kill ^Raszageth the Storm-Eater^!",
+                },
+            },
+            soloTip = "The only mechanic that matters anymore is his knockback. Position yourself so it launches you to the left or right platform. Kill adds on both platforms and return to middle. For next knockback, let it knock you to the upper middle platform. Finish the boss there!",
+        },
+    },
+
+    -- Skip route: after Eranog, the Clutchwarren Runestones open the
+    -- staircase straight to The Clutchwarren, bypassing Terros, The Primal
+    -- Council, Sennarth, Dathea, and Kurog. Kept bosses are Eranog (1),
+    -- Broodkeeper Diurna (7), and Raszageth (8).
+    skipToBoss = "Broodkeeper Diurna",
+
+    skipRoute = {
+
+        -- 1. Eranog (same as standard)
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Eranog",
+            requires  = {},
+            segments  = {
+                {
+                    when            = { mapID = 2119, subZone = "The Outer Seal" },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    mapLabel        = "Talk to the 5 dragons",
+                    mapLabelPos     = "above",
+                    completionCheck = true,
+                    note            = "Upon zoning in, talk to all 5 dragons. Then talk to ^Khadgar^ to begin the assault. Choose any dragon; doesn't matter.",
+                    points          = {
+                        { 0.620, 0.870 },
+                    },
+                },
+                {
+                    when            = { mapID = 2119, subZone = "The Primal Bulwark" },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    mapLabel        = "Kill Volcanius",
+                    mapLabelPos     = "above",
+                    note            = "After landing, follow the path to kill |cffF259C7(1)|r ^Volcanius^, then |cffF259C7(2)|r ^Eranog^.",
+                    points          = {
+                        { 0.561, 0.378 },
+                    },
+                },
+                {
+                    when    = { mapID = 2119, subZone = "The Primal Bulwark" },
+                    kind    = "path",
+                    points  = {
+                        { 0.561, 0.377 },
+                        { 0.512, 0.425 },
+                        { 0.488, 0.339 },
+                        { 0.547, 0.223 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Broodkeeper Diurna (skip path). After Eranog, two Clutchwarren
+        -- Runestones flank the staircase; clicking both opens the way up to
+        -- The Clutchwarren. Two POI stars (one per rune); the label sits on
+        -- the first, upper-right, so it reads centered between the pair.
+        -- After the staircase the player walks the standard Vault Approach
+        -- -> Clutchwarren climb (segments reused from the standard route).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 7,
+            title     = "Broodkeeper Diurna",
+            requires  = { 1 },
+            segments  = {
+                {
+                    when        = { mapID = 2119, subZone = "The Primal Bulwark" },
+                    kind        = "poi",
+                    mapLabel    = "Click 2x Runes",
+                    mapLabelPos = "above",
+                    note        = "After killing ^Eranog^, click the ^Clutchwarren Runestone^ next to each staircase. After that, take the staircase towards ^The Clutchwarren^.",
+                    points      = {
+                        { 0.555, 0.115 },
+                    },
+                },
+                {
+                    when    = { mapID = 2119, subZone = "The Primal Bulwark" },
+                    kind    = "poi",
+                    points  = {
+                        { 0.587, 0.118 },
+                    },
+                },
+                {
+                    when    = { mapID = 2122 },
+                    kind   = "path",
+                    note   = "Work your way upstairs through ^The Vault Approach^ and you will enter ^The Clutchwarren^.",
+                    points = {
+                        { 0.741, 0.931 },
+                        { 0.743, 0.490 },
+                    },
+                },
+                {
+                    when    = { mapID = 2126 },
+                    kind   = "path",
+                    note   = "Follow the path up to ^Broodkeeper Diurna^.",
+                    points = {
+                        { 0.734, 0.894 },
+                        { 0.739, 0.835 },
+                        { 0.534, 0.556 },
+                    },
+                },
+            },
+            soloTip = "Stand on boss and cleave everything down",
+        },
+
+        -- 3. Raszageth (same as standard, requires scoped to skip path)
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 8,
+            title     = "Raszageth",
+            requires  = { 1, 7 },
             segments  = {
                 {
                     when     = { mapID = 2126 },

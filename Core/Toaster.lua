@@ -18,6 +18,7 @@ local EVENT_KIND = {
     NEW_MOUNT_ADDED                          = "collection",
     NEW_PET_ADDED                            = "collection",
     NEW_TOY_ADDED                            = "collection",
+    NEW_HOUSING_ITEM_ACQUIRED                = "housing",
     TRANSMOG_COLLECTION_SOURCE_ADDED         = "appearance",
     TRANSMOG_COSMETIC_COLLECTION_SOURCE_ADDED = "appearance",
 }
@@ -31,6 +32,7 @@ local EVENT_LIST = {
     "NEW_MOUNT_ADDED",
     "NEW_PET_ADDED",
     "NEW_TOY_ADDED",
+    "NEW_HOUSING_ITEM_ACQUIRED",
     "TRANSMOG_COLLECTION_SOURCE_ADDED",
     "TRANSMOG_COSMETIC_COLLECTION_SOURCE_ADDED",
 }
@@ -144,7 +146,7 @@ RR._RefreshToasterBannerSuppression = RefreshBannerSuppression
 
 local Presenter = {
     pool    = {},   -- reusable hidden frames
-    live    = {},   -- currently shown, newest first
+    live    = {},   -- currently shown, oldest first (head pins to anchor)
     byKey   = {},   -- mergeKey -> live frame, for coalescing
 }
 
@@ -161,7 +163,7 @@ local BASE_X, BASE_Y        = 0, 140          -- fallback offset from screen cen
 local TOAST_SCALE           = 0.7
 local ANCHOR_GAP            = 8               -- gap between panel and toast stack
 local FADE_IN, FADE_OUT = 0.12, 0.9          -- seconds (hold is dynamic; see EffectiveHold)
-local STAGGER               = 0.35           -- delay between batch reveals
+local STAGGER               = 0.20           -- delay between batch reveals
 local COIN_SOUND            = "Interface\\AddOns\\RetroRuns\\Media\\Sounds\\coin.ogg"
 local COIN_FINAL_SOUND      = "Interface\\AddOns\\RetroRuns\\Media\\Sounds\\coin_ringout_v3.ogg"
 
@@ -170,6 +172,17 @@ local TITLE_FONT = "Interface\\AddOns\\RetroRuns\\Media\\Fonts\\04B_03.TTF"
 local C_PINK = { 0.95, 0.35, 0.78 }
 local C_BLUE = { 0.30, 0.80, 1.00 }
 local C_LABEL_HEX = "ff7cfc00"  -- section-label green
+
+-- Lifecycle trace: a bounded ring of recent pipeline decision points,
+-- surfaced via /rr toaster debug.
+local TRACE_MAX = 60
+local Trace = {}
+local function T(msg)
+    Trace[#Trace + 1] = ("%.1f  %s"):format(GetTime and GetTime() or 0, msg)
+    if #Trace > TRACE_MAX then
+        table.remove(Trace, 1)
+    end
+end
 
 -- Construct a toast frame's visuals on a parent. Shared by the live pool and
 -- the settings preview. Does not pool or set live behavior.
@@ -311,7 +324,8 @@ end
 
 local function Restack()
     -- Anchor priority: saved free-floating position, else the panel's
-    -- top-right, else screen-center. Newest (index 1) on top, older chain down.
+    -- top-right, else screen-center. Head of the list (index 1) pins to the
+    -- anchor; the rest chain downward, so the stack cascades top-to-bottom.
     local panel = _G.RetroRunsMainFrame
     local anchored = panel and panel:IsShown()
     local savedPoint, savedX, savedY = GetSavedAnchor()
@@ -553,7 +567,12 @@ local function ShowOne(toast)
     toast.frame = f
 
     SetCount(f)
-    table.insert(Presenter.live, 1, f)
+    -- Append at the tail so every toast joins the bottom of the stack, no
+    -- matter which batch it came from or when its reveal timer fires. Restack
+    -- pins the head to the anchor and chains the rest downward, so the stack
+    -- always cascades top-to-bottom. Front-inserting here let a later reveal
+    -- jump to the top and flip the growth direction mid-cascade.
+    Presenter.live[#Presenter.live + 1] = f
     f:SetAlpha(0)
     f:Show()
     Restack()
@@ -964,9 +983,37 @@ local function OnDropEvent(_, event, ...)
     if not M.enabled then return end
     local kind = EVENT_KIND[event]
     if not kind then return end
+    T("OnDropEvent " .. tostring(event) .. " kind=" .. tostring(kind))
 
     if kind == "collection" then
         local id = ...
+        -- Toast only a genuinely new collection; suppress for an item the
+        -- player already owns.
+        if event == "NEW_PET_ADDED" and C_PetJournal then
+            -- Toast only the first of a pet species; suppress owned dupes.
+            local speciesID
+            if C_PetJournal.GetPetInfoByPetID then
+                speciesID = select(1, C_PetJournal.GetPetInfoByPetID(id))
+            end
+            if speciesID and C_PetJournal.GetNumCollectedInfo then
+                local numCollected = C_PetJournal.GetNumCollectedInfo(speciesID)
+                if numCollected and numCollected > 1 then
+                    T("NEW_PET_ADDED suppressed (dupe, owned " .. numCollected .. ")")
+                    return
+                end
+            end
+        elseif event == "NEW_MOUNT_ADDED" and C_MountJournal then
+            -- isCollected is position 11; suppress the popup for an owned mount.
+            if C_MountJournal.GetMountInfoByID then
+                local isCollected = select(11, C_MountJournal.GetMountInfoByID(id))
+                if isCollected == false then
+                    -- genuinely new, allow toast
+                elseif isCollected == true then
+                    T("NEW_MOUNT_ADDED suppressed (already collected)")
+                    return
+                end
+            end
+        end
         local name, icon, toyItemID, kindLabel, link = ResolveSpecialLoot(event, id)
         local toast = {
             header      = "Special Loot",
@@ -998,6 +1045,28 @@ local function OnDropEvent(_, event, ...)
             C_Timer.After(0.1, retry)
         end
         QueueToast(toast)
+
+    elseif kind == "housing" then
+        -- NEW_HOUSING_ITEM_ACQUIRED fires with (itemType, itemName, itemIcon),
+        -- where itemType is an Enum.HousingItemToastType. Only Decor is flagged
+        -- as special loot; the other housing types are left to the native UI.
+        local itemType, itemName, itemIcon = ...
+        local decorType = Enum and Enum.HousingItemToastType and Enum.HousingItemToastType.Decor
+        if decorType == nil or itemType ~= decorType then
+            T("NEW_HOUSING_ITEM_ACQUIRED ignored (type=" .. tostring(itemType) .. ", not Decor)")
+            return
+        end
+        T("NEW_HOUSING_ITEM_ACQUIRED Decor: " .. tostring(itemName))
+        QueueToast({
+            header      = "Special Loot",
+            icon        = itemIcon,
+            name        = itemName or "",
+            quality     = nil,
+            isSpecial   = true,
+            specialKind = "Decor",
+            itemID      = nil,
+            link        = nil,
+        })
 
     elseif kind == "appearance" then
         local sourceID = ...
@@ -1144,6 +1213,10 @@ FlushBatch = function()
     local links = Summary.links
     local newApp = Summary.newApp or {}
 
+    T(("FlushBatch  raid=%s  toasts=%d  loot=%d"):format(
+        tostring(RR.currentRaid and RR.currentRaid.name or "nil"),
+        batch and #batch or 0,
+        links and #links or 0))
     -- Reset batch state up front so a mid-flush drop starts a fresh batch.
     Summary.capturing = false
     Summary.batch = nil
@@ -1156,12 +1229,33 @@ FlushBatch = function()
     -- surplus copies fall through to vendor-grade. Entries are { link, qty }.
     local vendor = {}
     local tokens = {}
+    local lootSpecials = {}
     local excludedAsApp = 0
     local appSeen = {}
     if links then
         for _, entry in ipairs(links) do
             local itemID = tonumber(entry.link:match("item:(%d+)"))
-            if itemID and newApp[itemID] and not appSeen[itemID] then
+            local _, _, _, _, _, classID, subClassID = C_Item.GetItemInfoInstant(itemID or 0)
+            -- Flag collectible items as special loot, classed by item type:
+            --   Pet:   class 17 (caged), or 15/2 (companion collection item)
+            --   Mount: class 15 / subclass 5
+            --   Decor: class 20 / subclass 0 (Housing / Decor)
+            --   Toy:   no unique class; identified via C_Item.IsItemToy
+            local specialKind
+            if classID == 17 or (classID == 15 and subClassID == 2) then
+                specialKind = "Pet"
+            elseif classID == 15 and subClassID == 5 then
+                specialKind = "Mount"
+            elseif classID == 20 and subClassID == 0 then
+                specialKind = "Decor"
+            elseif itemID and C_Item.IsItemToy and C_Item.IsItemToy(itemID) then
+                specialKind = "Toy"
+            end
+            if specialKind then
+                local name = itemID and C_Item.GetItemInfo("item:" .. itemID)
+                lootSpecials[#lootSpecials + 1] =
+                    { name = name, link = entry.link, itemID = itemID, kind = specialKind }
+            elseif itemID and newApp[itemID] and not appSeen[itemID] then
                 appSeen[itemID] = true
                 excludedAsApp = excludedAsApp + 1
             elseif IsTierToken(itemID) then
@@ -1180,6 +1274,8 @@ FlushBatch = function()
             elseif toast.isSpecial then specialCount = specialCount + 1 end
         end
     end
+    -- Collectibles detected in this loot window count as special on the line.
+    specialCount = specialCount + #lootSpecials
 
     -- Reveal the toasts as one batch.
     if batch and #batch > 0 then
@@ -1248,6 +1344,10 @@ FlushBatch = function()
     end
     for _, entry in ipairs(tokens) do
         items[#items + 1] = { kind = "token", link = entry.link, qty = entry.qty }
+    end
+    for _, sp in ipairs(lootSpecials) do
+        items[#items + 1] = { kind = "special", name = sp.name,
+                              specialKind = sp.kind, itemID = sp.itemID, link = sp.link }
     end
     for _, entry in ipairs(vendor) do
         items[#items + 1] = { kind = "vendor", link = entry.link, qty = entry.qty }
@@ -1376,18 +1476,23 @@ local function ExtractItemLink(msg)
 end
 
 local function OnLootBracket(_, event, ...)
-    if not M.enabled then return end
+    if not M.enabled then
+        if event == "LOOT_OPENED" then T("LOOT_OPENED ignored (toaster disabled)") end
+        return
+    end
 
     if event == "LOOT_OPENED" then
         -- Open the vendor-capture gate; don't reset the toast batch.
         Summary.capturing = true
         Summary.windowOpen = true
+        T("LOOT_OPENED  capturing=on  currentRaid=" .. tostring(RR.currentRaid and RR.currentRaid.name or "nil"))
         ArmFlush()
 
     elseif event == "LOOT_CLOSED" then
         -- Don't close the gate here; capture stays open until the flush runs
         -- so the post-close straggler wave is still captured.
         Summary.windowOpen = false
+        T("LOOT_CLOSED")
         ArmFlush()
 
     elseif event == "CHAT_MSG_LOOT" then
@@ -1406,8 +1511,13 @@ local function OnLootBracket(_, event, ...)
             if link then
                 if not Summary.links then Summary.links = {} end
                 Summary.links[#Summary.links + 1] = { link = link, qty = qty }
+                T("CHAT_MSG_LOOT captured item:" .. tostring(itemID) .. " x" .. qty)
                 ArmFlush()
+            else
+                T("CHAT_MSG_LOOT no link extracted (raw kept out)")
             end
+        else
+            T("CHAT_MSG_LOOT dropped (not capturing) item:" .. tostring(itemID))
         end
     end
 end
@@ -1449,6 +1559,7 @@ local function ActivateToaster()
     Suppressor.InstallGuard()
     Suppressor.Detach()
     RefreshBannerSuppression()
+    T("ActivateToaster  currentRaid=" .. tostring(RR.currentRaid and RR.currentRaid.name or "nil"))
 end
 
 -- Runtime deactivation: restores native popups and stops listening. Called by
@@ -1483,6 +1594,30 @@ end
 -- real construction/styling, independent of the live pool. Names/icons come
 -- from real items. Returns the group with a :PlayReveal() that staggers the
 -- fade-ins.
+-- Dump the lifecycle trace and live gate state to the copy window.
+function RR:ToasterDebug()
+    local lines = {}
+    local function add(s) lines[#lines + 1] = s end
+    add("== Toaster state ==")
+    add("enabled        = " .. tostring(M.enabled))
+    add("currentRaid    = " .. tostring(RR.currentRaid and RR.currentRaid.name or "nil"))
+    add("capturing      = " .. tostring(Summary.capturing))
+    add("windowOpen     = " .. tostring(Summary.windowOpen))
+    add("batch size     = " .. tostring(Summary.batch and #Summary.batch or 0))
+    add("loot captured  = " .. tostring(Summary.links and #Summary.links or 0))
+    add("flushTimer     = " .. tostring(Summary.flushTimer ~= nil))
+    add("toasterEnabled setting = " .. tostring(RR:GetSetting("toasterEnabled", false)))
+    add("lootSummary    setting = " .. tostring(RR:GetSetting("toasterLootSummary", true)))
+    add("")
+    add("== Recent trace (oldest first) ==")
+    if #Trace == 0 then
+        add("(empty -- no toaster activity recorded since login/reload)")
+    else
+        for _, t in ipairs(Trace) do add(t) end
+    end
+    RR:ShowCopyWindow("Toaster Debug", table.concat(lines, "\n"))
+end
+
 function RR:BuildPreviewBatch(parent)
     -- Real itemIDs so name and icon resolve from the same source. The mount
     -- itemID matches the Loot Summary Preview's special-loot sample.
@@ -1566,7 +1701,7 @@ function RR:BuildPreviewBatch(parent)
         for i, f in ipairs(self.frames) do
             f:SetAlpha(0)
             f:Show()
-            local delay = (i - 1) * 0.12
+            local delay = (i - 1) * 0.20
             C_Timer.After(delay, function()
                 f.born = GetTime()
                 f:SetScript("OnUpdate", function(self2)

@@ -12,6 +12,8 @@ RetroRuns_Data[1530] = {
     expansion         = "Legion",
     patch             = "7.1.5",
 
+    exitNote = "Jump off the ledge to your death, and you will respawn at the raid exit.",
+
     -- Entrance is in Suramar (mapID 680), at the Sanctum Depths
     -- portal inside the Sanctum of Order building in central Suramar
     -- City. The actual instance portal is at (44.2, 59.7), not the
@@ -56,7 +58,7 @@ RetroRuns_Data[1530] = {
     -- Surfaced to players via the Skips window's per-row info button.
     skipTrigger = {
         questName = "The Nighthold: Talisman of the Shal'dorei",
-        details   = "After the first trash pack of scorpions, there will be a door opened to the right at the end of the hallway. Inside the room, you will find a teleporter that will allow you to teleport to:\n  - Palace Entrance (^Spellblade Aluriel^)\n  - Palace Courtyard (^Krosus^)\n  - Nightspire (^Elisande^)",
+        details   = "After the first trash pack of scorpions, there will be a door opened to the right at the end of the hallway. Inside the room, you will find a teleporter that will allow you to teleport to:\n  - Palace Entrance (^Spellblade Aluriel^)\n  - Palace Courtyard (^Krosus^)\n  - Nightspire (^Elisande^)\n\nNote: RetroRuns only has the route built for Elisande at this time.",
     },
 
     -- Glory meta-achievement covering both Emerald Nightmare and The
@@ -722,6 +724,72 @@ RetroRuns_Data[1530] = {
         --   sub-zone "The Font of Night").
         {
             step      = 10,
+            priority  = 1,
+            bossIndex = 10,
+            title     = "Gul'dan",
+            requires  = { 9 },
+            segments  = {
+                {
+                    when    = { mapID = 770 },
+                    kind    = "path",
+                    note    = "After defeating ^Elisande^, approach the teleporter outside the room and choose ^Font of Night^ as your destination.",
+                    points  = {
+                        { 0.431, 0.420 },
+                        { 0.320, 0.269 },
+                    },
+                },
+                {
+                    when    = { mapID = 772 },
+                    kind    = "poi",
+                    note    = "You have reached the final encounter. Kill ^Gul'dan^!",
+                    poiSize = 35,
+                    points  = {
+                        { 0.495, 0.475 },
+                    },
+                },
+            },
+        },
+
+    },
+
+    skipToBoss = "Elisande",
+
+
+    skipRoute = {
+
+        -- 1. Grand Magistrix Elisande, reached directly from the entrance via
+        --    the Suramar Portal (skips bosses 1-8).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 9,
+            title     = "Grand Magistrix Elisande",
+            requires  = {},
+            segments  = {
+                {
+                    when     = { mapID = 764, subZone = "Arcing Depths" },
+                    kind     = "poi",
+                    mapLabel = "Suramar Portal",
+                    note     = "After zoning in, proceed down the first hallway and clear the scorpion trash to open a door on your right. Click the ^Suramar Portal^ and teleport to the ^Nightspire.^",
+                    points   = {
+                        { 0.362, 0.873 },
+                    },
+                },
+                {
+                    when    = { mapID = 766 },
+                    kind    = "path",
+                    note    = "Inside ^The Nightspire^, clear trash around the room to begin the encounter with ^Grand Magistrix Elisande^.",
+                    points  = {
+                        { 0.532, 0.410 },
+                        { 0.483, 0.483 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Gul'dan (same as standard run).
+        {
+            step      = 2,
             priority  = 1,
             bossIndex = 10,
             title     = "Gul'dan",

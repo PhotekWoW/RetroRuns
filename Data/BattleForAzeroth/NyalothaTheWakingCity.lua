@@ -310,6 +310,103 @@ RetroRuns_Data[2217] = {
         },
     },
 
+    -- Skip route: after Wrathion, the long northern path bridges straight
+    -- to Carapace of N'Zoth, then N'Zoth. Wrathion and N'Zoth segments
+    -- match the standard route.
+    skipToBoss = "Carapace of N'Zoth",
+
+    skipRoute = {
+
+        -- 1. Wrathion, the Black Emperor (same as standard)
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Wrathion, the Black Emperor",
+            requires  = {},
+            segments  = {
+                {
+                    when    = { mapID = 1580 },
+                    kind    = "path",
+                    note    = "Upon zoning in, you will find ^Wrathion^ directly in front of you.",
+                    points  = {
+                        { 0.529, 0.652 },
+                        { 0.527, 0.272 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Carapace of N'Zoth via the skip path.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 11,
+            title     = "Carapace of N'Zoth",
+            requires  = { 1 },
+            segments  = {
+                {
+                    when    = { mapID = 1581, subZone = "Annex of Prophecy" },
+                    kind    = "path",
+                    note    = "After defeating ^Wrathion^, proceed through the long northern path to the map exit labeled ^Ny'alotha^. Take the elevator up, and continue through the door ahead.",
+                    points  = {
+                        { 0.538, 0.770 },
+                        { 0.593, 0.723 },
+                        { 0.593, 0.567 },
+                        { 0.509, 0.563 },
+                        { 0.511, 0.181 },
+                    },
+                },
+                {
+                    when    = { mapID = 1582, subZone = "Ny'alotha" },
+                    kind    = "path",
+                    note    = "Follow the path to the final map exit labeled ^N'Zoth^. Kill adds on the bridge to spawn a portal at the end.",
+                    points  = {
+                        { 0.524, 0.761 },
+                        { 0.558, 0.708 },
+                        { 0.568, 0.678 },
+                        { 0.573, 0.617 },
+                        { 0.571, 0.535 },
+                        { 0.569, 0.515 },
+                        { 0.525, 0.445 },
+                        { 0.526, 0.190 },
+                    },
+                },
+                {
+                    when    = { mapID = 1597 },
+                    kind    = "path",
+                    note    = "In the next area, talk to ^Wrathion^ to trigger a cutscene, then kill some adds to start the fight with ^Carapace of N'Zoth^.",
+                    points  = {
+                        { 0.487, 0.784 },
+                        { 0.486, 0.715 },
+                    },
+                },
+            },
+        },
+
+        -- 3. N'Zoth the Corruptor (same as standard)
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 12,
+            title     = "N'Zoth the Corruptor",
+            requires  = { 11 },
+            segments  = {
+                {
+                    when     = { mapID = 1597 },
+                    kind     = "poi",
+                    noMarker = true,
+                    note     = "After killing ^Carapace^, you will find yourself standing in front of ^N'Zoth^. Attack the boss to start the encounter.",
+                    points   = {
+                        { 0.483, 0.294 },
+                    },
+                },
+            },
+        },
+    },
+
+    exitNote = "Exit portal nearby.",
+
     routing = {
         -- `requires` lists immediate predecessors only, not the full
         -- transitive set.

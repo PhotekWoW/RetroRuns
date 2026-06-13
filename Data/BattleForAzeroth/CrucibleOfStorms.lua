@@ -12,6 +12,8 @@ RetroRuns_Data[2096] = {
     expansion         = "Battle for Azeroth",
     patch             = "8.1.5",
 
+    exitNote = "None available",
+
     -- Entrance is on the Precipice of Oblivion, a small island east
     -- of the Shrine of the Storm in Stormsong Valley (uiMapID 942).
     -- The area requires a curving fly approach from the Shrine flight

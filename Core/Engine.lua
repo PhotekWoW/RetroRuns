@@ -29,55 +29,103 @@ function RR:GetProgress(stepIndex)
     return 1
 end
 
+-- Resolve the persisted store for the current raid + faction + lockout.
+-- The store is keyed [instanceID][faction][lockoutId] so concurrent
+-- lockouts of the same raid (e.g. a cleared Mythic and an in-progress
+-- Heroic in the same week) each keep their own progress instead of
+-- clobbering a single shared record. Returns nil when the lockout isn't
+-- known yet (saved-instance data not ready) or, with create=false, when
+-- no record exists. With create=true, lazily builds the record.
+function RR:GetLockoutStore(create)
+    if not self.currentRaid or not self.currentRaid.instanceID then return nil end
+    local lockoutId = self:GetCurrentLockoutId()
+    if not lockoutId then return nil end
+
+    if create then
+        RetroRunsDB = RetroRunsDB or {}
+        RetroRunsDB.routingProgress = RetroRunsDB.routingProgress or {}
+    end
+    if not RetroRunsDB or not RetroRunsDB.routingProgress then return nil end
+
+    local instStore = RetroRunsDB.routingProgress[self.currentRaid.instanceID]
+    if not instStore then
+        if not create then return nil end
+        instStore = {}
+        RetroRunsDB.routingProgress[self.currentRaid.instanceID] = instStore
+    end
+
+    local faction = CurrentFactionKey()
+    local factionStore = instStore[faction]
+    if not factionStore then
+        if not create then return nil end
+        factionStore = {}
+        instStore[faction] = factionStore
+    end
+
+    local lockoutStore = factionStore[lockoutId]
+    if not lockoutStore then
+        if not create then return nil end
+        lockoutStore = { steps = {}, triggers = {} }
+        factionStore[lockoutId] = lockoutStore
+    end
+    return lockoutStore
+end
+
 function RR:SetProgress(stepIndex, value)
     if not stepIndex or not value then return end
     self.state.progress = self.state.progress or {}
     self.state.progress[stepIndex] = value
 
-    if not self.currentRaid or not self.currentRaid.instanceID then return end
+    local store = self:GetLockoutStore(true)
+    if not store then return end
+    store.steps = store.steps or {}
+    store.steps[stepIndex] = value
+end
 
-    RetroRunsDB = RetroRunsDB or {}
-    RetroRunsDB.routingProgress = RetroRunsDB.routingProgress or {}
+-- True if a saved routing store exists for the current raid, faction, and
+-- lockout -- i.e. the player already loaded a route and committed to this
+-- lockout. Used to skip the load dialog on reload and silently restore the
+-- route they were running.
+function RR:HasPersistedProgressForCurrentLockout()
+    return self:GetLockoutStore(false) ~= nil
+end
+
+-- True if any saved store exists for the current raid + faction, across any
+-- lockout, regardless of whether the current lockout is readable yet.
+-- Distinct from HasPersistedProgressForCurrentLockout. Used to detect the
+-- async-data race: a store exists but the live lockout isn't known yet, so
+-- the load decision should be deferred rather than treated as fresh.
+function RR:HasSavedRouteStore()
+    if not self.currentRaid or not self.currentRaid.instanceID then return false end
+    if not RetroRunsDB or not RetroRunsDB.routingProgress then return false end
     local instStore = RetroRunsDB.routingProgress[self.currentRaid.instanceID]
-    if not instStore then
-        instStore = {}
-        RetroRunsDB.routingProgress[self.currentRaid.instanceID] = instStore
-    end
-    local faction = CurrentFactionKey()
-    local factionStore = instStore[faction]
-    if not factionStore then
-        factionStore = { lockoutId = self:GetCurrentLockoutId(), steps = {} }
-        instStore[faction] = factionStore
-    end
-    -- Lockout reset wipes the whole record.
-    if factionStore.lockoutId ~= self:GetCurrentLockoutId() then
-        factionStore.lockoutId = self:GetCurrentLockoutId()
-        factionStore.steps    = {}
-        factionStore.triggers = {}
-    end
-    factionStore.steps[stepIndex] = value
+    if not instStore then return false end
+    local factionStore = instStore[CurrentFactionKey()]
+    return factionStore ~= nil and next(factionStore) ~= nil
+end
+
+-- Persist which route variant ("standard" | "skip") the player loaded, in
+-- the current lockout's store. Lets a reload restore the chosen route
+-- instead of re-prompting and letting the player switch variants mid-
+-- lockout. Written once at load time.
+function RR:PersistRouteVariant(variant)
+    local store = self:GetLockoutStore(true)
+    if not store then return end
+    store.routeVariant = variant
 end
 
 function RR:RestorePersistedProgress()
     self.state.progress       = {}
     self.state.triggersFired  = {}
-    if not RetroRunsDB or not RetroRunsDB.routingProgress then return end
-    local instStore = RetroRunsDB.routingProgress[self.currentRaid.instanceID]
-    if not instStore then return end
-    local faction = CurrentFactionKey()
-    local factionStore = instStore[faction]
-    if not factionStore then return end
-    if factionStore.lockoutId ~= self:GetCurrentLockoutId() then
-        instStore[faction] = nil
-        return
-    end
-    if factionStore.steps then
-        for stepIndex, p in pairs(factionStore.steps) do
+    local store = self:GetLockoutStore(false)
+    if not store then return end
+    if store.steps then
+        for stepIndex, p in pairs(store.steps) do
             self.state.progress[stepIndex] = p
         end
     end
-    if factionStore.triggers then
-        for stepIndex, segs in pairs(factionStore.triggers) do
+    if store.triggers then
+        for stepIndex, segs in pairs(store.triggers) do
             self.state.triggersFired[stepIndex] = {}
             for segIndex, fired in pairs(segs) do
                 if fired then
@@ -85,6 +133,11 @@ function RR:RestorePersistedProgress()
                 end
             end
         end
+    end
+    -- Restore the route variant chosen at load time so a reload follows
+    -- the same route (skip or standard) the player was running.
+    if store.routeVariant then
+        self.state.activeRouteVariant = store.routeVariant
     end
 end
 
@@ -98,33 +151,11 @@ function RR:RecordTriggerFired(stepIndex, segIndex)
         self.state.triggersFired[stepIndex] or {}
     self.state.triggersFired[stepIndex][segIndex] = true
 
-    if not self.currentRaid or not self.currentRaid.instanceID then return end
-
-    RetroRunsDB = RetroRunsDB or {}
-    RetroRunsDB.routingProgress = RetroRunsDB.routingProgress or {}
-    local instStore = RetroRunsDB.routingProgress[self.currentRaid.instanceID]
-    if not instStore then
-        instStore = {}
-        RetroRunsDB.routingProgress[self.currentRaid.instanceID] = instStore
-    end
-    local faction = CurrentFactionKey()
-    local factionStore = instStore[faction]
-    if not factionStore then
-        factionStore = {
-            lockoutId = self:GetCurrentLockoutId(),
-            steps     = {},
-            triggers  = {},
-        }
-        instStore[faction] = factionStore
-    end
-    if factionStore.lockoutId ~= self:GetCurrentLockoutId() then
-        factionStore.lockoutId = self:GetCurrentLockoutId()
-        factionStore.steps    = {}
-        factionStore.triggers = {}
-    end
-    factionStore.triggers = factionStore.triggers or {}
-    factionStore.triggers[stepIndex] = factionStore.triggers[stepIndex] or {}
-    factionStore.triggers[stepIndex][segIndex] = true
+    local store = self:GetLockoutStore(true)
+    if not store then return end
+    store.triggers = store.triggers or {}
+    store.triggers[stepIndex] = store.triggers[stepIndex] or {}
+    store.triggers[stepIndex][segIndex] = true
 end
 
 function RR:HasTriggerFired(stepIndex, segIndex)
@@ -508,6 +539,18 @@ function RR:BuildEngineProbeLines(opts)
     add(("playerMapID: %s    playerSubZone: %q"):format(
         tostring(mapID), subZone))
 
+    -- Active route variant. When skip is active, also report the skip
+    -- route's step count so the diag shows at a glance which path the
+    -- engine is following (vs the standard route's full boss list).
+    local variant = (self.state and self.state.activeRouteVariant) or "standard"
+    if variant == "skip" and raid.skipRoute then
+        add(("routeVariant: skip (%d-step skip route)"):format(#raid.skipRoute))
+    elseif raid.skipRoute then
+        add("routeVariant: standard (skip route available)")
+    else
+        add("routeVariant: standard")
+    end
+
     local activeStep = self.state and self.state.activeStep
     if activeStep then
         local stepIndex = activeStep.step or activeStep.priority or 0
@@ -579,20 +622,25 @@ function RR:BuildEngineProbeLines(opts)
                 anyEmitted = true
                 add(("instanceID %s:"):format(tostring(instID)))
                 for faction, factionStore in pairs(instStore) do
-                    add(("  [%s] lockoutId=%s"):format(
-                        tostring(faction), tostring(factionStore.lockoutId)))
-                    if factionStore.steps then
-                        for stepIdx, p in pairs(factionStore.steps) do
-                            add(("    step %d progress = %d"):format(stepIdx, p))
+                    for lockoutId, store in pairs(factionStore) do
+                        if type(store) == "table" then
+                        add(("  [%s] lockoutId=%s  variant=%s"):format(
+                            tostring(faction), tostring(lockoutId),
+                            tostring(store.routeVariant or "standard")))
+                        if store.steps then
+                            for stepIdx, p in pairs(store.steps) do
+                                add(("    step %d progress = %d"):format(stepIdx, p))
+                            end
                         end
-                    end
-                    if factionStore.triggers then
-                        for stepIdx, segs in pairs(factionStore.triggers) do
-                            for segIdx, fired in pairs(segs) do
-                                if fired then
-                                    add(("    step %d seg %d trigger fired"):format(stepIdx, segIdx))
+                        if store.triggers then
+                            for stepIdx, segs in pairs(store.triggers) do
+                                for segIdx, fired in pairs(segs) do
+                                    if fired then
+                                        add(("    step %d seg %d trigger fired"):format(stepIdx, segIdx))
+                                    end
                                 end
                             end
+                        end
                         end
                     end
                 end

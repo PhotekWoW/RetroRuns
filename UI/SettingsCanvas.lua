@@ -39,6 +39,7 @@ local ICON_BUG      = "Interface\\AddOns\\RetroRuns\\Media\\BugIcon"
 local ICON_CHAT     = "Interface\\AddOns\\RetroRuns\\Media\\ChatIcon"
 local URL_GITHUB    = "https://github.com/PhotekWoW/RetroRuns/issues"
 local URL_CURSE     = "https://www.curseforge.com/wow/addons/retroruns/comments"
+local URL_DISCORD   = "https://discord.gg/achievements"
 
 local panel = CreateFrame("Frame", "RetroRunsSettingsCanvas", UIParent)
 panel:SetSize(PANEL_WIDTH, PANEL_HEIGHT)
@@ -74,6 +75,16 @@ titleRuns:SetText("RUNS")
 titleRuns:SetTextColor(unpack(COLOR_CYAN))
 titleRuns:SetShadowOffset(1, -1)
 titleRuns:SetShadowColor(0, 0, 0, 1)
+
+-- "by Photek" credit trailing the wordmark, smaller and dim so it reads
+-- as a subtitle rather than competing with the brand.
+local titleBy = panel:CreateFontString(nil, "ARTWORK")
+titleBy:SetFont(RETRO_FONT, 12, "OUTLINE")
+titleBy:SetPoint("LEFT", titleRuns, "RIGHT", 6, -2)
+titleBy:SetText("by Photek")
+titleBy:SetTextColor(unpack(COLOR_DIM))
+titleBy:SetShadowOffset(1, -1)
+titleBy:SetShadowColor(0, 0, 0, 1)
 
 -- Vertical divider between the nav rail and the content pane.
 local railDivider = panel:CreateTexture(nil, "ARTWORK")
@@ -382,10 +393,12 @@ local function AddButtonPair(label, indent, trueLabel, falseLabel, getValue, set
         fs:SetText(text)
         fs:SetShadowOffset(1, -1); fs:SetShadowColor(0, 0, 0, 1)
         btn.fs = fs
-        -- Button wraps the self-sizing fontstring on all sides so the click
-        -- target tracks the text.
-        btn:SetPoint("TOPLEFT", fs, "TOPLEFT")
-        btn:SetPoint("BOTTOMRIGHT", fs, "BOTTOMRIGHT")
+        -- Size the button from the rendered string metrics and anchor the text
+        -- inside it. Sizing the button off its own child fontstring collapses
+        -- to zero width unless the fontstring carries an external anchor, which
+        -- only the leading button has; this gives every button a real rect.
+        btn:SetSize(math.max(1, fs:GetStringWidth()), SEG_FONT_SIZE + 4)
+        fs:SetPoint("TOPLEFT", btn, "TOPLEFT")
         -- Underline; shown only when selected.
         local ul = btn:CreateTexture(nil, "ARTWORK")
         ul:SetColorTexture(COLOR_CYAN[1], COLOR_CYAN[2], COLOR_CYAN[3], 1)
@@ -399,16 +412,16 @@ local function AddButtonPair(label, indent, trueLabel, falseLabel, getValue, set
     end
 
     local trueBtn = MakeBtn(trueLabel, true)
-    trueBtn.fs:SetPoint("TOPLEFT", pageToaster, "TOPLEFT", VALUE_X, rowY)
+    trueBtn:SetPoint("TOPLEFT", pageToaster, "TOPLEFT", VALUE_X, rowY)
 
     local sep = pageToaster:CreateFontString(nil, "ARTWORK")
     sep:SetFont(RETRO_FONT, SEG_FONT_SIZE, "OUTLINE")
     sep:SetText("|")
-    sep:SetPoint("LEFT", trueBtn.fs, "RIGHT", 6, 0)
+    sep:SetPoint("LEFT", trueBtn, "RIGHT", 6, 0)
     sep:SetTextColor(unpack(COLOR_DIM))
 
     local falseBtn = MakeBtn(falseLabel, false)
-    falseBtn.fs:SetPoint("LEFT", sep, "RIGHT", 6, 0)
+    falseBtn:SetPoint("LEFT", sep, "RIGHT", 6, 0)
 
     pageCursor[pageToaster] = pageCursor[pageToaster] - (CHECK_H + 4)
 
@@ -892,6 +905,48 @@ do
     div:SetPoint("TOPLEFT", 0, pageCursor[pageHelp])
     div:SetPoint("TOPRIGHT", pageHelp, "TOPRIGHT", -8, pageCursor[pageHelp])
     pageCursor[pageHelp] = pageCursor[pageHelp] - 14
+
+    -- Author credit + Discord, at the top of the page.
+    local credit = pageHelp:CreateFontString(nil, "ARTWORK")
+    credit:SetFont(RETRO_FONT, 12, "OUTLINE")
+    credit:SetPoint("TOPLEFT", 0, pageCursor[pageHelp])
+    credit:SetText("|cffF259C7Author:|r |cffffffffPhotek|r")
+    credit:SetShadowOffset(1, -1); credit:SetShadowColor(0, 0, 0, 1)
+    pageCursor[pageHelp] = pageCursor[pageHelp] - (12 + 6)
+
+    local hangout = pageHelp:CreateFontString(nil, "ARTWORK")
+    hangout:SetFont(RETRO_FONT, 12, "OUTLINE")
+    hangout:SetPoint("TOPLEFT", 8, pageCursor[pageHelp])
+    hangout:SetText("Known Hangout:")
+    hangout:SetTextColor(unpack(COLOR_CYAN))
+    hangout:SetShadowOffset(1, -1); hangout:SetShadowColor(0, 0, 0, 1)
+
+    -- Clickable URL: white text with a Button overlay (FontStrings can't
+    -- take clicks). Click opens the copy-URL popup, same as the link rows.
+    local urlFS = pageHelp:CreateFontString(nil, "ARTWORK")
+    urlFS:SetFont(RETRO_FONT, 12, "OUTLINE")
+    urlFS:SetPoint("LEFT", hangout, "RIGHT", 6, 0)
+    urlFS:SetText(URL_DISCORD)
+    urlFS:SetTextColor(1, 1, 1)
+    urlFS:SetShadowOffset(1, -1); urlFS:SetShadowColor(0, 0, 0, 1)
+
+    local urlBtn = CreateFrame("Button", nil, pageHelp)
+    urlBtn:SetPoint("TOPLEFT", urlFS, "TOPLEFT", 0, 2)
+    urlBtn:SetPoint("BOTTOMRIGHT", urlFS, "BOTTOMRIGHT", 0, -2)
+    urlBtn:SetScript("OnClick", function()
+        StaticPopup_Show("RETRORUNS_DISCORD_URL", nil, nil, { url = URL_DISCORD })
+    end)
+    urlBtn:SetScript("OnEnter", function(self)
+        urlFS:SetTextColor(unpack(COLOR_CYAN))
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText("Copy the Discord invite", 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    urlBtn:SetScript("OnLeave", function()
+        urlFS:SetTextColor(1, 1, 1)
+        GameTooltip:Hide()
+    end)
+    pageCursor[pageHelp] = pageCursor[pageHelp] - (12 + 12)
 
     -- Section: Commands -----------------------------------------------------
     local cmdHeader = pageHelp:CreateFontString(nil, "ARTWORK")

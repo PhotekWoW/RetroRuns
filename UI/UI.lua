@@ -225,7 +225,7 @@ panel.logo:Hide()
 -- Title (two FontStrings, split only at colour boundary). Anchored to the
 -- panel's top-left now that the logo is hidden.
 panel.titleRetro = panel:CreateFontString(nil, "OVERLAY")
-panel.titleRetro:SetPoint("TOPLEFT", PAD_LEFT, -12 - FRAME_INSET_Y)
+panel.titleRetro:SetPoint("TOPLEFT", PAD_LEFT + 8, -12 - FRAME_INSET_Y)
 panel.titleRetro:SetFont(BODY_FONT, 12, "OUTLINE")
 panel.titleRetro:SetText("RETRO")
 panel.titleRetro:SetTextColor(unpack(C_PINK))
@@ -241,8 +241,20 @@ panel.titleRuns:SetShadowOffset(1, -1)
 panel.titleRuns:SetShadowColor(0, 0, 0, 1)
 
 -- Close button
-panel.closeButton = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
-panel.closeButton:SetPoint("TOPRIGHT", -4 - FRAME_INSET_X, -4 - FRAME_INSET_Y)
+-- Close button. Custom 20x20 frame (not Blizzard's UIPanelCloseButton,
+-- whose 32x32 frame and fixed red-X can't be themed) using the retro
+-- neon CloseIcon texture. Hover brightens via vertex color.
+panel.closeButton = CreateFrame("Button", nil, panel)
+panel.closeButton:SetSize(24, 24)
+panel.closeButton:SetPoint("TOPRIGHT", -10 - FRAME_INSET_X, -4 - FRAME_INSET_Y)
+do
+    local tex = panel.closeButton:CreateTexture(nil, "OVERLAY")
+    tex:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\CloseIcon")
+    tex:SetAllPoints(panel.closeButton)
+    panel.closeButton._tex = tex
+    panel.closeButton:SetScript("OnEnter", function(self) self._tex:SetVertexColor(1.4, 1.4, 1.4) end)
+    panel.closeButton:SetScript("OnLeave", function(self) self._tex:SetVertexColor(1, 1, 1) end)
+end
 panel.closeButton:SetScript("OnClick", function()
     RR:SetSetting("showPanel", false)
     panel:Hide()
@@ -265,13 +277,16 @@ end)
 -- Minimize / maximize button, sits left of the close X. 22x22 to
 -- visually match the close X's painted glyph (not its 32x32 frame).
 panel.minimizeButton = CreateFrame("Button", nil, panel)
-panel.minimizeButton:SetSize(22, 22)
-panel.minimizeButton:SetPoint("TOPRIGHT", -30 - FRAME_INSET_X, -4 - FRAME_INSET_Y)
-
-panel.minimizeButton:SetNormalTexture("Interface\\AddOns\\RetroRuns\\Media\\MinimizeIcon")
-panel.minimizeButton:SetPushedTexture("Interface\\AddOns\\RetroRuns\\Media\\MinimizeIcon")
-panel.minimizeButton:SetHighlightTexture(
-    "Interface\\Buttons\\CheckButtonHilight", "ADD")
+panel.minimizeButton:SetSize(24, 24)
+panel.minimizeButton:SetPoint("TOPRIGHT", -36 - FRAME_INSET_X, -4 - FRAME_INSET_Y)
+do
+    local tex = panel.minimizeButton:CreateTexture(nil, "OVERLAY")
+    tex:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\MinimizeIcon")
+    tex:SetAllPoints(panel.minimizeButton)
+    panel.minimizeButton._tex = tex
+    panel.minimizeButton:SetScript("OnEnter", function(self) self._tex:SetVertexColor(1.4, 1.4, 1.4) end)
+    panel.minimizeButton:SetScript("OnLeave", function(self) self._tex:SetVertexColor(1, 1, 1) end)
+end
 -- (OnClick handler wired further below, after UI.SetMinimized exists.)
 
 -- Test-mode label, positioned to clear both the close X and the
@@ -279,7 +294,7 @@ panel.minimizeButton:SetHighlightTexture(
 panel.mode = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 panel.mode:SetPoint("TOPRIGHT", -56 - FRAME_INSET_X, -14 - FRAME_INSET_Y)
 panel.mode:SetText("")
-panel.mode:SetFont(TITLE_FONT, 11, "OUTLINE")
+panel.mode:SetFont(TITLE_FONT, 9, "OUTLINE")
 panel.mode:SetShadowOffset(1, -1)
 panel.mode:SetShadowColor(0, 0, 0, 1)
 
@@ -332,8 +347,13 @@ panel.pillsHover:SetScript("OnLeave", function()
     end
 end)
 
-panel.progress  = AddField(panel.pills,    "TOPLEFT", "BOTTOMLEFT", -6,  BODY_WIDTH, "GameFontNormal")
+panel.progress  = AddField(panel.pills, "TOPLEFT", "BOTTOMLEFT", -6,  BODY_WIDTH, "GameFontNormal")
 panel.next      = AddField(panel.progress, "TOPLEFT", "BOTTOMLEFT", -8,  BODY_WIDTH, "GameFontNormal")
+-- Run-complete exit shortcut. Sits below panel.next with a slightly
+-- larger gap than the usual -8/-12 so there's a little breathing room
+-- under the "Run complete!" banner. Smaller font than the banner (see
+-- targets table). Only populated when the loaded raid authors an exitNote.
+panel.exitNote  = AddField(panel.next,     "TOPLEFT", "BOTTOMLEFT", -13, BODY_WIDTH, "GameFontNormalSmall")
 panel.travel    = AddField(panel.next,     "TOPLEFT", "BOTTOMLEFT", -12, BODY_WIDTH)
 
 -- Boss Encounter section. A wrapper Frame holding three stacked
@@ -893,7 +913,7 @@ end
 -- reserves space for both via PANEL_FOOTER_RESERVE.
 panel.credit = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 panel.credit:SetPoint("BOTTOMLEFT", PAD_LEFT, 8 + FRAME_INSET_Y)
-panel.credit:SetText("Created by |cff4DCCFFPhotek|r")
+panel.credit:SetText("")
 -- Footer credit: standard font, locked at construction (footer doesn't
 -- scale with the user's font slider).
 panel.credit:SetFont(BODY_FONT, 10, "")
@@ -998,28 +1018,57 @@ end
 -- Action button row: Map, Tmog, Achieves, Skips, Settings, evenly distributed
 -- across the panel width above the credit/version row. Map is the primary
 -- in-raid action; Tmog/Achieves/Skips are reference views; Settings is config.
--- UIPanelButtonTemplate, default font.
-local BUTTON_W   = 70
-local BUTTON_H   = 22
-local BUTTON_GAP = 6
+-- Square icon buttons (neon TGAs); a shared footnote below the row names the
+-- hovered button.
+local BUTTON_W   = 28
+local BUTTON_H   = 28
+local BUTTON_GAP = 14
 local TOTAL_W    = BUTTON_W * 5 + BUTTON_GAP * 4
 local START_X    = math.floor((PANEL_W - TOTAL_W) / 2)
-local BUTTON_Y   = 28 + FRAME_INSET_Y   -- pixels up from the panel's bottom edge (incl. frame inset)
+local BUTTON_Y   = 30 + FRAME_INSET_Y   -- pixels up from the panel's bottom edge (incl. frame inset)
 
-local function MakeActionButton(name, label, x, onClick)
+-- Shared one-line footnote shown above the hovered button. A single
+-- FontString reused by all five buttons: OnEnter re-anchors it above that
+-- button and sets the label; OnLeave clears it. Gray to match the credit row.
+panel.actionFootnote = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+panel.actionFootnote:SetText("")
+
+local function MakeActionButton(name, label, icon, x, onClick)
     local btn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     btn:SetSize(BUTTON_W, BUTTON_H)
     btn:SetPoint("BOTTOMLEFT", x, BUTTON_Y)
-    btn:SetText(label)
+    btn:SetText("")
+    -- Hide the template's button-face textures so only our icon shows.
+    if btn.SetNormalTexture     then btn:SetNormalTexture("")     end
+    if btn.SetPushedTexture     then btn:SetPushedTexture("")     end
+    if btn.SetHighlightTexture  then btn:SetHighlightTexture("")  end
+    if btn.SetDisabledTexture   then btn:SetDisabledTexture("")   end
+
+    local tex = btn:CreateTexture(nil, "OVERLAY")
+    tex:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\" .. icon)
+    tex:SetAllPoints(btn)
+    btn._tex  = tex
+    btn._label = label
+
+    btn:SetScript("OnEnter", function(self)
+        self._tex:SetVertexColor(1.4, 1.4, 1.4)
+        panel.actionFootnote:ClearAllPoints()
+        panel.actionFootnote:SetPoint("BOTTOM", self, "TOP", 0, 3)
+        panel.actionFootnote:SetText(self._label)
+    end)
+    btn:SetScript("OnLeave", function(self)
+        self._tex:SetVertexColor(1, 1, 1)
+        panel.actionFootnote:SetText("")
+    end)
     btn:SetScript("OnClick", onClick)
     return btn
 end
 
-panel.mapBtn = MakeActionButton("Map", "Map",
+panel.mapBtn = MakeActionButton("Map", "Map", "MapIcon.tga",
     START_X,
     function() RR:ShowCurrentMapForStep() end)
 
-panel.tmogBtn = MakeActionButton("Tmog", "Tmog",
+panel.tmogBtn = MakeActionButton("Tmog", "Tmog", "HangerIcon.tga",
     START_X + (BUTTON_W + BUTTON_GAP) * 1,
     function()
         -- When in a supported raid, default the browser to that raid +
@@ -1036,7 +1085,7 @@ panel.tmogBtn = MakeActionButton("Tmog", "Tmog",
         UI.ToggleTransmogBrowser()
     end)
 
-panel.achievesBtn = MakeActionButton("Achieves", "Achieves",
+panel.achievesBtn = MakeActionButton("Achieves", "Achieves", "TrophyIcon.tga",
     START_X + (BUTTON_W + BUTTON_GAP) * 2,
     function()
         -- When in a supported raid, default the dropdowns to that raid
@@ -1050,11 +1099,11 @@ panel.achievesBtn = MakeActionButton("Achieves", "Achieves",
         UI.ToggleAchievementsWindow()
     end)
 
-panel.skipsBtn = MakeActionButton("Skips", "Skips",
+panel.skipsBtn = MakeActionButton("Skips", "Skips", "SkipIcon.tga",
     START_X + (BUTTON_W + BUTTON_GAP) * 3,
     function() UI.ToggleSkipsWindow() end)
 
-panel.settingsBtn = MakeActionButton("Settings", "Settings",
+panel.settingsBtn = MakeActionButton("Settings", "Settings", "SettingsIcon.tga",
     START_X + (BUTTON_W + BUTTON_GAP) * 4,
     function() UI.ToggleSettings() end)
 
@@ -1127,6 +1176,7 @@ function UI.ApplySettings()
         { panel.pills,      11, "",        true },
         { panel.progress,   14, "OUTLINE", true },
         { panel.next,       14, "OUTLINE", true },
+        { panel.exitNote,   11, "",        true },
         { panel.travel,     12, "",        true },
         { panel.encounter.header.label,       12, "", true },
         { panel.encounter.achievements.label, 12, "", true },
@@ -1225,24 +1275,20 @@ function UI.ApplySettings()
     -- ate them, which is why the menus "wouldn't expand inside a raid."
     -- Gate on a change to scale or font size so a shown window only
     -- rebuilds when the layout inputs change, leaving toggle clicks intact.
-    -- ALSO refresh when the current-raid context changes: the current
-    -- raid's expansion auto-expands (a live check in BuildSkipsRows), so
-    -- zoning in or out of a raid needs one rebuild for the auto-expand to
-    -- follow. Keyed on instanceID (nil when not in a raid) -- a zone-out
-    -- flips it to nil and collapses the section; this is a discrete
-    -- change, not a per-tick one, so it doesn't reintroduce the
-    -- click-eating churn.
+    -- ALSO reset the expand state when the current-raid context changes,
+    -- so expands don't carry across a zone-in/out. Keyed on instanceID
+    -- (nil when not in a raid) -- a discrete change, not a per-tick one,
+    -- so it doesn't reintroduce the click-eating churn.
     if skipsWindow then
         skipsWindow:SetScale(scale)
 
         -- Track the raid-context transition regardless of whether the
-        -- window is shown. A raid change clears the explicit collapse
-        -- choices so the next render resets to a clean state (only the
-        -- current raid's expansion auto-opens). This MUST run even while
-        -- the window is closed -- otherwise expanding a few sections,
-        -- closing the window, then zoning out would leave those stale
-        -- expands to reappear when the window is reopened in the idle
-        -- state, because the reset never fired.
+        -- window is shown. A raid change clears the explicit expand
+        -- choices so the next render resets to a clean all-collapsed
+        -- state. This MUST run even while the window is closed --
+        -- otherwise expanding a few sections, closing the window, then
+        -- zoning out would leave those stale expands to reappear when
+        -- the window is reopened, because the reset never fired.
         local raidKey = RR.currentRaid and RR.currentRaid.instanceID or nil
         if skipsWindow._lastRaidKey ~= raidKey then
             skipsWindow._lastRaidKey = raidKey
@@ -1363,7 +1409,7 @@ end
 -- which makes the bar feel less cramped than a flush 50. The minimized bar
 -- art has thin top/bottom edges, so it doesn't take the full panel inset --
 -- the title/buttons are re-centered for the bar in ApplyMinimizedState.
-local MINIMIZED_PANEL_H = 52
+local MINIMIZED_PANEL_H = 44
 
 function UI.IsMinimized()
     return RR:GetSetting("minimized") and true or false
@@ -1383,6 +1429,7 @@ local function GetBodyAndFooterElements()
         panel.toastStatus,
         panel.mapBtn, panel.tmogBtn, panel.achievesBtn,
         panel.skipsBtn, panel.settingsBtn,
+        panel.actionFootnote,
     }
     return list
 end
@@ -1429,22 +1476,17 @@ local function ApplyBodyVisibility(visible)
 end
 
 -- Update the minimize button's texture based on current minimized state.
--- Two custom TGAs in Media/: MinimizeIcon (gold horizontal bar -- shown
--- when expanded, click to minimize) and MaximizeIcon (gold open square
--- -- shown when minimized, click to expand back). Texture swaps cover
--- both Normal and Pushed states so the pressed-frame transition uses
--- the same icon (no Blizzard-style "icon dimmed while pressed" effect
--- needed for a momentary toggle).
+-- MinimizeIcon shows when expanded (click to minimize); MaximizeIcon
+-- shows when minimized (click to expand). Swaps the single _tex texture.
 local function UpdateMinimizeIcon()
-    if not panel.minimizeButton then return end
+    if not panel.minimizeButton or not panel.minimizeButton._tex then return end
     local tex
     if UI.IsMinimized() then
         tex = "Interface\\AddOns\\RetroRuns\\Media\\MaximizeIcon"
     else
         tex = "Interface\\AddOns\\RetroRuns\\Media\\MinimizeIcon"
     end
-    panel.minimizeButton:SetNormalTexture(tex)
-    panel.minimizeButton:SetPushedTexture(tex)
+    panel.minimizeButton._tex:SetTexture(tex)
 end
 
 -- Compute the panel width needed to display just the title bar content
@@ -1535,19 +1577,17 @@ local function ApplyTitleLayoutForState(minimized)
         -- buttons are centered in the bar's interior regardless of the border
         -- thickness. Offsets are in each element's own scaled space, so divide
         -- the desired screen clearance by the scale.
-        local titleEdge = 26 / s   -- ~26px screen clearance so the title clears the corner art
-        local btnEdge   = 16 / s   -- buttons sit a bit closer to the right corner
+        local titleEdge = 20 / s   -- screen clearance so the title clears the corner art
+        local btnEdge   = 18 / s   -- buttons sit a bit closer to the right corner
         panel.titleRetro:ClearAllPoints()
         panel.titleRetro:SetPoint("LEFT", panel, "LEFT", titleEdge, 0)
         panel.closeButton:ClearAllPoints()
         panel.closeButton:SetPoint("RIGHT", panel, "RIGHT", -btnEdge, 0)
         -- Center the minimize button on the close button's CENTER so the two
-        -- sit at exactly the same height despite differing frame sizes (close is
-        -- a 32px frame, minimize 22px). The x-offset tucks them close together
-        -- (~half each frame plus a small gap), in the minimize button's scaled
-        -- space.
+        -- sit at exactly the same height. Both are 24px frames; the x-offset
+        -- tucks them together with a small gap.
         panel.minimizeButton:ClearAllPoints()
-        panel.minimizeButton:SetPoint("CENTER", panel.closeButton, "CENTER", -26, 0)
+        panel.minimizeButton:SetPoint("CENTER", panel.closeButton, "CENTER", -30, 0)
     else
         -- Expanded panel: same compact scale as the minimized bar, and the
         -- title row placed at the SAME distance from the top border as the
@@ -1558,16 +1598,18 @@ local function ApplyTitleLayoutForState(minimized)
         panel.titleRuns:SetScale(s)
         panel.closeButton:SetScale(s)
         panel.minimizeButton:SetScale(s)
-        -- The minimized bar centers the title at MINIMIZED_PANEL_H/2 below the
-        -- panel top; reuse that exact center Y here so the top margin matches.
-        local rowCenterY = -(MINIMIZED_PANEL_H / 2)   -- screen Y of the title row center
+        -- Expanded panel: the title row sits a fixed distance below the top
+        -- border. This is independent of MINIMIZED_PANEL_H so tightening the
+        -- minimized bar doesn't pull the expanded title up into the corner
+        -- art (the two states have different frames and margins).
+        local expandedRowCenterY = -26
         panel.closeButton:ClearAllPoints()
-        panel.closeButton:SetPoint("RIGHT", panel, "TOPRIGHT", (-16) / s, rowCenterY / s)
+        panel.closeButton:SetPoint("RIGHT", panel, "TOPRIGHT", (-22) / s, expandedRowCenterY / s)
         panel.minimizeButton:ClearAllPoints()
-        panel.minimizeButton:SetPoint("CENTER", panel.closeButton, "CENTER", -26, 0)
+        panel.minimizeButton:SetPoint("CENTER", panel.closeButton, "CENTER", -30, 0)
         -- Title: left-anchored, vertical center matched to the button row center.
         panel.titleRetro:ClearAllPoints()
-        panel.titleRetro:SetPoint("LEFT", panel, "TOPLEFT", PAD_LEFT / s, rowCenterY / s)
+        panel.titleRetro:SetPoint("LEFT", panel, "TOPLEFT", PAD_LEFT / s, expandedRowCenterY / s)
     end
 end
 
@@ -1736,8 +1778,9 @@ function UI.AutoSize()
         local isInRaidMode         = #panel.progressListLines > 0
         local footerReserve
         if isInRaidMode then
-            -- No legend in-raid; small cushion above the action buttons.
-            footerReserve = buttonsTopFromBottom + 7
+            -- In-raid reserve: button row plus a footnote line above it.
+            local FOOTNOTE_RESERVE = GetBodyFontSize(10) + 12
+            footerReserve = buttonsTopFromBottom + FOOTNOTE_RESERVE
         else
             -- Must mirror RefreshIdleList's legend constants so the two stay
             -- in sync. The legend block bottom sits at LEGEND_BOTTOM_OFFSET
@@ -4859,6 +4902,13 @@ local SKIP_MARKER_DIM      = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_
 local SKIP_MARKER_LED      = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:12:12|t"
 local SKIP_MARKER_LED_DIM  = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:12:12:0:0:64:64:0:64:0:64:80:80:80|t"
 local SKIP_MARKER_LED_NONE = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:12:12:0:0:64:64:0:64:0:64:0:0:0:0|t"
+-- Row variants: the idle-list raid rows render at the body font (12+),
+-- the legend at LEGEND_FONT_SIZE (10), so the same texture px reads
+-- larger on the rows. These row markers are sized down to land at the
+-- legend star's apparent size at the default font.
+local SKIP_MARKER_ROW      = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:10:10|t"
+local SKIP_MARKER_ROW_DIM  = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:10:10:0:0:64:64:0:64:0:64:80:80:80|t"
+local SKIP_MARKER_ROW_NONE = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:10:10:0:0:64:64:0:64:0:64:0:0:0:0|t"
 
 -- Inline texture marker matching the entrance-navigation buttons.
 local ENTRANCE_MARKER = "|TInterface\\Minimap\\Tracking\\FlightMaster:12:12|t"
@@ -5011,26 +5061,28 @@ local SKIPS_ROW_DIVIDER_INSET = 5
 -- meaning is consistent with how collected/uncollected appearances
 -- are rendered elsewhere in the addon. Both textures are natively
 -- 14x14 from the RaidFrame family so column widths stay even.
-local SKIPS_CELL_UNLOCKED = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
--- yOffset (4th numeric field, after height:width:xOff) nudges the red X
--- down slightly so it sits on the same visual midline as the row name and
--- the green check. The NotReady texture renders a touch high inside its
--- 14x14 box compared to Ready; this corrects only the X.
-local SKIPS_CELL_LOCKED   = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14:0:-2|t"
--- BfD-only: the achievement-gated skip is Mythic-only, so the Normal
--- and Heroic columns are not applicable. Rendered as a muted "N/A" to
--- communicate "no skip exists at this difficulty" rather than "skip
--- exists but you haven't unlocked it yet" (which is what the locked-X
--- means in the other two states).
-local SKIPS_CELL_NA       = "|cff888888N/A|r"
+-- Skips-window cell glyphs. Each per-difficulty cell paints one of
+-- these. The dots form a severity ramp:
+--   Gray    N/A      -- no skip exists at this difficulty
+--   White   Locked   -- skip exists here, not yet unlocked
+--   Green   Unlocked -- unlocked at this difficulty
+-- Rendered from the white StatusDot texture vertex-tinted per state, so
+-- they're font-independent (a typographic bullet renders as a missing
+-- glyph in pixel fonts like VT323).
+local function StatusDotGlyph(r, g, b)
+    return ("|TInterface\\AddOns\\RetroRuns\\Media\\StatusDot:10:10:0:0:64:64:0:64:0:64:%d:%d:%d|t"):format(r, g, b)
+end
+local SKIPS_CELL_NA       = StatusDotGlyph(80, 80, 80)
+local SKIPS_CELL_LOCKED   = StatusDotGlyph(255, 255, 255)
+local SKIPS_CELL_UNLOCKED = StatusDotGlyph(51, 204, 85)
 -- Unknown state: used by the Siege of Orgrimmar Garrosh scroll when no
 -- account-wide achievement proves a kill and the current character's
 -- kill statistics are all zero. The skip may still be unlocked by a kill
 -- on another character that left no readable account-wide trace, so this
--- communicates "can't determine" rather than the locked-X's "not
--- unlocked." Waiting texture from the same RaidFrame family as the check
--- and X so column widths and the visual midline stay consistent.
-local SKIPS_CELL_UNKNOWN  = "|TInterface\\RaidFrame\\ReadyCheck-Waiting:14:14|t"
+-- communicates "can't determine" rather than locked. Shrunk to ~dot size
+-- so it reads as one entry in the same glyph ramp.
+local SKIPS_CELL_UNKNOWN  = "|TInterface\\RaidFrame\\ReadyCheck-Waiting:10:10|t"
+
 
 local GetOrCreateSkipsWindow
 
@@ -5063,12 +5115,17 @@ local function BuildSkipsRows()
         -- Skip incomplete entries (instanceID = 0); they have no resolved
         -- journal IDs and would render as all-dash pills.
         if raid.instanceID and raid.instanceID > 0 then
-            local exp = raid.expansion or "Unknown"
+            -- Faction-aware swap: a Horde player with Horde-specific data
+            -- for a raid (currently only BfD) uses that instead of the
+            -- shared Alliance copy, so the skip trigger names the correct
+            -- faction's NPC. Mirrors BuildIdleListRows.
+            local resolved = RR:GetRaidByInstanceID(raid.instanceID) or raid
+            local exp = resolved.expansion or "Unknown"
             if not byExp[exp] then
                 byExp[exp] = {}
                 table.insert(expOrder, exp)
             end
-            table.insert(byExp[exp], raid)
+            table.insert(byExp[exp], resolved)
         end
     end
 
@@ -5103,12 +5160,15 @@ local function BuildSkipsRows()
     -- refresh. A manual collapse still wins (the explicit false in the
     -- table overrides the auto-open) so the user can close the current
     -- raid's section if they want.
+    -- Session-scoped expand state. true = user expanded, false/nil =
+    -- collapsed. Single-expand accordion, matching the idle list: opening
+    -- one section closes the others, but a section never auto-opens, so
+    -- the clicked +/- button keeps its screen position across a refresh
+    -- (nothing above the click changes height). Spam-clicking the same
+    -- toggle stays under the cursor.
     local expandedState = (RR.state and RR.state.skipsExpandedExpansions) or {}
-    local currentExp = RR.currentRaid and RR.currentRaid.expansion or nil
     local function isExpanded(exp)
-        local explicit = expandedState[exp]
-        if explicit ~= nil then return explicit end
-        return exp == currentExp
+        return expandedState[exp] == true
     end
 
     for _, exp in ipairs(expOrder) do
@@ -5464,32 +5524,16 @@ local function RefreshSkipsContent()
             SetSkipsToggleTextures(btn, shown)
             btn:ClearAllPoints()
             btn:SetPoint("LEFT", slot.expHeader, "LEFT", 0, 0)
-            local autoExp = RR.currentRaid and RR.currentRaid.expansion or nil
             btn:SetScript("OnClick", function()
                 RR.state = RR.state or {}
-                -- Single-expand accordion: opening one expansion closes
-                -- any other that's currently open, matching the main-UI
-                -- idle list. Keeps the window short and focused.
-                --
-                -- Toggle decision keys on the DISPLAYED state (shown), not
-                -- the raw table value, so the first click on an
-                -- auto-expanded current-raid section correctly collapses
-                -- it even though its table entry was still nil.
-                --
-                -- Reset everything to a clean slate, then re-open just the
-                -- clicked section if it wasn't already open. Because the
-                -- current raid's section auto-opens via the live isExpanded
-                -- check when its table entry is nil, an empty table would
-                -- leave that section open alongside the one just clicked.
-                -- To keep the accordion to one open section, pin the
-                -- auto-open expansion to an explicit false unless it's the
-                -- one being opened.
+                -- Single-expand accordion, identical to the idle list:
+                -- close everything, then re-open the clicked section
+                -- unless it was already open (click-to-collapse).
+                local already = RR.state.skipsExpandedExpansions
+                                and RR.state.skipsExpandedExpansions[exp]
                 RR.state.skipsExpandedExpansions = {}
-                if not shown then
+                if not already then
                     RR.state.skipsExpandedExpansions[exp] = true
-                end
-                if autoExp and autoExp ~= exp then
-                    RR.state.skipsExpandedExpansions[autoExp] = false
                 end
                 RefreshSkipsContent()
             end)
@@ -5565,15 +5609,17 @@ local function RefreshSkipsContent()
                 slot.infoBtn:Show()
             end
 
-            -- Tri-state cell renderer: true = unlocked checkmark,
-            -- false = locked X, "na" = dim dash (no skip exists at this
-            -- difficulty). The "na" state is only used for BfD's
-            -- Mythic-only achievement-gated skip, where the Normal and
-            -- Heroic columns are not applicable.
+            -- Cell renderer. States map to the dot ramp:
+            --   "na" -> gray (no skip at this difficulty)
+            --   "?"  -> unknown glyph (Garrosh undeterminable)
+            --   true -> green (unlocked)
+            --   false -> white (locked: exists but not unlocked)
             local function cellText(v)
                 if v == "na" then return SKIPS_CELL_NA end
                 if v == "?" then return SKIPS_CELL_UNKNOWN end
-                if v then return SKIPS_CELL_UNLOCKED end
+                if v then
+                    return SKIPS_CELL_UNLOCKED
+                end
                 return SKIPS_CELL_LOCKED
             end
 
@@ -5680,7 +5726,27 @@ local function RefreshSkipsContent()
     local desired = lastY + 14 + disclaimerH + 14
     local clamped = math.max(SKIPS_WINDOW_MIN_HEIGHT,
                              math.min(SKIPS_WINDOW_MAX_HEIGHT, desired))
+
+    -- TOP-PIN (in place): keep the window's top-left corner at its current
+    -- screen position across the resize so it grows downward only and never
+    -- jumps. Dragging the frame (StartMoving) converts its anchor to a
+    -- CENTER-relative point; a bare SetHeight then splits the height delta
+    -- above and below center, moving the expansion +/- buttons out from
+    -- under the cursor. Re-anchoring TOPLEFT to the captured screen
+    -- position fixes that without snapping the window back to the panel,
+    -- so a user-dragged position is preserved.
+    --
+    -- GetTop/GetLeft and the SetPoint offset both live in the frame's own
+    -- scaled coord space, and UIParent BOTTOMLEFT is the origin, so the
+    -- captured values can be used directly as the anchor offset at any
+    -- window-scale setting.
+    local oldTop  = w:GetTop()
+    local oldLeft = w:GetLeft()
     w:SetHeight(clamped)
+    if oldTop and oldLeft then
+        w:ClearAllPoints()
+        w:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", oldLeft, oldTop)
+    end
 end
 
 GetOrCreateSkipsWindow = function()
@@ -5739,12 +5805,16 @@ GetOrCreateSkipsWindow = function()
 
     -- Disclaimer at the bottom. Anchored dynamically by RefreshSkipsContent
     -- after the last row, so no fixed position here.
+    -- Footer legend: the four cell-dot states plus the info-button note.
+    -- Dots reuse the cell glyph constants so the key always matches what
+    -- the rows paint. The "?" unknown state is intentionally omitted.
     local disclaimer = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     disclaimer:SetJustifyH("LEFT")
     disclaimer:SetWordWrap(true)
-    disclaimer:SetText("|cffffd200Note:|r |cff9d9d9dInformational Only|r "
-                    .. "|cff7faaff[ i ]|r |cff9d9d9d-- "
-                    .. "No skip routing in place|r")
+    disclaimer:SetText(
+        SKIPS_CELL_NA       .. " |cff9d9d9dN/A|r    "
+     .. SKIPS_CELL_LOCKED   .. " |cff9d9d9dLocked|r    "
+     .. SKIPS_CELL_UNLOCKED .. " |cff9d9d9dUnlocked|r")
     f.disclaimer = disclaimer
 
     f.RefreshContent = RefreshSkipsContent
@@ -5763,6 +5833,17 @@ function UI.OpenSkipsWindow()
     if achievementsWindow and achievementsWindow:IsShown() then achievementsWindow:Hide() end
 
     local w = GetOrCreateSkipsWindow()
+
+    -- Snap to the current raid: opening the window while in a supported
+    -- raid expands that raid's expansion section. Seeded only here, at
+    -- open time, so the accordion still governs subsequent toggles.
+    if RR.currentRaid and RR.currentRaid.expansion then
+        RR.state = RR.state or {}
+        RR.state.skipsExpandedExpansions = { [RR.currentRaid.expansion] = true }
+        -- Mark the raid context as seen so the settings heartbeat doesn't
+        -- treat the new window's nil _lastRaidKey as a transition.
+        w._lastRaidKey = RR.currentRaid.instanceID
+    end
 
     -- Apply current settings (scale + font) before refreshing so the
     -- first visible state already matches the user's settings rather
@@ -5986,7 +6067,7 @@ local function BuildIdleListRows()
         local hasSkipMechanic = RR:RaidHasSkipMechanic(raid)
         local leading
         if not hasSkipMechanic then
-            leading = SKIP_MARKER_LED_NONE
+            leading = SKIP_MARKER_ROW_NONE
         else
             -- Per-chain ceilings when the raid uses skipQuests; nil for
             -- achievement-gated skips (handled by the single-marker
@@ -5998,14 +6079,14 @@ local function BuildIdleListRows()
                 -- space so the diamonds read as a pair, not one glyph.
                 local parts = {}
                 for _, c in ipairs(chainStates) do
-                    parts[#parts + 1] = c.ceiling and SKIP_MARKER_LED or SKIP_MARKER_LED_DIM
+                    parts[#parts + 1] = c.ceiling and SKIP_MARKER_ROW or SKIP_MARKER_ROW_DIM
                 end
                 leading = table.concat(parts, " ")
             else
                 -- Single-chain or achievement-gated: one marker driven by
                 -- the raid-wide ceiling, as before.
                 local ceiling = RR:GetRaidSkipUnlockedCeiling(raid)
-                leading = ceiling and SKIP_MARKER_LED or SKIP_MARKER_LED_DIM
+                leading = ceiling and SKIP_MARKER_ROW or SKIP_MARKER_ROW_DIM
             end
         end
 
@@ -6135,6 +6216,18 @@ RefreshIdleList = function()
     -- in-raid boss-progress list (if any was on screen) needs to go.
     if panel.list then panel.list:SetText("") end
     ReleaseProgressListLines()
+
+    -- Collapse all expansions on a raid-context change (run start, run
+    -- complete, or zone out), so the run-complete and idle lists open
+    -- fully collapsed. Keyed on instanceID (nil when not in a raid) so it
+    -- fires once per transition, not every refresh tick -- otherwise a
+    -- user expand would be cleared on the next tick.
+    local idleRaidContext = RR.currentRaid and RR.currentRaid.instanceID or nil
+    if panel._lastIdleRaidContext ~= idleRaidContext then
+        panel._lastIdleRaidContext = idleRaidContext
+        RR.state = RR.state or {}
+        RR.state.expandedExpansions = {}
+    end
 
     -- Build the rows first (cheap, pure-data pass) so we can fingerprint
     -- before touching any widgets. If the fingerprint matches the last
@@ -6521,7 +6614,20 @@ function UI.Update()
     local loaded = raid and RR.state.loadedRaidKey == RR:GetRaidContextKey()
     local step   = loaded and (RR.state.activeStep or RR:ComputeNextStep()) or nil
 
-    panel.mode:SetText(RR.state.testMode and "|cffffff00[ TEST MODE ]|r" or "")
+    -- Title-bar mode slot: skip route only, as a compact cyan [ SKIP ]
+    -- marker. Standard runs leave it blank. Test mode shows next to the
+    -- Boss Progress header instead (set in the in-progress branch).
+    -- Anchor live here (not just at construction) so position changes
+    -- take effect on refresh; ClearAllPoints first since SetPoint stacks.
+    -- Footer left slot. In an active raid it shows the current route; when
+    -- idle it shows the author credit.
+    if raid and loaded then
+        local routeLabel = (RR.state.activeRouteVariant == "skip")
+            and "|cff00ffffSkip|r" or "|cff00ff00Standard|r"
+        panel.credit:SetText("|cff9d9d9dRoute:|r " .. routeLabel)
+    else
+        panel.credit:SetText("Created by |cff4DCCFFPhotek|r")
+    end
 
     if raid and loaded then
         -- The raid name line shows just the raid name; per-difficulty kill
@@ -6606,6 +6712,8 @@ function UI.Update()
             -- so the still-working browsers remain one click away.
             panel.next:SetText("|cffff9333RetroRuns doesn't support routing for LFR yet.|r")
             panel.travel:SetText("")
+            panel.exitNote:SetText("")
+            panel.exitNote:Hide()
             panel.encounter.header.label:SetText("")
             panel.encounter.header.clickable = false
             panel.encounter.header:EnableMouse(false)
@@ -6618,10 +6726,10 @@ function UI.Update()
             panel.transmog:EnableMouse(false)
             panel.transmog:Hide()
 
-            -- Map button does nothing without an active routing step.
-            -- Gray it out to match the idle / run-complete states.
-            panel.mapBtn:Disable()
-            panel.mapBtn:SetAlpha(0.45)
+            -- Map button stays active: with no routing step it opens the
+            -- world map at the player's current location.
+            panel.mapBtn:Enable()
+            panel.mapBtn:SetAlpha(1)
 
             -- Release any list widgets left over from a prior in-progress
             -- pass; nothing to render in their place.
@@ -6646,6 +6754,8 @@ function UI.Update()
             -- the prefix label white so the boss-name color is unchanged.
             panel.next:SetText("|cffffffffBoss:|r " .. (boss and boss.name or "Unknown"))
             panel.travel:SetText(BuildTravelText(step))
+            panel.exitNote:SetText("")
+            panel.exitNote:Hide()
             local headerText, achText, specialText, encClickable = BuildEncounterText(step)
 
             -- Header sub-widget: shows the Boss Encounter line; OnClick
@@ -6708,7 +6818,11 @@ function UI.Update()
             -- checklist.
             panel.listHeader:ClearAllPoints()
             panel.listHeader:SetPoint("TOPLEFT", panel.transmog, "BOTTOMLEFT", 0, -12)
-            panel.listHeader:SetText("Boss Progress")
+            if RR.state.testMode then
+                panel.listHeader:SetText("Boss Progress  |cffffff00[ TEST MODE ]|r")
+            else
+                panel.listHeader:SetText("Boss Progress")
+            end
             -- Render the boss list as per-line FontStrings rather than
             -- one multi-line FontString, matching the idle-list
             -- architecture. No click overlays on these rows today, but
@@ -6757,24 +6871,49 @@ function UI.Update()
             -- green "Run complete!" -- the user might have killed
             -- all the steps that exist and still have more boss work
             -- ahead of them per the bosses[] count.
-            local routingCount = (RR.currentRaid
-                and type(RR.currentRaid.routing) == "table"
-                and #RR.currentRaid.routing) or 0
-            local bossCount = (RR.currentRaid
-                and type(RR.currentRaid.bosses) == "table"
-                and #RR.currentRaid.bosses) or 0
-            local hasRouting = bossCount > 0 and routingCount >= bossCount
+            -- Completion keys off whether every boss in the active route
+            -- is dead (IsActiveRouteComplete), not a step-count comparison.
+            -- That way a skip route -- which has fewer steps than the raid
+            -- has bosses -- reaches "complete" when its final boss dies,
+            -- instead of never satisfying routingCount >= bossCount. An
+            -- empty/unauthored route returns false, preserving the
+            -- "not yet captured" state for in-development bring-ups.
+            local routeComplete = RR.IsActiveRouteComplete and RR:IsActiveRouteComplete()
+            local isSkip = RR.state and RR.state.activeRouteVariant == "skip"
 
-            -- Run-complete state: every boss in this lockout cleared.
-            -- Drops the Travel line, re-anchors listHeader directly
-            -- under panel.next, and shows the idle per-raid pill list
-            -- instead of the boss checklist. Uncaptured-raid state
-            -- (hasRouting=false) uses the same layout with different
-            -- text.
-            if hasRouting then
-                panel.next:SetText("|cff00ff00Run complete!|r")
+            -- Run-complete state: every boss in the active route cleared.
+            -- Drops the Travel line, re-anchors listHeader under the exit
+            -- note (or panel.next when there's no exit note), and shows the
+            -- idle per-raid pill list instead of the boss checklist.
+            -- Uncaptured-raid state (routeComplete=false) uses the same
+            -- layout with different text.
+            if routeComplete then
+                if isSkip then
+                    panel.next:SetText("|cff00ff00Skip Run Complete!|r")
+                else
+                    panel.next:SetText("|cff00ff00Run complete!|r")
+                end
+                -- Optional per-raid exit note, shown below the banner with an
+                -- inline exit glyph. Only shown when the raid provides one.
+                local exitNote = raid and raid.exitNote
+                if exitNote and exitNote ~= "" then
+                    local exitFontSize = RR:GetSetting("fontSize", 12)
+                    local exitGlyphSize = exitFontSize + 3
+                    panel.exitNote:SetText(
+                        ("|TInterface\\AddOns\\RetroRuns\\Media\\ExitIcon:%d:%d:0:-1:64:64:0:64:0:64:242:89:199|t ")
+                            :format(exitGlyphSize, exitGlyphSize) ..
+                        "|cfff259c7Exit Note:|r " .. HighlightNames(exitNote))
+                    panel.exitNote:SetTextColor(1, 1, 1)
+                    SetBodyFont(panel.exitNote, exitFontSize, "")
+                    panel.exitNote:Show()
+                else
+                    panel.exitNote:SetText("")
+                    panel.exitNote:Hide()
+                end
             else
                 panel.next:SetText("|cffff9333Routing data not yet captured for this raid.|r")
+                panel.exitNote:SetText("")
+                panel.exitNote:Hide()
             end
             panel.travel:SetText("")
             panel.encounter.header.label:SetText("")
@@ -6791,15 +6930,17 @@ function UI.Update()
             panel.transmog:EnableMouse(false)
             panel.transmog:Hide()
 
-            -- Map button does nothing in the run-complete state (no
-            -- active step means no segments to draw). Gray it out
-            -- the same way the idle state does, so the dead-button
-            -- click is visually flagged as unavailable.
-            panel.mapBtn:Disable()
-            panel.mapBtn:SetAlpha(0.45)
+            -- Map button stays active: it opens the world map at the
+            -- player's current location even with no active step.
+            panel.mapBtn:Enable()
+            panel.mapBtn:SetAlpha(1)
 
             panel.listHeader:ClearAllPoints()
-            panel.listHeader:SetPoint("TOPLEFT", panel.next, "BOTTOMLEFT", 0, -12)
+            if panel.exitNote:IsShown() then
+                panel.listHeader:SetPoint("TOPLEFT", panel.exitNote, "BOTTOMLEFT", 0, -12)
+            else
+                panel.listHeader:SetPoint("TOPLEFT", panel.next, "BOTTOMLEFT", 0, -12)
+            end
             panel.listHeader:SetText("|cff9d9d9dWhere to next:|r")
             RefreshIdleList()
         end
@@ -6833,6 +6974,8 @@ function UI.Update()
         end
 
         panel.travel:SetText("")
+        panel.exitNote:SetText("")
+        panel.exitNote:Hide()
         panel.encounter.header.label:SetText("")
         panel.encounter.header.clickable = false
         panel.encounter.header:EnableMouse(false)
@@ -6868,8 +7011,8 @@ function UI.Update()
         -- so hiding panel.transmog no longer orphans anything.
         panel.encounter:Hide()
         panel.transmog:Hide()
-        panel.mapBtn:Disable()
-        panel.mapBtn:SetAlpha(0.45)
+        panel.mapBtn:Enable()
+        panel.mapBtn:SetAlpha(1)
     end
 
     -- Refresh achievements window if open. Route-progress changes shift
@@ -6970,6 +7113,27 @@ StaticPopupDialogs["RETRORUNS_BUG_URL"] = {
     EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
 }
 
+StaticPopupDialogs["RETRORUNS_DISCORD_URL"] = {
+    text         = "Known Hangout\n\nDiscord invite URL (Ctrl+C to copy):",
+    button1      = OKAY or "Okay",
+    hasEditBox   = true,
+    editBoxWidth = 280,
+    timeout      = 0,
+    whileDead    = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+    OnShow = function(self, data)
+        local url = (data and data.url) or ""
+        local eb = self.EditBox or self.editBox
+        if eb then
+            eb:SetText(url)
+            eb:HighlightText()
+            eb:SetFocus()
+        end
+    end,
+    EditBoxOnEnterPressed = function(self) self:GetParent():Hide() end,
+    EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+}
 -- Skip-trigger popup, shown from each Skips-window row's info icon.
 -- Body: Quest / Quest IDs / Skip Details labeled lines. Quest IDs
 -- are derived from raid.skipQuests at render time (clickable hyperlinks
@@ -7295,6 +7459,160 @@ function UI.ToggleSkipDetail(raid)
         return
     end
     UI.ShowSkipDetail(raid)
+end
+
+function UI._GetOrCreateLoadDialog()
+    if UI._loadDialogFrame then return UI._loadDialogFrame end
+
+    local LOAD_DIALOG_BASE = "LOADING"
+
+    local f = CreateFrame("Frame", "RetroRunsLoadDialog", UIParent, "BackdropTemplate")
+    f.loadBase = LOAD_DIALOG_BASE
+    f:SetSize(340, 175)
+    f:SetBackdrop(PanelBackdrop(PANEL_EDGE_SIZE_FULL))
+    f:SetBackdropColor(1, 1, 1, RR:GetSetting("panelOpacity", 1.0))
+    f:SetBackdropBorderColor(1, 1, 1, 1)
+    f:SetFrameStrata("FULLSCREEN_DIALOG")
+    f:SetPoint("CENTER", UIParent, "CENTER", 0, 240)
+    f:EnableMouse(true)
+    f:SetClampedToScreen(true)
+
+    -- RETRORUNS wordmark, retro font, two-tone like the panel title.
+    -- Larger than the raid name below it. Pulled in from the top border.
+    local brand = f:CreateFontString(nil, "OVERLAY")
+    brand:SetFont(TITLE_FONT, 22, "OUTLINE")
+    brand:SetPoint("TOP", f, "TOP", 0, -24)
+    brand:SetText("|cffF259C7RETRO|r|cff4DCCFFRUNS|r")
+    f.brand = brand
+
+    -- Raid name (replaces "Route data found for:"), retro font, smaller
+    -- than the wordmark above.
+    local raidName = f:CreateFontString(nil, "OVERLAY")
+    raidName:SetFont(TITLE_FONT, 13, "")
+    raidName:SetPoint("TOP", brand, "BOTTOM", 0, -14)
+    raidName:SetWidth(300)
+    raidName:SetWordWrap(true)
+    raidName:SetJustifyH("CENTER")
+    raidName:SetTextColor(1, 1, 0)
+    f.raidName = raidName
+
+    -- Animated LOADING line in the retro font. "LOADING" stays put
+    -- (centered as a unit) and the dots animate in a separate FontString
+    -- anchored to its right, so the word doesn't shift left as dots are
+    -- added. The pair is nudged left by half the max dot width so the
+    -- whole thing reads centered.
+    local loading = f:CreateFontString(nil, "OVERLAY")
+    loading:SetFont(TITLE_FONT, 14, "")
+    loading:SetPoint("TOP", raidName, "BOTTOM", -12, -14)
+    loading:SetJustifyH("CENTER")
+    loading:SetText(LOAD_DIALOG_BASE)
+    f.loading = loading
+
+    local loadingDots = f:CreateFontString(nil, "OVERLAY")
+    loadingDots:SetFont(TITLE_FONT, 14, "")
+    loadingDots:SetPoint("LEFT", loading, "RIGHT", 2, 0)
+    loadingDots:SetJustifyH("LEFT")
+    loadingDots:SetText("")
+    f.loadingDots = loadingDots
+
+    -- Button row: STANDARD / SKIP / CANCEL, raised off the bottom border
+    -- so the SKIP footer below them stays inside the frame.
+    local BTN_W, BTN_H, BTN_GAP = 84, 22, 6
+    local function MakeButton(label, anchorX)
+        local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+        b:SetSize(BTN_W, BTN_H)
+        b:SetText(label)
+        b:SetPoint("BOTTOM", f, "BOTTOM", anchorX, 34)
+        return b
+    end
+    local rowStride = BTN_W + BTN_GAP
+    f.standardBtn = MakeButton("STANDARD", -rowStride)
+    f.skipBtn     = MakeButton("SKIP", 0)
+    f.cancelBtn   = MakeButton("CANCEL", rowStride)
+
+    f.standardBtn:SetScript("OnClick", function()
+        f:Hide()
+        RR:LoadCurrentRaid()
+    end)
+    f.cancelBtn:SetScript("OnClick", function()
+        f:Hide()
+        RR:UnloadCurrentRaid()
+    end)
+    f.skipBtn:SetScript("OnClick", function()
+        f:Hide()
+        RR:LoadCurrentRaid("skip")
+    end)
+
+    -- Footer beneath SKIP, standard small font (retro is unreadable this
+    -- small). Shows the disabled reason; hidden when SKIP is enabled.
+    local skipFooter = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    skipFooter:SetPoint("TOP", f.skipBtn, "BOTTOM", 0, -1)
+    skipFooter:SetJustifyH("CENTER")
+    f.skipFooter = skipFooter
+
+    f:SetScript("OnHide", function(self)
+        self:SetScript("OnUpdate", nil)
+    end)
+
+    UI._loadDialogFrame = f
+    return f
+end
+
+-- Show the load dialog for the current raid. raidName is the display
+-- string; the SKIP state is resolved from the live raid + difficulty.
+--
+-- SKIP has three states:
+--   enabled              -- skip route authored AND unlocked at the
+--                           current difficulty
+--   disabled + "N/A"     -- this raid has no skip shortcut
+--   disabled + "locked"  -- route authored but the player hasn't
+--                           unlocked the skip here
+-- "N/A" wins when both apply (no skip exists, so unlock state is moot).
+function UI.ShowLoadDialog(raidName)
+    local f = UI._GetOrCreateLoadDialog()
+    local raid = RR.currentRaid
+    local diff = RR.state and RR.state.currentDifficultyID
+
+    f.raidName:SetText(raidName or (raid and raid.name) or "?")
+    f.loading:SetText(f.loadBase)
+    f.loadingDots:SetText("")
+
+    -- Animate the trailing dots while shown. OnUpdate runs on the frame
+    -- (FontStrings have no OnUpdate); it writes only the dots FontString,
+    -- leaving "LOADING" fixed in place.
+    f._dotElapsed = 0
+    f._dotCount = 0
+    f:SetScript("OnUpdate", function(self, elapsed)
+        self._dotElapsed = (self._dotElapsed or 0) + elapsed
+        if self._dotElapsed < 0.4 then return end
+        self._dotElapsed = 0
+        self._dotCount = ((self._dotCount or 0) + 1) % 4
+        self.loadingDots:SetText(string.rep(".", self._dotCount))
+    end)
+
+    -- Resolve SKIP state.
+    local hasRoute = RR:RaidHasSkipRoute(raid)
+    local unlocked = hasRoute and RR:IsRaidSkipAvailableAtDifficulty(raid, diff)
+    if hasRoute and unlocked then
+        f.skipBtn:Enable()
+        f.skipFooter:SetText(raid.skipToBoss or "")
+    else
+        f.skipBtn:Disable()
+        if not hasRoute then
+            f.skipFooter:SetText("N/A")
+        elseif not RR:RaidSkipIsCascading(raid) then
+            -- Non-cascading (achievement-gated) skips are Mythic-only.
+            f.skipFooter:SetText("Mythic only")
+        else
+            f.skipFooter:SetText("locked")
+        end
+    end
+
+    f:Show()
+end
+
+function UI.HideLoadDialog()
+    if UI._loadDialogFrame then UI._loadDialogFrame:Hide() end
 end
 
 -- Public so the achievements window's hyperlink handler can call it.

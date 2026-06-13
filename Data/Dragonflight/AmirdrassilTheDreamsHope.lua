@@ -12,6 +12,9 @@ RetroRuns_Data[2549] = {
     expansion         = "Dragonflight",
     patch             = "10.2",
 
+    -- Shown one line below the run-complete banner.
+    exitNote = "Click the portal to ^Wellspring Atrium^ to be teleported to the entrance.",
+
     -- Entrance is at the Wellspring of Life in northwestern Emerald
     -- Dream (uiMapID 2200). Access requires completing the first two
     -- chapters of the Guardians of the Dream campaign to unlock the
@@ -700,6 +703,152 @@ RetroRuns_Data[2549] = {
             bossIndex = 9,
             title     = "Fyrakk the Blazing",
             requires  = { 1, 2, 3, 4, 5, 6, 7, 8 },
+            segments  = {
+                {
+                    when    = { mapID = 2234 },
+                    kind    = "poi",
+                    poiSize = 78,
+                    note    = "After killing ^Tindral^, mount up and fly into the fire-colored portal in the sky (marked with a |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t). This will teleport you to ^Heart of Amirdrassil^.",
+                    points  = {
+                        { 0.565, 0.656 },
+                    },
+                },
+                {
+                    when    = { mapID = 2238 },
+                    note    = "After the teleport, you should be standing across from ^Fyrakk^. Approach him to start the encounter.",
+                },
+            },
+        },
+
+    },
+
+    -- SKIP ROUTE. Loaded when the player picks SKIP on the load dialog.
+    -- The "Up in Smoke" skip lets a solo player, after Gnarlroot and
+    -- Igira, channel the Formation Seed to bridge straight to Smolderon --
+    -- bypassing Volcoross, Council of Dreams, Larodar, and Nymue. So this
+    -- route covers only five bosses (1, 2, 7, 8, 9) with requires chains
+    -- scoped to the skip path. The shared-boss segments reuse the standard
+    -- route's notes; the Igira -> Formation Seed transition is the one leg
+    -- unique to the skip.
+    skipToBoss = "Smolderon",
+
+    skipRoute = {
+
+        -- 1. Gnarlroot (same as standard)
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Gnarlroot",
+            requires  = {},
+            segments  = {
+                {
+                    when    = { mapID = 2232 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the path to ^Gnarlroot^. Clear the trash around him to start the encounter.",
+                    points  = {
+                        { 0.507, 0.904 },
+                        { 0.448, 0.817 },
+                        { 0.463, 0.704 },
+                        { 0.461, 0.588 },
+                        { 0.507, 0.554 },
+                        { 0.508, 0.437 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Igira the Cruel (same as standard)
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Igira the Cruel",
+            requires  = { 1 },
+            segments  = {
+                {
+                    when    = { mapID = 2232 },
+                    kind    = "path",
+                    note    = "After killing ^Gnarlroot^, continue forward and clear the trash pack to start the encounter with ^Igira the Cruel^.",
+                    points  = {
+                        { 0.507, 0.368 },
+                        { 0.506, 0.288 },
+                    },
+                },
+            },
+        },
+
+        -- 3. Smolderon (skip path). After Igira, channel the Formation
+        -- Seed to bridge straight across -- the skip bypasses Volcoross,
+        -- Council, Larodar, and Nymue.
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 7,
+            title     = "Smolderon",
+            requires  = { 1, 2 },
+            segments  = {
+                {
+                    when            = { mapID = 2232 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    note            = "After killing ^Igira the Cruel^, go up the stairs behind him and channel the ^Formation Seed^ to form the bridge.",
+                    mapLabel        = "Formation Seed",
+                    mapLabelPos     = "right",
+                    mapLabelPulse   = true,
+                    points          = {
+                        { 0.507, 0.130 },
+                    },
+                },
+                {
+                    when    = { mapID = 2233 },
+                    kind    = "path",
+                    note    = "As you cross the bridge, dodge fire so you don't get thrown over the edge. At the end of the bridge, you will find ^Smolderon^.",
+                    points  = {
+                        { 0.501, 0.941 },
+                        { 0.502, 0.370 },
+                    },
+                },
+            },
+        },
+
+        -- 4. Tindral Sageswift (same as standard, requires scoped to skip path)
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 8,
+            title     = "Tindral Sageswift, Seer of the Flame",
+            requires  = { 1, 2, 7 },
+            segments  = {
+                {
+                    when            = { mapID = 2233 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    note            = "After killing ^Smolderon^, talk to the dragon to be flown to ^Tindral Sageswift, Seer of the Flame^.",
+                    mapLabel        = "Verdant Dreambreaker",
+                    mapLabelPos     = "above",
+                    mapLabelPulse   = true,
+                    points          = {
+                        { 0.469, 0.326 },
+                    },
+                },
+                {
+                    when    = { mapID = 2237 },
+                    kind    = "path",
+                    note    = "Approach ^Tindral^ to trigger the encounter.",
+                },
+            },
+        },
+
+        -- 5. Fyrakk the Blazing (same as standard, requires scoped to skip path)
+        {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 9,
+            title     = "Fyrakk the Blazing",
+            requires  = { 1, 2, 7, 8 },
             segments  = {
                 {
                     when    = { mapID = 2234 },

@@ -12,6 +12,8 @@ RetroRuns_Data[1098] = {
     expansion         = "Mists of Pandaria",
     patch             = "5.2.0",
 
+    exitNote = "None available",
+
     -- Pandaria-era raids split lockouts by raid size (10 and 25) rather
     -- than offering Mythic. Loot is shared across sizes, so the two
     -- Normal lockouts fold into one Normal bucket and the two Heroic

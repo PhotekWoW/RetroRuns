@@ -300,6 +300,36 @@ RetroRuns_DataHorde[2070] = {
         },
     },
 
+    -- Skip route: talk to Otoye at the entrance to jump straight to Lady
+    -- Jaina Proudmoore. Mythic-only (achievement-gated).
+    skipToBoss = "Lady Jaina Proudmoore",
+
+    skipRoute = {
+
+        -- 1. Lady Jaina Proudmoore via the entrance skip.
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 9,
+            title     = "Lady Jaina Proudmoore",
+            requires  = {},
+            segments  = {
+                {
+                    when        = { mapID = 1358, subZone = "The Zocalo" },
+                    kind        = "poi",
+                    mapLabel    = "Otoye",
+                    mapLabelPos = "above",
+                    note        = "After zoning in, talk with ^Otoye^ to skip straight to ^Lady Jaina Proudmoore^.",
+                    points      = {
+                        { 0.220, 0.210 },
+                    },
+                },
+            },
+        },
+    },
+
+    exitNote = "Talk to Nathanos Blightcaller to be teleported out of the instance.",
+
     -- Routing. Boss order matches bossesHorde[] -- Horde fights:
     -- Champion -> Grong (Jungle Lord) -> Jadefire -> Opulence ->
     -- Conclave -> Rastakhan -> Mekkatorque -> Stormwall -> Jaina.

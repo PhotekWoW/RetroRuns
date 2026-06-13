@@ -12,6 +12,8 @@ RetroRuns_Data[1648] = {
     expansion         = "Legion",
     patch             = "7.1.0",
 
+    exitNote = "Talk to Odyn to be teleported out of the instance.",
+
     -- Entrance is in Stormheim (mapID 634), at the Gates of Valor in
     -- the northeast corner of the zone. The player approaches the
     -- arched portal and zones in.

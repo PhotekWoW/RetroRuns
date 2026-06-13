@@ -36,6 +36,8 @@ RetroRuns_Data[1136] = {
     expansion         = "Mists of Pandaria",
     patch             = "5.4.0",
 
+    exitNote = "None available",
+
     entrance = {
         mapID   = 1530,
         x       = 0.7270,
@@ -163,10 +165,9 @@ RetroRuns_Data[1136] = {
         },
     },
 
-    -- Skips window info text. {check}/{x}/{unknown} are replaced by the cell
-    -- glyphs the difficulty columns use.
+    -- Skips window info text.
     skipTrigger = {
-        details = "After zoning in, read the ^Scroll of Past Deeds^ beside ^Lorewalker Cho^ to skip straight to ^Garrosh Hellscream^.\nThe scroll unlocks for your whole account once any character has defeated Garrosh.\n\nThe marks above show how each difficulty was detected:\n  {check} Confirmed unlocked\n  {x} No kill detected at this difficulty\n  {unknown} Unable to detect",
+        details = "After zoning in, read the ^Scroll of Past Deeds^ beside ^Lorewalker Cho^ to skip straight to ^Garrosh Hellscream^.\nThe scroll unlocks for your whole account once any character has defeated Garrosh.",
     },
 
     gloryMeta = {
@@ -1208,6 +1209,44 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 567, subZone = "The Inner Sanctum" },
                     kind    = "path",
                     note    = "After opening the door, proceed ahead to witness a lengthy dialog before engaging ^Garrosh Hellscream^.",
+                    points  = {
+                        { 0.534, 0.139 },
+                        { 0.490, 0.665 },
+                    },
+                },
+            },
+        },
+
+    },
+
+    skipToBoss = "Garrosh Hellscream",
+
+
+    skipRoute = {
+
+        -- 1. Garrosh Hellscream, reached directly from the entrance by reading
+        --    the Scroll of Past Deeds beside Lorewalker Cho (skips bosses 1-13).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 14,
+            title     = "Garrosh Hellscream",
+            requires  = {},
+            segments  = {
+                {
+                    when     = { mapID = 557, subZone = "Pools of Power" },
+                    kind     = "poi",
+                    mapLabel = "Click Scroll",
+                    mapLabelPos = "above",
+                    note     = "After zoning in, click the ^Scroll of Past Deeds^ on the wall to skip ahead to ^Garrosh^. It's on the wall next to ^Lorewalker Cho^.",
+                    points   = {
+                        { 0.881, 0.436 },
+                    },
+                },
+                {
+                    when    = { mapID = 567, subZone = "The Inner Sanctum" },
+                    kind    = "path",
+                    note    = "After teleporting, proceed ahead to witness a lengthy dialog before engaging ^Garrosh Hellscream^.",
                     points  = {
                         { 0.534, 0.139 },
                         { 0.490, 0.665 },

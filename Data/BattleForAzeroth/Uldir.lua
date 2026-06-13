@@ -12,6 +12,8 @@ RetroRuns_Data[1861] = {
     expansion         = "Battle for Azeroth",
     patch             = "8.0.1",
 
+    exitNote = "None available",
+
     -- Entrance is at the base of the titan pyramid in central Nazmir
     -- (uiMapID 863), in the Heart of Darkness sub-area.
     entrance = {

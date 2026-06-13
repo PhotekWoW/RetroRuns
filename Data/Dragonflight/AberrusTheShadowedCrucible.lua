@@ -12,6 +12,9 @@ RetroRuns_Data[2569] = {
     expansion         = "Dragonflight",
     patch             = "10.1",
 
+    -- Shown one line below the run-complete banner.
+    exitNote = "Talk to ^Sabellian^ to be ported to the entrance.",
+
     -- Entrance is at the northern end of Zaralek Cavern (uiMapID 2133)
     -- at the Aberrus Approach. Coords from Wowhead/dotesports. The
     -- platform is elevated -- dragonriding (or regular flying) is
@@ -651,6 +654,95 @@ RetroRuns_Data[2569] = {
             bossIndex = 9,
             title     = "Scalecommander Sarkareth",
             requires  = { 1, 2, 3, 4, 5, 6, 7, 8 },
+            segments  = {
+                {
+                    when    = { mapID = 2169 },
+                    kind    = "path",
+                    note    = "After defeating ^Echo of Neltharion^, walk into the room behind him and jump into the purple circle to reach ^Edge of Oblivion^.",
+                    points  = {
+                        { 0.508, 0.318 },
+                        { 0.507, 0.588 },
+                    },
+                },
+                {
+                    when    = { mapID = 2170 },
+                    kind    = "path",
+                    note    = "After landing below, follow the path to reach ^Scalecommander Sarkareth^.",
+                    points  = {
+                        { 0.490, 0.254 },
+                        { 0.490, 0.678 },
+                    },
+                },
+            },
+        },
+
+    },
+
+    -- Skip route. After Kazzara, the vent behind Neltharion drops the
+    -- player down to the Echo of Neltharion encounter, bypassing The
+    -- Amalgamation Chamber, Forgotten Experiments, Zaqali, Rashok,
+    -- Zskarn, and Magmorax. Includes bosses 1, 8, 9.
+    skipToBoss = "Echo of Neltharion",
+
+    skipRoute = {
+
+        -- 1. Kazzara, the Hellforged (same as standard)
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Kazzara, the Hellforged",
+            requires  = {},
+            segments  = {
+                {
+                    when    = { mapID = 2166 },
+                    kind    = "path",
+                    note    = "After zoning in, go straight ahead and clear all trash to spawn ^Kazzara^.",
+                    points  = {
+                        { 0.512, 0.934 },
+                        { 0.512, 0.757 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Echo of Neltharion (skip path). After Kazzara, take the vent
+        -- behind Neltharion to drop straight to the Echo encounter.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 8,
+            title     = "Echo of Neltharion",
+            requires  = { 1 },
+            segments  = {
+                {
+                    when            = { mapID = 2166 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    note            = "After defeating ^Kazzara^, click the vent behind ^Neltharion^ and you will be able to jump down and skip ahead to the ^Echo of Neltharion^ encounter.",
+                    mapLabel        = "Vent",
+                    mapLabelPos     = "right",
+                    mapLabelPulse   = true,
+                    points          = {
+                        { 0.513, 0.589 },
+                    },
+                },
+                {
+                    when    = { mapID = 2169 },
+                    kind    = "path",
+                    note    = "After you land, enter the room and clear the trash to spawn ^Echo of Neltharion^.",
+                },
+            },
+        },
+
+        -- 3. Scalecommander Sarkareth (same as standard, requires scoped to skip path)
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 9,
+            title     = "Scalecommander Sarkareth",
+            requires  = { 1, 8 },
             segments  = {
                 {
                     when    = { mapID = 2169 },

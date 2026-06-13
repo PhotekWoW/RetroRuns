@@ -12,6 +12,8 @@ RetroRuns_Data[1448] = {
     expansion         = "Warlords of Draenor",
     patch             = "6.2.0",
 
+    exitNote = "Take one of the nearby Kirin Tor portals to be teleported to the raid entrance.",
+
     entrance = {
         mapID = 534,
         x     = 0.4556,
@@ -57,7 +59,7 @@ RetroRuns_Data[1448] = {
             ["Shadow-Lord Iskar"] = "Well of Souls",
             Mannoroth             = "The Fel Spire",
         },
-        details   = "After zoning in, you will find portals to your left/right depending on which skips you've unlocked.\n* Upper Citadel -> ^Shadow-Lord Iskar^\n* Destructor's Rise -> ^Mannoroth^",
+        details   = "After zoning in, you will find portals to your left/right depending on which skips you've unlocked.\n* Upper Citadel -> ^Shadow-Lord Iskar^\n* Destructor's Rise -> ^Mannoroth^\n\nNote: RetroRuns only has the route built for Mannoroth at this time.",
     },
 
     tierSets = {
@@ -999,6 +1001,70 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 670 },
                     kind    = "poi",
                     noMarker = true,
+                    note    = "After taking the teleport, you will land right in front of ^Archimonde^. Kill him!",
+                    points  = {
+                        { 0.462, 0.515 },
+                    },
+                },
+            },
+        },
+
+    },
+
+    skipToBoss = "Mannoroth",
+
+
+    skipRoute = {
+
+        -- 1. Mannoroth, reached from the entrance via the Destructor's Rise
+        --    portal (skips bosses 1-11). Requires the Fel Spire unlock.
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 12,
+            title     = "Mannoroth",
+            requires  = {},
+            segments  = {
+                {
+                    when     = { mapID = 661, subZone = "The Iron Bulwark" },
+                    kind     = "poi",
+                    mapLabel = "Click Portal",
+                    mapLabelPos = "above",
+                    note     = "After zoning in, click the portal on the right for ^Destructor's Rise^ to be teleported to ^Mannoroth^.",
+                    points   = {
+                        { 0.665, 0.391 },
+                    },
+                },
+                {
+                    when    = { mapID = 669 },
+                    kind    = "poi",
+                    note    = "After taking the portal, you will arrive in ^Destructor's Rise^. On ^Mythic^, tag an add but let Mannoroth kill them (or you will bug the encounter). On other difficulties, kill the adds yourself. When the adds die, engage ^Mannoroth^.",
+                    points  = {
+                        { 0.511, 0.369 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Archimonde (same as standard run).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 13,
+            title     = "Archimonde",
+            requires  = { 12 },
+            segments  = {
+                {
+                    when    = { mapID = 669 },
+                    kind    = "poi",
+                    note    = "After killing ^Mannoroth^, click the nearby portal.",
+                    points  = {
+                        { 0.511, 0.369 },
+                    },
+                },
+                {
+                    when    = { mapID = 670 },
+                    kind    = "poi",
                     note    = "After taking the teleport, you will land right in front of ^Archimonde^. Kill him!",
                     points  = {
                         { 0.462, 0.515 },

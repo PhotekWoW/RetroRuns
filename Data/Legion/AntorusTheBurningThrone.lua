@@ -12,6 +12,8 @@ RetroRuns_Data[1712] = {
     expansion         = "Legion",
     patch             = "7.3.2",
 
+    exitNote = "At the bottom of the stairs, talk to Grand Artificer Romuul for several teleport options.",
+
     -- Entrance is in Antoran Wastes (mapID 885) on Argus, at the
     -- crack beneath the artillery platform near Felfire Armory --
     -- not the main gates (which kill all who walk near them). The
@@ -62,7 +64,7 @@ RetroRuns_Data[1712] = {
             Imonar   = "Antorus, the Burning Throne: Dark Passage",
             Aggramar = "Antorus, the Burning Throne: The Heart of Argus",
         },
-        details   = "After killing ^Garothi Worldbreaker^, you can take the teleporter to whichever skip you have unlocked:\n  - The Exhaust: ^Imonar the Soulhunter^\n  - The Burning Throne: ^Aggramar^",
+        details   = "After killing ^Garothi Worldbreaker^, you can take the teleporter to whichever skip you have unlocked:\n  - The Exhaust: ^Imonar the Soulhunter^\n  - The Burning Throne: ^Aggramar^\n\nNote: RetroRuns only has the route built for Aggramar at this time.",
     },
 
     -- Glory meta-achievement for this raid. Completing all 11 per-boss
@@ -763,6 +765,117 @@ RetroRuns_Data[1712] = {
                 },
             },
         },
+    },
+
+    skipToBoss = "Aggramar",
+
+
+    skipRoute = {
+
+        -- 1. Garothi Worldbreaker (same as standard run).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Garothi Worldbreaker",
+            requires  = {},
+            segments  = {
+                {
+                    when    = { mapID = 909 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the linear path to find the first boss, ^Garothi Worldbreaker^.",
+                    points  = {
+                        { 0.902, 0.633 },
+                        { 0.888, 0.560 },
+                        { 0.750, 0.598 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Aggramar, reached from the post-Garothi teleporter via The Burning
+        --    Throne (skips bosses 2-9). Requires the Heart of Argus unlock.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 10,
+            title     = "Aggramar",
+            requires  = { 1 },
+            segments  = {
+                {
+                    when    = { mapID = 909, subZone = "Edge of Discord" },
+                    kind    = "path",
+                    note    = "After defeating ^Garothi Worldbreaker^, cross the bridge and take a left to locate a teleporter. Select ^The Burning Throne^ to skip ahead to ^Aggramar^.",
+                    points  = {
+                        { 0.706, 0.637 },
+                        { 0.569, 0.565 },
+                        { 0.528, 0.582 },
+                        { 0.537, 0.631 },
+                        { 0.554, 0.634 },
+                        { 0.560, 0.652 },
+                        { 0.557, 0.677 },
+                    },
+                },
+                {
+                    when    = { mapID = 915, subZone = "The Burning Throne" },
+                    kind    = "path",
+                    note    = "After arriving in ^The Burning Throne^, proceed down the long path and kill ^Tarneth^ to open the door. Continue west to the map exit labeled ^The World Soul^.",
+                    points  = {
+                        { 0.848, 0.528 },
+                        { 0.652, 0.526 },
+                        { 0.605, 0.581 },
+                        { 0.564, 0.578 },
+                        { 0.540, 0.523 },
+                        { 0.418, 0.525 },
+                        { 0.360, 0.651 },
+                        { 0.274, 0.652 },
+                        { 0.224, 0.526 },
+                        { 0.159, 0.526 },
+                    },
+                },
+                {
+                    when    = { mapID = 917 },
+                    kind    = "path",
+                    note    = "Proceed ahead to engage ^Aggramar^.",
+                    points  = {
+                        { 0.718, 0.539 },
+                        { 0.639, 0.541 },
+                        { 0.621, 0.476 },
+                        { 0.562, 0.476 },
+                        { 0.533, 0.533 },
+                        { 0.269, 0.529 },
+                    },
+                },
+            },
+        },
+
+        -- 3. Argus the Unmaker (same as standard run).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 11,
+            title     = "Argus the Unmaker",
+            requires  = { 10 },
+            segments  = {
+                {
+                    when    = { mapID = 917 },
+                    kind    = "poi",
+                    note    = "After defeating ^Aggramar^, speak to ^Magni Bronzebeard^ and tell him you're ready.",
+                    points  = {
+                        { 0.302, 0.554 },
+                    },
+                },
+                {
+                    when     = { mapID = 918 },
+                    kind     = "poi",
+                    note     = "You have reached the final boss, ^Argus the Unmaker^. Kill him!",
+                    points   = {
+                        { 0.501, 0.574 },
+                    },
+                },
+            },
+        },
+
     },
 
 }

@@ -12,6 +12,8 @@ RetroRuns_Data[1205] = {
     expansion         = "Warlords of Draenor",
     patch             = "6.0.3",
 
+    exitNote = "Jump off the ledge to your death, and you will respawn at the raid exit.",
+
     entrance = {
         mapID = 543,
         x     = 0.5155,
@@ -789,5 +791,53 @@ RetroRuns_Data[1205] = {
                 },
             },
         },
+    },
+
+    skipToBoss = "Blackhand",
+
+
+    skipRoute = {
+
+        -- 1. Blackhand, reached from the entrance bridge by clicking the
+        --    artifact to open the shortcut path (skips bosses 1-9).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 10,
+            title     = "Blackhand",
+            requires  = {},
+            segments  = {
+                {
+                    when     = { mapID = 598, subZone = "The Workshop" },
+                    kind     = "poi",
+                    mapLabel = "Click Artifact",
+                    mapLabelPos = "below",
+                    points   = {
+                        { 0.365, 0.474 },
+                    },
+                },
+                {
+                    when    = { mapID = 598, subZone = "The Workshop" },
+                    kind    = "path",
+                    note    = "After zoning in, click ^Blackrock Artifact^ on either side of the bridge, and it will open the gate leading across the bridge. Go forward and follow the route across the bridge.",
+                    points  = {
+                        { 0.408, 0.482 },
+                        { 0.411, 0.155 },
+                        { 0.328, 0.149 },
+                    },
+                },
+                {
+                    when    = { mapID = 600 },
+                    kind    = "path",
+                    note    = "Take the elevator up and continue forward to reach ^Blackhand^.",
+                    points  = {
+                        { 0.519, 0.922 },
+                        { 0.484, 0.920 },
+                        { 0.483, 0.389 },
+                    },
+                },
+            },
+        },
+
     },
 }
