@@ -2,6 +2,12 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [1.14.0a] - 2026-06-20
+
+### Fixed
+
+- **Clicking on the world map no longer causes an error.** A left-click anywhere on the world map could trigger a Lua error; this no longer happens.
+
 ## [1.14.0] - 2026-06-13
 
 ### Added

@@ -688,7 +688,7 @@ WorldMapFrame:HookScript("OnShow", function()
 end)
 
 WorldMapFrame.ScrollContainer:HookScript("OnMouseUp", function(_, button)
-    if button == "LeftButton" then
+    if button == "LeftButton" and RR.RecorderHandleMapClick then
         RR:RecorderHandleMapClick()
     end
 end)
