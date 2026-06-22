@@ -478,7 +478,7 @@ RetroRuns_Data[2522] = {
                 {
                     when    = { mapID = 2122 },
                     kind   = "path",
-                    note   = "Follow the path to ^The Primal Convergence^.",
+                    note   = "Continue following the path ahead to reach ^Terros^.",
                     points = {
                         { 0.836, 0.871 },
                         { 0.835, 0.783 },
@@ -498,7 +498,7 @@ RetroRuns_Data[2522] = {
                 {
                     when    = { mapID = 2122 },
                     kind   = "path",
-                    note   = "Follow the path to ^Terros^.",
+                    note   = "Continue following the path ahead to reach ^Terros^.",
                     points = {
                         { 0.554, 0.571 },
                         { 0.534, 0.623 },
@@ -527,7 +527,7 @@ RetroRuns_Data[2522] = {
                 {
                     when    = { mapID = 2122 },
                     kind   = "path",
-                    note   = "After killing ^Terros^, go back the way you came and arrive back in ^The Primal Convergence^.",
+                    note   = "Continue following the path ahead to reach ^Sennarth^.",
                     points = {
                         { 0.250, 0.763 },
                         { 0.474, 0.753 },
@@ -549,7 +549,7 @@ RetroRuns_Data[2522] = {
                 {
                     when    = { mapID = 2122 },
                     kind   = "path",
-                    note   = "Follow the path to ^Sennarth, the Cold Breath^",
+                    note   = "Continue following the path ahead to reach ^Sennarth^.",
                     points = {
                         { 0.486, 0.358 },
                         { 0.334, 0.353 },
@@ -558,7 +558,7 @@ RetroRuns_Data[2522] = {
                 {
                     when    = { mapID = 2123 },
                     kind   = "path",
-                    note   = "Finish him!",
+                    note   = "Continue following the path ahead to reach ^Sennarth^.",
                     points = {
                         { 0.572, 0.237 },
                         { 0.663, 0.526 },
@@ -804,6 +804,369 @@ RetroRuns_Data[2522] = {
             soloTip = "The only mechanic that matters anymore is his knockback. Position yourself so it launches you to the left or right platform. Kill adds on both platforms and return to middle. For next knockback, let it knock you to the upper middle platform. Finish the boss there!",
         },
     },
+
+    -- LFR wing routes, keyed by live lfgDungeonID. Vault's LFR wings group
+    -- bosses non-sequentially relative to the standard route (Primal Bulwark =
+    -- bosses 1/3/5, Caverns = 2/4/6), and each wing teleports you to its own
+    -- start, so the standard route's segments don't transfer -- every boss here
+    -- has its own fight mapID and LFR routing.
+    lfrWings = {
+        -- Primal Bulwark: Eranog(1), The Primal Council(3), Dathea(5).
+        -- Fight maps from the standard route: Eranog 2119, Council 2120,
+        -- Dathea 2121.
+        [2370] = {
+            name   = "The Primal Bulwark",
+            bosses = { 1, 3, 5 },   -- Eranog, The Primal Council, Dathea Ascended
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Eranog->1, The Primal Council->2, Dathea->7.
+            lockoutBits = { [1] = 1, [3] = 2, [5] = 7 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Eranog",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when            = { mapID = 2119, subZone = "The Outer Seal" },
+                            kind            = "poi",
+                            noMarker        = true,
+                            highlightCircle = true,
+                            mapLabel        = "Talk to the 5 dragons",
+                            mapLabelPos     = "above",
+                            completionCheck = true,
+                            note            = "Upon zoning in, talk to all 5 dragons. Then talk to ^Khadgar^ to begin the assault. Choose any dragon; doesn't matter.",
+                            points          = {
+                                { 0.620, 0.870 },
+                            },
+                        },
+                        {
+                            when            = { mapID = 2119, subZone = "The Primal Bulwark" },
+                            kind            = "poi",
+                            noMarker        = true,
+                            highlightCircle = true,
+                            mapLabel        = "Kill Volcanius",
+                            mapLabelPos     = "above",
+                            note            = "After landing, follow the path to kill |cffF259C7(1)|r ^Volcanius^, then |cffF259C7(2)|r ^Eranog^.",
+                            points          = {
+                                { 0.561, 0.378 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2119, subZone = "The Primal Bulwark" },
+                            kind    = "path",
+                            points  = {
+                                { 0.561, 0.377 },
+                                { 0.512, 0.425 },
+                                { 0.488, 0.339 },
+                                { 0.547, 0.223 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 3,
+                    title     = "The Primal Council",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when            = { mapID = 2119 },
+                            kind            = "poi",
+                            noMarker        = true,
+                            highlightCircle = true,
+                            note            = "After killing ^Eranog^, take the left map exit labeled ^The Elemental Conclave^.",
+                            points          = {
+                                { 0.544, 0.135 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2120 },
+                            kind   = "path",
+                            note   = "Follow the path and kill ^Braekkas^ to open the wall. Continue on to find ^The Primal Council^.",
+                            points = {
+                                { 0.849, 0.299 },
+                                { 0.808, 0.226 },
+                                { 0.671, 0.257 },
+                                { 0.559, 0.427 },
+                                { 0.494, 0.492 },
+                                { 0.496, 0.635 },
+                                { 0.466, 0.673 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 5,
+                    title     = "Dathea, Ascended",
+                    requires  = { 3 },
+                    segments  = {
+                        {
+                            when    = { mapID = 2120 },
+                            kind   = "path",
+                            note   = "After killing ^The Primal Council^, follow the path towards the exit labeled ^Galewind Crag^. Kill ^Thondrozus^, and click on ^Upward Draft^ to be carried up to ^Galewind Crag^. Approach the Downward Draft.",
+                            points = {
+                                { 0.462, 0.676 },
+                                { 0.550, 0.646 },
+                                { 0.582, 0.717 },
+                                { 0.635, 0.718 },
+                                { 0.714, 0.530 },
+                                { 0.761, 0.532 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2121 },
+                            kind   = "path",
+                            note   = "Click the ^Downward Draft^ to be flown to the platform and engage ^Dathea, Ascended^.",
+                            points = {
+                                { 0.316, 0.507 },
+                                { 0.450, 0.541 },
+                                { 0.535, 0.527 },
+                            },
+                        },
+                    },
+                    soloTip = "For the knockback, position yourself between the boss and a tornado.",
+                },
+            },
+        },
+
+        -- Caverns of Infusion: Terros(2), Sennarth(4), Kurog(6).
+        -- Fight maps from the standard route: Terros 2122, Sennarth 2123,
+        -- Kurog 2124.
+        [2371] = {
+            name   = "Caverns of Infusion",
+            bosses = { 2, 4, 6 },   -- Terros, Sennarth the Cold Breath, Kurog Grimtotem
+            lockoutBits = { [2] = 8, [4] = 3, [6] = 4 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 2,
+                    title     = "Terros",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when            = { mapID = 2119 },
+                            kind            = "poi",
+                            noMarker        = true,
+                            highlightCircle = true,
+                            note            = "After zoning into ^The Primal Bulwark^, there are 3 paths available. Take the path on the right labeled ^The Vault Approach^.",
+                            points          = {
+                                { 0.600, 0.135 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2122 },
+                            kind   = "path",
+                            note   = "Continue following the path ahead to reach ^Terros^.",
+                            points = {
+                                { 0.836, 0.871 },
+                                { 0.835, 0.783 },
+                                { 0.717, 0.562 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2124 },
+                            kind   = "path",
+                            note   = "When you arrive in ^The Primal Convergence^, take the first path on the left labeled ^Quarry of Infusion^.",
+                            points = {
+                                { 0.638, 0.822 },
+                                { 0.512, 0.861 },
+                                { 0.396, 0.821 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2122 },
+                            kind   = "path",
+                            note   = "Continue following the path ahead to reach ^Terros^.",
+                            points = {
+                                { 0.554, 0.571 },
+                                { 0.534, 0.623 },
+                                { 0.519, 0.662 },
+                                { 0.461, 0.762 },
+                                { 0.243, 0.759 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 4,
+                    title     = "Sennarth, the Cold Breath",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when    = { mapID = 2122 },
+                            kind   = "path",
+                            note   = "Continue following the path ahead to reach ^Sennarth^.",
+                            points = {
+                                { 0.250, 0.763 },
+                                { 0.474, 0.753 },
+                                { 0.533, 0.625 },
+                                { 0.557, 0.557 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2124 },
+                            kind   = "path",
+                            note   = "From ^The Primal Convergence^, follow the path to the entrance labeled ^Iceskitter Hollow^.",
+                            points = {
+                                { 0.376, 0.836 },
+                                { 0.392, 0.806 },
+                                { 0.276, 0.511 },
+                                { 0.259, 0.511 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2122 },
+                            kind   = "path",
+                            note   = "Continue following the path ahead to reach ^Sennarth^.",
+                            points = {
+                                { 0.486, 0.358 },
+                                { 0.334, 0.353 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2123 },
+                            kind   = "path",
+                            note   = "Continue following the path ahead to reach ^Sennarth^.",
+                            points = {
+                                { 0.572, 0.237 },
+                                { 0.663, 0.526 },
+                                { 0.605, 0.755 },
+                                { 0.373, 0.725 },
+                                { 0.338, 0.418 },
+                            },
+                        },
+                    },
+                    soloTip = "Avoid Sticky Webbing on the ground. The boss will attempt to pull you off the edge with Gossamer Burst. Easiest way to avoid this is to step on a Sticky Webbing before he finishes the cast. When he ascends, follow him up and finish the kill.",
+                },
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 6,
+                    title     = "Kurog Grimtotem",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when     = { mapID = 2123 },
+                            kind     = "poi",
+                            poiSize  = 35,
+                            note     = "After killing ^Sennarth^, click the ^Gust of Wind^ behind him to return to the bottom of the room. If you killed him on the ground floor, proceed up the ramp to find his corpse and collect his loot!",
+                            mapLabel = "Click Gust of Wind",
+                            mapLabelPos = "above",
+                            completionCheck = true,
+                            points   = {
+                                { 0.368, 0.405 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2122 },
+                            kind   = "path",
+                            note   = "After landing from ^Gust of Wind^, follow the path back out to ^The Primal Convergence^.",
+                            points = {
+                                { 0.350, 0.348 },
+                                { 0.489, 0.357 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2124 },
+                            kind   = "path",
+                            note   = "Back in ^The Primal Convergence^, follow the newly-opened path to ^Kurog Grimtotem^.",
+                            points = {
+                                { 0.260, 0.505 },
+                                { 0.306, 0.335 },
+                                { 0.400, 0.220 },
+                                { 0.498, 0.471 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Fury of the Storm: Diurna(7), Raszageth(8).
+        -- Fight maps from the standard route: Diurna 2126, Raszageth 2125.
+        -- Entry: the wing drops the player at mapID 2119 (The Primal Bulwark),
+        -- so the real step-1 routing begins there and walks to 2126 -- the
+        -- 2126/2125 segments below are fight-map placeholders pending the walk.
+        [2372] = {
+            name   = "Fury of the Storm",
+            bosses = { 7, 8 },   -- Broodkeeper Diurna, Raszageth the Storm-Eater
+            lockoutBits = { [7] = 6, [8] = 5 },   -- Diurna->6, Raszageth->5 (swapped vs encounter order)
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "Broodkeeper Diurna",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when            = { mapID = 2119 },
+                            kind            = "poi",
+                            noMarker        = true,
+                            highlightCircle = true,
+                            note            = "After zoning in, take the middle path labeled ^The Clutchwarren^.",
+                            points          = {
+                                { 0.572, 0.122 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2122 },
+                            kind   = "path",
+                            note   = "Work your way upstairs through ^The Vault Approach^ and you will enter ^The Clutchwarren^.",
+                            points = {
+                                { 0.741, 0.931 },
+                                { 0.743, 0.490 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2126 },
+                            kind   = "path",
+                            note   = "Follow the path up to ^Broodkeeper Diurna^.",
+                            points = {
+                                { 0.734, 0.894 },
+                                { 0.739, 0.835 },
+                                { 0.534, 0.556 },
+                            },
+                        },
+                    },
+                    soloTip = "Stand on boss and cleave everything down",
+                },
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 8,
+                    title     = "Raszageth the Storm-Eater",
+                    requires  = { 7 },
+                    segments  = {
+                        {
+                            when     = { mapID = 2126 },
+                            kind     = "poi",
+                            note     = "After killing ^Broodkeeper Diurna^, click any nearby dragon to fly to the ^Vault of the Incarnates^.",
+                            mapLabel = "Click Dragon",
+                            mapLabelPos = "above",
+                            completionCheck = true,
+                            points   = {
+                                { 0.380, 0.469 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2125 },
+                            note    = "After a brief dialog, kill ^Raszageth the Storm-Eater^!",
+                        },
+                    },
+                    soloTip = "The only mechanic that matters anymore is his knockback. Position yourself so it launches you to the left or right platform. Kill adds on both platforms and return to middle. For next knockback, let it knock you to the upper middle platform. Finish the boss there!",
+                },
+            },
+        },
+    },  -- lfrWings
 
     -- Skip route: after Eranog, the Clutchwarren Runestones open the
     -- staircase straight to The Clutchwarren, bypassing Terros, The Primal

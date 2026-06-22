@@ -309,6 +309,270 @@ RetroRuns_Data[2070] = {
 
     exitNote = "Talk to Anduin Wrynn to be teleported out of the instance.",
 
+    lfrWings = {
+        -- Wing 1 -- Siege of Dazar'alor (Alliance): Champion, Jadefire, Grong.
+        -- Wing 2 -- Empire's Fall (Alliance): Opulence, Conclave, Rastakhan (not yet keyed).
+        -- Wing 3 -- Might of the Alliance: Mekkatorque, Stormwall, Jaina (not yet keyed).
+        [1947] = {
+            name   = "Might of the Alliance",
+            bosses = { 7, 8, 9 },
+            lockoutBits = { [7] = 13, [8] = 17, [9] = 18 },
+            routing = {
+                -- 7. High Tinker Mekkatorque
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "High Tinker Mekkatorque",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1367 },
+                            kind    = "path",
+                            note    = "After zoning in, wait for the dialog to complete on the boat. You will be transported shortly.",
+                            points  = {},
+                        },
+                        {
+                            when    = { mapID = 1352 },
+                            kind    = "path",
+                            note    = "After you reach the next area, go downstairs and kill trash to begin the fight against ^High Tinker Mekkatorque^.",
+                            points  = {
+                                { 0.492, 0.200 },
+                                { 0.491, 0.285 },
+                            },
+                        },
+                    },
+                },
+
+                -- 8. Stormwall Blockade
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 8,
+                    title     = "Stormwall Blockade",
+                    requires  = { 7 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1352 },
+                            kind    = "path",
+                            note    = "After defeating ^Mekkatorque^, make your way down the long path south, and kill the trash at the end of the bridge. Interact with a ^Pterrordax^ to start the encounter with ^Stormwall Blockade^.",
+                            points  = {
+                                { 0.492, 0.354 },
+                                { 0.492, 0.889 },
+                            },
+                        },
+                    },
+                },
+
+                -- 9. Lady Jaina Proudmoore
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 9,
+                    title     = "Lady Jaina Proudmoore",
+                    requires  = { 8 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1352 },
+                            kind    = "poi",
+                            poiSize = 35,
+                            note    = "After defeating ^Stormwall Blockade^, walk onto the newly-arrived ship and speak with ^Captain Zadari^ to begin the ^Lady Jaina Proudmoore^ encounter.",
+                            points  = {
+                                { 0.484, 0.975 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        [1946] = {
+            name   = "Empire's Fall",
+            bosses = { 4, 5, 6 },
+            lockoutBits = { [4] = 9, [5] = 7, [6] = 10 },
+            routing = {
+                -- 4. Opulence
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 4,
+                    title     = "Opulence",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1352 },
+                            kind    = "path",
+                            note    = "After zoning in, continue up the stairwell towards the map exit labeled ^Halls of Opulence^. Jump in the hole when you reach the end of the path.",
+                            points  = {
+                                { 0.490, 0.280 },
+                                { 0.492, 0.194 },
+                                { 0.555, 0.193 },
+                                { 0.556, 0.137 },
+                                { 0.502, 0.136 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1353 },
+                            kind    = "path",
+                            note    = "Inside the ^Halls of Opulence^, proceed straight ahead to the middle area to engage ^Opulence^.",
+                            points  = {
+                                { 0.421, 0.846 },
+                                { 0.422, 0.548 },
+                            },
+                        },
+                    },
+                },
+
+                -- 5. Conclave of the Chosen
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 5,
+                    title     = "Conclave of the Chosen",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1353 },
+                            kind    = "path",
+                            note    = "After killing ^Opulence^, follow the path straight ahead and make your way to the map exit labeled ^Loa's Sanctum^.",
+                            points  = {
+                                { 0.421, 0.480 },
+                                { 0.421, 0.215 },
+                                { 0.333, 0.215 },
+                                { 0.334, 0.104 },
+                                { 0.399, 0.101 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1354 },
+                            kind    = "path",
+                            note    = "Continue straight ahead to engage ^Conclave of the Chosen^.",
+                            points  = {
+                                { 0.474, 0.189 },
+                                { 0.471, 0.633 },
+                            },
+                        },
+                    },
+                },
+
+                -- 6. King Rastakhan
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 6,
+                    title     = "King Rastakhan",
+                    requires  = { 5 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1354 },
+                            kind    = "path",
+                            note    = "After defeating ^Conclave^, exit the room to the east and ride the elevator up to the ^Walk of Kings^.",
+                            points  = {
+                                { 0.499, 0.677 },
+                                { 0.643, 0.680 },
+                                { 0.641, 0.782 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1356 },
+                            kind    = "path",
+                            note    = "After getting off the elevator in ^Walk of Kings^, follow the linear path around to ^The Heart of the Empire^.",
+                            points  = {
+                                { 0.650, 0.684 },
+                                { 0.650, 0.389 },
+                                { 0.363, 0.388 },
+                                { 0.360, 0.569 },
+                            },
+                        },
+                        {
+                            when     = { mapID = 1357 },
+                            kind     = "poi",
+                            noMarker = true,
+                            note     = "Kill trash in the boss room to trigger some dialog and start the encounter with ^King Rastakhan^.",
+                            points   = {
+                                { 0.5, 0.5 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        [1945] = {
+            name   = "Siege of Dazar'alor",
+            bosses = { 1, 2, 3 },
+            -- Faction-mirrored lockout: the shared encounters set two bits each
+            -- (one per faction perspective). Champion is faction-exclusive (1 bit);
+            -- Jadefire sets {2,3} and Grong sets {1,5}. One representative bit per
+            -- boss is enough -- both mirror bits flip together on the kill.
+            lockoutBits = { [1] = 4, [2] = 2, [3] = 1 },
+            routing = {
+                -- 1. Champion of the Light
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Champion of the Light",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1352 },
+                            kind    = "path",
+                            note    = "After zoning in, proceed straight ahead to the first boss room. Kill trash to start the encounter with ^Champion of the Light^.",
+                            points  = {
+                                { 0.493, 0.883 },
+                                { 0.492, 0.735 },
+                            },
+                        },
+                    },
+                },
+
+                -- 2. Jadefire Masters
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 2,
+                    title     = "Jadefire Masters",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1352 },
+                            kind    = "path",
+                            note    = "After defeating the ^Champion of the Light^, follow the linear path to the right and work your way towards the next boss, ^Jadefire Masters^. Kill the final trash pack before running up the stairs.",
+                            points  = {
+                                { 0.518, 0.695 },
+                                { 0.602, 0.679 },
+                                { 0.600, 0.634 },
+                                { 0.492, 0.629 },
+                                { 0.492, 0.555 },
+                            },
+                        },
+                    },
+                },
+
+                -- 3. Grong, the Revenant
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 3,
+                    title     = "Grong, the Revenant",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1352 },
+                            kind    = "path",
+                            note    = "After defeating ^Jadefire Masters^, proceed up the long staircase behind them to reach ^Grong, the Revenant^. Kill trash at the top of the stairs to start the encounter.",
+                            points  = {
+                                { 0.492, 0.555 },
+                                { 0.493, 0.345 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+
     routing = {
         -- Routing: linear progression for Alliance.
         --   1. Champion of the Light    requires {}
@@ -352,7 +616,7 @@ RetroRuns_Data[2070] = {
                 {
                     when    = { mapID = 1352 },
                     kind    = "path",
-                    note    = "After defeating the ^Champion of the Light^, follow the linear path to the right and work your way towards the next boss, ^Jadefire Masters^. Kill trash on the way.",
+                    note    = "After defeating the ^Champion of the Light^, follow the linear path to the right and work your way towards the next boss, ^Jadefire Masters^. Kill the final trash pack before running up the stairs.",
                     points  = {
                         { 0.518, 0.695 },
                         { 0.602, 0.679 },

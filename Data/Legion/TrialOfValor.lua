@@ -104,6 +104,96 @@ RetroRuns_Data[1648] = {
         },
     },
 
+    -- Single LFR wing covering all three bosses, same notes and routes
+    -- as the standard route, imported verbatim.
+    lfrWings = {
+        [1921] = {
+            name   = "Trial of Valor",
+            bosses = { 1, 2, 3 },
+            lockoutBits = { [1] = 1, [2] = 2, [3] = 3 },
+            routing = {
+                -- 1. Odyn
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Odyn",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 807 },
+                            kind    = "path",
+                            note    = "After zoning in, take the escalator all the way up to engage ^Odyn^.",
+                            points  = {
+                                { 0.514, 0.087 },
+                                { 0.515, 0.784 },
+                            },
+                        },
+                    },
+                },
+
+                -- 2. Guarm
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 2,
+                    title     = "Guarm",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when    = { mapID = 807 },
+                            kind    = "poi",
+                            note    = "After defeating ^Odyn^, talk to him and select the only dialog option available. You will be dropped into ^Helheim^.",
+                            points  = {
+                                { 0.514, 0.892 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 806 },
+                            kind    = "path",
+                            note    = "After landing down below, take the downhill path and kill trash as you walk through the ^Helheim^ portal at the bottom.",
+                            points  = {
+                                { 0.539, 0.588 },
+                                { 0.695, 0.354 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 808 },
+                            kind    = "path",
+                            note    = "Once you reach ^Helheim^, follow the path around to find ^Guarm^.",
+                            points  = {
+                                { 0.638, 0.450 },
+                                { 0.592, 0.399 },
+                                { 0.596, 0.304 },
+                                { 0.529, 0.312 },
+                            },
+                        },
+                    },
+                },
+
+                -- 3. Helya
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 3,
+                    title     = "Helya",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when    = { mapID = 808 },
+                            kind    = "path",
+                            note    = "After killing ^Guarm^, continue down the path to meet ^Helya^. Kill the trash to start the encounter.",
+                            points  = {
+                                { 0.481, 0.319 },
+                                { 0.385, 0.265 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+
     routing = {
         {
             step      = 1,

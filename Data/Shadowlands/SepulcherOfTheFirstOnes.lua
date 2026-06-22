@@ -17,10 +17,10 @@ RetroRuns_Data[2481] = {
     exitNote = "Exit portal nearby.",
 
     -- Entrance is on a floating island in eastern Zereth Mortis
-    -- (uiMapID 1970). Coords from Wowhead/gamingcy. Reaching the door
-    -- requires the Ancient Translocator near Pilgrim's Grace, OR the
-    -- Zereth Mortis flying unlock. Library will route to "near
-    -- Pilgrim's Grace" rather than the floating island itself, which
+    -- (uiMapID 1970). Reaching the door requires the Ancient Translocator
+    -- near Pilgrim's Grace, OR the Zereth Mortis flying unlock. Library
+    -- will route to "near Pilgrim's Grace" rather than the floating
+    -- island itself, which
     -- is the correct behavior for unattuned characters.
     entrance = {
         mapID = 1970,
@@ -864,4 +864,343 @@ RetroRuns_Data[2481] = {
         },
 
     },  -- skipRoute
+
+    -- LFR wings. Keyed by lfgDungeonID (GetInstanceInfo position 10), resolved
+    -- live via GetActiveWing. Each wing carries its own boss subset and route;
+    -- bosses are referenced by their index in the `bosses` table above (loot,
+    -- achievements, soloTips, and the [17] LFR loot sources are already there,
+    -- so wings add only routing). A wing queueable under more than one
+    -- lfgDungeonID stores the duplicate id as { aliasOf = <primary id> }.
+    lfrWings = {
+        -- Ephemeral Plains (live lfgDungeonID 2420, confirmed in-game). The
+        -- raid's FIRST LFR wing. Bosses: Vigilant Guardian(1), Skolex(2),
+        -- Artificer Xy'mox(3), Halondrus(7) -- same order and path as the
+        -- standard route's opening, so segments are copied from it
+        -- (Vigilant Guardian's note is already a generic zone-in, so no rewording
+        -- was needed).
+        -- Per-boss lockout bits captured from a fresh lockout (one kill at a
+        -- time): the four bosses own bits {1,2,6,11} -- the bits not used by
+        -- the other three wings -- mapped per boss in lockoutBits below.
+        [2420] = {
+            name   = "Ephemeral Plains",
+            bosses = { 1, 2, 3, 7 },   -- Vigilant Guardian, Skolex, Xy'mox, Halondrus
+            -- Per-boss lockout bits, captured from a fresh lockout (one kill
+            -- at a time, diffing which bit lit per kill). The four bosses
+            -- occupy bits {1,2,6,11} as documented from the full-clear read;
+            -- this maps each to its owner.
+            lockoutBits = { [1] = 1, [2] = 6, [3] = 11, [7] = 2 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,   -- Vigilant Guardian
+                    title     = "Vigilant Guardian",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when   = { mapID = 2047 },
+                            kind   = "path",
+                            note   = "After zoning in, follow the main path to ^Vigilant Guardian^.",
+                            points = {
+                                { 0.100, 0.516 },
+                                { 0.243, 0.518 },
+                                { 0.246, 0.399 },
+                                { 0.442, 0.428 },
+                                { 0.503, 0.516 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 2,   -- Skolex, the Insatiable Ravener
+                    title     = "Skolex, the Insatiable Ravener",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when        = { mapID = 2047 },
+                            kind        = "path",
+                            destination = "Ephemeral Plains Alpha",
+                            note        = "Head down the long hallway to the teleporter. Select ^Ephemeral Plains Alpha^.",
+                            points      = {
+                                { 0.503, 0.516 },
+                                { 0.563, 0.516 },
+                                { 0.910, 0.521 },
+                            },
+                        },
+                        {
+                            when   = { mapID = 2061 },
+                            kind   = "path",
+                            note   = "Follow the path down to ^Skolex^. Kill the trash to spawn the boss.",
+                            points = {
+                                { 0.163, 0.377 },
+                                { 0.191, 0.412 },
+                                { 0.169, 0.495 },
+                                { 0.184, 0.599 },
+                                { 0.162, 0.661 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 3,   -- Artificer Xy'mox
+                    title     = "Artificer Xy'mox",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when   = { mapID = 2061 },
+                            kind   = "path",
+                            note   = "After defeating ^Skolex^, follow the ring path up and around to ^Artificer Xy'mox^.",
+                            points = {
+                                { 0.163, 0.660 },
+                                { 0.193, 0.584 },
+                                { 0.169, 0.512 },
+                                { 0.189, 0.419 },
+                                { 0.227, 0.388 },
+                                { 0.295, 0.437 },
+                                { 0.330, 0.420 },
+                                { 0.371, 0.426 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 4,
+                    priority  = 4,
+                    bossIndex = 7,   -- Halondrus the Reclaimer
+                    title     = "Halondrus the Reclaimer",
+                    requires  = { 2, 3 },
+                    segments  = {
+                        {
+                            when   = { mapID = 2061 },
+                            kind   = "path",
+                            note   = "After killing both ^Skolex^ and ^Artificer Xy'mox^, follow the path south to ^Halondrus^.",
+                            points = {
+                                { 0.362, 0.422 },
+                                { 0.309, 0.420 },
+                                { 0.306, 0.609 },
+                                { 0.419, 0.763 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Cornerstone of Creation (Genesis Cradle). Keyed by the live
+        -- lfgDungeonID from GetInstanceInfo (2419), confirmed in-game. Note this
+        -- differs from the id GetRFDungeonInfo enumerates for the same wing --
+        -- the RF browser list and the live instance use different id spaces, so
+        -- wing keys must always come from a live GetInstanceInfo probe, never
+        -- from the RF enumeration.
+        [2419] = {
+            name   = "Cornerstone of Creation",
+            bosses = { 4, 5, 6 },   -- Dausegne, Prototype Pantheon, Lihuvim
+            -- Boss index -> LFR lockout bit position (1-indexed), for per-wing
+            -- completion. The lockout bit order is its own id space (not our
+            -- boss index, not the encounter-API order); mapped empirically by
+            -- clearing the wing and diffing which bits light up.
+            lockoutBits = { [4] = 4, [5] = 5, [6] = 8 },
+                                    -- (confirmed in-game, Genesis Cradle wing).
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 4,   -- Dausegne, the Fallen Oracle
+                    title     = "Dausegne, the Fallen Oracle",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when   = { mapID = 2048 },
+                            kind   = "path",
+                            note   = "After zoning into ^Genesis Cradle^, follow the path to ^Dausegne^.",
+                            points = {
+                                { 0.254, 0.841 },
+                                { 0.315, 0.757 },
+                                { 0.288, 0.624 },
+                                { 0.305, 0.601 },
+                                { 0.347, 0.619 },
+                                { 0.363, 0.601 },
+                                { 0.358, 0.566 },
+                                { 0.405, 0.501 },
+                                { 0.461, 0.522 },
+                                { 0.500, 0.466 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 5,   -- Prototype Pantheon
+                    title     = "Prototype Pantheon",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when   = { mapID = 2048 },
+                            kind   = "path",
+                            note   = "After killing ^Dausegne^, continue up the path toward ^The Endless Foundry^.",
+                            points = {
+                                { 0.543, 0.466 },
+                                { 0.572, 0.510 },
+                                { 0.692, 0.331 },
+                                { 0.678, 0.191 },
+                                { 0.710, 0.142 },
+                            },
+                        },
+                        {
+                            when   = { mapID = 2049 },
+                            kind   = "path",
+                            note   = "Follow the foundry floor to ^Prototype Pantheon^.",
+                            points = {
+                                { 0.257, 0.807 },
+                                { 0.305, 0.738 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 6,   -- Lihuvim, Principal Architect
+                    title     = "Lihuvim, Principal Architect",
+                    requires  = { 5 },
+                    segments  = {
+                        {
+                            when   = { mapID = 2049 },
+                            kind   = "path",
+                            note   = "Follow the path through ^The Endless Foundry^, killing the trash on the way to ^Lihuvim^.",
+                            points = {
+                                { 0.349, 0.663 },
+                                { 0.621, 0.259 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Domination's Grasp (live lfgDungeonID 2421, confirmed in-game).
+        -- Bosses: Anduin(8), Lords of Dread(9), Rygelon(10).
+        [2421] = {
+            name   = "Domination's Grasp",
+            bosses = { 8, 9, 10 },   -- Anduin Wrynn, Lords of Dread, Rygelon
+            -- Boss index -> LFR lockout bit position (1-indexed). See the note
+            -- on Cornerstone's lockoutBits; mapped by diffing the lockout after
+            -- clearing this wing (Anduin->7, Lords->9, Rygelon->10).
+            lockoutBits = { [8] = 7, [9] = 9, [10] = 10 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 8,   -- Anduin Wrynn
+                    title     = "Anduin Wrynn",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when   = { mapID = 2050 },
+                            kind   = "path",
+                            note   = "After zoning into ^Domination's Grasp^, proceed up the ramp. After some dialog, you can engage ^Anduin Wrynn^.",
+                            points = {
+                                { 0.161, 0.518 },
+                                { 0.377, 0.520 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 9,   -- Lords of Dread
+                    title     = "Lords of Dread",
+                    requires  = { 8 },
+                    segments  = {
+                        {
+                            when        = { mapID = 2050 },
+                            kind        = "path",
+                            destination = "The Grand Design",
+                            note        = "Cross the bridge behind ^Anduin^ to the teleporter. Select ^Proceed^.",
+                            points      = {
+                                { 0.435, 0.519 },
+                                { 0.857, 0.517 },
+                            },
+                        },
+                        {
+                            when   = { mapID = 2052 },
+                            kind   = "path",
+                            note   = "Follow the path through ^The Grand Design^, killing trash on the way to ^Lords of Dread^.",
+                            points = {
+                                { 0.484, 0.202 },
+                                { 0.607, 0.204 },
+                                { 0.630, 0.289 },
+                                { 0.607, 0.437 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 10,   -- Rygelon
+                    title     = "Rygelon",
+                    requires  = { 9 },
+                    segments  = {
+                        {
+                            when   = { mapID = 2052 },
+                            kind   = "path",
+                            note   = "After killing ^Lords of Dread^, you will find a teleporter behind them. Use it to take a shortcut back to the beginning of the room, and follow the path to ^Rygelon^.",
+                            points = {
+                                { 0.607, 0.440 },
+                                { 0.641, 0.340 },
+                                { 0.635, 0.317 },
+                                { 0.639, 0.292 },
+                                { 0.608, 0.204 },
+                                { 0.377, 0.206 },
+                                { 0.344, 0.279 },
+                                { 0.300, 0.280 },
+                                { 0.287, 0.303 },
+                                { 0.306, 0.360 },
+                                { 0.325, 0.360 },
+                                { 0.363, 0.463 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- The Grand Design (live lfgDungeonID 2422, confirmed in-game).
+        -- Single boss: The Jailer (11). The LFR zone-in drops the player
+        -- directly into the Heart of Eternity platform sub-area (mapID 2051),
+        -- skipping the 2052 corridor the standard route walks, so this wing is
+        -- one segment on 2051.
+        [2422] = {
+            name   = "The Grand Design",
+            bosses = { 11 },   -- The Jailer
+            lockoutBits = { [11] = 3 },   -- Jailer -> bit 3 (diffed after clear)
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 11,   -- The Jailer
+                    title     = "The Jailer",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when   = { mapID = 2051 },
+                            kind   = "path",
+                            note   = "After zoning into ^The Grand Design^, move straight ahead to ^The Jailer^'s platform and end this.",
+                            -- No waypoint: the LFR zone-in drops the player on
+                            -- the Jailer's platform already, so there's nothing
+                            -- to navigate -- the note alone is the guidance.
+                            points = {},
+                        },
+                    },
+                },
+            },
+        },
+    },  -- lfrWings
 }

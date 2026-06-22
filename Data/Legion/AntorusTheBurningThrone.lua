@@ -386,6 +386,441 @@ RetroRuns_Data[1712] = {
         },
     },
 
+    lfrWings = {
+        -- Wing 1 -- Light's Breach: Garothi Worldbreaker, Felhounds of
+        -- Sargeras, Antoran High Command (first three of the standard
+        -- order). Notes and routing imported verbatim from standard
+        -- steps 1-3.
+        [1916] = {
+            name   = "Light's Breach",
+            bosses = { 1, 2, 3 },
+            lockoutBits = { [1] = 8, [2] = 6, [3] = 4 },
+            routing = {
+                -- 1. Garothi Worldbreaker
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Garothi Worldbreaker",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 909 },
+                            mapID   = 909,
+                            kind    = "path",
+                            note    = "After zoning in, follow the linear path to find the first boss, ^Garothi Worldbreaker^.",
+                            points  = {
+                                { 0.902, 0.633 },
+                                { 0.888, 0.560 },
+                                { 0.750, 0.598 },
+                            },
+                        },
+                    },
+                },
+
+                -- 2. Felhounds of Sargeras
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 2,
+                    title     = "Felhounds of Sargeras",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when    = { mapID = 909 },
+                            mapID   = 909,
+                            kind    = "path",
+                            note    = "After defeating ^Garothi Worldbreaker^, continue straight ahead on the path to ^Felhounds of Sargeras^.",
+                            points  = {
+                                { 0.706, 0.636 },
+                                { 0.569, 0.566 },
+                                { 0.464, 0.603 },
+                                { 0.431, 0.568 },
+                            },
+                        },
+                    },
+                },
+
+                -- 3. Antoran High Command. LFR differs from standard:
+                -- the player clicks a Lightforged Teleportation Pad in
+                -- the Felhounds room. Seg 1 is the labeled pad POI, seg 2
+                -- the short walk to the elevator -- both carry the same
+                -- note so it stays visible across the POI and the path.
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 3,
+                    title     = "Antoran High Command",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when        = { mapID = 909 },
+                            mapID       = 909,
+                            kind        = "poi",
+                            mapLabel    = "Teleportation Pad",
+                            mapLabelPos = "below",
+                            note        = "After defeating the ^Felhounds of Sargeras^, click the ^Lightforged Teleportation Pad^ in their boss room to be teleported further up the path. After landing, proceed ahead to ride the elevator up.",
+                            points      = {
+                                { 0.431, 0.569 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 909 },
+                            mapID   = 909,
+                            kind    = "path",
+                            note    = "After defeating the ^Felhounds of Sargeras^, click the ^Lightforged Teleportation Pad^ in their boss room to be teleported further up the path. After landing, proceed ahead to ride the elevator up.",
+                            points  = {
+                                { 0.351, 0.403 },
+                                { 0.190, 0.226 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 910 },
+                            mapID   = 910,
+                            kind    = "path",
+                            note    = "From the top of the elevator, proceed ahead up the ramp to find the ^Antoran High Command^.",
+                            points  = {
+                                { 0.680, 0.759 },
+                                { 0.588, 0.787 },
+                                { 0.547, 0.609 },
+                                { 0.434, 0.487 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 2 -- Forbidden Descent: Eonar the Life-Binder, Portal
+        -- Keeper Hasabel, Imonar the Soulhunter (LFR order -- LFR forces
+        -- Eonar first). LFR drops the player on mapID 911; Eonar's entry
+        -- is an LFR-specific walk to the Elunaria portal, then the
+        -- standard 912/913 legs to the orb.
+        [1915] = {
+            name   = "Forbidden Descent",
+            bosses = { 5, 4, 6 },
+            lockoutBits = { [5] = 7, [4] = 2, [6] = 9 },
+            routing = {
+                -- 5. Eonar the Life-Binder (LFR-specific entry, then
+                -- standard 912/913 legs)
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 5,
+                    title     = "Eonar the Life-Binder",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 911 },
+                            mapID   = 911,
+                            kind    = "path",
+                            note    = "After zoning in, enter the room on the left and enter the portal at the map exit labeled ^Elunaria^.",
+                            points  = {
+                                { 0.781, 0.514 },
+                                { 0.757, 0.558 },
+                                { 0.675, 0.557 },
+                                { 0.671, 0.677 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 912 },
+                            mapID   = 912,
+                            kind    = "path",
+                            note    = "After taking the portal, follow the long, linear path towards the next map exit labeled ^Elarian Sanctuary^.",
+                            points  = {
+                                { 0.603, 0.853 },
+                                { 0.644, 0.707 },
+                                { 0.629, 0.601 },
+                                { 0.311, 0.233 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 913 },
+                            mapID   = 913,
+                            kind    = "path",
+                            note    = "Once you enter the ^Elarian Sanctuary^, approach the ^Essence of Eonar^ (blue floating orb), and interact with it to begin the encounter for ^Eonar the Life-Binder^.",
+                            points  = {
+                                { 0.731, 0.594 },
+                                { 0.596, 0.409 },
+                                { 0.545, 0.442 },
+                                { 0.501, 0.421 },
+                                { 0.424, 0.551 },
+                            },
+                        },
+                    },
+                },
+
+                -- 4. Portal Keeper Hasabel. Step 1 is the post-Eonar
+                -- "click the Essence of Eonar" POI (imported from the
+                -- standard Imonar approach), which sends the player back
+                -- to Antorus.
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 4,
+                    title     = "Portal Keeper Hasabel",
+                    requires  = { 5 },
+                    segments  = {
+                        {
+                            when    = { mapID = 913, subZone = "Elarian Sanctuary" },
+                            mapID   = 913,
+                            kind    = "poi",
+                            poiSize = 35,
+                            mapLabel = "Essence of Eonar",
+                            note    = "Talk to the ^Essence of Eonar^ to be sent back to Antorus.",
+                            points  = {
+                                { 0.376, 0.633 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 911 },
+                            mapID   = 911,
+                            kind    = "path",
+                            note    = "After arriving back in Antorus, follow the path to the left to reach ^Portal Keeper Hasabel^.",
+                            points  = {
+                                { 0.673, 0.623 },
+                                { 0.672, 0.579 },
+                                { 0.590, 0.512 },
+                                { 0.459, 0.511 },
+                            },
+                        },
+                    },
+                },
+
+                -- 6. Imonar the Soulhunter. Seg 1 is the LFR-specific
+                -- return to the Light's Breach portal.
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 6,
+                    title     = "Imonar the Soulhunter",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when    = { mapID = 911 },
+                            mapID   = 911,
+                            kind    = "path",
+                            note    = "After killing ^Portal Keeper Hasabel^, return to the portal marked on the map as ^Light's Breach^.",
+                            points  = {
+                                { 0.494, 0.513 },
+                                { 0.603, 0.509 },
+                                { 0.638, 0.558 },
+                                { 0.760, 0.564 },
+                                { 0.785, 0.527 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 909 },
+                            mapID   = 909,
+                            kind    = "path",
+                            note    = "After teleporting, proceed forward and click on one of the ^Lightforged Warframes^ to be flown to the next area.",
+                            points  = {
+                                { 0.551, 0.438 },
+                                { 0.569, 0.515 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 909, subZone = "Broken Cliffs" },
+                            mapID   = 909,
+                            kind    = "path",
+                            note    = "After landing, move forward and click the ^Lightforged Beacon^ to be teleported to ^The Exhaust^.",
+                            points  = {
+                                { 0.564, 0.648 },
+                                { 0.549, 0.699 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 914 },
+                            mapID   = 914,
+                            kind    = "path",
+                            note    = "After landing in ^The Exhaust^, move forward to start the encounter with ^Imonar the Soulhunter^.",
+                            points  = {},
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 3 -- Hope's End: Kin'garoth, Varimathras, The Coven of
+        -- Shivarra (standard order). LFR drops the player on mapID 914,
+        -- so Kin'garoth's entry note is an LFR zone-in; Varimathras and
+        -- Coven import from standard steps 8 and 9.
+        [1914] = {
+            name   = "Hope's End",
+            bosses = { 7, 8, 9 },
+            lockoutBits = { [7] = 10, [8] = 3, [9] = 5 },
+            routing = {
+                -- 7. Kin'garoth (reworded zone-in entry)
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "Kin'garoth",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 914 },
+                            mapID   = 914,
+                            kind    = "path",
+                            note    = "After zoning in, make your way down the long path to find ^Kin'garoth^.",
+                            points  = {
+                                { 0.200, 0.500 },
+                                { 0.778, 0.502 },
+                            },
+                        },
+                    },
+                },
+
+                -- 8. Varimathras (standard segs verbatim)
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 8,
+                    title     = "Varimathras",
+                    requires  = { 7 },
+                    segments  = {
+                        {
+                            when    = { mapID = 914 },
+                            mapID   = 914,
+                            kind    = "path",
+                            note    = "After killing ^Kin'garoth^, click the ^Lightforged Beacon^ behind you to be teleported to the next area. Select ^The Burning Throne^ from the dialog options.",
+                            points  = {
+                                { 0.778, 0.495 },
+                                { 0.687, 0.498 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 915 },
+                            mapID   = 915,
+                            kind    = "path",
+                            note    = "After arriving in ^The Burning Throne^, proceed down the path and kill ^Tarneth^ to open the door. Jump in the hole behind the next trash pack.",
+                            points  = {
+                                { 0.857, 0.529 },
+                                { 0.638, 0.527 },
+                                { 0.606, 0.580 },
+                                { 0.564, 0.580 },
+                                { 0.542, 0.527 },
+                                { 0.411, 0.527 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 916 },
+                            mapID   = 916,
+                            kind    = "path",
+                            note    = "After jumping in the hole, you will be in ^Chamber of Anguish^. Proceed to the next room to find ^Varimathras^.",
+                            points  = {
+                                { 0.692, 0.682 },
+                                { 0.605, 0.690 },
+                                { 0.537, 0.771 },
+                            },
+                        },
+                    },
+                },
+
+                -- 9. The Coven of Shivarra (standard segs verbatim)
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 9,
+                    title     = "The Coven of Shivarra",
+                    requires  = { 8 },
+                    segments  = {
+                        {
+                            when    = { mapID = 916 },
+                            mapID   = 916,
+                            kind    = "path",
+                            note    = "After defeating ^Varimathras^, take the ascending stairwell out of the room towards ^Temple of Anguish^.",
+                            points  = {
+                                { 0.516, 0.770 },
+                                { 0.515, 0.402 },
+                                { 0.327, 0.396 },
+                                { 0.326, 0.261 },
+                                { 0.501, 0.251 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 915 },
+                            mapID   = 915,
+                            kind    = "path",
+                            note    = "After reaching the top of the stairs and opening a door, you will encounter ^The Coven of Shivarra^.",
+                            points  = {
+                                { 0.321, 0.452 },
+                                { 0.321, 0.495 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 4 -- Seat of the Pantheon: Aggramar, Argus the Unmaker
+        -- (final wing). LFR drops the player on mapID 917 (The World
+        -- Soul), so Aggramar's entry is the standard final 917 seg with
+        -- an LFR zone-in opener; Argus imports from standard step 11.
+        [1913] = {
+            name   = "Seat of the Pantheon",
+            bosses = { 10, 11 },
+            lockoutBits = { [10] = 1, [11] = 11 },
+            routing = {
+                -- 10. Aggramar (reworded zone-in entry)
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 10,
+                    title     = "Aggramar",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 917 },
+                            mapID   = 917,
+                            kind    = "path",
+                            note    = "After zoning in, proceed ahead to engage ^Aggramar^.",
+                            points  = {
+                                { 0.718, 0.539 },
+                                { 0.639, 0.541 },
+                                { 0.621, 0.476 },
+                                { 0.562, 0.476 },
+                                { 0.533, 0.533 },
+                                { 0.269, 0.529 },
+                            },
+                        },
+                    },
+                },
+
+                -- 11. Argus the Unmaker (standard segs verbatim)
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 11,
+                    title     = "Argus the Unmaker",
+                    requires  = { 10 },
+                    segments  = {
+                        {
+                            when    = { mapID = 917 },
+                            mapID   = 917,
+                            kind    = "poi",
+                            poiSize = 35,
+                            note    = "After defeating ^Aggramar^, speak to ^Magni Bronzebeard^ and tell him you're ready.",
+                            points  = {
+                                { 0.302, 0.554 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 918 },
+                            mapID    = 918,
+                            kind     = "poi",
+                            noMarker = true,
+                            note     = "You have reached the final boss, ^Argus the Unmaker^. Kill him!",
+                            points   = {
+                                { 0.501, 0.574 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+
     routing = {
         {
             step      = 1,
@@ -571,9 +1006,10 @@ RetroRuns_Data[1712] = {
                     mapID   = 913,
                     kind    = "poi",
                     poiSize = 35,
+                    mapLabel = "Essence of Eonar",
                     note    = "Talk to the ^Essence of Eonar^ to be sent back to Antorus.",
                     points  = {
-                        { 0.422, 0.560 },
+                        { 0.376, 0.633 },
                     },
                 },
                 {

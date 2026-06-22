@@ -113,7 +113,6 @@ RetroRuns_Data[2450] = {
             name               = "The Nine",
             journalEncounterID = 2439,
             aliases            = { "Nine" },
-            soloTip            = "After some dialog, the boss is a Standard Nuke.",
             achievements       = {
                 { id = 15003, name = "To the Nines", meta = true, soloable = "no" },
             },
@@ -603,6 +602,316 @@ RetroRuns_Data[2450] = {
         },
 
     },  -- routing
+
+    -- LFR wing routes. Each wing is keyed by its live lfgDungeonID (the 10th
+    -- return of GetInstanceInfo). Segments are copied from the standard route
+    -- where the LFR path matches; each wing's first boss has its own LFR
+    -- zone-in note.
+    lfrWings = {
+        -- Jailer's Vanguard: Tarragrue(1), Eye of the Jailer(2), The Nine(3).
+        -- Same order/path as the standard route's opening three bosses.
+        [2415] = {
+            name   = "The Jailer's Vanguard",
+            bosses = { 1, 2, 3 },   -- Tarragrue, Eye of the Jailer, The Nine
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Tarragrue->2, Eye of the Jailer->7, The Nine->3.
+            lockoutBits = { [1] = 2, [2] = 7, [3] = 3 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "The Tarragrue",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when   = { mapID = 1998 },
+                            kind   = "path",
+                            note   = "Follow the map from the entrance to ^the Tarragrue^.",
+                            points = {
+                                { 0.346, 0.785 },
+                                { 0.382, 0.739 },
+                                { 0.360, 0.688 },
+                                { 0.395, 0.551 },
+                                { 0.427, 0.530 },
+                                { 0.437, 0.494 },
+                                { 0.522, 0.491 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 2,
+                    title     = "The Eye of the Jailer",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when   = { mapID = 1998 },
+                            kind   = "path",
+                            note   = "After killing ^Tarragrue^, wait for dialog to complete, then walk through the portal marked as a map exit ^Shadowsteel Foundry^.",
+                            points = {},
+                        },
+                        {
+                            when   = { mapID = 1999 },
+                            kind   = "path",
+                            note   = "After teleporting, follow the path to ^Eye of the Jailer^ and clear all trash on his platform. To reach the far side, walk to the pile of chains and use the extra action button",
+                            points = {
+                                { 0.723, 0.757 },
+                                { 0.595, 0.607 },
+                                { 0.567, 0.668 },
+                                { 0.595, 0.713 },
+                                { 0.582, 0.796 },
+                                { 0.551, 0.790 },
+                                { 0.470, 0.892 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 3,
+                    title     = "The Nine",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when   = { mapID = 1999 },
+                            kind   = "path",
+                            note   = "After killing ^The Eye of the Jailer^, follow the path all the way north to find ^The Nine^.",
+                            points = {
+                                { 0.468, 0.888 },
+                                { 0.410, 0.847 },
+                                { 0.379, 0.798 },
+                                { 0.348, 0.797 },
+                                { 0.349, 0.737 },
+                                { 0.368, 0.716 },
+                                { 0.422, 0.713 },
+                                { 0.422, 0.233 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Dark Bastille: Soulrender Dormazain(5), Remnant of Ner'zhul(4),
+        -- Painsmith Raznal(6). Walk order 5->4->6 matches the standard route.
+        -- LFR zones directly into The Torment Chambers (mapID 2000) at
+        -- Soulrender, so his standard entry (the 1999 elevator segment) is
+        -- dropped and the 2000 segment becomes the seed entry.
+        [2416] = {
+            name   = "The Dark Bastille",
+            bosses = { 5, 4, 6 },   -- Soulrender Dormazain, Remnant of Ner'zhul, Painsmith Raznal
+            -- Per-boss lockout bits. Soulrender->8 was a clean capture; the
+            -- Ner'zhul/Painsmith pair occupied bits {4,6} but a fast Ner'zhul
+            -- kill bursted both into one read. Resolved on a re-clear: with the
+            -- log freshly cleared, a post-Ner'zhul read showed bits {6,8}
+            -- (8 = Soulrender already down), so Ner'zhul = 6 and Painsmith = 4.
+            lockoutBits = { [5] = 8, [4] = 6, [6] = 4 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 5,
+                    title     = "Soulrender Dormazain",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when   = { mapID = 2000 },
+                            kind   = "path",
+                            note   = "After zoning into ^The Torment Chambers^, follow the path to ^Soulrender Dormazain^.",
+                            points = {
+                                { 0.332, 0.543 },
+                                { 0.657, 0.547 },
+                                { 0.655, 0.596 },
+                                { 0.678, 0.609 },
+                                { 0.658, 0.685 },
+                                { 0.681, 0.700 },
+                                { 0.693, 0.724 },
+                                { 0.690, 0.749 },
+                                { 0.664, 0.788 },
+                                { 0.558, 0.734 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 4,
+                    title     = "Remnant of Ner'zhul",
+                    requires  = { 5 },
+                    segments  = {
+                        {
+                            when   = { mapID = 2000 },
+                            kind   = "path",
+                            note   = "After killing ^Soulrender Dormazain^, follow the path to ^Remnant of Ner'zhul^. Kill the trash to engage the boss.",
+                            points = {
+                                { 0.566, 0.736 },
+                                { 0.673, 0.798 },
+                                { 0.691, 0.747 },
+                                { 0.688, 0.708 },
+                                { 0.656, 0.685 },
+                                { 0.677, 0.609 },
+                                { 0.659, 0.597 },
+                                { 0.656, 0.546 },
+                                { 0.662, 0.489 },
+                                { 0.697, 0.472 },
+                                { 0.729, 0.489 },
+                                { 0.786, 0.422 },
+                                { 0.858, 0.381 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 6,
+                    title     = "Painsmith Raznal",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when   = { mapID = 2000 },
+                            kind   = "path",
+                            note   = "After killing ^Remnant of Ner'zhul^, follow the path to loop back around to ^Painsmith Raznal^.",
+                            points = {
+                                { 0.848, 0.389 },
+                                { 0.754, 0.445 },
+                                { 0.727, 0.492 },
+                                { 0.700, 0.471 },
+                                { 0.657, 0.490 },
+                                { 0.653, 0.544 },
+                                { 0.767, 0.543 },
+                                { 0.769, 0.420 },
+                                { 0.732, 0.406 },
+                                { 0.697, 0.411 },
+                                { 0.672, 0.332 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Shackles of Fate: Guardian of the First Ones(7), Fatescribe
+        -- Roh-Kalo(8), Kel'Thuzad(9). LFR zones directly into Crown of Gorgoa
+        -- (mapID 2001) at Guardian, so his standard entry (the 2000 portal
+        -- segment) is dropped and the 2001 segment becomes the seed entry.
+        [2417] = {
+            name   = "Shackles of Fate",
+            bosses = { 7, 8, 9 },   -- Guardian of the First Ones, Fatescribe Roh-Kalo, Kel'Thuzad
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Guardian->10, Fatescribe->5, Kel'Thuzad->1.
+            lockoutBits = { [7] = 10, [8] = 5, [9] = 1 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "Guardian of the First Ones",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when   = { mapID = 2001 },
+                            kind   = "path",
+                            note   = "After zoning into ^Crown of Gorgoa^, follow the path North to ^Guardian of the First Ones^.",
+                            points = {
+                                { 0.614, 0.519 },
+                                { 0.579, 0.519 },
+                                { 0.570, 0.448 },
+                                { 0.545, 0.410 },
+                                { 0.631, 0.191 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 8,
+                    title     = "Fatescribe Roh-Kalo",
+                    requires  = { 7 },
+                    segments  = {
+                        {
+                            when   = { mapID = 2001 },
+                            kind   = "path",
+                            note   = "After killing ^Guardian of the First Ones^, go back the way you came and follow the path to ^Fatescribe Roh-Kalo^. For a shortcut, you can jump off the ledge to respawn halfway there.",
+                            points = {
+                                { 0.615, 0.226 },
+                                { 0.542, 0.420 },
+                                { 0.571, 0.449 },
+                                { 0.580, 0.495 },
+                                { 0.577, 0.546 },
+                                { 0.565, 0.587 },
+                                { 0.520, 0.633 },
+                                { 0.465, 0.621 },
+                                { 0.446, 0.654 },
+                                { 0.429, 0.647 },
+                                { 0.406, 0.704 },
+                                { 0.440, 0.740 },
+                                { 0.467, 0.678 },
+                                { 0.547, 0.724 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 9,
+                    title     = "Kel'Thuzad",
+                    requires  = { 8 },
+                    segments  = {
+                        {
+                            when   = { mapID = 2001 },
+                            kind   = "path",
+                            note   = "After killing ^Fatescribe Roh-Kalo^, go back out the way you came and follow the path to ^Kel'Thuzad^.",
+                            points = {
+                                { 0.546, 0.704 },
+                                { 0.490, 0.704 },
+                                { 0.451, 0.657 },
+                                { 0.466, 0.619 },
+                                { 0.435, 0.578 },
+                                { 0.428, 0.521 },
+                                { 0.322, 0.521 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Reckoning: Sylvanas Windrunner(10). LFR zones directly into Pinnacle
+        -- of Domination (mapID 2002) in front of Sylvanas, so the standard
+        -- entry (Kel'Thuzad's purple portal) is dropped; single seed entry.
+        [2418] = {
+            name   = "The Reckoning",
+            bosses = { 10 },   -- Sylvanas Windrunner
+            -- Sylvanas is bit 9, confirmed by elimination: the pre-kill lockout
+            -- read all bits except 9 with the other nine bosses down.
+            lockoutBits = { [10] = 9 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 10,
+                    title     = "Sylvanas Windrunner",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when   = { mapID = 2002 },
+                            kind   = "path",
+                            note   = "You arrive at ^Pinnacle of Domination^ right in front of ^Sylvanas Windrunner^. Walk towards the boss to trigger dialog and start the encounter.",
+                            points = {},
+                        },
+                    },
+                },
+            },
+        },
+    },  -- lfrWings
 
     -- Skip route: after The Tarragrue, the Ebon Blade Acolyte conjures a
     -- portal to Crown of Gorgoa, bypassing bosses 2-8. Kept bosses: The

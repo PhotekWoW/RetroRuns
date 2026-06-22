@@ -867,4 +867,294 @@ RetroRuns_Data[2549] = {
         },
 
     },
+
+    lfrWings = {
+        -- Incarnate's Wake: Gnarlroot(1), Igira the Cruel(2), Smolderon(7).
+        -- LFR wing rosters don't follow encounter order here -- Smolderon
+        -- (encounter 7) is grouped into the first wing. LFR zones into the
+        -- same spot the standard route starts from (mapID 2232, Wellspring
+        -- Atrium), so Gnarlroot and Igira import byte-identical from the
+        -- standard opening. Smolderon's entry awaits the verbatim LFR
+        -- zone-in note + points from the walk.
+        [2466] = {
+            name   = "Incarnate's Wake",
+            bosses = { 1, 2, 7 },   -- Gnarlroot, Igira the Cruel, Smolderon
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Gnarlroot->8, Igira the Cruel->3, Smolderon->9.
+            lockoutBits = { [1] = 8, [2] = 3, [7] = 9 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Gnarlroot",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 2232 },
+                            kind    = "path",
+                            note    = "After zoning in, follow the path to ^Gnarlroot^. Clear the trash around him to start the encounter.",
+                            points  = {
+                                { 0.507, 0.904 },
+                                { 0.448, 0.817 },
+                                { 0.463, 0.704 },
+                                { 0.461, 0.588 },
+                                { 0.507, 0.554 },
+                                { 0.508, 0.437 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 2,
+                    title     = "Igira the Cruel",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when    = { mapID = 2232 },
+                            kind    = "path",
+                            note    = "After killing ^Gnarlroot^, continue forward and clear the trash pack to start the encounter with ^Igira the Cruel^.",
+                            points  = {
+                                { 0.507, 0.368 },
+                                { 0.506, 0.288 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "Smolderon",
+                    requires  = { 1, 2 },
+                    segments  = {
+                        {
+                            when            = { mapID = 2232 },
+                            kind            = "poi",
+                            noMarker        = true,
+                            highlightCircle = true,
+                            note            = "After killing ^Igira the Cruel^, go up the stairs behind him and channel the ^Formation Seed^ to form the bridge.",
+                            mapLabel        = "Formation Seed",
+                            mapLabelPos     = "right",
+                            mapLabelPulse   = true,
+                            points          = {
+                                { 0.507, 0.130 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2233 },
+                            kind    = "path",
+                            note    = "As you cross the bridge, dodge fire so you don't get thrown over the edge. At the end of the bridge, you will find ^Smolderon^.",
+                            points  = {
+                                { 0.501, 0.941 },
+                                { 0.502, 0.370 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Molten Incursion: Volcoross(3), Larodar(5). LFR zones into mapID
+        -- 2232 (Wellspring Atrium) without having fought Igira, so
+        -- Volcoross's standard entry note (which assumes the post-Igira
+        -- exit) doesn't apply -- the step-1 entry segment awaits the
+        -- verbatim LFR zone-in note + points. The 2244 Scorched Hall
+        -- approach and Larodar both chain normally and import verbatim.
+        [2711] = {
+            name   = "Molten Incursion",
+            bosses = { 3, 5 },   -- Volcoross, Larodar, Keeper of the Flame
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Volcoross->6, Larodar->5.
+            lockoutBits = { [3] = 6, [5] = 5 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 3,
+                    title     = "Volcoross",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when            = { mapID = 2232 },
+                            kind            = "poi",
+                            highlightCircle = true,
+                            note            = "After zoning in, head for the map exit labeled ^The Scorched Hall^.",
+                            points          = {
+                                { 0.430, 0.197 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2244 },
+                            kind    = "path",
+                            note    = "Follow the path to the boss area, and clear the trash to spawn ^Volcoross^.",
+                            points  = {
+                                { 0.768, 0.878 },
+                                { 0.733, 0.803 },
+                                { 0.674, 0.718 },
+                                { 0.625, 0.709 },
+                                { 0.572, 0.619 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 5,
+                    title     = "Larodar, Keeper of the Flame",
+                    requires  = { 3 },
+                    segments  = {
+                        {
+                            when    = { mapID = 2244 },
+                            kind    = "path",
+                            note    = "After killing ^Volcoross^, continue down the path behind him. Clear trash to start the encounter with ^Larodar, Keeper of the Flame^.",
+                            points  = {
+                                { 0.528, 0.556 },
+                                { 0.466, 0.470 },
+                                { 0.439, 0.430 },
+                                { 0.387, 0.354 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- The Viridian Weave: Council of Dreams(4), Nymue(6). LFR zones into
+        -- mapID 2232 (Wellspring Atrium) -- the same hub the standard route
+        -- returns to after Larodar via the Seed of Life portal -- so the
+        -- standard Council route's first two segments (the 2244 portal back
+        -- from Larodar's room) don't apply. The step-1 entry segment awaits
+        -- the verbatim LFR zone-in note + the Verdant Terrace exit POI; the
+        -- 2240 approach to Council and Nymue both import verbatim.
+        [2467] = {
+            name   = "The Viridian Weave",
+            bosses = { 4, 6 },   -- Council of Dreams, Nymue, Weaver of the Cycle
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Council of Dreams->4, Nymue->2.
+            lockoutBits = { [4] = 4, [6] = 2 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 4,
+                    title     = "Council of Dreams",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when            = { mapID = 2232 },
+                            kind            = "poi",
+                            highlightCircle = true,
+                            note            = "After zoning in, head for the map exit labeled ^Verdant Terrace^.",
+                            points          = {
+                                { 0.584, 0.197 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2240 },
+                            kind    = "path",
+                            note    = "Follow the path all the way back to meet the ^Council of Dreams^. Click each of the illusions to start the fight.",
+                            points  = {
+                                { 0.187, 0.939 },
+                                { 0.223, 0.857 },
+                                { 0.290, 0.767 },
+                                { 0.330, 0.762 },
+                                { 0.412, 0.645 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 6,
+                    title     = "Nymue, Weaver of the Cycle",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when    = { mapID = 2240 },
+                            kind    = "path",
+                            note    = "After killing ^Council of Dreams^, follow the path behind them to reach ^Nymue, Weaver of the Cycle^.",
+                            points  = {
+                                { 0.420, 0.579 },
+                                { 0.420, 0.490 },
+                                { 0.459, 0.495 },
+                                { 0.490, 0.523 },
+                                { 0.601, 0.347 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Fate of Amirdrassil: Tindral(8), Fyrakk(9). LFR zones into mapID
+        -- 2233 (Throne of the Firelord) -- the same map the standard route
+        -- reaches via the Formation Seed bridge after Smolderon -- so the
+        -- standard Tindral entry note ("After killing Smolderon...") doesn't
+        -- apply. The step-1 entry segment awaits the verbatim LFR zone-in
+        -- note + the Verdant Dreambreaker dragon POI; the 2237 approach to
+        -- Tindral and the entire Fyrakk step import verbatim.
+        [2469] = {
+            name   = "Fate of Amirdrassil",
+            bosses = { 8, 9 },   -- Tindral Sageswift, Fyrakk the Blazing
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Tindral->7, Fyrakk->1.
+            lockoutBits = { [8] = 7, [9] = 1 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 8,
+                    title     = "Tindral Sageswift, Seer of the Flame",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when            = { mapID = 2233 },
+                            kind            = "poi",
+                            noMarker        = true,
+                            highlightCircle = true,
+                            note            = "After zoning in, interact with the dragon to be flown to ^Tindral Sageswift, Seer of the Flame^.",
+                            mapLabel        = "Verdant Dreambreaker",
+                            mapLabelPos     = "above",
+                            mapLabelPulse   = true,
+                            points          = {
+                                { 0.469, 0.326 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2237 },
+                            kind    = "path",
+                            note    = "Approach ^Tindral^ to trigger the encounter.",
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 9,
+                    title     = "Fyrakk the Blazing",
+                    requires  = { 8 },
+                    segments  = {
+                        {
+                            when    = { mapID = 2234 },
+                            kind    = "poi",
+                            poiSize = 78,
+                            note    = "After killing ^Tindral^, mount up and fly into the fire-colored portal in the sky (marked with a |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t). This will teleport you to ^Heart of Amirdrassil^.",
+                            points  = {
+                                { 0.565, 0.656 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2238 },
+                            note    = "After the teleport, you should be standing across from ^Fyrakk^. Approach him to start the encounter.",
+                        },
+                    },
+                },
+            },
+        },
+    },
 }

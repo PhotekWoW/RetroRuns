@@ -245,7 +245,8 @@ AddCheckbox(pageGeneral, "Minimap Button", "Show the RetroRuns button on the min
     end)
 
 -- Appearance
-AddSlider(pageAppearance, "Font Size", 10, 18, 1,
+-- Font Size max is RR.FONT_SIZE_MAX (the size the fixed-width frame fits).
+AddSlider(pageAppearance, "Font Size", 10, RR.FONT_SIZE_MAX or 14, 1,
     function() return RR:GetSetting("fontSize", 12) end,
     function(v)
         RR:SetSetting("fontSize", v)

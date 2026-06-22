@@ -1045,4 +1045,378 @@ RetroRuns_Data[2296] = {
         },
 
     },  -- skipRoute
+
+    -- LFR wings. Keyed by the live lfgDungeonID (GetInstanceInfo position 10),
+    -- resolved via GetActiveWing. Each wing carries its own boss subset and
+    -- route; bosses are referenced by their index in the `bosses` table above
+    -- (loot, achievements, soloTips, and the [17] LFR loot sources are already
+    -- there, so wings add only routing).
+    lfrWings = {
+        -- The Leeching Vaults (live lfgDungeonID 2411, confirmed in-game).
+        -- Bosses: Huntsman Altimor(2), Hungering Destroyer(5), Lady Inerva
+        -- Darkvein(6) -- same order as the standard route's Catacombs path, so
+        -- Hungering Destroyer and Lady Inerva copy verbatim; Altimor's entry is
+        -- reworded for the LFR zone-in (Shriekwing, the standard prerequisite,
+        -- is in a different wing).
+        [2411] = {
+            name   = "The Leeching Vaults",
+            bosses = { 2, 5, 6 },   -- Huntsman Altimor, Hungering Destroyer, Lady Inerva Darkvein
+            lockoutBits = { [2] = 10, [5] = 1, [6] = 6 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 2,   -- Huntsman Altimor
+                    title     = "Huntsman Altimor",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when   = { mapID = 1735 },
+                            kind   = "path",
+                            note   = "After zoning in, move ahead and follow the north path out of ^Shriekwing^'s room and go down the stairs. Kill the trash, and ^General Draven^ will come open the gate. Kill a few trash mobs then engage ^Huntsman Altimor^.",
+                            points = {
+                                { 0.457, 0.810 },
+                                { 0.529, 0.808 },
+                                { 0.591, 0.766 },
+                                { 0.592, 0.766 },
+                                { 0.592, 0.689 },
+                                { 0.616, 0.678 },
+                                { 0.629, 0.642 },
+                                { 0.619, 0.604 },
+                                { 0.593, 0.587 },
+                                { 0.567, 0.598 },
+                                { 0.554, 0.632 },
+                                { 0.563, 0.669 },
+                                { 0.579, 0.688 },
+                                { 0.617, 0.689 },
+                                { 0.646, 0.660 },
+                                { 0.662, 0.632 },
+                                { 0.674, 0.531 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 5,   -- Hungering Destroyer
+                    title     = "Hungering Destroyer",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when   = { mapID = 1735 },
+                            kind   = "path",
+                            note   = "After killing ^Huntsman Altimor^, follow the path to a small room at the back, and jump into the sewer that the NPCs are standing next to. Make your way down the path to find ^Hungering Destroyer^.",
+                            points = {
+                                { 0.675, 0.459 },
+                                { 0.634, 0.435 },
+                                { 0.635, 0.372 },
+                                { 0.674, 0.333 },
+                                { 0.637, 0.303 },
+                                { 0.637, 0.160 },
+                                { 0.607, 0.166 },
+                                { 0.588, 0.180 },
+                                { 0.586, 0.211 },
+                                { 0.568, 0.237 },
+                                { 0.501, 0.346 },
+                                { 0.383, 0.348 },
+                            },
+                        },
+                        {
+                            when            = { mapID = 1735 },
+                            kind            = "poi",
+                            noMarker        = true,
+                            highlightCircle = true,
+                            mapLabel        = "Jump in Sewer",
+                            mapLabelPos     = "right",
+                            mapLabelPulse   = true,
+                            points          = { { 0.671, 0.331 } },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 6,   -- Lady Inerva Darkvein
+                    title     = "Lady Inerva Darkvein",
+                    requires  = { 5 },
+                    segments  = {
+                        {
+                            when   = { mapID = 1735 },
+                            kind   = "path",
+                            note   = "After killing ^Hungering Destroyer^, take the stairs going up to ^The Purloined Stores^.",
+                            points = {
+                                { 0.332, 0.351 },
+                                { 0.305, 0.433 },
+                                { 0.304, 0.467 },
+                                { 0.319, 0.498 },
+                                { 0.350, 0.500 },
+                            },
+                        },
+                        {
+                            when   = { mapID = 1744 },
+                            kind   = "path",
+                            note   = "After arriving in the room with ^Lady Inerva Darkvein^, kill all the trash to trigger some dialog, then kill the boss.",
+                            points = {
+                                { 0.465, 0.556 },
+                                { 0.449, 0.445 },
+                                { 0.387, 0.443 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Reliquary of Opulence (live lfgDungeonID 2412, confirmed in-game).
+        -- Bosses: Sun King's Salvation(3), Artificer Xy'mox(4), The Council of
+        -- Blood(7). Sun King's LFR entry skips the standard route's Draven
+        -- escort and Grand Walk backtrack (you zone straight into 1735 and head
+        -- south to Halls of the Faithful, rejoining the standard path at Pride's
+        -- Prison); Xy'mox and Council copy verbatim from the standard route.
+        [2412] = {
+            name   = "Reliquary of Opulence",
+            bosses = { 3, 4, 7 },   -- Sun King's Salvation, Artificer Xy'mox, The Council of Blood
+            lockoutBits = { [3] = 4, [4] = 5, [7] = 8 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 3,   -- Sun King's Salvation
+                    title     = "Sun King's Salvation",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when   = { mapID = 1735 },
+                            kind   = "path",
+                            note   = "After zoning in, proceed ahead into ^Shriekwing^'s room and take the southern map exit labeled ^Halls of the Faithful^.",
+                            points = {
+                                { 0.464, 0.810 },
+                                { 0.529, 0.809 },
+                                { 0.563, 0.836 },
+                                { 0.591, 0.872 },
+                            },
+                        },
+                        {
+                            when   = { mapID = 1745 },
+                            kind   = "path",
+                            note   = "In ^Halls of the Faithful^, wind your way around to the room overlooking the dancers. Clear the trash, and the NPCs will enter the room and open both gates. Follow the path opened by ^Prince Renathal^, and make your way up the stairs to ^Pride's Prison^.",
+                            points = {
+                                { 0.200, 0.429 },
+                                { 0.200, 0.486 },
+                                { 0.223, 0.529 },
+                                { 0.254, 0.541 },
+                                { 0.285, 0.525 },
+                                { 0.310, 0.458 },
+                                { 0.373, 0.448 },
+                                { 0.390, 0.474 },
+                                { 0.387, 0.677 },
+                                { 0.407, 0.692 },
+                                { 0.444, 0.694 },
+                                { 0.553, 0.830 },
+                                { 0.537, 0.850 },
+                                { 0.545, 0.879 },
+                            },
+                        },
+                        {
+                            when   = { mapID = 1746 },
+                            kind   = "path",
+                            note   = "Upon reaching ^Pride's Prison^, follow the path to engage ^Sun King's Salvation^.",
+                            points = {
+                                { 0.136, 0.341 },
+                                { 0.151, 0.265 },
+                                { 0.209, 0.278 },
+                                { 0.332, 0.202 },
+                                { 0.525, 0.200 },
+                                { 0.528, 0.648 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 4,   -- Artificer Xy'mox
+                    title     = "Artificer Xy'mox",
+                    requires  = { 3 },
+                    segments  = {
+                        {
+                            when   = { mapID = 1746 },
+                            kind   = "path",
+                            note   = "After defeating ^Sun King's Salvation^, go back the way you came and return down the stairs to ^Halls of the Faithful^.",
+                            points = {
+                                { 0.529, 0.644 },
+                                { 0.528, 0.202 },
+                                { 0.263, 0.192 },
+                                { 0.202, 0.282 },
+                                { 0.151, 0.271 },
+                                { 0.126, 0.320 },
+                                { 0.137, 0.353 },
+                            },
+                        },
+                        {
+                            when   = { mapID = 1745 },
+                            kind   = "path",
+                            note   = "After arriving back in ^Halls of the Faithful^, follow the path all the way around to ^Artificer Xy'mox^. Kill the trash, and ^Prince Renathal^ will show up to open the gate.",
+                            points = {
+                                { 0.531, 0.864 },
+                                { 0.560, 0.826 },
+                                { 0.478, 0.756 },
+                                { 0.474, 0.620 },
+                                { 0.561, 0.566 },
+                                { 0.651, 0.563 },
+                                { 0.652, 0.280 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 7,   -- The Council of Blood
+                    title     = "The Council of Blood",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when   = { mapID = 1745 },
+                            kind   = "path",
+                            note   = "After defeating ^Artificer Xy'mox^, backtrack out of the room and follow the path to the stairs leading to ^Feast of Arrogance^.",
+                            points = {
+                                { 0.651, 0.284 },
+                                { 0.650, 0.568 },
+                                { 0.557, 0.566 },
+                                { 0.531, 0.526 },
+                            },
+                        },
+                        {
+                            when   = { mapID = 1750 },
+                            kind   = "path",
+                            note   = "Once you arrive in ^Feast of Arrogance^, follow the path to find ^The Council of Blood^ at the far end of the room.",
+                            points = {
+                                { 0.338, 0.162 },
+                                { 0.361, 0.178 },
+                                { 0.364, 0.290 },
+                                { 0.456, 0.542 },
+                                { 0.671, 0.542 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Blood from Stone (live lfgDungeonID 2413, confirmed in-game).
+        -- Bosses: Shriekwing(1), Sludgefist(8), Stone Legion Generals(9).
+        -- Shriekwing copies verbatim (its standard note is already a generic
+        -- zone-in). Sludgefist is note-only in LFR -- fought in Shriekwing's
+        -- room, so the standard mirror-teleporter trek doesn't apply. Stone
+        -- Legion Generals copies verbatim (the mirror teleporter to Nightcloak
+        -- Sanctum DOES apply for this boss).
+        [2413] = {
+            name   = "Blood from Stone",
+            bosses = { 1, 8, 9 },   -- Shriekwing, Sludgefist, Stone Legion Generals
+            lockoutBits = { [1] = 2, [8] = 3, [9] = 9 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,   -- Shriekwing
+                    title     = "Shriekwing",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when   = { mapID = 1735 },
+                            kind   = "path",
+                            note   = "Upon zoning in, go up the stairs into the first room and watch some dialog. After that, engage ^Shriekwing^.",
+                            points = {
+                                { 0.384, 0.808 },
+                                { 0.571, 0.807 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 8,   -- Sludgefist
+                    title     = "Sludgefist",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when   = { mapID = 1735 },
+                            kind   = "path",
+                            note   = "After killing ^Shriekwing^, there will be a lengthy dialog. After that, you can fight ^Sludgefist^ in the same room.",
+                            -- No waypoint: in LFR, Sludgefist is fought in
+                            -- Shriekwing's room (the standard route's mirror-
+                            -- teleporter trek doesn't apply), so the note alone
+                            -- is the guidance.
+                            points = {},
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 9,   -- Stone Legion Generals
+                    title     = "Stone Legion Generals",
+                    requires  = { 8 },
+                    segments  = {
+                        {
+                            when   = { mapID = 1735 },
+                            kind   = "path",
+                            note   = "After killing ^Sludgefist^, travel up the stairs behind him and walk through the mirror teleporter to land in ^Nightcloak Sanctum^.",
+                            points = {
+                                { 0.631, 0.806 },
+                                { 0.644, 0.754 },
+                                { 0.670, 0.733 },
+                                { 0.696, 0.755 },
+                                { 0.700, 0.778 },
+                                { 0.740, 0.811 },
+                            },
+                        },
+                        {
+                            when   = { mapID = 1747 },
+                            kind   = "path",
+                            note   = "After taking the teleporter to ^Nightcloak Sanctum^, follow the path around to the ^Stone Legion Generals^. Clear trash to start the encounter.",
+                            points = {
+                                { 0.617, 0.320 },
+                                { 0.546, 0.248 },
+                                { 0.448, 0.234 },
+                                { 0.292, 0.482 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- An Audience with Arrogance (live lfgDungeonID 2414, confirmed
+        -- in-game). Single boss: Sire Denathrius(10). The LFR zone-in drops the
+        -- player directly into Nightcloak Sanctum (mapID 1747), skipping the
+        -- Master's Vestibule entrance the other wings use.
+        [2414] = {
+            name   = "An Audience with Arrogance",
+            bosses = { 10 },   -- Sire Denathrius
+            lockoutBits = { [10] = 7 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 10,   -- Sire Denathrius
+                    title     = "Sire Denathrius",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when   = { mapID = 1747 },
+                            kind   = "path",
+                            note   = "After zoning in, go straight ahead to engage ^Sire Denathrius^.",
+                            -- No waypoint: the LFR zone-in drops the player
+                            -- right at the boss, so the note alone is guidance.
+                            points = {},
+                        },
+                    },
+                },
+            },
+        },
+    },  -- lfrWings
 }

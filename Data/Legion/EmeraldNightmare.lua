@@ -277,6 +277,273 @@ RetroRuns_Data[1520] = {
     -- bosses 6-7 use the center portal (the Nightmare Iris) that
     -- unlocks once all four wings are clear. The player physically
     -- traverses 778 between every boss kill.
+    lfrWings = {
+        -- Wing 1 -- Darkbough: Nythendra, Elerethe, Il'gynoth (LFR order).
+        -- Wing 2 -- Tormented Guardians: Ursoc, Dragons, Cenarius (not yet keyed).
+        -- Wing 3 -- Rift of Aln: Xavius (not yet keyed).
+        [1926] = {
+            name   = "Rift of Aln",
+            bosses = { 7 },
+            lockoutBits = { [7] = 4 },
+            routing = {
+                -- 7. Xavius
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "Xavius",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 788 },
+                            kind    = "path",
+                            note    = "After zoning in, start killing trash. They will continue coming in waves until finally, you will meet ^Xavius^.",
+                            points  = {
+                                { 0.374, 0.770 },
+                                { 0.467, 0.528 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        [1927] = {
+            name   = "Tormented Guardians",
+            bosses = { 4, 5, 6 },
+            lockoutBits = { [4] = 1, [5] = 3, [6] = 7 },
+            routing = {
+                -- 4. Ursoc
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 4,
+                    title     = "Ursoc",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 786 },
+                            kind    = "path",
+                            note    = "After zoning in, follow the path around to find ^Ursoc^.",
+                            points  = {
+                                { 0.307, 0.668 },
+                                { 0.466, 0.821 },
+                                { 0.505, 0.745 },
+                                { 0.474, 0.341 },
+                            },
+                        },
+                    },
+                },
+
+                -- 5. Dragons of Nightmare
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 5,
+                    title     = "Dragons of Nightmare",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when    = { mapID = 786 },
+                            kind    = "path",
+                            note    = "After killing ^Ursoc^, go back the way you came and go back through the portal to ^Core of the Nightmare^.",
+                            points  = {
+                                { 0.479, 0.333 },
+                                { 0.495, 0.797 },
+                                { 0.420, 0.786 },
+                                { 0.300, 0.653 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 778 },
+                            kind    = "path",
+                            note    = "After walking through the portal, continue on the path and walk through the second portal to ^The Emerald Nightmare^.",
+                            points  = {
+                                { 0.559, 0.216 },
+                                { 0.544, 0.354 },
+                                { 0.571, 0.450 },
+                                { 0.603, 0.446 },
+                                { 0.647, 0.374 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 781 },
+                            kind    = "path",
+                            note    = "After arriving in ^The Emerald Nightmare^, proceed forward to start the encounter with ^Dragons of Nightmare^.",
+                            points  = {
+                                { 0.279, 0.790 },
+                                { 0.300, 0.655 },
+                                { 0.357, 0.514 },
+                            },
+                        },
+                    },
+                },
+
+                -- 6. Cenarius
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 6,
+                    title     = "Cenarius",
+                    requires  = { 5 },
+                    segments  = {
+                        {
+                            when    = { mapID = 781 },
+                            kind    = "path",
+                            note    = "After defeating the ^Dragons of Nightmare^, go back the way you came and return to ^Core of the Nightmare^.",
+                            points  = {
+                                { 0.357, 0.513 },
+                                { 0.305, 0.690 },
+                                { 0.277, 0.795 },
+                            },
+                        },
+                        {
+                            when        = { mapID = 778 },
+                            kind        = "poi",
+                            mapLabel    = "Malfurion",
+                            mapLabelPos = "above",
+                            note        = "After returning to the central hub, talk to ^Malfurion^ then interact with the ^Nightmare Iris^ to continue.",
+                            points      = {
+                                { 0.561, 0.485 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 787 },
+                            kind    = "path",
+                            note    = "Once inside ^Moonglade^, work your way down to ^Cenarius^ and kill him.",
+                            points  = {
+                                { 0.360, 0.840 },
+                                { 0.471, 0.407 },
+                                { 0.574, 0.354 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        [1912] = {
+            name   = "Darkbough",
+            bosses = { 1, 3, 2 },
+            lockoutBits = { [1] = 2, [3] = 6, [2] = 5 },
+            routing = {
+                -- 1. Nythendra
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Nythendra",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 777 },
+                            kind    = "path",
+                            note    = "After zoning in, proceed forward and clear the slimes to begin the encounter with ^Nythendra^.",
+                            points  = {
+                                { 0.446, 0.570 },
+                                { 0.526, 0.523 },
+                            },
+                        },
+                    },
+                },
+
+                -- 2. Elerethe Renferal
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 3,
+                    title     = "Elerethe Renferal",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when    = { mapID = 777 },
+                            kind    = "path",
+                            note    = "After defeating ^Nythendra^, follow the path up and around towards the map exit labeled ^Core of the Nightmare^.",
+                            points  = {
+                                { 0.562, 0.460 },
+                                { 0.698, 0.377 },
+                                { 0.567, 0.228 },
+                                { 0.406, 0.328 },
+                                { 0.356, 0.513 },
+                                { 0.341, 0.773 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 778, subZone = "Clutch of Corruption" },
+                            kind    = "path",
+                            note    = "When you reach the central hub, take the map exit labeled ^Mulgore^.",
+                            points  = {
+                                { 0.235, 0.748 },
+                                { 0.238, 0.657 },
+                                { 0.290, 0.594 },
+                                { 0.472, 0.523 },
+                                { 0.561, 0.486 },
+                                { 0.587, 0.518 },
+                                { 0.627, 0.510 },
+                                { 0.688, 0.566 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 779 },
+                            kind    = "path",
+                            note    = "Once inside ^Mulgore^, follow the path around, and clear the trash on your way to ^Elerethe Renferal^.",
+                            points  = {
+                                { 0.881, 0.877 },
+                                { 0.849, 0.948 },
+                                { 0.732, 0.940 },
+                                { 0.616, 0.745 },
+                                { 0.536, 0.362 },
+                                { 0.347, 0.576 },
+                            },
+                        },
+                    },
+                },
+
+                -- 3. Il'gynoth, Heart of Corruption
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 2,
+                    title     = "Il'gynoth, Heart of Corruption",
+                    requires  = { 3 },
+                    segments  = {
+                        {
+                            when    = { mapID = 779 },
+                            kind    = "path",
+                            note    = "After defeating ^Elerethe^, backtrack to the portal and return to ^Core of the Nightmare^. You can jump off the ledge for a shortcut.",
+                            points  = {
+                                { 0.353, 0.660 },
+                                { 0.395, 0.753 },
+                                { 0.490, 0.733 },
+                                { 0.807, 0.945 },
+                                { 0.879, 0.875 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 778 },
+                            kind    = "path",
+                            note    = "When you're back in the central hub, take the final portal towards ^Un'goro Crater^.",
+                            points  = {
+                                { 0.588, 0.520 },
+                                { 0.583, 0.646 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 780 },
+                            kind    = "path",
+                            note    = "When you reach ^Un'goro Crater^, follow the linear path to the back and kill ^Il'gynoth^.",
+                            points  = {
+                                { 0.654, 0.973 },
+                                { 0.557, 0.760 },
+                                { 0.498, 0.520 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+
     routing = {
         {
             step      = 1,

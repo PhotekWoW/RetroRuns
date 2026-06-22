@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "1.14.0"
+local VERSION    = "2.0.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -212,6 +212,135 @@ function RR:GetRaidEntrance(raid)
     return raid.entrance
 end
 
+--- Shared destination dispatch. Drops a waypoint at (mapID, x, y) across
+--- the full provider stack and returns a struct describing which slot(s)
+--- fired:
+---     { planner = "awp"|"zygor"|"mapzeroth"|nil,
+---       arrow   = "tomtom"|"blizzard"|nil,
+---       overlays = { ... } }
+--- Roles:
+---   PLANNER: AWP-with-backend > Zygor > Mapzeroth (one wins).
+---   ARROW:   TomTom > Blizzard (suppressed if a planner fired).
+---   OVERLAY: AWP-without-backend + WUI (both can layer).
+--- routeContext is stashed onto state.activeRoute so a later cancel can
+--- tear the right thing down; pass the raid for entrance/sanctum routes,
+--- or nil for destinations with no raid association (e.g. a city NPC).
+--- Returns nil (and prints) when no provider produced any UI.
+---
+--- This is the single dispatch core for NavigateToEntrance,
+--- NavigateToSanctum, and NavigateToLFRNPC -- previously each of those
+--- carried its own copy of this ~120-line block.
+function RR:NavigateToDestination(mapID, x, y, title, routeContext)
+    if not mapID or not x or not y then
+        self:Print("Destination data is incomplete.")
+        return nil
+    end
+
+    -- Clear any in-progress route before starting a new one.
+    self:CancelNavRoute()
+
+    local result = { planner = nil, arrow = nil, overlays = {} }
+
+    local function markRoute(field, value)
+        self.state.activeRoute = self.state.activeRoute or { raid = routeContext }
+        self.state.activeRoute.raid = routeContext
+        self.state.activeRoute[field] = value
+    end
+
+    -- PLANNER ROLE: AWP-with-backend > Zygor > Mapzeroth. One wins.
+    local hasBackend = self:IsZygorInstalled() or self:IsMapzerothInstalled()
+    if self:IsAWPInstalled() and hasBackend then
+        local ok, routed = pcall(_G.AzerothWaypointNS.RequestManualRoute,
+            mapID, x, y, title, nil, nil)
+        if ok and routed then
+            markRoute("awpRoute", true)
+            result.planner = "awp"
+        end
+    end
+
+    if not result.planner and self:IsZygorInstalled() then
+        -- Mirrors Zygor's own /zygor goto payload. findpath=true gates
+        -- multi-leg routing (otherwise just an arrow).
+        _G.ZygorGuidesViewer.Pointer:SetWaypoint(mapID, x, y, {
+            findpath    = true,
+            type        = "manual",
+            cleartype   = true,
+            title       = title,
+            onminimap   = "always",
+            overworld   = true,
+            showonedge  = true,
+        }, true)
+        markRoute("zygorRoute", true)
+        result.planner = "zygor"
+    end
+
+    if not result.planner and self:IsMapzerothInstalled() then
+        _G.Mapzeroth:FindRoute("_WAYPOINT_DESTINATION", {
+            mapID  = mapID,
+            x      = x,
+            y      = y,
+            name   = title,
+            source = "retroruns",
+        })
+        markRoute("mapzerothRoute", true)
+        result.planner = "mapzeroth"
+    end
+
+    -- ARROW ROLE: TomTom > Blizzard. Suppressed if a planner fired
+    -- (planner provides its own arrow).
+    if not result.planner then
+        if self:IsTomTomInstalled() then
+            local uid = TomTom:AddWaypoint(mapID, x, y, {
+                title  = title,
+                from   = "RetroRuns",
+                silent = true,
+                crazy  = true,
+            })
+            -- Force SetCrazyArrow explicitly -- the AddWaypoint flag
+            -- doesn't reliably render the arrow on some 12.0 configs.
+            if uid and TomTom.SetCrazyArrow then
+                TomTom:SetCrazyArrow(uid, TomTom.profile and TomTom.profile.arrow
+                    and TomTom.profile.arrow.arrival or 0, title)
+            end
+            markRoute("tomtomWaypoint", uid)
+            result.arrow = "tomtom"
+
+        elseif self:IsBlizzardWaypointAvailable() then
+            local point = UiMapPoint.CreateFromCoordinates(mapID, x, y)
+            C_Map.SetUserWaypoint(point)
+            if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+                C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+            end
+            markRoute("blizzardWaypoint", true)
+            result.arrow = "blizzard"
+        end
+    end
+
+    -- OVERLAY ROLE: AWP (when not already-fired as planner) + WUI
+    -- (always fires when installed). Both can layer simultaneously.
+    if self:IsAWPInstalled() and result.planner ~= "awp" then
+        local ok, routed = pcall(_G.AzerothWaypointNS.RequestManualRoute,
+            mapID, x, y, title, nil, nil)
+        if ok and routed then
+            markRoute("awpOverlay", true)
+            table.insert(result.overlays, "awp")
+        end
+    end
+
+    if self:IsWUIInstalled() then
+        -- WUI uses 0-100 coords; scale our 0-1 values on the way in.
+        _G.WaypointUIAPI.Navigation.NewUserNavigation(title, mapID, x * 100, y * 100)
+        markRoute("wuiRoute", true)
+        table.insert(result.overlays, "wui")
+    end
+
+    if not result.planner and not result.arrow and #result.overlays == 0 then
+        self:Print("No supported waypoint API available.")
+        return nil
+    end
+    return result
+end
+
 --- Returns a struct describing which slot(s) fired:
 ---     { routing = "awp"|"zygor"|"mapzeroth"|nil,
 ---       waypoint = "wui"|"tomtom"|"blizzard"|nil }
@@ -229,124 +358,12 @@ function RR:NavigateToEntrance(raid)
         return nil
     end
 
-    -- Clear any in-progress route before starting a new one.
-    self:CancelNavRoute()
-
     local title = ("RetroRuns: %s entrance"):format(raid.name or "raid")
-    local result = { planner = nil, arrow = nil, overlays = {} }
-
-    -- PLANNER ROLE: AWP-with-backend > Zygor > Mapzeroth. One wins.
-    local hasBackend = self:IsZygorInstalled() or self:IsMapzerothInstalled()
-    if self:IsAWPInstalled() and hasBackend then
-        local ok, routed = pcall(_G.AzerothWaypointNS.RequestManualRoute,
-            e.mapID, e.x, e.y, title, nil, nil)
-        if ok and routed then
-            self.state.activeRoute = self.state.activeRoute or { raid = raid }
-            self.state.activeRoute.raid = raid
-            self.state.activeRoute.awpRoute = true
-            result.planner = "awp"
-        end
-    end
-
-    if not result.planner and self:IsZygorInstalled() then
-        -- Mirrors Zygor's own /zygor goto payload. findpath=true gates
-        -- multi-leg routing (otherwise just an arrow).
-        _G.ZygorGuidesViewer.Pointer:SetWaypoint(e.mapID, e.x, e.y, {
-            findpath    = true,
-            type        = "manual",
-            cleartype   = true,
-            title       = title,
-            onminimap   = "always",
-            overworld   = true,
-            showonedge  = true,
-        }, true)
-        self.state.activeRoute = self.state.activeRoute or { raid = raid }
-        self.state.activeRoute.raid = raid
-        self.state.activeRoute.zygorRoute = true
-        result.planner = "zygor"
-    end
-
-    if not result.planner and self:IsMapzerothInstalled() then
-        _G.Mapzeroth:FindRoute("_WAYPOINT_DESTINATION", {
-            mapID  = e.mapID,
-            x      = e.x,
-            y      = e.y,
-            name   = title,
-            source = "retroruns",
-        })
-        self.state.activeRoute = self.state.activeRoute or { raid = raid }
-        self.state.activeRoute.raid = raid
-        self.state.activeRoute.mapzerothRoute = true
-        result.planner = "mapzeroth"
-    end
-
-    -- ARROW ROLE: TomTom > Blizzard. Suppressed if a planner fired
-    -- (planner provides its own arrow).
-    if not result.planner then
-        if self:IsTomTomInstalled() then
-            local uid = TomTom:AddWaypoint(e.mapID, e.x, e.y, {
-                title  = title,
-                from   = "RetroRuns",
-                silent = true,
-                crazy  = true,
-            })
-            -- Force SetCrazyArrow explicitly -- the AddWaypoint flag
-            -- doesn't reliably render the arrow on some 12.0 configs.
-            if uid and TomTom.SetCrazyArrow then
-                TomTom:SetCrazyArrow(uid, TomTom.profile and TomTom.profile.arrow
-                    and TomTom.profile.arrow.arrival or 0, title)
-            end
-            self.state.activeRoute = self.state.activeRoute or { raid = raid }
-            self.state.activeRoute.raid = raid
-            self.state.activeRoute.tomtomWaypoint = uid
-            result.arrow = "tomtom"
-
-        elseif self:IsBlizzardWaypointAvailable() then
-            local point = UiMapPoint.CreateFromCoordinates(e.mapID, e.x, e.y)
-            C_Map.SetUserWaypoint(point)
-            if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-                C_SuperTrack.SetSuperTrackedUserWaypoint(true)
-            end
-            self.state.activeRoute = self.state.activeRoute or { raid = raid }
-            self.state.activeRoute.raid = raid
-            self.state.activeRoute.blizzardWaypoint = true
-            result.arrow = "blizzard"
-        end
-    end
-
-    -- OVERLAY ROLE: AWP (when not already-fired as planner) + WUI
-    -- (always fires when installed). Both can layer simultaneously.
-    if self:IsAWPInstalled() and result.planner ~= "awp" then
-        -- AWP without a backend still queues the destination as a
-        -- single-pin overlay.
-        local ok, routed = pcall(_G.AzerothWaypointNS.RequestManualRoute,
-            e.mapID, e.x, e.y, title, nil, nil)
-        if ok and routed then
-            self.state.activeRoute = self.state.activeRoute or { raid = raid }
-            self.state.activeRoute.raid = raid
-            self.state.activeRoute.awpOverlay = true
-            table.insert(result.overlays, "awp")
-        end
-    end
-
-    if self:IsWUIInstalled() then
-        -- WUI uses 0-100 coords; scale our 0-1 values on the way in.
-        _G.WaypointUIAPI.Navigation.NewUserNavigation(title, e.mapID, e.x * 100, e.y * 100)
-        self.state.activeRoute = self.state.activeRoute or { raid = raid }
-        self.state.activeRoute.raid = raid
-        self.state.activeRoute.wuiRoute = true
-        table.insert(result.overlays, "wui")
-    end
-
-    if not result.planner and not result.arrow and #result.overlays == 0 then
-        self:Print("No supported waypoint API available.")
-        return nil
-    end
-    return result
+    return self:NavigateToDestination(e.mapID, e.x, e.y, title, raid)
 end
 
 --- Drop a waypoint at a Covenant Sanctum weapon vendor (Castle
---- Nathria). Same three-role dispatch as NavigateToEntrance.
+--- Nathria). Routes through the shared NavigateToDestination dispatch.
 function RR:NavigateToSanctum(raid, covID)
     if not raid or not raid.weaponVendors or not covID then
         self:Print("No sanctum vendor data available.")
@@ -358,107 +375,121 @@ function RR:NavigateToSanctum(raid, covID)
         return nil
     end
 
-    -- Clear any in-progress route before starting a new one.
-    self:CancelNavRoute()
-
     local title = ("RetroRuns: %s (%s vendor)"):format(
         vendor.vendorName or "Sanctum", vendor.covenantName or "covenant")
-    local result = { planner = nil, arrow = nil, overlays = {} }
-    local mapID, x, y = vendor.vendorMapID, vendor.x, vendor.y
+    return self:NavigateToDestination(vendor.vendorMapID, vendor.x, vendor.y, title, raid)
+end
 
-    -- PLANNER ROLE --------------------------------------------------------
-    local hasBackend = self:IsZygorInstalled() or self:IsMapzerothInstalled()
-    if self:IsAWPInstalled() and hasBackend then
-        local ok, routed = pcall(_G.AzerothWaypointNS.RequestManualRoute,
-            mapID, x, y, title, nil, nil)
-        if ok and routed then
-            self.state.activeRoute = self.state.activeRoute or { raid = raid }
-            self.state.activeRoute.raid = raid
-            self.state.activeRoute.awpRoute = true
-            result.planner = "awp"
+--- Per-expansion Raid Finder queueing NPCs. After an expansion passes,
+--- Blizzard adds a dedicated NPC whose gossip places a solo-eligible LFR
+--- queue request; talking to that NPC is the only way to queue legacy LFR
+--- solo (the Group Finder won't fill the wing otherwise). This table maps
+--- each supported expansion to its NPC so the idle list can route the
+--- player there. Keyed by the canonical expansion names used in raid
+--- data (raid.expansion) and EXPANSION_ORDER_NEWEST_FIRST.
+---
+--- Battle for Azeroth has a faction split (Kiku for Alliance, Eppu for
+--- Horde); that entry carries an alliance/horde sub-table and the nav
+--- picks by UnitFactionGroup. All others are faction-neutral.
+---
+--- COORDINATE STATUS: most entries carry in-game-verified coords. Any
+--- entry still pending a capture pass keeps an `unverified = true` flag,
+--- read by the nav so it routes to the right zone center but warns it's
+--- approximate. Do not treat unverified coords as final.
+RR.LFR_QUEUE_NPCS = {
+    ["Dragonflight"] = {
+        npcName = "Luka Ferad",
+        zone    = "Valdrakken, Seat of the Aspects",
+        mapID   = 2112, x = 0.584, y = 0.356,
+    },
+    ["Shadowlands"] = {
+        npcName = "Ta'elfar",
+        zone    = "Oribos, The Enclave",
+        mapID   = 1670, x = 0.416, y = 0.708,
+    },
+    ["Battle for Azeroth"] = {
+        alliance = {
+            npcName = "Kiku",
+            zone    = "Boralus, Snug Harbor Inn",
+            mapID   = 1161, x = 0.740, y = 0.136,
+        },
+        horde = {
+            npcName = "Eppu",
+            zone    = "Dazar'alor, Hall of Chroniclers",
+            mapID   = 1164, x = 0.686, y = 0.304,
+        },
+    },
+    ["Legion"] = {
+        npcName = "Archmage Timear",
+        zone    = "Dalaran (Legion), outside the Violet Hold",
+        mapID   = 627, x = 0.637, y = 0.553,
+    },
+    ["Warlords of Draenor"] = {
+        -- Seer Kazal stands outside the Town Hall in both Garrisons, but
+        -- the Garrison map differs by faction (Lunarfall vs Frostwall),
+        -- so the entry is faction-split. Alliance (Lunarfall, 582) is
+        -- verified in-game; Horde (Frostwall) awaits a capture on a Horde
+        -- character and falls through to the text instruction until then.
+        alliance = {
+            npcName = "Seer Kazal",
+            zone    = "Your Garrison (Lunarfall), outside the Town Hall",
+            mapID   = 582, x = 0.333, y = 0.374,
+        },
+        horde = {
+            npcName = "Seer Kazal",
+            zone    = "Your Garrison (Frostwall), outside the Town Hall",
+            mapID   = 0, x = 0.50, y = 0.50, unverified = true,
+        },
+    },
+    ["Mists of Pandaria"] = {
+        npcName = "Lorewalker Han",
+        zone    = "Mogu'shan Palace, Seat of Knowledge",
+        mapID   = 1530, x = 0.837, y = 0.281,
+    },
+}
+
+--- Resolve the LFR queue-NPC entry for an expansion, applying the BfA
+--- faction split. Returns the NPC table (with npcName/zone/mapID/x/y/
+--- unverified) or nil if the expansion has no queue NPC.
+function RR:GetLFRQueueNPC(expansion)
+    local entry = expansion and RR.LFR_QUEUE_NPCS[expansion]
+    if not entry then return nil end
+    -- Faction-split entries (BfA) carry alliance/horde sub-tables.
+    if entry.alliance or entry.horde then
+        local faction = UnitFactionGroup("player")
+        if faction == "Horde" then
+            return entry.horde
+        else
+            return entry.alliance
         end
     end
+    return entry
+end
 
-    if not result.planner and self:IsZygorInstalled() then
-        _G.ZygorGuidesViewer.Pointer:SetWaypoint(mapID, x, y, {
-            findpath    = true,
-            type        = "manual",
-            cleartype   = true,
-            title       = title,
-            onminimap   = "always",
-            overworld   = true,
-            showonedge  = true,
-        }, true)
-        self.state.activeRoute = self.state.activeRoute or { raid = raid }
-        self.state.activeRoute.raid = raid
-        self.state.activeRoute.zygorRoute = true
-        result.planner = "zygor"
-    end
-
-    if not result.planner and self:IsMapzerothInstalled() then
-        _G.Mapzeroth:FindRoute("_WAYPOINT_DESTINATION", {
-            mapID  = mapID, x = x, y = y, name = title, source = "retroruns",
-        })
-        self.state.activeRoute = self.state.activeRoute or { raid = raid }
-        self.state.activeRoute.raid = raid
-        self.state.activeRoute.mapzerothRoute = true
-        result.planner = "mapzeroth"
-    end
-
-    -- ARROW ROLE ----------------------------------------------------------
-    if not result.planner then
-        if self:IsTomTomInstalled() then
-            local uid = TomTom:AddWaypoint(mapID, x, y, {
-                title  = title,
-                from   = "RetroRuns",
-                silent = true,
-                crazy  = true,
-            })
-            if uid and TomTom.SetCrazyArrow then
-                TomTom:SetCrazyArrow(uid, TomTom.profile and TomTom.profile.arrow
-                    and TomTom.profile.arrow.arrival or 0, title)
-            end
-            self.state.activeRoute = self.state.activeRoute or { raid = raid }
-            self.state.activeRoute.raid = raid
-            self.state.activeRoute.tomtomWaypoint = uid
-            result.arrow = "tomtom"
-
-        elseif self:IsBlizzardWaypointAvailable() then
-            local point = UiMapPoint.CreateFromCoordinates(mapID, x, y)
-            C_Map.SetUserWaypoint(point)
-            if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-                C_SuperTrack.SetSuperTrackedUserWaypoint(true)
-            end
-            self.state.activeRoute = self.state.activeRoute or { raid = raid }
-            self.state.activeRoute.raid = raid
-            self.state.activeRoute.blizzardWaypoint = true
-            result.arrow = "blizzard"
-        end
-    end
-
-    -- OVERLAY ROLE --------------------------------------------------------
-    if self:IsAWPInstalled() and result.planner ~= "awp" then
-        local ok, routed = pcall(_G.AzerothWaypointNS.RequestManualRoute,
-            mapID, x, y, title, nil, nil)
-        if ok and routed then
-            self.state.activeRoute = self.state.activeRoute or { raid = raid }
-            self.state.activeRoute.raid = raid
-            self.state.activeRoute.awpOverlay = true
-            table.insert(result.overlays, "awp")
-        end
-    end
-
-    if self:IsWUIInstalled() then
-        _G.WaypointUIAPI.Navigation.NewUserNavigation(title, mapID, x * 100, y * 100)
-        self.state.activeRoute = self.state.activeRoute or { raid = raid }
-        self.state.activeRoute.raid = raid
-        self.state.activeRoute.wuiRoute = true
-        table.insert(result.overlays, "wui")
-    end
-
-    if not result.planner and not result.arrow and #result.overlays == 0 then
-        self:Print("No supported waypoint API available.")
+--- Drop a waypoint at an expansion's LFR queueing NPC. Routes through the
+--- shared NavigateToDestination dispatch. No raid association (the NPC is
+--- per-expansion), so routeContext is nil. Warns when the destination
+--- coords are still unverified placeholders.
+function RR:NavigateToLFRNPC(expansion)
+    local npc = self:GetLFRQueueNPC(expansion)
+    if not npc then
+        self:Print("No LFR queue NPC known for that expansion.")
         return nil
+    end
+    if not npc.mapID or npc.mapID == 0 or not npc.x or not npc.y then
+        -- A zero mapID means the destination isn't routable yet (e.g.
+        -- the Garrison, whose mapID varies by faction/building tier and
+        -- isn't captured). Tell the player where to go in text instead.
+        self:Print(("LFR queue: talk to %s (%s)."):format(
+            npc.npcName or "the queue NPC", npc.zone or "see guide"))
+        return nil
+    end
+
+    local title = ("RetroRuns: %s (LFR queue)"):format(npc.npcName or "queue NPC")
+    local result = self:NavigateToDestination(npc.mapID, npc.x, npc.y, title, nil)
+    if result and npc.unverified then
+        self:Print(("Note: %s's location is approximate -- look nearby (%s)."):format(
+            npc.npcName or "the NPC", npc.zone or ""))
     end
     return result
 end
@@ -509,10 +540,18 @@ end
 --- Read a single key from RetroRunsDB with a fallback default.
 -- Nil-safe: returns `default` if RetroRunsDB is not yet initialized.
 -- Use instead of bare `RetroRunsDB and RetroRunsDB.foo or default` patterns.
+-- Largest font size the fixed-width panel renders without the widest pill row
+-- overflowing the body width. Clamped at read time (below), not just the
+-- slider max, so an out-of-range saved value is pulled back into range.
+RR.FONT_SIZE_MAX = 14
+
 function RR:GetSetting(key, default)
     if not RetroRunsDB then return default end
     local v = RetroRunsDB[key]
     if v == nil then return default end
+    if key == "fontSize" and type(v) == "number" and v > RR.FONT_SIZE_MAX then
+        return RR.FONT_SIZE_MAX
+    end
     return v
 end
 
@@ -1023,8 +1062,19 @@ local function GetEJMapForJournalInstance(journalInstanceID)
     local cached = ejMapCache[journalInstanceID]
     if cached then return cached end
 
-    -- Save the currently-selected EJ instance so we can restore it.
+    -- Save the currently-selected EJ instance and difficulty so we can
+    -- restore both. The difficulty must be forced to a value the instance
+    -- actually exposes before walking encounters: EJ_GetEncounterInfoByIndex
+    -- returns nothing when the journal's difficulty filter is left on one the
+    -- instance doesn't offer (legacy raids predate Mythic, so a stale Mythic
+    -- filter yields zero rows). Normal (14) exists for every raid, and the
+    -- journalEncounterID -> dungeonEncounterID map is identical across
+    -- difficulties, so forcing it here is safe and difficulty-independent.
     local prevInst = EJ_GetSelectedInstance and EJ_GetSelectedInstance() or nil
+    local prevDiff = EJ_GetDifficulty and EJ_GetDifficulty() or nil
+    if EJ_SetDifficulty then
+        EJ_SetDifficulty(14)
+    end
     if EJ_SelectInstance then
         EJ_SelectInstance(journalInstanceID)
     end
@@ -1042,11 +1092,14 @@ local function GetEJMapForJournalInstance(journalInstanceID)
         i = i + 1
     end
 
-    -- Restore the prior selection so an open EJ window doesn't snap
-    -- to whichever raid we just queried. Skip the restore if there
-    -- was no prior selection.
+    -- Restore the prior selection and difficulty so an open EJ window
+    -- doesn't snap to whichever raid we just queried or change its filter.
+    -- Skip each restore if there was no prior value.
     if prevInst and EJ_SelectInstance then
         EJ_SelectInstance(prevInst)
+    end
+    if prevDiff and EJ_SetDifficulty then
+        EJ_SetDifficulty(prevDiff)
     end
 
     -- Only memoize non-empty results. Empty would mean the API was
@@ -1114,6 +1167,83 @@ function RR:FoldDifficulty(raid, liveDifficultyID)
     if not liveDifficultyID then return liveDifficultyID end
     local model = self:GetDifficultyModel(raid)
     return model.fold[liveDifficultyID] or liveDifficultyID
+end
+
+-- True when a raw saved-instance difficulty is a Raid Finder difficulty.
+-- GetSavedInstanceInfo reports the raw live id, so modern LFR shows 17 but
+-- Mists LFR shows 7. The all-saved-instances scans (lockout-bit reads, the
+-- idle pill counts) key by raid name and have no raid object at the compare
+-- point, so they can't fold per-raid -- this accepts any raw id that folds to
+-- 17 under some model. A raw `== 17` test misses Mists LFR lockouts entirely.
+local LFR_SAVED_DIFFICULTIES
+function RR:IsLFRSavedDifficulty(rawDifficultyID)
+    if not rawDifficultyID then return false end
+    if not LFR_SAVED_DIFFICULTIES then
+        LFR_SAVED_DIFFICULTIES = {}
+        for _, model in pairs(DIFFICULTY_MODELS) do
+            for rawID, bucket in pairs(model.fold) do
+                if bucket == 17 then LFR_SAVED_DIFFICULTIES[rawID] = true end
+            end
+        end
+    end
+    return LFR_SAVED_DIFFICULTIES[rawDifficultyID] == true
+end
+
+-- True when the player is in a Raid Finder instance of the current raid.
+-- Folds the live difficulty to a display bucket first, so it catches both
+-- the modern LFR id (17) and the Mists-era LFR id (7, which folds to 17).
+-- A raw `== 17` test misses Mists LFR and would let the full N/H/M route
+-- render in an LFR wing (wrong boss subset, wrong path). Use this everywhere
+-- LFR needs gating -- the load popup and the panel render both rely on it.
+function RR:IsInLFR()
+    local diff = self.state and self.state.currentDifficultyID
+    if not diff then return false end
+    return self:FoldDifficulty(self.currentRaid, diff) == 17
+end
+
+-- The current LFR wing's lfgDungeonID, or nil. GetInstanceInfo's 10th return
+-- identifies the wing (confirmed: it's per-wing and unique, unlike instanceID).
+-- Single live read; the wing-name and wing-route resolvers both build on this.
+function RR:GetCurrentLfgDungeonID()
+    if not GetInstanceInfo then return nil end
+    local lfgDungeonID = select(10, GetInstanceInfo())
+    if not lfgDungeonID or lfgDungeonID == 0 then return nil end
+    return lfgDungeonID
+end
+
+-- Display name of the current LFR wing, or nil if unavailable. LFR splits a
+-- raid into wings; GetLFGDungeonInfo resolves the lfgDungeonID to a localized
+-- name (e.g. "The Leeching Vaults"). The numeric id is the stable key; this
+-- name is for display only. Returns nil when there's no id or the lookup fails,
+-- so callers can fall back to a generic message.
+function RR:GetCurrentWingName()
+    local lfgDungeonID = self:GetCurrentLfgDungeonID()
+    if not lfgDungeonID then return nil end
+    if not GetLFGDungeonInfo then return nil end
+    local name = GetLFGDungeonInfo(lfgDungeonID)
+    if name and name ~= "" then return name end
+    return nil
+end
+
+-- Resolve the lfrWings entry for the wing the player is currently in, or nil.
+-- Each wing route is keyed by lfgDungeonID under raid.lfrWings. A wing can be
+-- queueable under more than one lfgDungeonID (e.g. size/seasonal variants of
+-- the same physical wing); the duplicates are stored as { aliasOf = <id> }
+-- and dereferenced here so one authored route serves every id that points at
+-- it. Returns nil when not in LFR, the raid has no lfrWings, or no entry
+-- matches the current id -- callers then fall back to the unsupported message.
+function RR:GetActiveWing()
+    local raid = self.currentRaid
+    if not raid or not raid.lfrWings then return nil end
+    if not self:IsInLFR() then return nil end
+    local id = self:GetCurrentLfgDungeonID()
+    if not id then return nil end
+    local wing = raid.lfrWings[id]
+    if not wing then return nil end
+    if wing.aliasOf then
+        wing = raid.lfrWings[wing.aliasOf]
+    end
+    return wing
 end
 
 -- Is a boss available at a given DISPLAY bucket (14/15/16/17)?
@@ -1240,6 +1370,299 @@ function RR:GetPerDifficultyKillCounts()
     return self:GetPerDifficultyKillCountsForRaid(self.currentRaid)
 end
 
+-- LFR kill count for a raid, as { complete = n, total = N }, or nil if the
+-- raid has no LFR wing data. Unlike the Normal/Heroic/Mythic buckets (which
+-- read C_RaidLocks.IsEncounterComplete), LFR completion is not exposed by that
+-- API for legacy raids -- the reliable source is the per-boss bitfield encoded
+-- in the LFR lockout hyperlink. We read it the same way /rr lfrwing does:
+-- RequestRaidInfo, find this raid's difficulty-17 saved instance, pull the
+-- bitfield from GetSavedInstanceChatLink, and count set bits (each = one boss
+-- looted this lockout). The denominator N is the number of distinct bosses
+-- across all of the raid's LFR wings.
+
+-- Build (and briefly cache) a map of normalized-raid-name -> set-bit count for
+-- every difficulty-17 (LFR) saved instance. One saved-instance scan covers all
+-- LFR lockouts at once, so the idle list (which asks per raid, for many raids)
+-- pays a single scan per refresh rather than one per raid. The scan runs
+-- RequestRaidInfo + a GetNumSavedInstances walk, too heavy for every render
+-- tick, so the result is cached for a few seconds; kills still surface within
+-- that short window.
+--
+-- The cache stores BOTH the set-bit count (byName) and the set-bit POSITIONS
+-- (posByName, a { [pos]=true } set per raid) so the per-wing progress expander
+-- can mask a wing's lockoutBits against the live positions without a second
+-- scan. byName is kept as a convenience for callers that only need the total.
+function RR:GetLFRLockoutCounts()
+    local now = GetTime and GetTime() or 0
+    local cache = self._lfrCountCache
+    if cache and (now - (cache.t or 0)) < 3 then
+        return cache.byName, cache.posByName
+    end
+
+    if RequestRaidInfo then RequestRaidInfo() end
+    local byName = {}
+    local posByName = {}
+    local nSaved = GetNumSavedInstances and GetNumSavedInstances() or 0
+    for i = 1, nSaved do
+        local sName, _, sReset, sDiff, sLocked = GetSavedInstanceInfo(i)
+        -- Only count ACTIVE lockouts. GetSavedInstanceInfo keeps expired
+        -- entries in the table after a weekly reset with their old kill bits
+        -- intact (locked=false, reset=0), so parsing the bitfield blindly
+        -- reports last week's kills forever. The N/H/M pills avoid this by
+        -- reading C_RaidLocks (which correctly reports not-locked post-reset);
+        -- the LFR pill reads this bitfield, so it must drop dead lockouts
+        -- itself. An active lockout has locked=true and a positive reset.
+        if self:IsLFRSavedDifficulty(sDiff) and sLocked and (sReset or 0) > 0 then
+            local link = GetSavedInstanceChatLink and GetSavedInstanceChatLink(i)
+            local bits = link and tonumber(link:match(":(%d+)|h"))
+            local killed = 0
+            local setPos = {}
+            local x, pos = bits or 0, 1
+            while x > 0 do
+                if x % 2 == 1 then killed = killed + 1; setPos[pos] = true end
+                x = math.floor(x / 2)
+                pos = pos + 1
+            end
+            local key = self:NormalizeName(sName)
+            if key then
+                byName[key] = killed
+                posByName[key] = setPos
+            end
+        end
+    end
+
+    self._lfrCountCache = { byName = byName, posByName = posByName, t = now }
+    return byName, posByName
+end
+
+function RR:GetLFRKillCountForRaid(raid)
+    if not raid or not raid.lfrWings then return nil end
+
+    -- N: distinct boss indices across every wing.
+    local seen, total = {}, 0
+    for _, wing in pairs(raid.lfrWings) do
+        for _, bi in ipairs(wing.bosses or {}) do
+            if not seen[bi] then seen[bi] = true; total = total + 1 end
+        end
+    end
+    if total == 0 then return nil end
+
+    -- n: distinct bosses killed, summed from the per-wing progress (which
+    -- bit-tests each boss individually). This avoids double-counting raids
+    -- whose lockout sets more than one bit per boss -- e.g. Battle of
+    -- Dazar'alor's faction-mirrored encounters set two bits each, so a raw
+    -- set-bit count would over-report. Summing per-boss kills keeps this
+    -- count consistent with the per-wing expander. Absent a lockout (not
+    -- saved this week) every wing reports 0, a valid "0/N" state.
+    local complete = 0
+    local wings = self:GetWingProgressForRaid(raid)
+    if wings then
+        for _, w in ipairs(wings) do
+            complete = complete + (w.complete or 0)
+        end
+    end
+
+    return { complete = complete, total = total }
+end
+
+function RR:GetLFRKillCount()
+    if not self.currentRaid then return nil end
+    return self:GetLFRKillCountForRaid(self.currentRaid)
+end
+
+-- Per-wing LFR progress for the idle-list wing expander. Returns an ordered
+-- list of wings, each:
+--   {
+--     key       = lfgDungeonID,
+--     name      = wing name,
+--     complete  = bosses killed in this wing,
+--     total     = bosses in this wing,
+--     unmapped  = true when the wing's per-boss bits aren't known (only its
+--                 bit-SET as a group is) -- count is real, per-boss state is not,
+--     bosses    = { { index, name, killed (bool or nil if unmapped) }, ... },
+--   }
+-- For a mapped wing (lockoutBits present) each boss's killed state comes from
+-- testing its bit against the live set positions. For an unmapped wing
+-- (lockoutBitSet present instead -- the group of bits without per-boss
+-- assignment), the wing-level count is the number of those group bits currently
+-- set (a real number), but per-boss killed is left nil so the UI can render the
+-- names neutrally and flag the wing as pending a capture.
+-- Returns nil if the raid has no lfrWings.
+function RR:GetWingProgressForRaid(raid)
+    if not raid or not raid.lfrWings then return nil end
+
+    local _, posByName = self:GetLFRLockoutCounts()
+    local key = self:NormalizeName(raid.name)
+    local setPos = (key and posByName and posByName[key]) or {}
+
+    -- Resolve a boss index to its display name via the raid's bosses[] table.
+    local function bossName(index)
+        local b = raid.bosses and raid.bosses[index]
+        return (b and b.name) or ("Boss " .. tostring(index))
+    end
+
+    -- Collect wings into a stable order. lfrWings is keyed by lfgDungeonID
+    -- (numeric), so sort by key for a deterministic top-to-bottom order.
+    local wingKeys = {}
+    for k in pairs(raid.lfrWings) do wingKeys[#wingKeys + 1] = k end
+    table.sort(wingKeys)
+
+    local out = {}
+    for _, wkey in ipairs(wingKeys) do
+        local wing = raid.lfrWings[wkey]
+        local bosses = wing.bosses or {}
+        local entry = {
+            key   = wkey,
+            name  = wing.name or "Wing",
+            total = #bosses,
+            bosses = {},
+        }
+
+        if wing.lockoutBits then
+            -- Mapped wing: per-boss state from each boss's bit.
+            local complete = 0
+            for _, bi in ipairs(bosses) do
+                local bit = wing.lockoutBits[bi]
+                local killed = (bit ~= nil) and (setPos[bit] == true) or false
+                if killed then complete = complete + 1 end
+                entry.bosses[#entry.bosses + 1] =
+                    { index = bi, name = bossName(bi), killed = killed }
+            end
+            entry.complete = complete
+            entry.unmapped = false
+        else
+            -- Unmapped wing: count how many of the wing's group bits are set
+            -- (real wing-level progress) but leave per-boss state nil. The
+            -- group of bits lives in wing.lockoutBitSet (a flat list of bit
+            -- positions). Absent even that, fall back to 0 and still flag.
+            local groupSet = wing.lockoutBitSet or {}
+            local complete = 0
+            for _, bit in ipairs(groupSet) do
+                if setPos[bit] then complete = complete + 1 end
+            end
+            for _, bi in ipairs(bosses) do
+                entry.bosses[#entry.bosses + 1] =
+                    { index = bi, name = bossName(bi), killed = nil }
+            end
+            entry.complete = complete
+            entry.unmapped = true
+        end
+
+        out[#out + 1] = entry
+    end
+
+    return out
+end
+
+-- Return the set bit positions (1-indexed) of a raid's LFR lockout bitfield as
+-- a { [pos] = true } set, plus the raw bits value. Used by the per-boss bit
+-- capture logger below to diff which bit a just-killed boss set. Reads live
+-- (no cache) since the capture needs the exact post-kill state. Returns nil if
+-- no difficulty-17 lockout for the raid is found.
+function RR:GetLFRSetBits(raid)
+    if not raid then return nil end
+    if RequestRaidInfo then RequestRaidInfo() end
+    local wantName = self:NormalizeName(raid.name)
+    local nSaved = GetNumSavedInstances and GetNumSavedInstances() or 0
+    for i = 1, nSaved do
+        local sName, _, _, sDiff = GetSavedInstanceInfo(i)
+        if self:IsLFRSavedDifficulty(sDiff) and wantName and self:NormalizeName(sName) == wantName then
+            local link = GetSavedInstanceChatLink and GetSavedInstanceChatLink(i)
+            local bits = link and tonumber(link:match(":(%d+)|h"))
+            if not bits then return nil end
+            local setPos = {}
+            local x, pos = bits, 1
+            while x > 0 do
+                if x % 2 == 1 then setPos[pos] = true end
+                x = math.floor(x / 2)
+                pos = pos + 1
+            end
+            return setPos, bits
+        end
+    end
+    return nil
+end
+
+-- Per-boss LFR lockout-bit capture (dev aid for S7). When an LFR boss is
+-- killed, the raid's lockout bitfield gains exactly one set bit -- the bit that
+-- identifies that boss. The bit order is its own id space (not boss index, not
+-- encounter-API order), so the only way to learn boss->bit is to watch which
+-- bit appears per kill. This records that automatically on each LFR kill so the
+-- mapping can be gathered during normal farming without manual probing, and
+-- survives /reload (stored in RetroRunsDebug). Dump with `/rr lfrbits`.
+--
+-- The lockout API lags the kill by a second or two, so the read is deferred.
+-- Each entry: { raid, boss, bit, t }. Diffing is against the prior reading we
+-- recorded, so two kills before a refresh would show two new bits on the second
+-- read -- run is best with one kill registering at a time, which a normal clear
+-- naturally produces.
+function RR:CaptureLFRBitForKill(encounterName)
+    local raid = self.currentRaid
+    if not raid or not self:IsInLFR() then return end
+
+    -- Read the lockout and try to attribute exactly one newly-set bit to this
+    -- kill. The bit can register late when a boss dies very fast (or bugs), so
+    -- a single fixed-delay read sometimes sees no new bit yet -- and if we
+    -- logged that "none" AND snapshotted the (still-stale) set, the late bit
+    -- would later show up lumped with the NEXT kill's bit as "ambiguous".
+    -- Instead, retry the read a few times on a "none" result and only commit a
+    -- log entry + snapshot once a bit appears (or we genuinely exhaust the
+    -- retries). attempt counts up; delays are spaced to cover a slow push.
+    local DELAYS = { 2.5, 1.5, 2.0, 3.0 }   -- cumulative ~9s of retry budget
+
+    local function tryCapture(attempt)
+        local setPos = self:GetLFRSetBits(raid)
+        if not setPos then return end
+
+        RetroRunsDebug = RetroRunsDebug or {}
+        RetroRunsDebug.lfrBitLog = RetroRunsDebug.lfrBitLog or {}
+        local log = RetroRunsDebug.lfrBitLog
+
+        -- Recover the last-known set from the most recent log entry for this
+        -- raid (so it persists across reloads), defaulting to empty.
+        local prevSet = {}
+        for i = #log, 1, -1 do
+            if log[i].raid == raid.name and log[i].snapshot then
+                prevSet = log[i].snapshot
+                break
+            end
+        end
+
+        -- Which bits are newly set since the last committed snapshot.
+        local newBits = {}
+        for pos in pairs(setPos) do
+            if not prevSet[pos] then newBits[#newBits + 1] = pos end
+        end
+        table.sort(newBits)
+
+        -- No new bit yet and retries remain: the bit is probably still
+        -- propagating from a fast kill. Wait and re-read WITHOUT writing a log
+        -- entry or snapshot, so we don't strand the late bit for the next kill.
+        if #newBits == 0 and attempt < #DELAYS then
+            C_Timer.After(DELAYS[attempt + 1], function() tryCapture(attempt + 1) end)
+            return
+        end
+
+        -- Commit. Snapshot the current full set so the next kill diffs against
+        -- it. (On exhausted retries newBits may still be empty -- that's a real
+        -- "no bit" the log should surface, not silently swallow.)
+        local snapshot = {}
+        for pos in pairs(setPos) do snapshot[pos] = true end
+
+        log[#log + 1] = {
+            raid     = raid.name,
+            boss     = encounterName or "(unknown)",
+            bit      = (#newBits == 1) and newBits[1]
+                        or (#newBits == 0 and "none (no new bit -- already killed? or API lag)")
+                        or ("ambiguous: {" .. table.concat(newBits, ",") .. "} -- multiple new bits since last capture"),
+            t        = date and date("%H:%M:%S") or "",
+            snapshot = snapshot,
+        }
+    end
+
+    C_Timer.After(DELAYS[1], function() tryCapture(1) end)
+end
+
 -- Mists raids share one lockout across Normal and Heroic: killing a boss
 -- on one mode commits the ID to that mode for the week, so the other mode
 -- is unreachable until reset. Given the per-bucket counts, return the
@@ -1302,6 +1725,28 @@ function RR:LockProbe()
                 add(("      saved enc %d: %s  isKilled=%s")
                     :format(e, tostring(bossName), tostring(isKilled)))
             end
+        end
+
+        -- LFR (difficulty 17) detail: this is the exact data the idle LFR
+        -- pill is built from. Dump the raw chat link, what our :(%d+)|h
+        -- capture pulls out of it, and how that decodes to a kill count +
+        -- set-bit positions -- plus the NormalizeName key the pill matches on.
+        if self:IsLFRSavedDifficulty(difficultyId) then
+            local link = GetSavedInstanceChatLink and GetSavedInstanceChatLink(i)
+            add(("    [LFR] NormalizeName key = %q"):format(tostring(self:NormalizeName(name))))
+            add(("    [LFR] raw chatLink = %s"):format(tostring(link)))
+            local capture = link and link:match(":(%d+)|h")
+            add(("    [LFR] :(%%d+)|h capture = %s"):format(tostring(capture)))
+            local bits = link and tonumber(link:match(":(%d+)|h"))
+            local killed, setPos = 0, {}
+            local x, pos = bits or 0, 1
+            while x > 0 do
+                if x % 2 == 1 then killed = killed + 1; setPos[#setPos + 1] = pos end
+                x = math.floor(x / 2)
+                pos = pos + 1
+            end
+            add(("    [LFR] decoded bits = %s  -> killed = %d  setBitPositions = {%s}  (bit positions, NOT boss indices)")
+                :format(tostring(bits), killed, table.concat(setPos, ",")))
         end
 
         if isRaid and RetroRuns_Data and RetroRuns_Data[instanceID]
@@ -1967,6 +2412,16 @@ function RR:HandleLocationChange()
                 -- variant after committing. Silently restore the route they
                 -- were running (LoadCurrentRaid picks up the persisted
                 -- variant via RestorePersistedProgress) and show the panel.
+                self.state.loadedRaidKey = key
+                self:LoadCurrentRaid()
+            elseif self:IsInLFR() then
+                -- LFR has no supported route -- neither variant applies, since
+                -- the routing data is authored for the full N/H/M layout and
+                -- LFR splits the raid into wings. Skip the standard/skip
+                -- variant dialog (asking the player to choose between two
+                -- routes that both resolve to "unsupported" is backwards) and
+                -- load the panel directly. The panel's LFR guard then shows the
+                -- "routing not supported for LFR" message in place of routing.
                 self.state.loadedRaidKey = key
                 self:LoadCurrentRaid()
             else
@@ -3476,6 +3931,42 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- (which Blizzard's click handler usually eats first).
         RR:DumpMapIcons()
 
+    elseif cmd == "lfrbits" then
+        -- Dev: dump the per-boss LFR lockout-bit capture log (S7 aid). Each
+        -- LFR boss kill auto-records which lockout bit it set; this shows the
+        -- accumulated boss->bit mapping. Pass `clear` to reset the log before a
+        -- fresh capture run (e.g. at reset, to map a raid from scratch).
+        if args[2] == "clear" then
+            RetroRunsDebug = RetroRunsDebug or {}
+            RetroRunsDebug.lfrBitLog = {}
+            RR:Print("LFR bit capture log cleared.")
+        else
+            local log = (RetroRunsDebug and RetroRunsDebug.lfrBitLog) or {}
+            local lines = {}
+            local function add(s) lines[#lines + 1] = s end
+            add("LFR per-boss lockout-bit capture log")
+            add("(each entry = one LFR kill; 'bit' is the lockout bit that kill set)")
+            add("")
+            if #log == 0 then
+                add("(empty -- kill LFR bosses to populate; `/rr lfrbits clear` to reset)")
+            else
+                for i = 1, #log do
+                    local e = log[i]
+                    add(("%s  %s  ->  bit %s   [%s]"):format(
+                        tostring(e.t), tostring(e.boss), tostring(e.bit), tostring(e.raid)))
+                end
+            end
+            RR:ShowCopyWindow("LFR Bit Capture", table.concat(lines, "\n"))
+        end
+
+    elseif cmd == "lfrwing" then
+        -- Dev: collect everything needed to author an LFR wing route, in one
+        -- command. Run while standing in the LFR wing. Dumps the live
+        -- lfgDungeonID (the wing key), wing name, current mapID, raid context,
+        -- and the raid's LFR lockout bitfield (which bosses read as killed),
+        -- plus a paste-ready lfrWings[<id>] skeleton seeded with the live key.
+        RR:LfrWingProbe()
+
     elseif cmd == "reset" then
         -- Preserve "transient toggle" state across reset. Reset is about
         -- restoring appearance/positioning settings (font, scale, panel
@@ -4933,6 +5424,14 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         -- wiped, or the boss reset. Set in ENCOUNTER_START below; read
         -- by BuildTravelText to freeze rendering during the fight.
         RR.state.inEncounter = false
+
+        -- Dev aid (S7): on a successful LFR boss kill, record which lockout
+        -- bit the kill set, so the per-boss bit map can be gathered during
+        -- normal farming. No-op outside LFR. Runs independent of the testMode
+        -- gating below so it captures on real runs.
+        if success == 1 then
+            RR:CaptureLFRBitForKill(encounterName)
+        end
 
         if not RR.state.testMode
             and RR.currentRaid

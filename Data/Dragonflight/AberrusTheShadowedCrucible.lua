@@ -16,9 +16,9 @@ RetroRuns_Data[2569] = {
     exitNote = "Talk to ^Sabellian^ to be ported to the entrance.",
 
     -- Entrance is at the northern end of Zaralek Cavern (uiMapID 2133)
-    -- at the Aberrus Approach. Coords from Wowhead/dotesports. The
-    -- platform is elevated -- dragonriding (or regular flying) is
-    -- effectively required to reach it; ground mount cannot.
+    -- at the Aberrus Approach. The platform is elevated -- dragonriding
+    -- (or regular flying) is effectively required to reach it; ground
+    -- mount cannot.
     entrance = {
         mapID = 2133,
         x     = 0.485,
@@ -542,12 +542,12 @@ RetroRuns_Data[2569] = {
             requires  = { 1, 2, 3, 4 },
             segments  = {
                 {
-                    when    = { mapID = 2168 },
-                    kind    = "path",
-                    note    = "After defeating the ^Assault of the Zaqali^, enter the nearby room labeled ^Molten Crucible^.",
-                    points  = {
-                        { 0.450, 0.384 },
-                        { 0.396, 0.391 },
+                    when            = { mapID = 2168 },
+                    kind            = "poi",
+                    highlightCircle = true,
+                    note            = "After defeating the ^Assault of the Zaqali^, enter the nearby room labeled ^Molten Crucible^.",
+                    points          = {
+                        { 0.409, 0.385 },
                     },
                 },
                 {
@@ -765,5 +765,296 @@ RetroRuns_Data[2569] = {
             },
         },
 
+    },
+
+    lfrWings = {
+        -- Discarded Works: Kazzara(1), The Amalgamation Chamber(2),
+        -- The Forgotten Experiments(3). LFR zones into the same spot the
+        -- standard route starts from (mapID 2166), so all three steps are
+        -- imported byte-identical from the standard opening.
+        [2399] = {
+            name   = "Discarded Works",
+            bosses = { 1, 2, 3 },   -- Kazzara, The Amalgamation Chamber, The Forgotten Experiments
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Kazzara->7, The Amalgamation Chamber->6,
+            -- The Forgotten Experiments->9 (scrambled vs encounter order).
+            lockoutBits = { [1] = 7, [2] = 6, [3] = 9 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Kazzara, the Hellforged",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 2166 },
+                            kind    = "path",
+                            note    = "After zoning in, go straight ahead and clear all trash to spawn ^Kazzara^.",
+                            points  = {
+                                { 0.512, 0.934 },
+                                { 0.512, 0.757 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 2,
+                    title     = "The Amalgamation Chamber",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when    = { mapID = 2166 },
+                            kind    = "path",
+                            note    = "After killing ^Kazzara^, take the left path towards the exit labeled ^Onyx Laboratory^.",
+                            points  = {
+                                { 0.512, 0.686 },
+                                { 0.512, 0.617 },
+                                { 0.466, 0.599 },
+                                { 0.411, 0.536 },
+                                { 0.385, 0.448 },
+                                { 0.350, 0.446 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2167 },
+                            kind    = "path",
+                            note    = "Continue down the path and clear the trash to spawn ^The Amalgamation Chamber^.",
+                            points  = {
+                                { 0.557, 0.620 },
+                                { 0.529, 0.637 },
+                                { 0.468, 0.637 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 3,
+                    title     = "The Forgotten Experiments",
+                    requires  = { 1, 2 },
+                    segments  = {
+                        {
+                            when    = { mapID = 2167 },
+                            kind    = "path",
+                            note    = "After killing ^The Amalgamation Chamber^, follow the path north to reach some stairs leading to the ^Molten Crucible^.",
+                            points  = {
+                                { 0.468, 0.632 },
+                                { 0.485, 0.536 },
+                                { 0.485, 0.337 },
+                                { 0.451, 0.184 },
+                                { 0.516, 0.128 },
+                                { 0.557, 0.180 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2166 },
+                            kind    = "path",
+                            note    = "Kill the slimes to spawn ^The Forgotten Experiments^.",
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Fury of Giants: Assault of the Zaqali(4), Rashok(5), Zskarn(6).
+        -- LFR zones into mapID 2166 (Molten Crucible) without having
+        -- fought The Forgotten Experiments, so Assault's standard entry
+        -- note + waypoints (which assume the Forgotten Experiments drop-
+        -- down) don't apply -- the step-1 entry segment awaits the verbatim
+        -- LFR zone-in note + points. Rashok and Zskarn chain off Assault
+        -- normally and are imported verbatim from the standard route.
+        [2400] = {
+            name   = "Fury of Giants",
+            bosses = { 4, 5, 6 },   -- Assault of the Zaqali, Rashok, The Vigilant Steward, Zskarn
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Assault of the Zaqali->2, Rashok->1, Zskarn->8.
+            lockoutBits = { [4] = 2, [5] = 1, [6] = 8 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 4,
+                    title     = "Assault of the Zaqali",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 2166, subZone = "Molten Crucible" },
+                            kind    = "path",
+                            note    = "After zoning in, follow the path to the right, and make your way towards the map exit labeled ^Defiant Ramparts^.",
+                            points  = {
+                                { 0.530, 0.612 },
+                                { 0.560, 0.600 },
+                                { 0.576, 0.574 },
+                                { 0.623, 0.508 },
+                                { 0.639, 0.445 },
+                                { 0.628, 0.404 },
+                                { 0.636, 0.370 },
+                                { 0.663, 0.348 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2168 },
+                            kind    = "path",
+                            note    = "Inside ^Defiant Ramparts^, follow the path to climb some stairs. Kill the last trash pack to spawn ^Assault of the Zaqali^.",
+                            points  = {
+                                { 0.375, 0.685 },
+                                { 0.560, 0.684 },
+                                { 0.549, 0.496 },
+                                { 0.450, 0.382 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 5,
+                    title     = "Rashok, the Elder",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when            = { mapID = 2168 },
+                            kind            = "poi",
+                            highlightCircle = true,
+                            note            = "After defeating the ^Assault of the Zaqali^, enter the nearby room labeled ^Molten Crucible^.",
+                            points          = {
+                                { 0.409, 0.385 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2166 },
+                            kind    = "path",
+                            note    = "Approach the boss, and kill the trash to engage ^Rashok^.",
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 6,
+                    title     = "The Vigilant Steward, Zskarn",
+                    requires  = { 4, 5 },
+                    segments  = {
+                        {
+                            when    = { mapID = 2166 },
+                            kind    = "path",
+                            note    = "After defeating ^Rashok^, make your way up the chain behind him, and follow the path around to ^The Vigilant Steward, Zskarn^.",
+                            points  = {
+                                { 0.660, 0.256 },
+                                { 0.643, 0.279 },
+                                { 0.592, 0.266 },
+                                { 0.570, 0.189 },
+                                { 0.585, 0.128 },
+                                { 0.538, 0.127 },
+                                { 0.514, 0.183 },
+                                { 0.514, 0.211 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Neltharion's Shadow: Magmorax(7), Echo of Neltharion(8).
+        -- LFR zones into mapID 2166 (Molten Crucible) without having
+        -- fought Zskarn, so Magmorax's standard entry note + waypoints
+        -- (which assume the Zskarn drop-down) don't apply -- the step-1
+        -- entry segment awaits the verbatim LFR zone-in note + points.
+        -- Echo of Neltharion chains off Magmorax normally and is imported
+        -- verbatim from the standard route.
+        [2401] = {
+            name   = "Neltharion's Shadow",
+            bosses = { 7, 8 },   -- Magmorax, Echo of Neltharion
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Magmorax->3, Echo of Neltharion->4.
+            lockoutBits = { [7] = 3, [8] = 4 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "Magmorax",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 2166, subZone = "Molten Crucible" },
+                            kind    = "path",
+                            note    = "After zoning in, proceed straight ahead to engage ^Magmorax^. Kill trash to start the encounter.",
+                            points  = {
+                                { 0.514, 0.381 },
+                                { 0.514, 0.433 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 8,
+                    title     = "Echo of Neltharion",
+                    requires  = { 7 },
+                    segments  = {
+                        {
+                            when    = { mapID = 2166 },
+                            kind    = "path",
+                            note    = "After defeating ^Magmorax^, swim across the lava to reach the southern exit labeled ^Neltharion's Sanctum^. Jump down into the hole.",
+                            points  = {
+                                { 0.514, 0.503 },
+                                { 0.514, 0.574 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2169 },
+                            kind    = "path",
+                            note    = "After you land, enter the room and clear the trash to spawn ^Echo of Neltharion^.",
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Edge of the Void: Scalecommander Sarkareth(9). LFR zones into
+        -- mapID 2169, Edge of Oblivion subzone, rather than arriving from
+        -- Echo of Neltharion via the purple portal, so the standard entry
+        -- (Neltharion's Sanctum walk -> portal -> 2170) doesn't apply --
+        -- the entry segment awaits the verbatim LFR zone-in note + points.
+        [2402] = {
+            name   = "Edge of the Void",
+            bosses = { 9 },   -- Scalecommander Sarkareth
+            lockoutBits = { [9] = 5 },   -- captured on a fresh lockout
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 9,
+                    title     = "Scalecommander Sarkareth",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when            = { mapID = 2169 },
+                            kind            = "poi",
+                            highlightCircle = true,
+                            note            = "After zoning in, jump in the purple portal in front of you.",
+                            points          = {
+                                { 0.508, 0.607 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 2170 },
+                            kind    = "path",
+                            note    = "After landing below, follow the path to reach ^Scalecommander Sarkareth^.",
+                            points  = {
+                                { 0.490, 0.254 },
+                                { 0.490, 0.678 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
     },
 }

@@ -1064,4 +1064,416 @@ RetroRuns_Data[1098] = {
         },
 
     },
+
+    lfrWings = {
+
+        -- Last Stand of the Zandalari: Jin'rokh, Horridon, Council of Elders.
+        [835] = {
+            name   = "Last Stand of the Zandalari",
+            bosses = { 1, 2, 3 },
+            lockoutBits = { [1] = 10, [2] = 8, [3] = 4 },
+            routing = {
+
+                -- 1. Jin'rokh the Breaker
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Jin'rokh the Breaker",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 508, subZone = "Ruined Approach" },
+                            kind    = "path",
+                            note    = "After zoning in, make your way to the other end of the room. Open the door to find ^Jin'rokh the Breaker^.",
+                            points  = {
+                                { 0.332, 0.256 },
+                                { 0.356, 0.234 },
+                                { 0.405, 0.234 },
+                                { 0.436, 0.216 },
+                                { 0.457, 0.214 },
+                                { 0.473, 0.256 },
+                                { 0.570, 0.258 },
+                            },
+                        },
+                    },
+                },
+
+                -- 2. Horridon
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 2,
+                    title     = "Horridon",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 508, subZone = "Overgrown Statuary" },
+                            kind    = "path",
+                            note    = "After killing ^Jin'rokh^, take the long path south and cross two bridges before arriving in the next area. Avoid blue circles; they will throw you off the edge.",
+                            points  = {
+                                { 0.595, 0.315 },
+                                { 0.593, 0.452 },
+                                { 0.617, 0.464 },
+                                { 0.618, 0.498 },
+                                { 0.594, 0.533 },
+                                { 0.594, 0.791 },
+                                { 0.843, 0.792 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 509, subZone = "Ruined Approach" },
+                            kind    = "path",
+                            note    = "Open the door in front of you to land in ^Horridon^'s room. After a brief dialog, kill the boss.",
+                            points  = {
+                                { 0.190, 0.786 },
+                                { 0.245, 0.786 },
+                            },
+                        },
+                    },
+                },
+
+                -- 3. Council of Elders
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 3,
+                    title     = "Council of Elders",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 509, subZone = "Royal Amphitheater" },
+                            kind    = "path",
+                            note    = "After killing ^Horridon^, go through the north exit and follow the path all the way to ^Council of Elders^. Kill trash to unlock doors along the way.",
+                            points  = {
+                                { 0.270, 0.681 },
+                                { 0.267, 0.199 },
+                                { 0.409, 0.192 },
+                                { 0.410, 0.237 },
+                                { 0.462, 0.239 },
+                                { 0.491, 0.225 },
+                            },
+                        },
+                    },
+                },
+
+            },
+        },
+
+        -- Forgotten Depths: Tortos, Megaera, Ji-Kun.
+        [836] = {
+            name   = "Forgotten Depths",
+            bosses = { 4, 5, 6 },
+            lockoutBits = { [4] = 3, [5] = 11, [6] = 6 },
+            routing = {
+
+                -- 4. Tortos
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 4,
+                    title     = "Tortos",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 510, subZone = "Lair of Tortos" },
+                            kind    = "path",
+                            note    = "After zoning in, proceed straight ahead to engage ^Tortos^.",
+                            points  = {
+                                { 0.177, 0.810 },
+                                { 0.289, 0.823 },
+                            },
+                        },
+                    },
+                },
+
+                -- 5. Megaera
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 5,
+                    title     = "Megaera",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 510, subZone = "Forgotten Depths" },
+                            kind    = "path",
+                            note    = "After defeating ^Tortos^, walk through him to reach the next area. To spawn ^Megaera^, you must destroy the (3) bells marked on the map, which are protected by ^Eternal Guardians^.",
+                            points  = {},
+                        },
+                        {
+                            when     = { mapID = 510, subZone = "Forgotten Depths" },
+                            kind     = "poi",
+                            mapLabel = "Bell",
+                            points  = {
+                                { 0.318, 0.460 },
+                            },
+                        },
+                        {
+                            when     = { mapID = 510, subZone = "Forgotten Depths" },
+                            kind     = "poi",
+                            mapLabel = "Bell",
+                            points  = {
+                                { 0.498, 0.147 },
+                            },
+                        },
+                        {
+                            when     = { mapID = 510, subZone = "Forgotten Depths" },
+                            kind     = "poi",
+                            mapLabel = "Bell",
+                            points  = {
+                                { 0.568, 0.730 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 510, subZone = "Forgotten Depths" },
+                            kind    = "path",
+                            points  = {
+                                { 0.617, 0.383 },
+                                { 0.690, 0.287 },
+                            },
+                        },
+                    },
+                },
+
+                -- 6. Ji-Kun
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 6,
+                    title     = "Ji-Kun",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 510, subZone = "Forgotten Depths" },
+                            kind    = "path",
+                            note    = "After defeating ^Megaera^, take the new exit on the east side of the room.",
+                            points  = {
+                                { 0.676, 0.308 },
+                                { 0.656, 0.457 },
+                                { 0.735, 0.528 },
+                                { 0.744, 0.570 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 511, subZone = "Roost of Ji-Kun" },
+                            kind    = "path",
+                            note    = "Inside the ^Roost of Ji-Kun^, make your way up and around the long series of paths and stairwells until you reach the platform of ^Ji-Kun^. Avoid the snails; they will still 1-shot you.",
+                            points  = {
+                                { 0.218, 0.218 },
+                                { 0.219, 0.307 },
+                                { 0.192, 0.405 },
+                                { 0.162, 0.496 },
+                                { 0.145, 0.608 },
+                                { 0.181, 0.663 },
+                                { 0.273, 0.619 },
+                                { 0.340, 0.736 },
+                                { 0.436, 0.810 },
+                                { 0.431, 0.873 },
+                                { 0.448, 0.924 },
+                                { 0.487, 0.950 },
+                                { 0.524, 0.940 },
+                                { 0.554, 0.899 },
+                                { 0.563, 0.860 },
+                                { 0.680, 0.818 },
+                                { 0.749, 0.740 },
+                                { 0.780, 0.659 },
+                                { 0.654, 0.558 },
+                                { 0.530, 0.444 },
+                            },
+                        },
+                    },
+                },
+
+            },
+        },
+
+        -- Halls of Flesh-Shaping: Durumu, Primordius, Dark Animus.
+        [837] = {
+            name   = "Halls of Flesh-Shaping",
+            bosses = { 7, 8, 9 },
+            lockoutBits = { [7] = 5, [8] = 7, [9] = 9 },
+            routing = {
+
+                -- 7. Durumu the Forgotten
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "Durumu the Forgotten",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 512, subZone = "Refuse Disposal" },
+                            kind    = "path",
+                            note    = "After zoning in, continue ahead to find ^Durumu the Forgotten^. Clear all trash in the room to spawn the boss.",
+                            points  = {
+                                { 0.752, 0.091 },
+                                { 0.711, 0.099 },
+                                { 0.710, 0.154 },
+                                { 0.690, 0.166 },
+                                { 0.685, 0.192 },
+                                { 0.684, 0.213 },
+                                { 0.707, 0.298 },
+                            },
+                        },
+                    },
+                },
+
+                -- 8. Primordius
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 8,
+                    title     = "Primordius",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 512, subZone = "Watcher's Sanctum" },
+                            kind    = "path",
+                            note    = "After defeating ^Durumu^, follow the linear path through several sets of stairs and make your way to ^Primordius^.",
+                            points  = {
+                                { 0.711, 0.377 },
+                                { 0.711, 0.516 },
+                                { 0.731, 0.526 },
+                                { 0.743, 0.546 },
+                                { 0.746, 0.573 },
+                                { 0.739, 0.596 },
+                                { 0.712, 0.622 },
+                                { 0.710, 0.737 },
+                                { 0.730, 0.742 },
+                                { 0.742, 0.758 },
+                                { 0.746, 0.781 },
+                                { 0.599, 0.781 },
+                            },
+                        },
+                    },
+                },
+
+                -- 9. Dark Animus
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 9,
+                    title     = "Dark Animus",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 512, subZone = "Saurok Creation Pit" },
+                            kind    = "path",
+                            note    = "After killing ^Primordius^, take the western stairwell out of the room and follow it to ^Dark Animus^. Kill the ritualists to start the fight.",
+                            points  = {
+                                { 0.548, 0.783 },
+                                { 0.391, 0.779 },
+                                { 0.396, 0.753 },
+                                { 0.414, 0.734 },
+                                { 0.426, 0.730 },
+                                { 0.424, 0.608 },
+                            },
+                        },
+                    },
+                },
+
+            },
+        },
+
+        -- Pinnacle of Storms: Iron Qon, Twin Empyreans, Lei Shen.
+        [838] = {
+            name   = "Pinnacle of Storms",
+            bosses = { 10, 11, 12 },
+            lockoutBits = { [10] = 1, [11] = 2, [12] = 12 },
+            routing = {
+
+                -- 10. Iron Qon
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 10,
+                    title     = "Iron Qon",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 512, subZone = "Sewer Access Point" },
+                            kind    = "path",
+                            note    = "After zoning in, move up the stairwell and follow the path to open a masked gate.",
+                            points  = {
+                                { 0.383, 0.429 },
+                                { 0.333, 0.428 },
+                                { 0.332, 0.314 },
+                                { 0.466, 0.315 },
+                                { 0.466, 0.176 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 513, subZone = "Grand Courtyard" },
+                            kind    = "path",
+                            note    = "On the other side of the gate, proceed ahead to engage ^Iron Qon^.",
+                            points  = {
+                                { 0.204, 0.659 },
+                                { 0.247, 0.596 },
+                                { 0.317, 0.592 },
+                            },
+                        },
+                    },
+                },
+
+                -- 11. Twin Empyreans
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 11,
+                    title     = "Twin Empyreans",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 513, subZone = "Grand Courtyard" },
+                            kind    = "path",
+                            note    = "After defeating ^Iron Qon^, proceed through the new door behind them and follow the linear path to the ^Twin Empyreans^.",
+                            points  = {
+                                { 0.402, 0.588 },
+                                { 0.614, 0.590 },
+                                { 0.638, 0.549 },
+                                { 0.684, 0.519 },
+                                { 0.755, 0.423 },
+                            },
+                        },
+                    },
+                },
+
+                -- 12. Lei Shen
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 12,
+                    title     = "Lei Shen",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 513, subZone = "Celestial Enclave" },
+                            kind    = "path",
+                            note    = "After killing the ^Twin Empyreans^, take the southeastern exit from the room.",
+                            points  = {
+                                { 0.804, 0.415 },
+                                { 0.892, 0.545 },
+                                { 0.847, 0.626 },
+                                { 0.857, 0.709 },
+                                { 0.887, 0.759 },
+                            },
+                        },
+                        {
+                            when     = { mapID = 514, subZone = "Pinnacle of Storms" },
+                            kind     = "poi",
+                            mapLabel = "Click Displacement Pad",
+                            note     = "At the top of the stairs, walk through a door and click on the ^Displacement Pad^. After landing, engage ^Lei Shen^.",
+                            points   = {
+                                { 0.501, 0.157 },
+                            },
+                        },
+                    },
+                },
+
+            },
+        },
+
+    },
 }

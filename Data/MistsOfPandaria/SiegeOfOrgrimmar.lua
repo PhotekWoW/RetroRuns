@@ -1256,4 +1256,558 @@ RetroRuns_Data[1136] = {
         },
 
     },
+
+    lfrWings = {
+
+        -- Vale of Eternal Sorrows: Immerseus, The Fallen Protectors, Norushen, Sha of Pride.
+        [839] = {
+            name   = "Vale of Eternal Sorrows",
+            bosses = { 1, 2, 3, 4 },
+            lockoutBits = { [1] = 8, [2] = 4, [3] = 15, [4] = 10 },
+            routing = {
+
+                -- 1. Immerseus
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Immerseus",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 557, subZone = "Pools of Power" },
+                            kind    = "path",
+                            note    = "After zoning in, head down the stairs and move straight ahead to engage ^Immerseus^.",
+                            points  = {
+                                { 0.849, 0.454 },
+                                { 0.835, 0.521 },
+                                { 0.792, 0.568 },
+                                { 0.739, 0.567 },
+                                { 0.690, 0.497 },
+                                { 0.515, 0.494 },
+                                { 0.444, 0.474 },
+                            },
+                        },
+                    },
+                },
+
+                -- 2. The Fallen Protectors
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 2,
+                    title     = "The Fallen Protectors",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 557, subZone = "Pools of Power" },
+                            kind    = "path",
+                            note    = "After defeating ^Immerseus^, take the tall western stairwell behind him.",
+                            points  = {
+                                { 0.325, 0.454 },
+                                { 0.147, 0.451 },
+                            },
+                        },
+                        {
+                            when        = { mapID = 557, subZone = "Ruined Passage" },
+                            kind        = "poi",
+                            mapLabel    = "Stand in Light, Click Button",
+                            mapLabelPos = "above",
+                            note        = "Walk into the ^beam of light^ and click the ^Extra Action Button^ to trigger a cutscene. After the cutscene, go up the stairs and jump off the ledge.",
+                            points  = {
+                                { 0.118, 0.453 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 557, subZone = "Ruined Passage" },
+                            kind    = "path",
+                            points  = {
+                                { 0.117, 0.507 },
+                                { 0.117, 0.696 },
+                            },
+                        },
+                        {
+                            when     = { mapID = 556 },
+                            kind     = "poi",
+                            noMarker = true,
+                            note     = "After jumping in the hole, engage ^The Fallen Protectors^.",
+                            points  = {
+                                { 0.250, 0.148 },
+                            },
+                        },
+                    },
+                },
+
+                -- 3. Norushen
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 3,
+                    title     = "Norushen",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 556, subZone = "Scarred Vale" },
+                            kind    = "path",
+                            note    = "After defeating ^The Fallen Protectors^, follow the path to the mineshaft. Kill ^Zeal^ to unlock the way.",
+                            points  = {
+                                { 0.330, 0.194 },
+                                { 0.376, 0.361 },
+                                { 0.437, 0.438 },
+                                { 0.452, 0.577 },
+                                { 0.431, 0.705 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 558, subZone = "Big Blossom Mine" },
+                            kind    = "path",
+                            note    = "Follow the mineshaft into the next room. After a lengthy dialog, speak to ^Norushen^ to start the encounter.",
+                            points  = {
+                                { 0.592, 0.168 },
+                                { 0.571, 0.206 },
+                                { 0.568, 0.269 },
+                                { 0.587, 0.318 },
+                                { 0.622, 0.353 },
+                                { 0.664, 0.357 },
+                                { 0.701, 0.355 },
+                                { 0.731, 0.526 },
+                                { 0.576, 0.583 },
+                            },
+                        },
+                    },
+                },
+
+                -- 4. Sha of Pride
+                {
+                    step      = 4,
+                    priority  = 4,
+                    bossIndex = 4,
+                    title     = "Sha of Pride",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 558, subZone = "Chamber of Purification" },
+                            kind    = "path",
+                            note    = "After completing the ^Norushen^ encounter, move ahead into the next room and clear all trash to start the fight with ^Sha of Pride^.",
+                            points  = {
+                                { 0.477, 0.611 },
+                                { 0.319, 0.658 },
+                            },
+                        },
+                    },
+                },
+
+            },
+        },
+
+        -- Gates of Retribution: Galakras, Iron Juggernaut, Kor'kron Dark Shaman, General Nazgrim.
+        [840] = {
+            name   = "Gates of Retribution",
+            bosses = { 5, 6, 7, 8 },
+            lockoutBits = { [5] = 13, [6] = 6, [7] = 12, [8] = 9 },
+            routing = {
+
+                -- 5. Galakras
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 5,
+                    title     = "Galakras",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 559, subZone = "Bladefist Bay" },
+                            kind    = "poi",
+                            mapLabel    = "Kill Cannons",
+                            mapLabelPos = "above",
+                            completionCheck = true,
+                            note    = "After zoning in, proceed across the bridge. On the beach, your goal is to destroy (7) ^Kor'kron Cannons^. Click the ^Spike Mines^ next to each cannon to destroy them.",
+                            triggeredBy = { dialog = { npc = "Warlord Zaela", match = "Your blood will fill this bay" } },
+                            points  = {
+                                { 0.862, 0.280 },
+                                { 0.795, 0.290 },
+                                { 0.801, 0.351 },
+                                { 0.833, 0.408 },
+                                { 0.848, 0.471 },
+                            },
+                        },
+                        {
+                            when        = { mapID = 559, subZone = "Dranosh'ar Landing" },
+                            kind        = "path",
+                            note        = galakrasReturnNote,
+                            triggeredBy = { dialog = { npc = "Warlord Zaela", match = "Your blood will fill this bay" } },
+                            points  = {},
+                        },
+                    },
+                },
+
+                -- 6. Iron Juggernaut
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 6,
+                    title     = "Iron Juggernaut",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 559, subZone = "Dranosh'ar Landing" },
+                            kind    = "path",
+                            note    = "After killing ^Galakras^, follow the long path to the west until you arrive at ^Iron Juggernaut^.",
+                            points  = {
+                                { 0.689, 0.322 },
+                                { 0.631, 0.370 },
+                                { 0.567, 0.403 },
+                                { 0.561, 0.515 },
+                                { 0.528, 0.600 },
+                                { 0.460, 0.679 },
+                                { 0.386, 0.712 },
+                                { 0.345, 0.665 },
+                                { 0.347, 0.555 },
+                                { 0.326, 0.454 },
+                            },
+                        },
+                    },
+                },
+
+                -- 7. Kor'kron Dark Shaman
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 7,
+                    title     = "Kor'kron Dark Shaman",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 559, subZone = "Before the Gates" },
+                            kind    = "path",
+                            note    = "After killing ^Iron Juggernaut^, head into the ^Gates of Orgrimmar^.",
+                            points  = {
+                                { 0.318, 0.442 },
+                                { 0.298, 0.324 },
+                                { 0.303, 0.274 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 560, subZone = "Valley of Strength" },
+                            kind    = "path",
+                            note    = "Inside ^Orgrimmar^, move ahead into the boss tower to fight ^Kor'kron Dark Shaman^.",
+                            points  = {
+                                { 0.512, 0.743 },
+                                { 0.491, 0.652 },
+                            },
+                        },
+                    },
+                },
+
+                -- 8. General Nazgrim
+                {
+                    step      = 4,
+                    priority  = 4,
+                    bossIndex = 8,
+                    title     = "General Nazgrim",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 560, subZone = "Valley of Strength" },
+                            kind    = "path",
+                            note    = "After killing ^Kor'kron Dark Shaman^, follow the northeastern path towards ^The Drag^. Clear trash and enter the ^Cleft of Shadows^.",
+                            points  = {
+                                { 0.504, 0.666 },
+                                { 0.508, 0.574 },
+                                { 0.495, 0.495 },
+                                { 0.520, 0.471 },
+                                { 0.562, 0.483 },
+                                { 0.601, 0.446 },
+                                { 0.616, 0.389 },
+                                { 0.605, 0.332 },
+                                { 0.587, 0.288 },
+                                { 0.572, 0.261 },
+                                { 0.553, 0.245 },
+                                { 0.536, 0.288 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 561, subZone = "Cleft of Shadow" },
+                            kind    = "path",
+                            note    = "Inside the ^Cleft of Shadows^, jump off to the left and head into another tunnel.",
+                            points  = {
+                                { 0.728, 0.154 },
+                                { 0.697, 0.202 },
+                                { 0.700, 0.272 },
+                                { 0.698, 0.347 },
+                                { 0.664, 0.387 },
+                                { 0.583, 0.455 },
+                                { 0.606, 0.509 },
+                                { 0.696, 0.501 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 562, subZone = "Ragefire Chasm" },
+                            kind    = "path",
+                            note    = "Inside the next tunnel, follow the long path to reach ^General Nazgrim^.",
+                            points  = {
+                                { 0.344, 0.174 },
+                                { 0.399, 0.158 },
+                                { 0.412, 0.280 },
+                                { 0.461, 0.396 },
+                                { 0.496, 0.481 },
+                                { 0.511, 0.534 },
+                                { 0.564, 0.605 },
+                                { 0.587, 0.674 },
+                                { 0.627, 0.719 },
+                            },
+                        },
+                    },
+                },
+
+            },
+        },
+
+        -- The Underhold: Malkorok, Spoils of Pandaria, Thok.
+        [841] = {
+            name   = "The Underhold",
+            bosses = { 9, 10, 11 },
+            lockoutBits = { [9] = 3, [10] = 2, [11] = 5 },
+            routing = {
+
+                -- 9. Malkorok
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 9,
+                    title     = "Malkorok",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 563, subZone = "Rough-Hewn Passage" },
+                            kind    = "path",
+                            note    = "After zoning in, follow the path around a few turns and up some stairs, killing trash on your way to ^Malkorok^.",
+                            points  = {
+                                { 0.239, 0.603 },
+                                { 0.292, 0.556 },
+                                { 0.385, 0.573 },
+                                { 0.408, 0.624 },
+                                { 0.487, 0.631 },
+                                { 0.572, 0.559 },
+                                { 0.592, 0.600 },
+                                { 0.525, 0.661 },
+                                { 0.432, 0.460 },
+                            },
+                        },
+                    },
+                },
+
+                -- 10. Spoils of Pandaria
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 10,
+                    title     = "Spoils of Pandaria",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 563, subZone = "Kor'kron Barracks" },
+                            kind    = "path",
+                            note    = "After killing ^Malkorok^, take the northwestern exit from the platform and follow it around to kill the scorpion and click ^Release Lever^.",
+                            points  = {
+                                { 0.397, 0.381 },
+                                { 0.307, 0.174 },
+                                { 0.375, 0.113 },
+                                { 0.469, 0.326 },
+                            },
+                        },
+                        {
+                            when        = { mapID = 563, subZone = "Kor'kron Barracks" },
+                            kind        = "poi",
+                            mapLabel    = "Release Lever",
+                            mapLabelPos = "above",
+                            completionCheck = true,
+                            points  = {
+                                { 0.482, 0.356 },
+                            },
+                        },
+                        {
+                            when        = { mapID = 563, subZone = "Kor'kron Barracks" },
+                            kind        = "path",
+                            note        = "After clicking the lever, travel through the opened door to the northeast and follow it around to a big clearing. Take the southwestern door.",
+                            triggeredBy = spoilsDoorTrigger,
+                            points  = {
+                                { 0.541, 0.299 },
+                                { 0.631, 0.230 },
+                                { 0.807, 0.600 },
+                            },
+                        },
+                        {
+                            when        = { mapID = 563, subZone = "Kor'kron Barracks" },
+                            kind        = "poi",
+                            mapLabel    = "Go Here",
+                            mapLabelPos = "above",
+                            points  = {
+                                { 0.781, 0.738 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 564, subZone = "Artifact Storage" },
+                            kind    = "path",
+                            note    = "Once inside ^Artifact Storage^, continue forward and click on the ^Secured Stockpile of Pandaren Spoils^ to begin the ^Spoils of Pandaria^ encounter.",
+                            points  = {
+                                { 0.620, 0.197 },
+                                { 0.552, 0.259 },
+                            },
+                        },
+                    },
+                },
+
+                -- 11. Thok the Bloodthirsty
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 11,
+                    title     = "Thok the Bloodthirsty",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 564, subZone = "Artifact Storage" },
+                            kind    = "path",
+                            note    = "After completing the ^Spoils of Pandaria^ encounter, follow the path ahead to reach ^Thok the Bloodthirsty^.",
+                            points  = {
+                                { 0.499, 0.313 },
+                                { 0.386, 0.423 },
+                                { 0.362, 0.509 },
+                                { 0.403, 0.574 },
+                                { 0.492, 0.777 },
+                            },
+                        },
+                    },
+                },
+
+            },
+        },
+
+        -- Downfall: Siegecrafter Blackfuse, Paragons of the Klaxxi, Garrosh Hellscream.
+        [842] = {
+            name   = "Downfall",
+            bosses = { 12, 13, 14 },
+            lockoutBits = { [12] = 7, [13] = 1, [14] = 14 },
+            routing = {
+
+                -- 12. Siegecrafter Blackfuse
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 12,
+                    title     = "Siegecrafter Blackfuse",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 563, subZone = "Rough-Hewn Passage" },
+                            kind    = "path",
+                            note    = "After zoning in, head through the door and proceed to the exit marked on the map.",
+                            points  = {
+                                { 0.676, 0.316 },
+                                { 0.803, 0.603 },
+                            },
+                        },
+                        {
+                            when        = { mapID = 563, subZone = "Underhold Nexus" },
+                            kind        = "poi",
+                            mapLabel    = "Go Here",
+                            mapLabelPos = "above",
+                            points  = {
+                                { 0.902, 0.621 },
+                            },
+                        },
+                        {
+                            when        = { mapID = 565, subZone = "The Siegeworks" },
+                            kind        = "poi",
+                            mapLabel    = "Jump in tunnel",
+                            mapLabelPos = "above",
+                            note        = "In the next area, kill several waves of trash. After killing ^Shanna Sparkfizz^, jump in the pipe to reach ^Siegecrafter Blackfuse^.",
+                            points  = {
+                                { 0.474, 0.584 },
+                            },
+                        },
+                    },
+                },
+
+                -- 13. Paragons of the Klaxxi
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 13,
+                    title     = "Paragons of the Klaxxi",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 565, subZone = "The Siegeworks" },
+                            kind    = "path",
+                            note    = "After defeating ^Siegecrafter Blackfuse^, jump back in the pipe towards the room entrance. Continue southwest back the way you came.",
+                            points  = {
+                                { 0.508, 0.542 },
+                                { 0.223, 0.831 },
+                            },
+                        },
+                        {
+                            when        = { mapID = 563, subZone = "Underhold Nexus" },
+                            kind        = "poi",
+                            mapLabel    = "Go Here",
+                            mapLabelPos = "above",
+                            note        = "Back in the ^Underhold Nexus^, take the southern (final) door marked on the map.",
+                            points  = {
+                                { 0.884, 0.773 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 566, subZone = "Rough-Hewn Passage" },
+                            kind    = "path",
+                            note    = "After walking through the door, follow the path to ^Paragons of the Klaxxi^. Clear trash and click ^Mantid Amber^ in the middle of the room to start the encounter.",
+                            points  = {
+                                { 0.345, 0.196 },
+                                { 0.389, 0.242 },
+                                { 0.436, 0.214 },
+                                { 0.471, 0.147 },
+                                { 0.504, 0.098 },
+                                { 0.550, 0.096 },
+                                { 0.583, 0.130 },
+                                { 0.664, 0.315 },
+                            },
+                        },
+                    },
+                },
+
+                -- 14. Garrosh Hellscream
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 14,
+                    title     = "Garrosh Hellscream",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 566, subZone = "Chamber of the Paragons" },
+                            kind    = "path",
+                            note    = "After defeating the ^Paragons of the Klaxxi^, take the new exit on the south side of the room. As you approach ^Garrosh^, pull the hallway trash with you and most of the dialog will be skipped!",
+                            points  = {
+                                { 0.719, 0.433 },
+                                { 0.805, 0.663 },
+                                { 0.665, 0.881 },
+                                { 0.650, 0.938 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 567, subZone = "The Inner Sanctum" },
+                            kind    = "path",
+                            note    = "After opening the door, proceed ahead to witness a lengthy dialog before engaging ^Garrosh Hellscream^.",
+                            points  = {
+                                { 0.534, 0.139 },
+                                { 0.490, 0.665 },
+                            },
+                        },
+                    },
+                },
+
+            },
+        },
+
+    },
 }

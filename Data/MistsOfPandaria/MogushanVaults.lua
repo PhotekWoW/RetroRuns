@@ -354,7 +354,7 @@ RetroRuns_Data[1008] = {
                 {
                     when    = { mapID = 473, subZone = "The Repository" },
                     kind    = "path",
-                    note    = "In the boss room, kill the final trash pack and talk to ^Lorewalker Cho^ to trigger the boss fight with ^Elegon^.",
+                    note    = "Follow the path. Once you reach the boss room, kill the final trash pack and talk to ^Lorewalker Cho^ to trigger the boss fight with ^Elegon^.",
                     points  = {
                         { 0.610, 0.105 },
                         { 0.609, 0.211 },
@@ -379,7 +379,7 @@ RetroRuns_Data[1008] = {
                 {
                     when    = { mapID = 473, subZone = "Engine of Nalak'sha" },
                     kind    = "path",
-                    note    = "After killing ^Elegon^, follow the path out of the room and head south to arrive at the next boss room. To start the fight with ^Will of the Emperor^, click the pipes below (^Heroic^) or click the console (^Normal^).",
+                    note    = "After killing ^Elegon^, follow the path out of the room and head south to arrive at the next boss room. To start the fight with ^Will of the Emperor^, click the pipes below (^Heroic^) or click the console (^Normal/LFR^).",
                     points  = {
                         { 0.406, 0.509 },
                         { 0.491, 0.505 },
@@ -388,6 +388,212 @@ RetroRuns_Data[1008] = {
                         { 0.688, 0.654 },
                     },
                 },
+            },
+        },
+
+    },
+
+    lfrWings = {
+
+        -- Guardians of Mogu'shan: The Stone Guard, Feng, Gara'jal.
+        [830] = {
+            name   = "Guardians of Mogu'shan",
+            bosses = { 1, 2, 3 },
+            lockoutBits = { [1] = 2, [2] = 1, [3] = 4 },
+            routing = {
+
+                -- 1. The Stone Guard
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "The Stone Guard",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 471, subZone = "The Golden Hall" },
+                            kind    = "path",
+                            note    = "After zoning in, move ahead to find ^The Stone Guard^.",
+                            points  = {
+                                { 0.749, 0.704 },
+                                { 0.752, 0.643 },
+                                { 0.486, 0.639 },
+                            },
+                        },
+                    },
+                },
+
+                -- 2. Feng the Accursed
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 2,
+                    title     = "Feng the Accursed",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 471, subZone = "The Golden Hall" },
+                            kind    = "path",
+                            note    = "After defeating ^The Stone Guard^, continue ahead to several trash packs with glowing orbs floating near them. Physically walk into the adds to spawn the trash. Once they're down, you can engage ^Feng the Accursed^.",
+                            points  = {
+                                { 0.428, 0.641 },
+                                { 0.320, 0.639 },
+                                { 0.318, 0.370 },
+                            },
+                        },
+                    },
+                },
+
+                -- 3. Gara'jal the Spiritbinder
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 3,
+                    title     = "Gara'jal the Spiritbinder",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 471, subZone = "Dais of Conquerors" },
+                            kind    = "path",
+                            note    = "After killing ^Feng^, continue on to the next area.",
+                            points  = {
+                                { 0.322, 0.283 },
+                                { 0.318, 0.118 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 472, subZone = "Emperor's Reach" },
+                            kind    = "path",
+                            note    = "In the next area, clear the trash before, on, and after the platform to force ^Gara'jal the Spiritbinder^ into combat.",
+                            points  = {
+                                { 0.776, 0.755 },
+                                { 0.776, 0.383 },
+                            },
+                        },
+                    },
+                },
+
+            },
+        },
+
+        -- The Vault of Mysteries: The Spirit Kings, Elegon, Will of the Emperor.
+        [831] = {
+            name   = "The Vault of Mysteries",
+            bosses = { 4, 5, 6 },
+            lockoutBits = { [4] = 5, [5] = 6, [6] = 3 },
+            routing = {
+
+                -- 4. The Spirit Kings
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 4,
+                    title     = "The Spirit Kings",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 472, subZone = "Emperor's Reach" },
+                            kind    = "path",
+                            note    = "After zoning in, follow the linear path to ^Lorewalker Cho^. Speak to him to trigger a series of trash encounters.",
+                            points  = {
+                                { 0.488, 0.340 },
+                                { 0.443, 0.340 },
+                                { 0.415, 0.300 },
+                            },
+                        },
+                        {
+                            when            = { mapID = 472, subZone = "The Repository" },
+                            kind            = "poi",
+                            mapLabel        = "Talk to Lorewalker Cho",
+                            mapLabelPos     = "above",
+                            completionCheck = true,
+                            points  = {
+                                { 0.328, 0.292 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 472 },
+                            kind    = "path",
+                            triggeredBy = { dialog = { npc = "Lorewalker Cho", match = "What might this button do" } },
+                            points  = {
+                                { 0.444, 0.341 },
+                                { 0.407, 0.290 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 472 },
+                            kind    = "path",
+                            note    = "After clearing the final trash wave, follow the path up to engage ^The Spirit Kings^.",
+                            points  = {
+                                { 0.336, 0.686 },
+                                { 0.238, 0.692 },
+                                { 0.237, 0.629 },
+                                { 0.212, 0.556 },
+                            },
+                        },
+                    },
+                },
+
+                -- 5. Elegon
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 5,
+                    title     = "Elegon",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 472, subZone = "The Repository" },
+                            kind    = "path",
+                            note    = "After defeating ^The Spirit Kings^, go downstairs to the previous room and take the new path by ^Lorewalker Cho^.",
+                            points  = {
+                                { 0.238, 0.400 },
+                                { 0.243, 0.292 },
+                                { 0.339, 0.294 },
+                                { 0.335, 0.414 },
+                                { 0.294, 0.513 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 473, subZone = "The Repository" },
+                            kind    = "path",
+                            note    = "Follow the path. Once you reach the boss room, kill the final trash pack and talk to ^Lorewalker Cho^ to trigger the boss fight with ^Elegon^.",
+                            points  = {
+                                { 0.610, 0.105 },
+                                { 0.609, 0.211 },
+                                { 0.685, 0.217 },
+                                { 0.686, 0.408 },
+                                { 0.490, 0.412 },
+                                { 0.487, 0.505 },
+                                { 0.292, 0.509 },
+                            },
+                        },
+                    },
+                },
+
+                -- 6. Will of the Emperor
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 6,
+                    title     = "Will of the Emperor",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 473, subZone = "Engine of Nalak'sha" },
+                            kind    = "path",
+                            note    = "After killing ^Elegon^, follow the path out of the room and head south to arrive at the next boss room. To start the fight with ^Will of the Emperor^, click the pipes below (^Heroic^) or click the console (^Normal/LFR^).",
+                            points  = {
+                                { 0.406, 0.509 },
+                                { 0.491, 0.505 },
+                                { 0.492, 0.412 },
+                                { 0.686, 0.410 },
+                                { 0.688, 0.654 },
+                            },
+                        },
+                    },
+                },
+
             },
         },
 

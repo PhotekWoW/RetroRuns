@@ -45,7 +45,18 @@ local BODY_FONT_INFO = {
 
 local C_PINK   = { 0.95, 0.35, 0.78 }
 local C_BLUE   = { 0.30, 0.80, 1.00 }
+local C_PINK_HEX = "f259c7"  -- C_PINK as a text-escape hex (RETRO pink)
 local C_LABEL  = "7CFC00"   -- section label colour (green)
+
+-- Idle-list pill-row leading spacers: transparent fixed-width inline textures
+-- that reserve exact pixel widths at the head of a pill string. The pill text,
+-- the plane anchor, and the chevron measurement all read these.
+--   PILL_SUBLINE_INDENT  16px: indents the pill row so it reads as a sub-line
+--                        under the raid name.
+--   PILL_PLANE_GUTTER    18px: the column the nav plane sits in, at the head of
+--                        the row after the sub-line indent.
+RR.PILL_SUBLINE_INDENT = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:10:16:0:0:64:64:0:64:0:64:0:0:0:0|t"
+RR.PILL_PLANE_GUTTER   = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:14:18:0:0:64:64:0:64:0:64:0:0:0:0|t"
 
 -- Known teleporter node names -- highlighted orange in travel text
 -------------------------------------------------------------------------------
@@ -240,6 +251,21 @@ panel.titleRuns:SetTextColor(unpack(C_BLUE))
 panel.titleRuns:SetShadowOffset(1, -1)
 panel.titleRuns:SetShadowColor(0, 0, 0, 1)
 
+-- Minimized-bar next-step note. Sits to the right of the wordmark and shows
+-- the active segment's short instruction while minimized. White so it reads
+-- as content distinct from the pink/blue brand letters. Hidden by default;
+-- ApplyTitleLayoutForState shows it (and collapses the wordmark to "RR") only
+-- when minimized with an active route note to display. A small left pad
+-- separates it from the brand letters.
+panel.titleMinNote = panel:CreateFontString(nil, "OVERLAY")
+panel.titleMinNote:SetPoint("LEFT", panel.titleRuns, "RIGHT", 6, 0)
+panel.titleMinNote:SetFont(BODY_FONT, 12, "OUTLINE")
+panel.titleMinNote:SetText("")
+panel.titleMinNote:SetTextColor(1, 1, 1)
+panel.titleMinNote:SetShadowOffset(1, -1)
+panel.titleMinNote:SetShadowColor(0, 0, 0, 1)
+panel.titleMinNote:Hide()
+
 -- Close button
 -- Close button. Custom 20x20 frame (not Blizzard's UIPanelCloseButton,
 -- whose 32x32 frame and fixed red-X can't be themed) using the retro
@@ -316,9 +342,20 @@ panel.raid:SetPoint("TOPLEFT", panel, "TOPLEFT", PAD_LEFT, -30 - FRAME_INSET_Y)
 panel.raid:SetWidth(PANEL_W - PAD_LEFT - 80)
 panel.raid:SetJustifyH("LEFT")
 
+-- LFR wing subline, shown only in a wing (populated in UI.Update). Its own
+-- FontString so it can run 4pt smaller than the raid name; an empty string
+-- collapses to zero height, so when not in a wing the pills row (anchored
+-- below it) sits directly under the raid name as before. Sized at raid-font
+-- minus 4 in UI.Update, where the live raid font size is readable.
+panel.wingLine = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+panel.wingLine:SetPoint("TOPLEFT", panel.raid, "BOTTOMLEFT", 0, -2)
+panel.wingLine:SetWidth(PANEL_W - PAD_LEFT - 80)
+panel.wingLine:SetJustifyH("LEFT")
+panel.wingLine:SetText("")
+
 -- Per-difficulty kill-count pills row. Active difficulty in white,
 -- others in gray. Format: "[ LFR x/y | N x/y | H x/y | M x/y ]".
-panel.pills = AddField(panel.raid, "TOPLEFT", "BOTTOMLEFT", -2, BODY_WIDTH, "GameFontNormalSmall")
+panel.pills = AddField(panel.wingLine, "TOPLEFT", "BOTTOMLEFT", -2, BODY_WIDTH, "GameFontNormalSmall")
 
 -- Invisible hover region over the pills row. FontStrings can't take
 -- mouse scripts, so a sibling frame sits on top to surface the
@@ -648,26 +685,20 @@ local function AcquireEntranceButton()
     btn = CreateFrame("Button", nil, panel)
     btn:RegisterForClicks("LeftButtonUp")
     btn:SetFrameLevel((panel:GetFrameLevel() or 0) + 10)
-    -- FlightMaster minimap tracking icon -- a flight-master silhouette
-    -- with a subtle gold glow. Reads as "travel destination" similar
-    -- to the prior taxi-icon-yellow but with a slightly more
-    -- recognizable shape at small sizes (the boot-on-its-side
-    -- silhouette is harder to parse than the FlightMaster figure).
-    -- Highlight texture gives mouseover feedback in ADD blend mode.
+    -- Custom diagonal jet silhouette (Media/PlaneIcon), authored white so
+    -- it can be vertex-tinted. Tinted to RETRO pink; reads as "travel /
+    -- go here" and clicking opens the nav chooser. The white-source +
+    -- SetVertexColor pattern matches BugIcon/ChatIcon/RingCircle.
     --
     -- Routing-vs-waypoint tier signal is conveyed via the button's
     -- alpha (1.0 routing, 0.4 waypoint) -- set at the click-handler
-    -- setup site in RefreshIdleList. An earlier attempt to add a
-    -- blue glow halo behind the icon was abandoned after three
-    -- failed iterations: BACKGROUND-layer textures rendered behind
-    -- the panel backdrop (invisible); ARTWORK + ADD blend rendered
-    -- nothing on transparent surrounding pixels; ARTWORK + BLEND
-    -- with IconAlert texture rendered as a visible-but-rectangular
-    -- box that washed out the icon instead of haloing it. The
-    -- alpha-difference signal already conveys tier visibly enough.
-    btn:SetNormalTexture("Interface\\Minimap\\Tracking\\FlightMaster")
+    -- setup site in RefreshIdleList.
+    btn:SetNormalTexture("Interface\\AddOns\\RetroRuns\\Media\\PlaneIcon")
+    local nt = btn:GetNormalTexture()
+    if nt then nt:SetVertexColor(C_PINK[1], C_PINK[2], C_PINK[3], 1) end
+    -- Highlight: same texture in ADD blend for a brighten-on-hover feel.
     btn:SetHighlightTexture(
-        "Interface\\Minimap\\Tracking\\FlightMaster", "ADD")
+        "Interface\\AddOns\\RetroRuns\\Media\\PlaneIcon", "ADD")
     return btn
 end
 
@@ -685,17 +716,13 @@ end
 
 local function PositionEntranceButton(btn, parentFS)
     local fontSize = RR:GetSetting("fontSize", 12)
-    -- Slightly larger than the toggle buttons (1.4x) since the taxi
-    -- icon's recognizable shape needs room to read clearly. Anchored
-    -- at the right-edge of the FontString's STRING WIDTH (not the
-    -- FontString's frame width, which spans the whole panel column);
-    -- using GetStringWidth keeps the button snug against the actual
-    -- end of the text regardless of how long or short the raid name is.
+    -- Taxi icon at 1.4x the toggle-button size. Anchored at a fixed left inset
+    -- on the pill-row FontString so every plane lands in one vertical column.
     local size = math.floor(fontSize * 1.4)
     btn:SetSize(size, size)
     btn:ClearAllPoints()
-    btn:SetPoint("LEFT", parentFS, "LEFT",
-        (parentFS:GetStringWidth() or 0) + 4, 0)
+    -- +17 = the 16px sub-line indent + 1px into the plane gutter.
+    btn:SetPoint("LEFT", parentFS, "LEFT", 17, 0)
 end
 
 -- Frameless toast: a single FontString fade-in/hold/fade-out near
@@ -747,6 +774,164 @@ local function ShowWaypointToast(anchorFrame, text)
         end
     end, TOTAL_TICKS)
 end
+
+-- ShowNavChooser is wrapped in a do/end block and scoped to the panel
+-- table. The navChooser singleton lives as an upvalue inside the block;
+-- the function is reachable as panel.ShowNavChooser.
+do
+    local navChooser  -- the singleton frame, lazily created
+    function panel.ShowNavChooser(anchorFrame, raid)
+        if not anchorFrame or not raid then return end
+
+        -- Lazy construction of the singleton frame + its two option buttons.
+        if not navChooser then
+            local f = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+            f:SetFrameStrata("DIALOG")
+            f:EnableMouse(true)  -- swallow clicks on the chooser body
+            -- Thin tooltip-style border (not the heavy ornamented panel
+            -- edge, which overwhelms a small popup). Tinted to a flat
+            -- pink/blue midpoint so the border reads as a blend of the two
+            -- option colors. Backdrop border takes ONE color (no gradient),
+            -- so the midpoint blend is the "gradient" within engine limits.
+            f:SetBackdrop({
+                bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
+                edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+                tile = true, tileSize = 16, edgeSize = 12,
+                insets = { left = 2, right = 2, top = 2, bottom = 2 },
+            })
+            f:SetBackdropColor(0.02, 0.03, 0.05, 0.96)
+            local BR = (C_PINK[1] + C_BLUE[1]) / 2
+            local BG = (C_PINK[2] + C_BLUE[2]) / 2
+            local BB = (C_PINK[3] + C_BLUE[3]) / 2
+            f:SetBackdropBorderColor(BR, BG, BB, 1)
+            f:Hide()
+
+            -- "Navigate to:" header row inside the frame (not floating above
+            -- it), so the popup is self-contained and clears the list text in
+            -- any open direction.
+            local title = f:CreateFontString(nil, "OVERLAY")
+            SetBodyFont(title, math.max(9, RR:GetSetting("fontSize", 12) - 2), "")
+            title:SetText("Navigate to:")
+            title:SetTextColor(0.54, 0.58, 0.64, 1)  -- muted gray
+            title:SetPoint("TOPLEFT", f, "TOPLEFT", 5, -4)
+            f.title = title
+            local titleH = (title:GetStringHeight() or 10) + 4  -- header band height
+
+            local PAD_X, PAD_Y = 14, 7
+
+            -- Build one horizontal option cell with a colored label. The
+            -- cell auto-sizes to its label plus horizontal padding; onClick
+            -- is wired per-show (closes over the current raid).
+            local function makeOption(labelText, color)
+                local b = CreateFrame("Button", nil, f)
+                b:RegisterForClicks("LeftButtonUp")
+                local fs = b:CreateFontString(nil, "OVERLAY")
+                SetBodyFont(fs, RR:GetSetting("fontSize", 12), "")
+                fs:SetText(labelText)
+                fs:SetTextColor(color[1], color[2], color[3], 1)
+                fs:SetPoint("CENTER", b, "CENTER", 0, 0)
+                b.label = fs
+                -- Cell width = label width + side padding; height = label
+                -- height + vertical padding. Measured after SetText.
+                local w = (fs:GetStringWidth() or 20) + PAD_X * 2
+                local h = (fs:GetStringHeight() or 12) + PAD_Y * 2
+                b:SetSize(w, h)
+                -- Hover highlight tinted to the option color.
+                local hl = b:CreateTexture(nil, "HIGHLIGHT")
+                hl:SetAllPoints(b)
+                hl:SetColorTexture(color[1], color[2], color[3], 0.18)
+                return b
+            end
+
+            -- Horizontal layout: [ LFR | STD ], LFR left (matches the pill
+            -- order where LFR is leftmost).
+            f.lfrButton = makeOption("LFR", C_PINK)
+            f.stdButton = makeOption("STD", C_BLUE)
+
+            -- 1px vertical divider between the two cells.
+            local divider = f:CreateTexture(nil, "OVERLAY")
+            divider:SetColorTexture(BR, BG, BB, 0.8)
+            f.divider = divider
+
+            -- Anchor cells side by side, BELOW the title header band.
+            f.lfrButton:SetPoint("TOPLEFT", f, "TOPLEFT", 3, -(3 + titleH))
+            divider:SetPoint("TOPLEFT", f.lfrButton, "TOPRIGHT", 0, 0)
+            divider:SetWidth(1)
+            divider:SetPoint("BOTTOMLEFT", f.lfrButton, "BOTTOMRIGHT", 0, 0)
+            f.stdButton:SetPoint("TOPLEFT", divider, "TOPRIGHT", 0, 0)
+
+            -- Frame sizes to the title band + the two cells + the 1px divider
+            -- + 3px inset on each side. Heights match (same font), so use
+            -- lfr's height.
+            local cellH = select(2, f.lfrButton:GetSize())
+            local totalW = select(1, f.lfrButton:GetSize())
+                         + 1
+                         + select(1, f.stdButton:GetSize())
+                         + 6  -- 3px inset each side
+            f:SetSize(totalW, cellH + 6 + titleH)
+
+            -- Global mouse-catcher: a full-screen transparent button BEHIND
+            -- the chooser that closes it when the player clicks elsewhere.
+            local catcher = CreateFrame("Button", nil, UIParent)
+            catcher:SetFrameStrata("DIALOG")
+            catcher:SetFrameLevel(math.max(0, (f:GetFrameLevel() or 1) - 1))
+            catcher:SetAllPoints(UIParent)
+            catcher:RegisterForClicks("AnyUp")
+            catcher:Hide()
+            catcher:SetScript("OnClick", function()
+                f:Hide()
+            end)
+            f.catcher = catcher
+            f:SetScript("OnHide", function() catcher:Hide() end)
+
+            navChooser = f
+        end
+
+        local f = navChooser
+
+        -- Per-show wiring: each option closes over THIS raid. The nav calls
+        -- mirror the prior inline behavior (toast on no-planner branch).
+        f.stdButton:SetScript("OnClick", function(self)
+            f:Hide()
+            local result = RR:NavigateToEntrance(raid)
+            if result and not result.planner then
+                ShowWaypointToast(self, "Waypoint set")
+            end
+        end)
+        f.lfrButton:SetScript("OnClick", function(self)
+            f:Hide()
+            local result = RR:NavigateToLFRNPC(raid.expansion)
+            if result and not result.planner then
+                ShowWaypointToast(self, "Waypoint set")
+            end
+        end)
+
+        -- Open the chooser vertically off the clicked plane: upward by
+        -- default, downward for raids near the top of the panel.
+        f:ClearAllPoints()
+        local anchorTop = anchorFrame:GetTop()
+        local panelTop  = panel:GetTop()
+        -- Flip downward within ~80px of the panel top (the reference is the
+        -- panel, not the screen, since the panel is draggable).
+        local openDown = anchorTop and panelTop
+            and (panelTop - anchorTop) < 80
+        if openDown then
+            f:SetPoint("TOPLEFT", anchorFrame, "BOTTOMLEFT", -2, -4)
+        else
+            f:SetPoint("BOTTOMLEFT", anchorFrame, "TOPLEFT", -2, 4)
+        end
+        f.catcher:Show()
+        f:Show()
+        f:Raise()
+        -- Level the catcher exactly one below the chooser AFTER the raise,
+        -- so the catcher always sits behind the chooser body (and the
+        -- chooser's option buttons receive their clicks first). Setting
+        -- this at construction is insufficient because Raise() changes the
+        -- chooser's level at show time without moving the catcher.
+        f.catcher:SetFrameLevel(math.max(0, (f:GetFrameLevel() or 1) - 1))
+    end
+end
+
 
 -- ---------------------------------------------------------------------------
 -- Per-line FontString pool for the idle/run-complete supported-raids list.
@@ -876,6 +1061,21 @@ end
 panel.pillHoverFrames    = {}
 panel.pillHoverFramePool = {}
 
+-- Strikethrough line textures drawn over dead boss names in the wing rows.
+-- One per dead boss currently shown. Pooled and recycled per idle-list
+-- render in lockstep with the line FontStrings. A thin line at the name's
+-- vertical center, spanning the rendered name width (WoW FontStrings have
+-- no native strikethrough).
+panel.wingStrikes     = {}
+panel.wingStrikePool  = {}
+
+-- Wing-expand chevron buttons on pill rows (one per raid with LFR wings)
+-- and per-wing chevrons on wing-header rows. Parallel pool to the
+-- expansion-toggle buttons; toggle a raid's wingExpandedRaids state (raid
+-- level) or its open-wing (wing level).
+panel.wingToggleButtons    = {}
+panel.wingToggleButtonPool = {}
+
 local function AcquirePillHoverFrame()
     local f = table.remove(panel.pillHoverFramePool)
     if f then return f end
@@ -906,6 +1106,115 @@ local function ReleasePillHoverFrames()
         table.insert(panel.pillHoverFramePool, f)
     end
     wipe(panel.pillHoverFrames)
+end
+
+-- Wing-row strikethrough lines and wing-expand chevrons. Both helper sets
+-- are scoped to the panel table inside a do/end block, callable from
+-- RefreshIdleList.
+do
+    -- Strikethrough line over a dead boss name. A thin theme-gray line at
+    -- the name's vertical center, spanning the rendered name width. Drawn
+    -- at OVERLAY so it sits above the line FontString.
+    function panel.AcquireWingStrike()
+        local tx = table.remove(panel.wingStrikePool)
+        if tx then return tx end
+        tx = panel:CreateTexture(nil, "OVERLAY")
+        -- Faded gray, matching the dead-boss name color.
+        tx:SetColorTexture(0.44, 0.44, 0.44, 0.9)
+        return tx
+    end
+
+    function panel.ReleaseWingStrikes()
+        for _, tx in ipairs(panel.wingStrikes) do
+            tx:Hide()
+            tx:ClearAllPoints()
+            table.insert(panel.wingStrikePool, tx)
+        end
+        wipe(panel.wingStrikes)
+    end
+
+    -- Wing-expand chevron button. Uses two pre-oriented WHITE triangle
+    -- textures (TriRight for collapsed, TriDown for expanded) swapped by
+    -- panel.SetWingChevron -- NOT runtime SetRotation, which bleeds the
+    -- texture past its bounds (oversized footprint + edge sampling). White
+    -- source means SetVertexColor tints to a clean SOLID color. Used at the
+    -- raid level (pill row) and wing level (wing header).
+    function panel.AcquireWingToggleButton()
+        local btn = table.remove(panel.wingToggleButtonPool)
+        if btn then return btn end
+        btn = CreateFrame("Button", nil, panel)
+        btn:RegisterForClicks("LeftButtonUp")
+        btn:SetFrameLevel((panel:GetFrameLevel() or 0) + 10)
+        local tx = btn:CreateTexture(nil, "ARTWORK")
+        tx:SetAllPoints(btn)
+        btn._chevronTex = tx
+        -- Highlight: a brighter overlay on hover (texture set per-call to
+        -- match the current orientation).
+        local hl = btn:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetAllPoints(btn)
+        hl:SetVertexColor(1, 1, 1, 0.3)
+        btn._chevronHL = hl
+        return btn
+    end
+
+    -- Apply the expanded/collapsed triangle (texture swap, no rotation) and
+    -- solid RETRO pink tint (matches the plane nav icon, the other
+    -- interactive glyph in the idle list).
+    function panel.SetWingChevron(btn, expanded)
+        local tex = expanded
+            and "Interface\\AddOns\\RetroRuns\\Media\\TriDown"
+            or  "Interface\\AddOns\\RetroRuns\\Media\\TriRight"
+        local tx = btn._chevronTex
+        if tx then
+            tx:SetTexture(tex)
+            tx:SetVertexColor(C_PINK[1], C_PINK[2], C_PINK[3], 1)
+        end
+        if btn._chevronHL then btn._chevronHL:SetTexture(tex) end
+    end
+
+    function panel.ReleaseWingToggleButtons()
+        for _, btn in ipairs(panel.wingToggleButtons) do
+            btn:Hide()
+            btn:SetScript("OnClick", nil)
+            btn:ClearAllPoints()
+            table.insert(panel.wingToggleButtonPool, btn)
+        end
+        wipe(panel.wingToggleButtons)
+    end
+
+    -- Draw a strikethrough over a dead boss's name. bossFS is the wingBoss
+    -- row's FontString. The FontString left-anchors at the row's left edge
+    -- but the visible name is indented (leading spaces), so the line must
+    -- start at the name, not the FontString left. We measure the indent's
+    -- width and span only the name portion. indentStr is the exact leading
+    -- whitespace the row used so the measured offset matches.
+    function panel.StrikeBossName(bossFS, fontSize, indentStr)
+        local fullW = bossFS:GetStringWidth() or 0
+        if fullW <= 0 then return end
+
+        -- Measure the indent width with a hidden FontString synced to the
+        -- row's font, so the strike starts exactly where the name does.
+        if not panel._strikeMeasureFS then
+            panel._strikeMeasureFS = panel:CreateFontString(nil, "ARTWORK")
+            panel._strikeMeasureFS:Hide()
+        end
+        local mfs = panel._strikeMeasureFS
+        local ff, fsz, ffl = bossFS:GetFont()
+        if ff then mfs:SetFont(ff, fsz or fontSize, ffl or "") end
+        mfs:SetText(indentStr or "")
+        local indentW = mfs:GetStringWidth() or 0
+
+        local nameW = fullW - indentW
+        if nameW <= 0 then return end
+
+        local tx = panel.AcquireWingStrike()
+        tx:ClearAllPoints()
+        tx:SetSize(nameW, 1)
+        -- Start at the name (past the indent), centered vertically.
+        tx:SetPoint("LEFT", bossFS, "LEFT", indentW, 0)
+        tx:Show()
+        table.insert(panel.wingStrikes, tx)
+    end
 end
 
 -- Footer, two rows anchored bottom-up: credit + version on the bottom row,
@@ -1422,8 +1731,9 @@ end
 -- visible regardless.
 local function GetBodyAndFooterElements()
     local list = {
-        panel.raid, panel.pills, panel.progress, panel.next,
+        panel.raid, panel.wingLine, panel.pills, panel.progress, panel.next,
         panel.travel, panel.encounter, panel.transmog,
+        panel.exitNote,
         panel.listHeader, panel.list,
         panel.credit, panel.version, panel.whatsNewLabel,
         panel.toastStatus,
@@ -1466,6 +1776,12 @@ local function ApplyBodyVisibility(visible)
     end
     for _, btn in ipairs(panel.entranceButtons or {}) do
         if visible then btn:Show() else btn:Hide() end
+    end
+    for _, btn in ipairs(panel.wingToggleButtons or {}) do
+        if visible then btn:Show() else btn:Hide() end
+    end
+    for _, tx in ipairs(panel.wingStrikes or {}) do
+        if visible then tx:Show() else tx:Hide() end
     end
     for _, f in ipairs(panel.pillHoverFrames or {}) do
         if visible then f:Show() else f:Hide() end
@@ -1521,7 +1837,20 @@ local function ComputeMinimizedPanelW()
     -- The title is drawn at TITLE_SCALE while on the bar, so its on-screen
     -- width is the rendered string width times that scale. The title's left
     -- edge sits PAD_LEFT from the panel left.
-    local titleScreenW = (retroW + runsW) * TITLE_SCALE
+    local wordmarkW = retroW + runsW
+    -- When the next-step note is showing, the wordmark is collapsed to "RR"
+    -- and the white note sits to its right (anchored with a 6px left pad).
+    -- Add the note's rendered width plus that pad so the bar grows to fit the
+    -- instruction instead of letting it run under the buttons. The pad is in
+    -- screen pixels; convert to pre-scale string-space by dividing by the
+    -- scale so the final * TITLE_SCALE leaves it at 6px on screen.
+    if panel.titleMinNote and panel.titleMinNote:IsShown() then
+        local noteW = panel.titleMinNote:GetStringWidth() or 0
+        if noteW > 0 then
+            wordmarkW = wordmarkW + noteW + (6 / TITLE_SCALE)
+        end
+    end
+    local titleScreenW = wordmarkW * TITLE_SCALE
     local titleRightLocal = PAD_LEFT + titleScreenW
     -- Layout from the panel right edge:
     --   close button right edge at right-4 (TOPRIGHT -4,-4)
@@ -1571,12 +1900,28 @@ local function ApplyTitleLayoutForState(minimized)
         local s = TITLE_SCALE
         panel.titleRetro:SetScale(s)
         panel.titleRuns:SetScale(s)
+        panel.titleMinNote:SetScale(s)
         panel.closeButton:SetScale(s)
         panel.minimizeButton:SetScale(s)
-        -- Anchor to the panel's LEFT/RIGHT (vertical midline) so the title and
-        -- buttons are centered in the bar's interior regardless of the border
-        -- thickness. Offsets are in each element's own scaled space, so divide
-        -- the desired screen clearance by the scale.
+
+        -- Decide whether to show the next-step note. GetActiveMinNote returns
+        -- nil when there's no active routing step OR the current seg carries no
+        -- minNote, so a non-nil return is the signal that genuine per-segment
+        -- data exists. Only then collapse the wordmark to "RR" and show the note;
+        -- otherwise keep the full "RETRO RUNS" wordmark. This keeps the bar
+        -- unchanged until minNote data is authored into the routing segments.
+        local minNote = RR.GetActiveMinNote and RR:GetActiveMinNote() or nil
+        if minNote and minNote ~= "" then
+            panel.titleRetro:SetText("R")
+            panel.titleRuns:SetText("R")
+            panel.titleMinNote:SetText(minNote)
+            panel.titleMinNote:Show()
+        else
+            panel.titleRetro:SetText("RETRO")
+            panel.titleRuns:SetText("RUNS")
+            panel.titleMinNote:SetText("")
+            panel.titleMinNote:Hide()
+        end
         local titleEdge = 20 / s   -- screen clearance so the title clears the corner art
         local btnEdge   = 18 / s   -- buttons sit a bit closer to the right corner
         panel.titleRetro:ClearAllPoints()
@@ -1596,12 +1941,15 @@ local function ApplyTitleLayoutForState(minimized)
         local s = TITLE_SCALE
         panel.titleRetro:SetScale(s)
         panel.titleRuns:SetScale(s)
+        panel.titleMinNote:SetScale(s)
         panel.closeButton:SetScale(s)
         panel.minimizeButton:SetScale(s)
-        -- Expanded panel: the title row sits a fixed distance below the top
-        -- border. This is independent of MINIMIZED_PANEL_H so tightening the
-        -- minimized bar doesn't pull the expanded title up into the corner
-        -- art (the two states have different frames and margins).
+        -- Expanded panel always shows the full wordmark; the next-step note is
+        -- a minimized-bar-only affordance, so restore "RETRO RUNS" and hide it.
+        panel.titleRetro:SetText("RETRO")
+        panel.titleRuns:SetText("RUNS")
+        panel.titleMinNote:SetText("")
+        panel.titleMinNote:Hide()
         local expandedRowCenterY = -26
         panel.closeButton:ClearAllPoints()
         panel.closeButton:SetPoint("RIGHT", panel, "TOPRIGHT", (-22) / s, expandedRowCenterY / s)
@@ -1791,7 +2139,7 @@ function UI.AutoSize()
             -- to separate it from the last raid pill row.
             local LEGEND_BOTTOM_OFFSET = BUTTON_Y + BUTTON_H + 12  -- BUTTON_Y includes frame inset
             local LEGEND_INTER_GAP     = 4
-            local LEGEND_TOP_CUSHION   = 24  -- gap between last pill row and legend (room for the divider)
+            local LEGEND_TOP_CUSHION   = 36  -- gap between last pill row and legend (holds the divider)
             local legendLineHeight     = GetBodyFontSize(10) + 4
             -- Reserve for the legend rows actually present (1-3) rather than a
             -- fixed worst-case 3 -- reserving 3 when fewer show left a big empty
@@ -2055,7 +2403,7 @@ local function HighlightNames(text)
     return text
 end
 
--- Returns the player's current mapID for travel-pane note matching.
+
 -- The world map's currently-displayed mapID can be stale (the player
 -- may have last viewed a different sub-zone), so using it can surface
 -- a wrong-step-segment note. Map RENDERING does use worldMapID --
@@ -2126,6 +2474,24 @@ local function BuildPillsText()
     local LOCK_GLYPH = " |TInterface\\PetBattles\\PetBattle-LockIcon:12:12:0:0|t"
 
     local parts = {}
+
+    -- LFR pill first (easiest -> hardest ordering). LFR completion comes from
+    -- the lockout bitfield, not C_RaidLocks like the other buckets, so it's
+    -- sourced separately. Shown only for raids that have LFR wing data. The
+    -- active-difficulty highlight applies when the player is currently in LFR.
+    local lfr = RR:GetLFRKillCount()
+    if lfr then
+        local hex
+        if lfr.total > 0 and lfr.complete == lfr.total then
+            hex = COMPLETE_HEX
+        elseif RR:IsInLFR() then
+            hex = ACTIVE_HEX
+        else
+            hex = PENDING_HEX
+        end
+        table.insert(parts, ("|cff%sLFR %d/%d|r"):format(hex, lfr.complete, lfr.total))
+    end
+
     for _, p in ipairs(PILLS) do
         local c = counts[p.id]
         if c then
@@ -2470,7 +2836,7 @@ local DIFF_LETTER = {
 }
 -- Full names used in the "Current difficulty: <name>" header line.
 local DIFF_NAME = {
-    [17] = "Raid Finder",
+    [17] = "LFR",
     [14] = "Normal",
     [15] = "Heroic",
     [16] = "Mythic",
@@ -3224,8 +3590,8 @@ local function BuildTransmogSummary(step)
     -- Each line renders either Missing/Shared counts or "Complete".
     -- Click hint always on the last (Other difficulties) line.
     local diffName = DIFF_NAME[activeID] or tostring(activeID)
-    local line1 = ("- Current (%s): %s"):format(
-        diffName, FormatStatsFragment(curNeeded, curShared))
+    local line1 = ("- Current (|cff%s%s|r): %s"):format(
+        C_PINK_HEX, diffName, FormatStatsFragment(curNeeded, curShared))
     local othFrag = othTotal
         and FormatStatsFragment(othNeeded, othShared)
         or "|cff00ff00Complete|r"
@@ -4416,10 +4782,11 @@ GetOrCreateTmogWindow = function()
 
     -- Flight button anchored against the sanctum line's RENDERED text
     -- width (GetStringWidth, not the FontString's frame width which
-    -- spans the popup). Same FlightMaster minimap-tracking texture as
-    -- the entrance buttons in the idle list. Hidden by default;
-    -- RefreshContent decides whether to show it based on whether the
-    -- player's covenant has a vendor entry with concrete coords.
+    -- spans the popup). Uses the FlightMaster minimap-tracking texture
+    -- (the idle-list entrance buttons moved to the custom PlaneIcon, but
+    -- this sanctum vendor button keeps the stock glyph). Hidden by
+    -- default; RefreshContent decides whether to show it based on whether
+    -- the player's covenant has a vendor entry with concrete coords.
     local sanctumBtn = CreateFrame("Button", nil, f)
     sanctumBtn:RegisterForClicks("LeftButtonUp")
     sanctumBtn:SetFrameLevel((f:GetFrameLevel() or 0) + 10)
@@ -4893,12 +5260,6 @@ end
 --   SKIP_MARKER_LED_DIM  -- dim: skip exists but not yet unlocked
 --   SKIP_MARKER_LED_NONE -- transparent: no skip mechanic; reserves
 --                           column width so rows align.
--- SKIP_MARKER (9x9, no LED suffix) is the smaller in-raid-header variant.
-local SKIP_MARKER          = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:9:9|t"
--- Dimmed 9px variant (grey vertex tint), for multi-chain in-header
--- markers where a chain exists but isn't available at the current
--- difficulty. Mirrors SKIP_MARKER_LED_DIM's tint at the smaller size.
-local SKIP_MARKER_DIM      = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:9:9:0:0:64:64:0:64:0:64:80:80:80|t"
 local SKIP_MARKER_LED      = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:12:12|t"
 local SKIP_MARKER_LED_DIM  = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:12:12:0:0:64:64:0:64:0:64:80:80:80|t"
 local SKIP_MARKER_LED_NONE = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:12:12:0:0:64:64:0:64:0:64:0:0:0:0|t"
@@ -4910,8 +5271,13 @@ local SKIP_MARKER_ROW      = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_
 local SKIP_MARKER_ROW_DIM  = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:10:10:0:0:64:64:0:64:0:64:80:80:80|t"
 local SKIP_MARKER_ROW_NONE = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:10:10:0:0:64:64:0:64:0:64:0:0:0:0|t"
 
--- Inline texture marker matching the entrance-navigation buttons.
-local ENTRANCE_MARKER = "|TInterface\\Minimap\\Tracking\\FlightMaster:12:12|t"
+-- Inline texture marker matching the entrance-navigation buttons (the
+-- custom PlaneIcon, tinted RETRO pink via the extended texture-markup
+-- RGB params 242,89,199 = the 0.95/0.35/0.78 brand pink scaled to 0-255).
+-- The full-texture coords (0:64:0:64) plus trailing R:G:B tint the white
+-- silhouette without cropping it.
+local ENTRANCE_MARKER =
+    "|TInterface\\AddOns\\RetroRuns\\Media\\PlaneIcon:12:12:0:0:64:64:0:64:0:64:242:89:199|t"
 
 -- Skip-legend footer line. Explains the gold star; dim and invisible
 -- variants don't need explicit legend coverage.
@@ -5029,19 +5395,20 @@ local SKIPS_WINDOW_MAX_HEIGHT   = 600
 -- Difficulty order: Mythic / Heroic / Normal (left to right). Hardest
 -- first matches a player's typical mental model when checking "do I have
 -- skips for this raid" -- they look at Mythic first, eye left to right
--- as the answer cascades down through difficulties. Cascade-down means
--- a partial unlock visually stacks ✓s on the right side of the row.
+-- as the answer cascades up through difficulties. Cascade order means
+-- a partial unlock visually stacks checks on the left side of the row,
+-- with Normal leftmost and Mythic rightmost (traditional progression).
 local SKIPS_COL_NAME_X     = 14
 -- Info-button column. All [i] icons in raidRow rendering anchor to
 -- this fixed x so they form a vertical column right of the longest
--- raid name and left of the Mythic difficulty column. Sits 35px left
--- of MYTHIC_X to clear multi-chain raids (Antorus) whose Mythic cell
--- splits into two glyphs at MYTHIC_X +/- pairOffset (the leftmost
--- glyph lands at x=230 with pairOffset=10).
+-- raid name and left of the leftmost difficulty column (Normal). Sits
+-- 35px left of NORMAL_X to clear multi-chain raids (Antorus) whose
+-- leftmost cell splits into two glyphs at the column x +/- pairOffset
+-- (the leftmost glyph lands at x=230 with pairOffset=10).
 local SKIPS_COL_INFO_X     = 205
-local SKIPS_COL_MYTHIC_X   = 240
+local SKIPS_COL_NORMAL_X   = 240
 local SKIPS_COL_HEROIC_X   = 300
-local SKIPS_COL_NORMAL_X   = 360
+local SKIPS_COL_MYTHIC_X   = 360
 
 -- Per-row vertical spacing. Driven by font size at refresh time; this
 -- is the multiplier (rendered line-height = fontSize * SKIPS_LINE_GAP).
@@ -5799,9 +6166,9 @@ GetOrCreateSkipsWindow = function()
         fs:SetText("|cffaaaaaa" .. text .. "|r")
         return fs
     end
-    f.colHeaderM = MakeColHeader(SKIPS_COL_MYTHIC_X, "Mythic")
-    f.colHeaderH = MakeColHeader(SKIPS_COL_HEROIC_X, "Heroic")
     f.colHeaderN = MakeColHeader(SKIPS_COL_NORMAL_X, "Normal")
+    f.colHeaderH = MakeColHeader(SKIPS_COL_HEROIC_X, "Heroic")
+    f.colHeaderM = MakeColHeader(SKIPS_COL_MYTHIC_X, "Mythic")
 
     -- Disclaimer at the bottom. Anchored dynamically by RefreshSkipsContent
     -- after the last row, so no fixed position here.
@@ -5967,6 +6334,37 @@ local function BuildIdleListPills(raid)
     -- gold (the LFG lock is the locked-out marker).
     local LOCK_GLYPH = " |TInterface\\PetBattles\\PetBattle-LockIcon:12:12:0:0|t"
 
+    -- LFR pill first (easiest -> hardest ordering), matching the in-raid row.
+    -- LFR completion comes from the lockout bitfield, not C_RaidLocks, so it's
+    -- sourced separately. Shown only for raids with LFR wing data. Colored by
+    -- the raid's own lockout state, like the other idle pills (no active-
+    -- difficulty highlight here -- the idle list shows every raid at once).
+    -- The LFR pill lives in its OWN bracket group, separate from the N/H/M
+    -- group. For wing raids the bracket reserves an inner slot before its
+    -- closing "]" (WING_CHEVRON_SLOT) so the wing-expand chevron can sit
+    -- INSIDE the bracket, anchored there by RefreshIdleList.
+    local lfrSegment = nil
+    local lfr = RR:GetLFRKillCountForRaid(raid)
+    if lfr then
+        local hex
+        if lfr.total > 0 and lfr.complete >= lfr.total then
+            hex = CLEARED
+        elseif lfr.complete > 0 then
+            hex = PARTIAL
+        else
+            hex = FRESH
+        end
+        local lfrToken = ("|cff%sLFR %d/%d|r"):format(hex, lfr.complete, lfr.total)
+        -- Wing raids reserve an 11px transparent slot before the closing "]"
+        -- for the expand chevron (anchored there by RefreshIdleList). Non-wing
+        -- raids keep the tight "[ LFR n/N ]".
+        local chevronSlot = raid.lfrWings
+            and "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:10:11:0:0:64:64:0:64:0:64:0:0:0:0|t"
+            or ""
+        lfrSegment = ("|cff777777[ |r%s%s|cff777777 ]|r"):format(
+            lfrToken, chevronSlot)
+    end
+
     local parts = {}
     for _, p in ipairs(PILLS) do
         local c = counts[p.id]
@@ -5988,12 +6386,21 @@ local function BuildIdleListPills(raid)
             table.insert(parts, ("|cff%s%s -|r%s"):format(INACTIVE, label, lock))
         end
     end
-    if #parts == 0 then return "" end
 
-    local sep = "|cff555555 | |r"
-    return "|cff777777[ |r"
-        .. table.concat(parts, sep)
-        .. "|cff777777 ]|r"
+    -- N/H/M difficulty pills in their own bracket group.
+    local diffSegment = nil
+    if #parts > 0 then
+        local sep = "|cff555555 | |r"
+        diffSegment = "|cff777777[ |r"
+            .. table.concat(parts, sep)
+            .. "|cff777777 ]|r"
+    end
+
+    -- Join the two bracket groups with a two-space gap.
+    if lfrSegment and diffSegment then
+        return lfrSegment .. "  " .. diffSegment
+    end
+    return lfrSegment or diffSegment or ""
 end
 
 -- Returns a list of structured rows for RefreshIdleList to render as
@@ -6053,7 +6460,6 @@ local function BuildIdleListRows()
 
     local function emitRaid(raid)
         local name  = raid.name or "??"
-        local patch = raid.patch
 
         -- Leading skip-status marker(s). Single-chain raids show one
         -- marker; multi-chain raids (Antorus, Hellfire Citadel) show one
@@ -6074,14 +6480,14 @@ local function BuildIdleListRows()
             -- fallback below).
             local chainStates = RR.GetSkipChainCeilings and RR:GetSkipChainCeilings(raid)
             if chainStates and #chainStates > 1 then
-                -- Multi-chain: one marker per chain, gold if that chain is
-                -- unlocked (ceiling set) else dim. Joined with a hair of
-                -- space so the diamonds read as a pair, not one glyph.
-                local parts = {}
+                -- Multi-chain raids (Antorus, Hellfire Citadel) show a single
+                -- marker: gold if any chain is unlocked, dim if none are. The
+                -- per-chain detail is in the Skips window.
+                local anyUnlocked = false
                 for _, c in ipairs(chainStates) do
-                    parts[#parts + 1] = c.ceiling and SKIP_MARKER_ROW or SKIP_MARKER_ROW_DIM
+                    if c.ceiling then anyUnlocked = true break end
                 end
-                leading = table.concat(parts, " ")
+                leading = anyUnlocked and SKIP_MARKER_ROW or SKIP_MARKER_ROW_DIM
             else
                 -- Single-chain or achievement-gated: one marker driven by
                 -- the raid-wide ceiling, as before.
@@ -6090,12 +6496,7 @@ local function BuildIdleListRows()
             end
         end
 
-        local label
-        if type(patch) == "string" and patch ~= "" then
-            label = ("%s |cffffffff%s (%s)|r"):format(leading, name, patch)
-        else
-            label = ("%s |cffffffff%s|r"):format(leading, name)
-        end
+        local label = ("%s |cffffffff%s|r"):format(leading, name)
 
         anyRaidShown = true
         if RR:GetRaidEntrance(raid) then
@@ -6104,15 +6505,59 @@ local function BuildIdleListRows()
         table.insert(rows, { kind = "raidName", text = label, raid = raid })
         local pills = BuildIdleListPills(raid)
         if pills ~= "" then
-            -- Indent the pill row two spaces under the raid name so the
-            -- visual hierarchy is clear: name on the bullet line,
-            -- lockout summary on the sub-line.
             local counts = RR:GetPerDifficultyKillCountsForRaid(raid)
+            -- Raids with LFR wing data get a wing-expand chevron on the pill
+            -- row, positioned in RefreshIdleList.
+            local hasWings = raid.lfrWings ~= nil
+            -- Raids with entrance data carry the nav plane in the gutter
+            -- (RR.PILL_PLANE_GUTTER), positioned in RefreshIdleList.
+            local hasPlane = (RR:GetRaidEntrance(raid) ~= nil)
+            local gutter = hasPlane and RR.PILL_PLANE_GUTTER or ""
+            -- Pill row text: sub-line indent, plane gutter, then the pills.
+            -- The indent renders it as a sub-line under the raid name.
             table.insert(rows, {
                 kind = "pillRow",
-                text = "  " .. pills,
+                text = RR.PILL_SUBLINE_INDENT .. gutter .. "  " .. pills,
                 lockedOut = (RR:GetLockedOutBucket(raid, counts) ~= nil),
+                raid = raid,
+                hasWings = hasWings,
+                hasPlane = hasPlane,
             })
+
+            -- When this raid's wings are expanded, inject the wing rows
+            -- right below the pill. Each wing becomes a header row
+            -- (WingName + n/N) with its own chevron; the bosses of the
+            -- currently-open wing render below that header (one boss per
+            -- row, so long lists stack instead of wrapping). Only one wing
+            -- per raid is open at a time -- tracked in openWingByRaid keyed
+            -- by raid.instanceID -> wing key. Wing/boss state comes from
+            -- GetWingProgressForRaid.
+            local wingExpanded = (RR.state and RR.state.wingExpandedRaids) or {}
+            if hasWings and wingExpanded[raid.instanceID] then
+                local wings = RR:GetWingProgressForRaid(raid)
+                if wings then
+                    local openWing = (RR.state and RR.state.openWingByRaid
+                        and RR.state.openWingByRaid[raid.instanceID])
+                    for _, w in ipairs(wings) do
+                        local isOpen = (openWing == w.key)
+                        table.insert(rows, {
+                            kind = "wingHeader",
+                            wing = w,
+                            raid = raid,
+                            wingOpen = isOpen,
+                        })
+                        if isOpen then
+                            for _, b in ipairs(w.bosses or {}) do
+                                table.insert(rows, {
+                                    kind = "wingBoss",
+                                    boss = b,
+                                    unmapped = w.unmapped,
+                                })
+                            end
+                        end
+                    end
+                end
+            end
         end
     end
 
@@ -6201,6 +6646,21 @@ local function FingerprintIdleRows(rows)
         local t = row.text or ""
         local e = (row.expanded == true) and "1" or "0"
         local exp = row.exp or ""
+        -- Wing rows carry no .text; serialize their content so expand/
+        -- collapse and any kill-state change re-fingerprints (and re-renders).
+        if k == "wingHeader" and row.wing then
+            local w = row.wing
+            t = ("%s|%d/%d|%s|%s"):format(
+                w.name or "", w.complete or 0, w.total or 0,
+                w.unmapped and "u" or "m",
+                row.wingOpen and "o" or "c")
+        elseif k == "wingBoss" and row.boss then
+            local b = row.boss
+            local kill = (b.killed == true) and "1"
+                or (b.killed == false and "0" or "x")
+            t = ("%s|%s|%s"):format(b.name or "", kill,
+                row.unmapped and "u" or "m")
+        end
         parts[i] = ("%s|%s|%s|%s"):format(k, e, exp, t)
     end
     return table.concat(parts, "\n")
@@ -6227,6 +6687,11 @@ RefreshIdleList = function()
         panel._lastIdleRaidContext = idleRaidContext
         RR.state = RR.state or {}
         RR.state.expandedExpansions = {}
+        -- Collapse any open wing expanders too, so the list opens fully
+        -- collapsed on each raid-context transition (matches the
+        -- expansion accordion's reset behavior).
+        RR.state.wingExpandedRaids = {}
+        RR.state.openWingByRaid = {}
     end
 
     -- Build the rows first (cheap, pure-data pass) so we can fingerprint
@@ -6254,6 +6719,8 @@ RefreshIdleList = function()
     ReleaseExpansionToggleButtons()
     ReleaseEntranceButtons()
     ReleasePillHoverFrames()
+    panel.ReleaseWingStrikes()
+    panel.ReleaseWingToggleButtons()
 
     local fontSize = RR:GetSetting("fontSize", 12)
 
@@ -6304,6 +6771,32 @@ RefreshIdleList = function()
                 -- Indent with leading spaces to leave room for the
                 -- toggle button glyph anchored at LEFT.
                 fs:SetText(("    |cff00ffff%s|r"):format(row.exp))
+            elseif row.kind == "wingHeader" then
+                -- Wing header: "WingName (n/N)", one level under the pill row.
+                -- Green when fully cleared, gray otherwise. An unmapped wing
+                -- appends a small gray flag. Leads with the sub-line indent so
+                -- it sits under the pill row, then its own spaces step further.
+                local w = row.wing
+                local hex = (w.total > 0 and w.complete >= w.total)
+                    and "00ff00" or "888888"
+                local marker = w.unmapped and " |cff888888*|r" or ""
+                fs:SetText((RR.PILL_SUBLINE_INDENT .. "        |cff%s%s|r |cff9d9d9d(%d/%d)|r%s"):format(
+                    hex, w.name, w.complete or 0, w.total or 0, marker))
+            elseif row.kind == "wingBoss" then
+                -- One boss per line, a further level under the wing header.
+                -- Dead = faded gray; alive = white; unmapped wing's bosses
+                -- render neutral lavender. Leads with the sub-line indent like
+                -- the wing header.
+                local b = row.boss
+                local hex
+                if row.unmapped then
+                    hex = "b9a3d6"       -- pending (per-boss state unknown)
+                elseif b.killed then
+                    hex = "6f6f6f"       -- dead, faded
+                else
+                    hex = "ffffff"       -- alive
+                end
+                fs:SetText((RR.PILL_SUBLINE_INDENT .. "            |cff%s%s|r"):format(hex, b.name))
             else
                 -- raidName / pillRow / emptyMessage all carry pre-built
                 -- text strings.
@@ -6339,6 +6832,97 @@ RefreshIdleList = function()
                 table.insert(panel.pillHoverFrames, hf)
             end
 
+            -- Dead boss rows (mapped wings only) get a strikethrough over the
+            -- name. The indent string matches the wingBoss text leading (the
+            -- sub-line indent + 12 spaces) so the strike starts at the name.
+            if row.kind == "wingBoss" and row.boss and row.boss.killed
+                and not row.unmapped then
+                panel.StrikeBossName(fs, fontSize, RR.PILL_SUBLINE_INDENT .. "            ")
+            end
+
+            -- Wing-expand chevron on pill rows that have LFR wings. Placed
+            -- inside the LFR bracket, in the reserved slot before the "]", so
+            -- it reads as part of the LFR pill it controls.
+            if row.kind == "pillRow" and row.hasWings and row.raid then
+                local btn = panel.AcquireWingToggleButton()
+                local raid = row.raid
+                RR.state = RR.state or {}
+                local wingExpanded = RR.state.wingExpandedRaids
+                    and RR.state.wingExpandedRaids[raid.instanceID]
+                local g = math.floor(fontSize * 0.83)
+                btn:SetSize(g, g)
+                panel.SetWingChevron(btn, wingExpanded)
+                btn:ClearAllPoints()
+
+                -- Place the chevron in the reserved slot before the "]".
+                -- Measure the string up to the end of the count (sub-line
+                -- indent + plane gutter + "[ LFR n/N"), then +1 to center it
+                -- in the slot.
+                local lfr = RR:GetLFRKillCountForRaid(raid)
+                local lfrPrefix = RR.PILL_SUBLINE_INDENT .. RR.PILL_PLANE_GUTTER
+                    .. ("  [ LFR %d/%d"):format(
+                        lfr and lfr.complete or 0, lfr and lfr.total or 0)
+                if not panel._wingChevronMeasureFS then
+                    panel._wingChevronMeasureFS =
+                        panel:CreateFontString(nil, "ARTWORK")
+                    panel._wingChevronMeasureFS:Hide()
+                end
+                local mfs = panel._wingChevronMeasureFS
+                local ff, fsz, ffl = fs:GetFont()
+                if ff then mfs:SetFont(ff, fsz or fontSize, ffl or "") end
+                mfs:SetText(lfrPrefix)
+                local lfrW = mfs:GetStringWidth() or 0
+
+                btn:SetPoint("LEFT", fs, "LEFT", lfrW + 1, 0)
+                btn:SetScript("OnClick", function()
+                    RR.state = RR.state or {}
+                    RR.state.wingExpandedRaids = RR.state.wingExpandedRaids or {}
+                    local cur = RR.state.wingExpandedRaids[raid.instanceID]
+                    -- Toggle this raid's wings (independent per raid --
+                    -- unlike the single-expand expansion accordion, several
+                    -- raids' wings can be open at once since each is short).
+                    if cur then
+                        RR.state.wingExpandedRaids[raid.instanceID] = nil
+                    else
+                        RR.state.wingExpandedRaids[raid.instanceID] = true
+                    end
+                    if RR.UI and RR.UI.Update then RR.UI.Update() end
+                end)
+                btn:Show()
+                table.insert(panel.wingToggleButtons, btn)
+            end
+
+            -- Wing-level chevron on each wing-header row. Anchored just left
+            -- of the wing name; toggles which wing is open for this raid
+            -- (one at a time -- opening another wing closes the prior one).
+            if row.kind == "wingHeader" and row.raid then
+                local btn = panel.AcquireWingToggleButton()
+                local raid = row.raid
+                local wingKey = row.wing.key
+                local g = math.floor(fontSize * 0.71)
+                btn:SetSize(g, g)
+                panel.SetWingChevron(btn, row.wingOpen)
+                btn:ClearAllPoints()
+                -- Just left of the wing name: 24px = the 16px sub-line indent
+                -- + the 8 leading spaces of the wing-header text.
+                btn:SetPoint("LEFT", fs, "LEFT", 24, 0)
+                btn:SetScript("OnClick", function()
+                    RR.state = RR.state or {}
+                    RR.state.openWingByRaid = RR.state.openWingByRaid or {}
+                    local cur = RR.state.openWingByRaid[raid.instanceID]
+                    -- One wing open at a time: clicking the open wing closes
+                    -- it; clicking a different wing switches to it.
+                    if cur == wingKey then
+                        RR.state.openWingByRaid[raid.instanceID] = nil
+                    else
+                        RR.state.openWingByRaid[raid.instanceID] = wingKey
+                    end
+                    if RR.UI and RR.UI.Update then RR.UI.Update() end
+                end)
+                btn:Show()
+                table.insert(panel.wingToggleButtons, btn)
+            end
+
             -- Position the toggle button against this FontString if it's
             -- an expansion header.
             if row.kind == "expansionHeader" then
@@ -6371,16 +6955,11 @@ RefreshIdleList = function()
                 table.insert(panel.expansionToggleButtons, btn)
             end
 
-            -- Position an entrance-navigation button against the raid-name
-            -- FontString if the raid has entrance data. Alpha treatment:
-            -- full-color (1.0) when ANY nav provider above bare Blizzard
-            -- native is installed, muted (0.4) when only the Blizzard
-            -- fallback would fire. Any installed nav provider --
-            -- including the waypoint-slot single-arrow tiers WUI and
-            -- TomTom -- counts as full-alpha: the user chose to install
-            -- something, honor that visually. The two-line legend below
-            -- conveys the finer detail about which slot(s) are firing.
-            if row.kind == "raidName" and row.raid and RR:GetRaidEntrance(row.raid) then
+            -- Nav button on the pill row, at a fixed left inset so every
+            -- plane lands in one vertical column. Clicking opens the
+            -- LFR/Standard chooser. Alpha: full-color when any nav provider
+            -- above bare-Blizzard is installed, muted otherwise.
+            if row.kind == "pillRow" and row.raid and RR:GetRaidEntrance(row.raid) then
                 local btn = AcquireEntranceButton()
                 PositionEntranceButton(btn, fs)
                 local raid = row.raid
@@ -6391,23 +6970,7 @@ RefreshIdleList = function()
                     or RR:IsTomTomInstalled()
                 btn:SetAlpha(anyProviderInstalled and 1.0 or 0.4)
                 btn:SetScript("OnClick", function(self)
-                    -- NavigateToEntrance returns a three-role struct:
-                    -- { planner, arrow, overlays[] }. Toast rule: show
-                    -- the "Waypoint set" toast ONLY when no planner
-                    -- fired. The arrow + overlay providers are all
-                    -- visually quiet at click time -- TomTom's arrow
-                    -- is far off-screen, Blizzard's pin is silent, WUI
-                    -- and AWP overlays only render once the player is
-                    -- in visual range. The toast covers that silence
-                    -- with a spatial confirmation near the button.
-                    -- When a planner fires, its own UI surfaces
-                    -- prominently (Zygor's arrow, AWP's queue,
-                    -- Mapzeroth's GPS frame), so the toast would be
-                    -- redundant.
-                    local result = RR:NavigateToEntrance(raid)
-                    if result and not result.planner then
-                        ShowWaypointToast(self, "Waypoint set")
-                    end
+                    panel.ShowNavChooser(self, raid)
                 end)
                 btn:Show()
                 table.insert(panel.entranceButtons, btn)
@@ -6417,6 +6980,7 @@ RefreshIdleList = function()
             prev = fs
         end
     end
+
 
     -- Bottom-up legend pass. The legend pins to a fixed distance from
     -- the panel bottom (above the action button row) regardless of how
@@ -6622,8 +7186,17 @@ function UI.Update()
     -- Footer left slot. In an active raid it shows the current route; when
     -- idle it shows the author credit.
     if raid and loaded then
-        local routeLabel = (RR.state.activeRouteVariant == "skip")
-            and "|cff00ffffSkip|r" or "|cff00ff00Standard|r"
+        local routeLabel
+        if RR:GetActiveWing() then
+            -- An LFR wing route is active (overrides standard/skip, the same
+            -- way GetActiveRouting prefers the wing). Pink matches the LFR
+            -- theming used elsewhere (the wing-name message).
+            routeLabel = "|cffF259C7LFR|r"
+        elseif RR.state.activeRouteVariant == "skip" then
+            routeLabel = "|cff00ffffSkip|r"
+        else
+            routeLabel = "|cff00ff00Standard|r"
+        end
         panel.credit:SetText("|cff9d9d9dRoute:|r " .. routeLabel)
     else
         panel.credit:SetText("Created by |cff4DCCFFPhotek|r")
@@ -6650,33 +7223,25 @@ function UI.Update()
                 raidLabel = raidLabel .. " |cff0078ff[A]|r"
             end
         end
-        local currentDiff = RR.state and RR.state.currentDifficultyID
-        -- Skip marker(s) after the raid name. Single-chain raids show one
-        -- marker when the skip is available at the current difficulty;
-        -- multi-chain raids (Antorus, Hellfire Citadel) show one marker
-        -- per chain, each filled when that chain is available at the
-        -- current difficulty and dimmed otherwise. Uses the smaller 9px
-        -- in-header marker variant.
-        local chainStates = RR.GetSkipChainCeilings and RR:GetSkipChainCeilings(raid)
-        if chainStates and #chainStates > 1 then
-            local cascading = RR:RaidSkipIsCascading(raid)
-            local parts = {}
-            for _, c in ipairs(chainStates) do
-                local avail = false
-                if currentDiff and c.ceiling then
-                    if cascading then
-                        avail = currentDiff <= c.ceiling
-                    else
-                        avail = currentDiff == c.ceiling
-                    end
-                end
-                parts[#parts + 1] = avail and SKIP_MARKER or SKIP_MARKER_DIM
-            end
-            raidLabel = raidLabel .. " " .. table.concat(parts, " ")
-        elseif currentDiff and RR:IsRaidSkipAvailableAtDifficulty(raid, currentDiff) then
-            raidLabel = raidLabel .. " " .. SKIP_MARKER
-        end
         panel.raid:SetText(raidLabel)
+
+        -- LFR wing subline. Shown only in a wing; sized 2pt below the raid
+        -- font (read live so it tracks the template). Prefixed with the same
+        -- forward-chevron glyph the Boss Progress list uses for its active row,
+        -- and a small indent, so it reads as a sub-item of the raid line.
+        local wing = RR:GetActiveWing()
+        if wing and wing.name then
+            local rfFont, rfSize, rfFlags = panel.raid:GetFont()
+            if rfFont and rfSize then
+                panel.wingLine:SetFont(rfFont, rfSize - 2, rfFlags)
+            end
+            local WING_ARROW = "|TInterface\\ChatFrame\\ChatFrameExpandArrow:10:10:0:0:32:32:0:32:0:32:242:89:199|t"
+            panel.wingLine:SetText(
+                "  " .. WING_ARROW ..
+                " |cff9d9d9dLFR Wing:|r |cffF259C7" .. wing.name .. "|r")
+        else
+            panel.wingLine:SetText("")
+        end
         panel.pills:SetText(BuildPillsText())
         -- Arm the lockout tooltip only when a mode is actually claimed
         -- this week (the lock glyph is showing); otherwise hovering the
@@ -6699,7 +7264,7 @@ function UI.Update()
         panel.mapBtn:Enable()
         panel.mapBtn:SetAlpha(1)
 
-        if currentDiff == 17 then
+        if RR:IsInLFR() and not RR:GetActiveWing() then
             -- LFR mode: routing, segments, and per-boss progress are
             -- not modeled. LFR wings have different boss subsets and
             -- different paths than the Normal/Heroic/Mythic layout the
@@ -6710,7 +7275,12 @@ function UI.Update()
             -- The action button row (Achievements, Transmog, Skips,
             -- Settings) sits outside this render path and stays visible,
             -- so the still-working browsers remain one click away.
-            panel.next:SetText("|cffff9333RetroRuns doesn't support routing for LFR yet.|r")
+            local wingName = RR:GetCurrentWingName()
+            if wingName then
+                panel.next:SetText(("|cffffffffLFR routing for |r|cffF259C7%s|r|cffffffff isn't supported yet.|r"):format(wingName))
+            else
+                panel.next:SetText("|cffffffffLFR routing isn't supported yet.|r")
+            end
             panel.travel:SetText("")
             panel.exitNote:SetText("")
             panel.exitNote:Hide()
@@ -6735,6 +7305,8 @@ function UI.Update()
             -- pass; nothing to render in their place.
             ReleaseExpansionToggleButtons()
             ReleaseEntranceButtons()
+            panel.ReleaseWingStrikes()
+            panel.ReleaseWingToggleButtons()
             ReleaseIdleListLines()
             ReleaseProgressListLines()
             panel.listHeader:SetText("")
@@ -6857,6 +7429,8 @@ function UI.Update()
             -- progress lines.
             ReleaseExpansionToggleButtons()
             ReleaseEntranceButtons()
+            panel.ReleaseWingStrikes()
+            panel.ReleaseWingToggleButtons()
             ReleaseIdleListLines()
         else
             -- step == nil branch: either the player has cleared every
@@ -6888,14 +7462,26 @@ function UI.Update()
             -- Uncaptured-raid state (routeComplete=false) uses the same
             -- layout with different text.
             if routeComplete then
-                if isSkip then
+                if RR:GetActiveWing() then
+                    panel.next:SetText("|cff00ff00LFR Wing Complete!|r")
+                elseif isSkip then
                     panel.next:SetText("|cff00ff00Skip Run Complete!|r")
                 else
                     panel.next:SetText("|cff00ff00Run complete!|r")
                 end
                 -- Optional per-raid exit note, shown below the banner with an
-                -- inline exit glyph. Only shown when the raid provides one.
-                local exitNote = raid and raid.exitNote
+                -- inline exit glyph. In an LFR wing the raid's authored exit
+                -- (walk to a specific spot / portal) doesn't apply -- you leave
+                -- through the LFG tool. A wing may author its own exitNote (for
+                -- per-wing instructions); when it doesn't, fall back to the
+                -- generic LFG-tool line. Outside LFR, show the raid's note.
+                local exitNote
+                local activeWing = RR:GetActiveWing()
+                if activeWing then
+                    exitNote = activeWing.exitNote or "Leave instance group via LFG tool."
+                else
+                    exitNote = raid and raid.exitNote
+                end
                 if exitNote and exitNote ~= "" then
                     local exitFontSize = RR:GetSetting("fontSize", 12)
                     local exitGlyphSize = exitFontSize + 3
@@ -6951,6 +7537,7 @@ function UI.Update()
         -- line repeating both was redundant. The slot itself stays
         -- because in-raid mode populates it with the raid name.
         panel.raid:SetText("")
+        panel.wingLine:SetText("")
         panel.pills:SetText("")
         if panel.pillsHover then panel.pillsHover._lockoutTip = false end
 
@@ -7351,11 +7938,9 @@ function UI.ShowSkipDetail(raid)
             -- Swap the legend tokens for the same glyphs the difficulty
             -- columns render, so a note's legend reads against its marks.
             -- Raids without these tokens are unaffected (gsub no-ops).
-            -- The textures are written as literals here rather than via
-            -- the SKIPS_CELL_* file-locals: UI.lua's chunk exceeds Lua
-            -- 5.1's 200-local limit, so those locals read as nil this far
-            -- down the file. These strings must stay in sync with the
-            -- SKIPS_CELL_UNLOCKED / _LOCKED / _UNKNOWN definitions.
+            -- The textures are written as literals here; they must stay in
+            -- sync with the SKIPS_CELL_UNLOCKED / _LOCKED / _UNKNOWN
+            -- definitions.
             local detailText = trig.details
                 :gsub("{check}", "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t")
                 :gsub("{x}", "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14:0:-2|t")

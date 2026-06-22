@@ -113,7 +113,7 @@ Main commands, type in chat:
 
 ## Status
 
-Version **1.14.0**
+Version **2.0.0**
 
 ## Reporting bugs / requesting features
 

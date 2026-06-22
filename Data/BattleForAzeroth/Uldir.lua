@@ -505,4 +505,293 @@ RetroRuns_Data[1861] = {
             },
         },
     },
+
+    lfrWings = {
+        -- Halls of Containment: Taloc(1), MOTHER(2), Zek'voz(4). LFR wing
+        -- order does not match encounter order -- Zek'voz (encounter 4)
+        -- is grouped into wing 1 while Fetid Devourer (encounter 3) drops
+        -- to wing 2. LFR zones into mapID 1148, so Taloc and MOTHER import
+        -- verbatim from the standard opening. Zek'voz's standard entry
+        -- assumes arrival from Vectis's room (a wing-2 boss not killed
+        -- here), so its MOTHER->Ring transition awaits the verbatim LFR
+        -- note + points; the Archives of Eternity approach imports verbatim.
+        [1731] = {
+            name   = "Halls of Containment",
+            bosses = { 1, 2, 4 },   -- Taloc, MOTHER, Zek'voz, Herald of N'Zoth
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Taloc->7, MOTHER->6, Zek'voz->5.
+            lockoutBits = { [1] = 7, [2] = 6, [4] = 5 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Taloc",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1148 },
+                            kind    = "path",
+                            note    = "After zoning in, walk straight ahead and kill the Tendrils to start the encounter with ^Taloc^.",
+                            points  = {
+                                { 0.521, 0.828 },
+                                { 0.520, 0.346 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 2,
+                    title     = "MOTHER",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when            = { mapID = 1149 },
+                            kind            = "poi",
+                            noMarker        = true,
+                            mapLabel        = "Click Titan Console",
+                            mapLabelPos     = "middle",
+                            completionCheck = true,
+                            note     = "After killing ^Taloc^, the floor will start to descend. Once you reach the bottom, go straight ahead and click the ^Titan Console^.",
+                            points   = {
+                                { 0.499, 0.583 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1149 },
+                            kind    = "path",
+                            note    = "After activating the ^Titan Console^, kill several waves of adds from the previous room to unlock the door to the next room.",
+                            triggeredBy = { dialog = { npc = "Brann Bronzebeard", match = "get these doors open" } },
+                            points  = {},
+                        },
+                        {
+                            when    = { mapID = 1149 },
+                            kind    = "poi",
+                            poiSize = 35,
+                            note    = "After finishing the adds, proceed forward and defeat ^MOTHER^.",
+                            triggeredBy = { dialog = { npc = "MOTHER", match = "decontamination chamber" } },
+                            points  = {
+                                { 0.507, 0.568 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 4,
+                    title     = "Zek'voz, Herald of N'Zoth",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1149 },
+                            kind    = "path",
+                            note    = "After defeating ^MOTHER^, continue forward to the map exit labeled ^Ring of Containment^.",
+                            points  = {
+                                { 0.508, 0.402 },
+                                { 0.509, 0.133 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1150, subZone = "Ring of Containment" },
+                            kind    = "path",
+                            note    = "Once in the ^Ring of Containment^, head to the leftmost map exit labeled ^Archives of Eternity^.",
+                            points  = {
+                                { 0.476, 0.842 },
+                                { 0.403, 0.839 },
+                                { 0.250, 0.617 },
+                                { 0.250, 0.506 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1151 },
+                            kind    = "path",
+                            note    = "Continue following the path to reach ^Zek'voz, Herald of N'Zoth^. Clear trash to start the encounter.",
+                            points  = {
+                                { 0.867, 0.507 },
+                                { 0.834, 0.428 },
+                                { 0.794, 0.506 },
+                                { 0.405, 0.509 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Crimson Descent: Fetid Devourer(3), Vectis(5), Zul(6). LFR wing
+        -- order does not match encounter order. LFR zones into mapID 1150
+        -- (Ring of Containment), so Fetid's standard entry (the MOTHER->Ring
+        -- leg) is dropped and the first step starts in the Ring heading for
+        -- the Gallery of Failures. Vectis chains off Fetid and imports
+        -- verbatim. Zul's standard entry assumes arrival from Zek'voz (a
+        -- wing-1 boss), so its Vectis->Ring transition awaits the verbatim
+        -- LFR note + points; the Oblivion Door approach imports verbatim.
+        [1732] = {
+            name   = "Crimson Descent",
+            bosses = { 3, 5, 6 },   -- Fetid Devourer, Vectis, Zul, Reborn
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Fetid Devourer->2, Vectis->3, Zul->8.
+            lockoutBits = { [3] = 2, [5] = 3, [6] = 8 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 3,
+                    title     = "Fetid Devourer",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1150 },
+                            kind    = "path",
+                            note    = "After zoning in, take a right and head for the map exit labeled ^Gallery of Failures^.",
+                            points  = {
+                                { 0.475, 0.842 },
+                                { 0.552, 0.839 },
+                                { 0.700, 0.621 },
+                                { 0.704, 0.502 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1153 },
+                            kind    = "path",
+                            note    = "Continue following the path to engage ^Fetid Devourer^.",
+                            points  = {
+                                { 0.113, 0.495 },
+                                { 0.144, 0.554 },
+                                { 0.184, 0.479 },
+                                { 0.631, 0.487 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 5,
+                    title     = "Vectis",
+                    requires  = { 3 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1153 },
+                            kind    = "path",
+                            note    = "After killing ^Fetid Devourer^, go back the way you came to arrive back in the ^Ring of Containment^.",
+                            points  = {
+                                { 0.627, 0.484 },
+                                { 0.181, 0.476 },
+                                { 0.145, 0.403 },
+                                { 0.113, 0.450 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1150 },
+                            kind    = "path",
+                            note    = "Back in the ^Ring of Containment^, head north to the map exit labeled ^Plague Vault^.",
+                            points  = {
+                                { 0.702, 0.500 },
+                                { 0.701, 0.385 },
+                                { 0.553, 0.164 },
+                                { 0.476, 0.164 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1152 },
+                            kind    = "path",
+                            note    = "Continue following the path to reach ^Vectis^.",
+                            points  = {
+                                { 0.537, 0.915 },
+                                { 0.564, 0.879 },
+                                { 0.527, 0.838 },
+                                { 0.523, 0.342 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 6,
+                    title     = "Zul, Reborn",
+                    requires  = { 3, 5 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1152 },
+                            kind    = "path",
+                            note    = "After killing ^Vectis^, go back the way you came to arrive back in the ^Ring of Containment^.",
+                            points  = {
+                                { 0.525, 0.343 },
+                                { 0.527, 0.842 },
+                                { 0.490, 0.879 },
+                                { 0.514, 0.914 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1150, subZone = "Ring of Containment" },
+                            kind    = "path",
+                            note    = "After arriving back in the ^Ring of Containment^, head straight ahead towards the map exit labeled ^The Oblivion Door^.",
+                            points  = {
+                                { 0.477, 0.177 },
+                                { 0.476, 0.361 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1154 },
+                            kind    = "path",
+                            note    = "After arriving in ^The Oblivion Door^, clear all trash to start the encounter with ^Zul, Reborn^.",
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Heart of Corruption: Mythrax(7), G'huun(8). The final wing. LFR
+        -- zones into mapID 1154 (The Oblivion Door), the same map Mythrax's
+        -- standard entry uses, but without having killed Zul first -- so the
+        -- standard "After killing Zul" lead-in doesn't apply and Mythrax's
+        -- entry awaits the verbatim LFR zone-in note. G'huun chains off
+        -- Mythrax and imports verbatim.
+        [1733] = {
+            name   = "Heart of Corruption",
+            bosses = { 7, 8 },   -- Mythrax the Unraveler, G'huun
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Mythrax->4, G'huun->1.
+            lockoutBits = { [7] = 4, [8] = 1 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "Mythrax the Unraveler",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1154 },
+                            kind    = "path",
+                            note    = "After zoning in, jump into ^The Festering Core^ to fight ^Mythrax the Unraveler^.",
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 8,
+                    title     = "G'huun",
+                    requires  = { 7 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1155 },
+                            kind    = "path",
+                            note    = "After defeating ^Mythrax^, follow the path north to engage the final boss, ^G'huun^.",
+                            points  = {
+                                { 0.527, 0.809 },
+                                { 0.523, 0.258 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
 }

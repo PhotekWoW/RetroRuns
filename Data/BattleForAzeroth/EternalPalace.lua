@@ -15,10 +15,9 @@ RetroRuns_Data[2164] = {
     exitNote = "Talk to First Arcanist Thalyssra to be teleported out of the instance.",
 
     -- Entrance is the whirlpool at the Gate of the Queen in northern
-    -- Nazjatar (uiMapID 1355), in front of the Azshara statue. Coords
-    -- from gamingcy. The whirlpool teleports the player into the
-    -- raid; library will route to the Gate of the Queen, which is
-    -- the correct staging point.
+    -- Nazjatar (uiMapID 1355), in front of the Azshara statue. The
+    -- whirlpool teleports the player into the raid; library will route
+    -- to the Gate of the Queen, which is the correct staging point.
     entrance = {
         mapID = 1355,
         x     = 0.502,
@@ -219,9 +218,9 @@ RetroRuns_Data[2164] = {
                 { id = 168349, slot = "Head",     name = "Shroud of Unmooring Whispers",    sources = { [17]=104421, [14]=104418, [15]=104419, [16]=104420 } },
                 { id = 169588, slot = "Shoulder", name = "Gardbrace of Fractured Reality",  sources = { [17]=105158, [14]=105155, [15]=105156, [16]=105157 } },
                 -- Pauldrons of Za'qul: binary-shape cosmetic shoulder,
-                -- drops on Heroic and Mythic only (per Wowhead; same
-                -- pattern as First Satyr's Spaulders -- a "vanity"
-                -- shoulder version of the boss model's own shoulders).
+                -- drops on Heroic and Mythic only (same pattern as First
+                -- Satyr's Spaulders -- a "vanity" shoulder version of the
+                -- boss model's own shoulders).
                 -- One sourceID (104678) covers the appearance across
                 -- both difficulties. Encoded here as binary (single
                 -- sourceID cloned across all four buckets), so the
@@ -259,6 +258,323 @@ RetroRuns_Data[2164] = {
             },
             specialLoot = {
                 { id = 169348, kind = "pet", name = "Zanj'ir Poker" },
+            },
+        },
+    },
+
+    lfrWings = {
+        -- Wing 1 -- The Grand Reception: Sivara, Behemoth, Radiance.
+        -- Wing 2 -- Depths of the Devoted: Ashvane, Orgozoa, Queen's Court (not yet keyed).
+        -- Wing 3 -- The Circle of Stars: Za'qul, Queen Azshara (not yet keyed).
+        [2011] = {
+            name   = "The Circle of Stars",
+            bosses = { 7, 8 },
+            lockoutBits = { [7] = 2, [8] = 4 },
+            routing = {
+                -- 7. Za'qul, Harbinger of Ny'alotha
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "Za'qul, Harbinger of Ny'alotha",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1519, subZone = "The Eternal Palace" },
+                            kind    = "path",
+                            note    = "After zoning in, follow the path ahead to reach ^Za'qul^.",
+                            points  = {
+                                { 0.521, 0.511 },
+                                { 0.363, 0.504 },
+                                { 0.364, 0.506 },
+                                { 0.357, 0.426 },
+                                { 0.327, 0.410 },
+                                { 0.298, 0.416 },
+                                { 0.215, 0.503 },
+                            },
+                        },
+                    },
+                },
+
+                -- 8. Queen Azshara
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 8,
+                    title     = "Queen Azshara",
+                    requires  = { 7 },
+                    segments  = {
+                        {
+                            when     = { mapID = 1519 },
+                            kind     = "poi",
+                            noMarker = true,
+                            highlightCircle = true,
+                            mapLabel = "Click Portal",
+                            mapLabelPos = "above",
+                            note    = "After killing ^Za'qul^, watch a brief dialog while waiting on a portal to spawn behind the boss. Take the portal, marked on the map as an exit labeled ^The Last Prison^.",
+                            points   = {
+                                { 0.112, 0.456 },
+                            },
+                        },
+                        {
+                            when     = { mapID = 1520 },
+                            kind     = "poi",
+                            note     = "After taking the portal into ^The Last Prison^, you will watch some lengthy dialog then click the ^Titan Console^ in front of you to engage ^Queen Azshara^.",
+                            poiSize  = 35,
+                            mapLabel = "Click Titan Console",
+                            completionCheck = true,
+                            points   = {
+                                { 0.580, 0.521 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        [2010] = {
+            name   = "Depths of the Devoted",
+            bosses = { 4, 5, 6 },
+            lockoutBits = { [4] = 6, [5] = 5, [6] = 8 },
+            routing = {
+                -- 4. Lady Ashvane
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 4,
+                    title     = "Lady Ashvane",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1513, subZone = "Halls of the Chosen" },
+                            kind    = "path",
+                            note    = "After zoning in, proceed straight ahead to ^Lady Ashvane^.",
+                            points  = {
+                                { 0.395, 0.686 },
+                                { 0.454, 0.681 },
+                            },
+                        },
+                    },
+                },
+
+                -- 5. Orgozoa
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 5,
+                    title     = "Orgozoa",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1513 },
+                            kind    = "path",
+                            note    = "After killing ^Lady Ashvane^, jump through the hole in the middle of her boss room to land in ^The Traverse^.",
+                            points  = {},
+                        },
+                        {
+                            when     = { mapID = 1516 },
+                            kind     = "poi",
+                            poiSize  = 35,
+                            mapLabel = "1",
+                            note     = "After landing in ^The Traverse^, make your way to the bottom of the room by walking over a sequence of teleporting panels on the floor.",
+                            points   = {
+                                { 0.542, 0.459 },
+                            },
+                        },
+                        {
+                            when     = { mapID = 1516 },
+                            kind     = "poi",
+                            poiSize  = 35,
+                            mapLabel = "2",
+                            points   = {
+                                { 0.561, 0.437 },
+                            },
+                        },
+                        {
+                            when     = { mapID = 1516 },
+                            kind     = "poi",
+                            poiSize  = 35,
+                            mapLabel = "3",
+                            points   = {
+                                { 0.518, 0.570 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1517 },
+                            kind    = "path",
+                            note    = "When you reach the bottom, simply follow the path to ^Orgozoa^ and kill him.",
+                            points  = {
+                                { 0.825, 0.367 },
+                                { 0.795, 0.398 },
+                                { 0.793, 0.471 },
+                                { 0.774, 0.474 },
+                            },
+                        },
+                    },
+                },
+
+                -- 6. The Queen's Court
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 6,
+                    title     = "The Queen's Court",
+                    requires  = { 5 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1517 },
+                            kind    = "path",
+                            note    = "After killing ^Orgozoa^, travel to the far west to reach the map exit labeled ^The Queen's Court^. You will be swimming for a good portion of this journey.",
+                            points  = {
+                                { 0.728, 0.468 },
+                                { 0.699, 0.458 },
+                                { 0.709, 0.377 },
+                                { 0.688, 0.333 },
+                                { 0.650, 0.328 },
+                                { 0.629, 0.366 },
+                                { 0.634, 0.415 },
+                                { 0.654, 0.477 },
+                                { 0.653, 0.581 },
+                                { 0.571, 0.553 },
+                                { 0.449, 0.559 },
+                                { 0.119, 0.619 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1518 },
+                            kind    = "path",
+                            note    = "After surfacing from the water, follow the path around to reach ^The Queen's Court^.",
+                            points  = {
+                                { 0.667, 0.482 },
+                                { 0.474, 0.479 },
+                                { 0.424, 0.329 },
+                                { 0.281, 0.277 },
+                                { 0.262, 0.314 },
+                                { 0.299, 0.348 },
+                                { 0.330, 0.444 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        [2009] = {
+            name   = "The Grand Reception",
+            bosses = { 1, 2, 3 },
+            lockoutBits = { [1] = 3, [2] = 1, [3] = 7 },
+            routing = {
+                -- 1. Abyssal Commander Sivara
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Abyssal Commander Sivara",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1512 },
+                            kind    = "path",
+                            note    = "After zoning in, follow the path straight ahead to engage ^Sivara^.",
+                            points  = {
+                                { 0.914, 0.487 },
+                                { 0.523, 0.487 },
+                            },
+                        },
+                    },
+                },
+
+                -- 2. Blackwater Behemoth
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 2,
+                    title     = "Blackwater Behemoth",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1512 },
+                            kind    = "path",
+                            note    = "After defeating ^Sivara^, continue past her towards the map exit labeled ^Halls of the Chosen^. Take the underwater tunnel to reach the next area.",
+                            points  = {
+                                { 0.473, 0.487 },
+                                { 0.463, 0.390 },
+                                { 0.417, 0.386 },
+                                { 0.344, 0.486 },
+                                { 0.265, 0.489 },
+                                { 0.238, 0.411 },
+                                { 0.178, 0.402 },
+                                { 0.159, 0.463 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1513 },
+                            kind    = "path",
+                            note    = "After coming out of the water, take the path south towards the map exit labeled ^Darkest Depths^.",
+                            points  = {
+                                { 0.648, 0.708 },
+                                { 0.626, 0.695 },
+                                { 0.608, 0.672 },
+                                { 0.553, 0.695 },
+                                { 0.535, 0.756 },
+                                { 0.473, 0.808 },
+                                { 0.473, 0.860 },
+                                { 0.460, 0.885 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1514 },
+                            kind    = "path",
+                            note    = "Enter the water and click the ^Oxygen-Rich Membrane^ for swim speed and water breathing. You must kill the last trash pack in the tunnel to spawn ^Blackwater Behemoth^.",
+                            points  = {
+                                { 0.564, 0.176 },
+                                { 0.561, 0.282 },
+                                { 0.423, 0.294 },
+                                { 0.377, 0.242 },
+                            },
+                        },
+                    },
+                },
+
+                -- 3. Radiance of Azshara  (gated by Orb 1 / Font of Power)
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 3,
+                    title     = "Radiance of Azshara",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1514 },
+                            kind    = "path",
+                            note    = "After killing ^Behemoth^, swim back out the way you came to the map exit labeled ^Halls of the Chosen^.",
+                            points  = {
+                                { 0.373, 0.237 },
+                                { 0.445, 0.289 },
+                                { 0.562, 0.280 },
+                                { 0.568, 0.158 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1513 },
+                            kind    = "path",
+                            note    = "After returning to the ^Halls of the Chosen^, follow the path all the way north to kill ^Radiance of Azshara^. Clear all the trash to start the encounter.",
+                            points  = {
+                                { 0.437, 0.795 },
+                                { 0.398, 0.750 },
+                                { 0.380, 0.685 },
+                                { 0.392, 0.610 },
+                                { 0.439, 0.569 },
+                                { 0.471, 0.564 },
+                                { 0.469, 0.370 },
+                                { 0.432, 0.359 },
+                                { 0.417, 0.318 },
+                                { 0.418, 0.272 },
+                                { 0.450, 0.225 },
+                            },
+                        },
+                    },
+                },
             },
         },
     },

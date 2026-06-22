@@ -22,6 +22,52 @@ end
 -- Progress state
 -------------------------------------------------------------------------------
 
+-- Identifies which routing variant is currently active, so progress storage
+-- can be namespaced by it. Multiple LFR wings of one raid share a single
+-- lockout (same instanceID + difficulty 17), and each wing numbers its steps
+-- from 1 -- so without this, wing A's "step 1" and wing B's "step 1" collide
+-- in the same lockout store (e.g. clearing Primal Bulwark left step 1 = 4,
+-- which Caverns' Terros then read as its own step 1, starting it mid-route).
+-- Keys: "wing:<lfgDungeonID>" in an LFR wing we route, "skip" on the skip
+-- route, "standard" otherwise. Alias wings resolve to their target's key so
+-- aliased wings share one namespace, matching how GetActiveWing resolves them.
+function RR:ActiveVariantKey()
+    local raid = self.currentRaid
+    if raid and raid.lfrWings and self:IsInLFR() then
+        local id = self:GetCurrentLfgDungeonID()
+        if id then
+            local wing = raid.lfrWings[id]
+            if wing then
+                if wing.aliasOf then id = wing.aliasOf end
+                return "wing:" .. tostring(id)
+            end
+        end
+    end
+    if self.state and self.state.activeRouteVariant == "skip"
+        and raid and raid.skipRoute then
+        return "skip"
+    end
+    return "standard"
+end
+
+-- Resolve the namespaced steps table for the active variant within a lockout
+-- store, optionally creating it. The store holds one steps/triggers table per
+-- variant key under `byVariant`, so concurrent wings/routes of the same
+-- lockout keep separate progress. Legacy stores wrote a bare top-level
+-- `steps`/`triggers`; those are intentionally not read here (they belong to a
+-- prior week's lockout after reset, or are migrated forward on first write).
+function RR:GetVariantSteps(store, create)
+    if not store then return nil end
+    local key = self:ActiveVariantKey()
+    if create then
+        store.byVariant = store.byVariant or {}
+        store.byVariant[key] = store.byVariant[key] or { steps = {}, triggers = {} }
+        return store.byVariant[key]
+    end
+    if not store.byVariant then return nil end
+    return store.byVariant[key]
+end
+
 function RR:GetProgress(stepIndex)
     if not stepIndex then return 1 end
     local store = self.state.progress
@@ -78,8 +124,9 @@ function RR:SetProgress(stepIndex, value)
 
     local store = self:GetLockoutStore(true)
     if not store then return end
-    store.steps = store.steps or {}
-    store.steps[stepIndex] = value
+    local vstore = self:GetVariantSteps(store, true)
+    vstore.steps = vstore.steps or {}
+    vstore.steps[stepIndex] = value
 end
 
 -- True if a saved routing store exists for the current raid, faction, and
@@ -117,19 +164,26 @@ end
 function RR:RestorePersistedProgress()
     self.state.progress       = {}
     self.state.triggersFired  = {}
+    -- Record which variant the in-memory progress now reflects, so a later
+    -- variant change (e.g. walking from one LFR wing into another without a
+    -- raid reload) can detect the mismatch and reload the right namespace.
+    self.state.progressVariantKey = self:ActiveVariantKey()
     local store = self:GetLockoutStore(false)
     if not store then return end
-    if store.steps then
-        for stepIndex, p in pairs(store.steps) do
-            self.state.progress[stepIndex] = p
+    local vstore = self:GetVariantSteps(store, false)
+    if vstore then
+        if vstore.steps then
+            for stepIndex, p in pairs(vstore.steps) do
+                self.state.progress[stepIndex] = p
+            end
         end
-    end
-    if store.triggers then
-        for stepIndex, segs in pairs(store.triggers) do
-            self.state.triggersFired[stepIndex] = {}
-            for segIndex, fired in pairs(segs) do
-                if fired then
-                    self.state.triggersFired[stepIndex][segIndex] = true
+        if vstore.triggers then
+            for stepIndex, segs in pairs(vstore.triggers) do
+                self.state.triggersFired[stepIndex] = {}
+                for segIndex, fired in pairs(segs) do
+                    if fired then
+                        self.state.triggersFired[stepIndex][segIndex] = true
+                    end
                 end
             end
         end
@@ -153,9 +207,10 @@ function RR:RecordTriggerFired(stepIndex, segIndex)
 
     local store = self:GetLockoutStore(true)
     if not store then return end
-    store.triggers = store.triggers or {}
-    store.triggers[stepIndex] = store.triggers[stepIndex] or {}
-    store.triggers[stepIndex][segIndex] = true
+    local vstore = self:GetVariantSteps(store, true)
+    vstore.triggers = vstore.triggers or {}
+    vstore.triggers[stepIndex] = vstore.triggers[stepIndex] or {}
+    vstore.triggers[stepIndex][segIndex] = true
 end
 
 function RR:HasTriggerFired(stepIndex, segIndex)
@@ -427,6 +482,27 @@ function RR:PickNoteSeg(step, playerMapID)
     return seg
 end
 
+-- Short instruction for the minimized bar. Resolves the segment currently
+-- being shown (same derivation the travel pane uses, so backtrack and the
+-- noteless-POI-over-noted-path pattern both resolve to the seg that carries
+-- the prose) and returns its minNote. A noteless seg has no minNote of its
+-- own; PickNoteSeg returns its noted neighbor, so the bar inherits that
+-- neighbor's minNote and the text doesn't flicker across the seg boundary.
+-- Returns nil when there is no active step or the current seg carries no
+-- minNote, so the bar only collapses the wordmark to "RR" when there is
+-- genuine per-segment data to show. The minimized bar keeps the full
+-- "RETRO RUNS" wordmark on a nil return -- this is what keeps the feature
+-- dark until minNote data is authored into the routing segments.
+function RR:GetActiveMinNote()
+    local step = self.state and self.state.activeStep
+    if not step then return nil end
+    local seg = self:PickNoteSeg(step)
+    if seg and seg.minNote and seg.minNote ~= "" then
+        return seg.minNote
+    end
+    return nil
+end
+
 -------------------------------------------------------------------------------
 -- Line picker
 -------------------------------------------------------------------------------
@@ -624,19 +700,42 @@ function RR:BuildEngineProbeLines(opts)
                 for faction, factionStore in pairs(instStore) do
                     for lockoutId, store in pairs(factionStore) do
                         if type(store) == "table" then
-                        add(("  [%s] lockoutId=%s  variant=%s"):format(
+                        add(("  [%s] lockoutId=%s  routeVariant=%s"):format(
                             tostring(faction), tostring(lockoutId),
                             tostring(store.routeVariant or "standard")))
+                        -- Namespaced per-variant progress (current scheme).
+                        if store.byVariant then
+                            for vkey, vstore in pairs(store.byVariant) do
+                                add(("    [%s]"):format(tostring(vkey)))
+                                if vstore.steps then
+                                    for stepIdx, p in pairs(vstore.steps) do
+                                        add(("      step %d progress = %d"):format(stepIdx, p))
+                                    end
+                                end
+                                if vstore.triggers then
+                                    for stepIdx, segs in pairs(vstore.triggers) do
+                                        for segIdx, fired in pairs(segs) do
+                                            if fired then
+                                                add(("      step %d seg %d trigger fired"):format(stepIdx, segIdx))
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        -- Legacy bare steps/triggers (pre-namespacing). Only
+                        -- present on stores written by an older build; shown so
+                        -- a stale carry-over is visible rather than silent.
                         if store.steps then
                             for stepIdx, p in pairs(store.steps) do
-                                add(("    step %d progress = %d"):format(stepIdx, p))
+                                add(("    [legacy] step %d progress = %d"):format(stepIdx, p))
                             end
                         end
                         if store.triggers then
                             for stepIdx, segs in pairs(store.triggers) do
                                 for segIdx, fired in pairs(segs) do
                                     if fired then
-                                        add(("    step %d seg %d trigger fired"):format(stepIdx, segIdx))
+                                        add(("    [legacy] step %d seg %d trigger fired"):format(stepIdx, segIdx))
                                     end
                                 end
                             end
@@ -712,6 +811,20 @@ function RR:DiagDump()
     divider(4, "COMPLETION STATE",
         "per-boss kill detection -- both sources side by side")
     for _, line in ipairs(self:BuildCompletionDiagLines()) do add(line) end
+
+    -- LFR per-boss bit capture (S7 aid). Only shown when entries exist, so it
+    -- doesn't clutter diag for non-LFR work. Each line is one captured LFR
+    -- kill and the lockout bit it set.
+    local bitLog = (RetroRunsDebug and RetroRunsDebug.lfrBitLog) or {}
+    if #bitLog > 0 then
+        divider(5, "LFR BIT CAPTURE",
+            "per-boss lockout bit, recorded on each LFR kill -- also via /rr lfrbits")
+        for i = 1, #bitLog do
+            local e = bitLog[i]
+            add(("%s  %s  ->  bit %s   [%s]"):format(
+                tostring(e.t), tostring(e.boss), tostring(e.bit), tostring(e.raid)))
+        end
+    end
 
     self:ShowCopyWindow("RetroRuns -- Diagnostic", table.concat(lines, "\n"))
 end

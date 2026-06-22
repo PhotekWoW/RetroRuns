@@ -562,6 +562,419 @@ RetroRuns_Data[1448] = {
         },
     },
 
+    lfrWings = {
+        -- Wing 1 -- Hellbreach: Hellfire Assault, Iron Reaver, Kormrok
+        -- (standard routing steps 1-3). Notes and routing imported
+        -- verbatim from the standard route.
+        [1366] = {
+            name   = "Hellbreach",
+            bosses = { 1, 2, 3 },
+            lockoutBits = { [1] = 2, [2] = 5, [3] = 7 },
+            routing = {
+                -- 1. Hellfire Assault
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Hellfire Assault",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 661 },
+                            kind    = "poi",
+                            noMarker = true,
+                            note    = "Run around the room killing elites/vehicles until the encounter with ^Hellfire Assault^ begins.",
+                            points  = {
+                                { 0.671, 0.438 },
+                            },
+                        },
+                    },
+                },
+
+                -- 2. Iron Reaver
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 2,
+                    title     = "Iron Reaver",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when    = { mapID = 661 },
+                            kind    = "poi",
+                            noMarker = true,
+                            note    = "After completing the ^Hellfire Assault^ encounter, you will find ^Iron Reaver^ spawned right in front of you.",
+                            points  = {
+                                { 0.671, 0.438 },
+                            },
+                        },
+                    },
+                },
+
+                -- 3. Kormrok
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 3,
+                    title     = "Kormrok",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when    = { mapID = 661, subZone = "The Iron Bulwark" },
+                            kind    = "path",
+                            note    = "After killing ^Iron Reaver^, continue up the stairs behind him to the next area.",
+                            points  = {
+                                { 0.403, 0.507 },
+                                { 0.323, 0.509 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 662 },
+                            kind    = "path",
+                            note    = "In the next area, follow the path upstairs to the right and follow it around.",
+                            points  = {
+                                { 0.837, 0.475 },
+                                { 0.777, 0.440 },
+                                { 0.772, 0.288 },
+                                { 0.721, 0.282 },
+                                { 0.718, 0.208 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 663 },
+                            kind    = "path",
+                            note    = "Continue following the linear path into the next room.",
+                            points  = {
+                                { 0.677, 0.878 },
+                                { 0.676, 0.753 },
+                                { 0.512, 0.743 },
+                                { 0.504, 0.204 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 664 },
+                            kind    = "path",
+                            note    = "In the boss room, kill all of the trash and approach the boss to start the encounter with ^Kormrok^.",
+                            points  = {
+                                { 0.606, 0.781 },
+                                { 0.530, 0.501 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 2 -- Halls of Blood: Hellfire High Council, Kilrogg
+        -- Deadeye, Gorefiend (LFR order, same as standard). LFR drops the
+        -- player on mapID 665, so High Council's entry is the standard
+        -- 665 seg with a reworded zone-in note (the 664/663/662 backtrack
+        -- from Kormrok does not apply); Kilrogg and Gorefiend chain from
+        -- High Council and import verbatim.
+        [1367] = {
+            name   = "Halls of Blood",
+            bosses = { 4, 5, 6 },
+            lockoutBits = { [4] = 11, [5] = 6, [6] = 3 },
+            routing = {
+                -- 4. Hellfire High Council (reworded 665 zone-in entry)
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 4,
+                    title     = "Hellfire High Council",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 665 },
+                            kind    = "path",
+                            note    = "After zoning in, follow the path around to ^Hellfire High Council^.",
+                            points  = {
+                                { 0.816, 0.245 },
+                                { 0.816, 0.332 },
+                                { 0.713, 0.335 },
+                                { 0.713, 0.631 },
+                            },
+                        },
+                    },
+                },
+
+                -- 5. Kilrogg Deadeye (standard seg verbatim)
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 5,
+                    title     = "Kilrogg Deadeye",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when    = { mapID = 665 },
+                            kind    = "path",
+                            note    = "After defeating the ^Hellfire High Council^, take the southwestern exit out of the room and follow the long linear path to ^Kilrogg Deadeye^.",
+                            points  = {
+                                { 0.684, 0.700 },
+                                { 0.576, 0.797 },
+                                { 0.465, 0.799 },
+                                { 0.461, 0.643 },
+                                { 0.125, 0.647 },
+                                { 0.122, 0.342 },
+                                { 0.486, 0.336 },
+                            },
+                        },
+                    },
+                },
+
+                -- 6. Gorefiend (standard segs verbatim)
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 6,
+                    title     = "Gorefiend",
+                    requires  = { 5 },
+                    segments  = {
+                        {
+                            when    = { mapID = 665 },
+                            kind    = "path",
+                            note    = "After killing ^Kilrogg Deadeye^, exit behind him to the east and follow the path out of this area.",
+                            points  = {
+                                { 0.541, 0.334 },
+                                { 0.819, 0.330 },
+                                { 0.815, 0.076 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 662 },
+                            kind    = "path",
+                            note    = "Back in ^Hellfire Antechamber^, follow the path to reach ^Gorefiend^. Kill the trash to start the encounter.",
+                            points  = {
+                                { 0.726, 0.659 },
+                                { 0.780, 0.596 },
+                                { 0.780, 0.440 },
+                                { 0.684, 0.433 },
+                                { 0.639, 0.425 },
+                                { 0.583, 0.474 },
+                                { 0.366, 0.476 },
+                                { 0.348, 0.543 },
+                                { 0.311, 0.616 },
+                                { 0.243, 0.649 },
+                                { 0.191, 0.494 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 3 -- Bastion of Shadows: Shadow-Lord Iskar, Socrethar the
+        -- Eternal, Tyrant Velhari (LFR walk order). LFR drops the player
+        -- on mapID 666, so Iskar's entry is the standard 666 seg with a
+        -- reworded zone-in note (the 662 Gorefiend-portal POI does not
+        -- apply); Socrethar and Velhari chain from Iskar and import
+        -- verbatim.
+        [1368] = {
+            name   = "Bastion of Shadows",
+            bosses = { 7, 8, 11 },
+            lockoutBits = { [7] = 8, [8] = 9, [11] = 4 },
+            routing = {
+                -- 7. Shadow-Lord Iskar (reworded 666 zone-in entry)
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "Shadow-Lord Iskar",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 666 },
+                            kind    = "path",
+                            note    = "After zoning in, go west to reach ^Shadow-Lord Iskar^.",
+                            points  = {
+                                { 0.593, 0.766 },
+                                { 0.425, 0.764 },
+                            },
+                        },
+                    },
+                },
+
+                -- 8. Socrethar the Eternal (standard segs verbatim)
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 8,
+                    title     = "Socrethar the Eternal",
+                    requires  = { 7 },
+                    segments  = {
+                        {
+                            when    = { mapID = 666 },
+                            kind    = "path",
+                            note    = "After killing ^Shadow-Lord Iskar^, exit the room to the east. At the first intersection, go south to the next area.",
+                            points  = {
+                                { 0.424, 0.765 },
+                                { 0.594, 0.766 },
+                                { 0.617, 0.806 },
+                                { 0.618, 0.858 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 668 },
+                            kind    = "path",
+                            note    = "In the next area, go east, then south down some stairs. When you reach the boss room, clear the trash to start the encounter with ^Socrethar the Eternal^.",
+                            points  = {
+                                { 0.424, 0.204 },
+                                { 0.425, 0.254 },
+                                { 0.621, 0.254 },
+                                { 0.621, 0.346 },
+                                { 0.612, 0.401 },
+                                { 0.608, 0.486 },
+                            },
+                        },
+                    },
+                },
+
+                -- 11. Tyrant Velhari (standard seg verbatim)
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 11,
+                    title     = "Tyrant Velhari",
+                    requires  = { 8 },
+                    segments  = {
+                        {
+                            when    = { mapID = 668 },
+                            kind    = "path",
+                            note    = "After defeating ^Socrethar the Eternal^, leave the room to the south. In the next room, click 4x ^Demon Portals^ then kill ^Lord Aram'el^ to open the door. Proceed along the path to ^Tyrant Velhari^.",
+                            points  = {
+                                { 0.593, 0.572 },
+                                { 0.571, 0.619 },
+                                { 0.567, 0.806 },
+                                { 0.425, 0.808 },
+                                { 0.424, 0.702 },
+                                { 0.292, 0.694 },
+                                { 0.290, 0.558 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 4 -- Destructor's Rise: Fel Lord Zakuun, Xhul'horac,
+        -- Mannoroth (LFR walk order). LFR drops the player on mapID 666,
+        -- so Zakuun's entry is an LFR-specific zone-in walk (the standard
+        -- 668->666 backtrack from Velhari does not apply); Xhul'horac and
+        -- Mannoroth chain from Zakuun and import.
+        [1369] = {
+            name   = "Destructor's Rise",
+            bosses = { 9, 10, 12 },
+            lockoutBits = { [9] = 1, [10] = 13, [12] = 10 },
+            routing = {
+                -- 9. Fel Lord Zakuun (LFR-specific zone-in entry)
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 9,
+                    title     = "Fel Lord Zakuun",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 666 },
+                            kind    = "path",
+                            note    = "After zoning in, go left to find ^Fel Lord Zakuun^.",
+                            points  = {
+                                { 0.463, 0.482 },
+                                { 0.495, 0.372 },
+                                { 0.494, 0.220 },
+                            },
+                        },
+                    },
+                },
+
+                -- 10. Xhul'horac (standard seg verbatim)
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 10,
+                    title     = "Xhul'horac",
+                    requires  = { 9 },
+                    segments  = {
+                        {
+                            when    = { mapID = 666 },
+                            kind    = "path",
+                            note    = "After defeating ^Fel Lord Zakuun^, climb out of this area the way you came, and go all the way east to reach ^Xhul'horac^. Kill trash to start the encounter.",
+                            points  = {
+                                { 0.500, 0.217 },
+                                { 0.499, 0.386 },
+                                { 0.569, 0.447 },
+                                { 0.802, 0.454 },
+                                { 0.869, 0.515 },
+                            },
+                        },
+                    },
+                },
+
+                -- 12. Mannoroth (standard segs verbatim)
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 12,
+                    title     = "Mannoroth",
+                    requires  = { 10 },
+                    segments  = {
+                        {
+                            when        = { mapID = 667 },
+                            kind        = "poi",
+                            mapLabel    = "Take Portal",
+                            mapLabelPos = "above",
+                            note        = "After killing ^Xhul'horac^, take the portal that appears right next to you.",
+                            points      = {
+                                { 0.484, 0.507 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 669 },
+                            kind    = "poi",
+                            noMarker = true,
+                            note    = "After taking the portal, you will arrive in ^Destructor's Rise^. On ^Mythic^, do NOT kill the ^Fel Iron Summoners^. Just tag them, and let ^Mannoroth^ kill them or you could bug the encounter. On other difficulties, kill the ^Fel Iron Summoners^ to begin the fight.",
+                            points  = {
+                                { 0.511, 0.369 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 5 -- The Black Gate: Archimonde (final wing). LFR zones
+        -- the player in right in front of Archimonde on mapID 670, so a
+        -- single note-only poi (the standard 669 Mannoroth-portal seg
+        -- does not apply).
+        [1370] = {
+            name   = "The Black Gate",
+            bosses = { 13 },
+            lockoutBits = { [13] = 12 },
+            routing = {
+                -- 13. Archimonde
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 13,
+                    title     = "Archimonde",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when     = { mapID = 670 },
+                            kind     = "poi",
+                            noMarker = true,
+                            note     = "You will zone in right in front of ^Archimonde^. Kill him!",
+                            points   = {
+                                { 0.462, 0.515 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+
     routing = {
 
         -- 1. Hellfire Assault
@@ -971,7 +1384,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 669 },
                     kind    = "poi",
                     noMarker = true,
-                    note    = "After taking the portal, you will arrive in ^Destructor's Rise^. On ^Mythic^, tag an add but let Mannoroth kill them (or you will bug the encounter). On other difficulties, kill the adds yourself. When the adds die, engage ^Mannoroth^.",
+                    note    = "After taking the portal, you will arrive in ^Destructor's Rise^. On ^Mythic^, do NOT kill the ^Fel Iron Summoners^. Just tag them, and let ^Mannoroth^ kill them or you could bug the encounter. On other difficulties, kill the ^Fel Iron Summoners^ to begin the fight.",
                     points  = {
                         { 0.511, 0.369 },
                     },
@@ -1038,7 +1451,7 @@ RetroRuns_Data[1448] = {
                 {
                     when    = { mapID = 669 },
                     kind    = "poi",
-                    note    = "After taking the portal, you will arrive in ^Destructor's Rise^. On ^Mythic^, tag an add but let Mannoroth kill them (or you will bug the encounter). On other difficulties, kill the adds yourself. When the adds die, engage ^Mannoroth^.",
+                    note    = "After taking the portal, you will arrive in ^Destructor's Rise^. On ^Mythic^, do NOT kill the ^Fel Iron Summoners^. Just tag them, and let ^Mannoroth^ kill them or you could bug the encounter. On other difficulties, kill the ^Fel Iron Summoners^ to begin the fight.",
                     points  = {
                         { 0.511, 0.369 },
                     },

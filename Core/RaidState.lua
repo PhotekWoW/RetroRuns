@@ -43,10 +43,18 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
     local newKilled = {}
     local numSaved  = GetNumSavedInstances()
     for i = 1, numSaved do
-        local _, _, _, difficultyId, _, _, _, isRaid,
+        local _, _, reset, difficultyId, locked, _, _, isRaid,
               _, _, numEncounters, _, _, instanceID = GetSavedInstanceInfo(i)
 
+        -- Only read kills from an ACTIVE lockout. GetSavedInstanceInfo keeps
+        -- expired entries after a weekly reset with their per-boss isKilled
+        -- flags still set, so syncing from one credits last week's kills
+        -- (observed: Eranog showing dead in Boss Progress with no kill this
+        -- week, sourced from Vault's expired LFR lockout). An active lockout
+        -- has locked=true and a positive reset; this mirrors the same guard
+        -- the LFR pill applies in GetLFRLockoutCounts.
         if isRaid
+            and locked and (reset or 0) > 0
             and instanceID   == self.currentRaid.instanceID
             and difficultyId == self.state.currentDifficultyID then
             for e = 1, numEncounters do

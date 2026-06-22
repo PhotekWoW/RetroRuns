@@ -2,6 +2,28 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [2.0.0] - 2026-06-21
+
+### Added
+
+- **Looking For Raid routing.** Queue into any LFR wing and RetroRuns lays out the path through that wing — only the bosses you'll face, in the order you reach them, with the same walk-along directions, map lines, and waypoints as the full-raid routes. Wing progress and the per-difficulty pills track each wing on its own, so running a second wing of the same raid keeps its counts straight. This covers more than 80 wings across two dozen raids, spanning every expansion from Mists of Pandaria through Dragonflight. Expand any raid in the supported list to see its wings and per-wing progress at a glance.
+
+### Changed
+
+- **New travel icon, with a destination choice.** The travel icon beside each raid has a fresh look, and clicking it now lets you pick where to go: the raid entrance, or the Looking For Raid queue NPC.
+- **Skip-availability stars no longer appear next to the raid name while you're on an active route.** They stay in the supported-raids list and the Skips window, where they help you choose a route; once you're running one, the choice is already made.
+- **The Skips window difficulty columns read Normal, Heroic, Mythic from left to right** — the traditional progression order, with Mythic on the right.
+
+### Fixed
+
+- **Continued refinement of routes and travel notes across raids** — smoother paths and clearer directions in a number of places.
+
+## [1.14.0a] - 2026-06-19
+
+### Fixed
+
+- **Clicking on the world map no longer causes an error.** A hotfix for a problem where opening the world map to your location could trigger a Lua error in some situations.
+
 ## [1.14.0] - 2026-06-13
 
 ### Added

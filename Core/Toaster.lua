@@ -1189,7 +1189,7 @@ end
 -- built from the localized global. Nil (no filtering) if the global is missing.
 local TRANSMOG_COLLECTED_PATTERN
 do
-    local s = _G.ERR_LEARN_TRANSMOG_S  -- "You've collected the appearance: %s"
+    local s = _G.ERR_LEARN_TRANSMOG_S  -- "%s has been added to your appearance collection."
     if type(s) == "string" then
         -- Escape Lua magic chars, then turn the %s into a wildcard.
         local lit = s:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
@@ -1198,10 +1198,20 @@ do
 end
 
 local function TransmogChatFilter(_, _, msg)
-    if issecretvalue and issecretvalue(msg) then return false end
+    if issecretvalue and issecretvalue(msg) then
+        T(("TransmogChatFilter SECRET -> PASS  enabled=%s capturing=%s newApp=%s")
+            :format(tostring(M.enabled), tostring(Summary.capturing),
+                    tostring(Summary.newApp ~= nil)))
+        return false
+    end
     if M.enabled and LootSummaryOn() and TRANSMOG_COLLECTED_PATTERN and msg
        and msg:match(TRANSMOG_COLLECTED_PATTERN) then
+        T("TransmogChatFilter MATCH -> DROP")
         return true  -- discard only the appearance-collected line
+    end
+    if Summary.capturing then
+        T(("TransmogChatFilter NOMATCH -> PASS  enabled=%s")
+            :format(tostring(M.enabled)))
     end
     return false
 end
@@ -1552,6 +1562,7 @@ local function ActivateToaster()
     if not M.chatFilterInstalled then
         ChatFrame_AddMessageEventFilter("CHAT_MSG_LOOT", LootChatFilter)
         ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", TransmogChatFilter)
+
         M.chatFilterInstalled = true
     end
 

@@ -158,6 +158,15 @@ end
 function RR:GetActiveRouting()
     local raid = self.currentRaid
     if not raid then return nil end
+    -- LFR: if the player is in a wing we have routing for, that wing's route
+    -- wins. Each wing covers only its own boss subset, so completion and step
+    -- selection (which read through this function) scope to the wing. When in
+    -- LFR but no wing entry matches, GetActiveWing returns nil and we fall
+    -- through -- the panel's LFR guard then shows the unsupported message.
+    local wing = self:GetActiveWing()
+    if wing and wing.routing then
+        return wing.routing
+    end
     if self.state.activeRouteVariant == "skip" and raid.skipRoute then
         return raid.skipRoute
     end
@@ -221,6 +230,17 @@ function RR:GetAvailableSteps()
 end
 
 function RR:ComputeNextStep()
+    -- If the active routing variant has changed since progress was last
+    -- loaded (e.g. the player walked from one LFR wing into another, or
+    -- switched routes, without a raid reload), the in-memory progress still
+    -- reflects the previous variant -- and since variants number their steps
+    -- from 1, stale values would be read against the new variant's steps.
+    -- Reload from the correct namespace first. RestorePersistedProgress
+    -- updates progressVariantKey, so this is a no-op once aligned.
+    if self.state.progressVariantKey ~= self:ActiveVariantKey() then
+        self:RestorePersistedProgress()
+    end
+
     local prevStep = self.state.activeStep
     self.state.activeStep = nil
     if not self.currentRaid then return nil end

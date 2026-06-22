@@ -297,4 +297,86 @@ RetroRuns_Data[996] = {
         },
 
     },
+
+    lfrWings = {
+
+        -- Terrace of Endless Spring: single wing, all four bosses.
+        [834] = {
+            name   = "Terrace of Endless Spring",
+            bosses = { 1, 2, 3, 4 },
+            lockoutBits = { [1] = 1, [2] = 3, [3] = 4, [4] = 2 },
+            routing = {
+
+                -- 1. Protectors of the Endless
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Protectors of the Endless",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 456 },
+                            kind    = "path",
+                            note    = "After zoning in, move ahead and kill the trash to begin the encounter with ^Protectors of the Endless^.",
+                            points  = {},
+                        },
+                    },
+                },
+
+                -- 2. Tsulong
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 2,
+                    title     = "Tsulong",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 456 },
+                            kind    = "path",
+                            note    = "After defeating ^Protectors of the Endless^, there will be a brief delay and then ^Tsulong^ will spawn at the same location.",
+                            points  = {},
+                        },
+                    },
+                },
+
+                -- 3. Lei Shi
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 3,
+                    title     = "Lei Shi",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 456 },
+                            kind    = "path",
+                            note    = "After defeating ^Tsulong^, keep moving straight ahead and kill the trash to spawn ^Lei Shi^.",
+                            points  = {},
+                        },
+                    },
+                },
+
+                -- 4. Sha of Fear
+                {
+                    step      = 4,
+                    priority  = 4,
+                    bossIndex = 4,
+                    title     = "Sha of Fear",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 456 },
+                            kind    = "path",
+                            note    = "After defeating ^Lei Shi^, continue straight up the stairs to engage ^Sha of Fear^.",
+                            points  = {},
+                        },
+                    },
+                },
+
+            },
+        },
+
+    },
 }

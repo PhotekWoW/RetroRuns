@@ -246,6 +246,245 @@ RetroRuns_Data[1228] = {
         },
     },
 
+    lfrWings = {
+        -- Wing 1 -- Walled City: Kargath Bladefist, The Butcher,
+        -- Brackenspore (LFR order). This wing SKIPS Tectus (boss 3),
+        -- which the standard route walks between Butcher and
+        -- Brackenspore -- so Brackenspore's approach differs from
+        -- standard and uses an LFR-specific route.
+        [1363] = {
+            name   = "Walled City",
+            bosses = { 1, 2, 4 },
+            lockoutBits = { [1] = 5, [2] = 2, [4] = 4 },
+            routing = {
+                -- 1. Kargath Bladefist (standard segs verbatim)
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Kargath Bladefist",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when            = { mapID = 611 },
+                            kind            = "poi",
+                            noMarker        = true,
+                            highlightCircle = true,
+                            mapLabel        = "Talk to Gharg",
+                            mapLabelPos     = "below",
+                            note            = "After zoning in, talk to ^Gharg^ and tell him you're ready. He will send you up an elevator into ^The Coliseum^.",
+                            points          = {
+                                { 0.469, 0.474 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 610 },
+                            kind    = "path",
+                            note    = "After some dialog, kill the trash wave that spawns, and ^Kargath Bladefist^ will enter the ring.",
+                            points  = {},
+                        },
+                    },
+                },
+
+                -- 2. The Butcher. The Coliseum spans two mapIDs: 612
+                -- (Kargath's room, where the player stands after the kill)
+                -- and 610 (the inner ring). Both carry the same note so
+                -- the path shows regardless of which the player is on; the
+                -- 612 leg is LFR-specific, the 610 leg is the standard
+                -- route's.
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 2,
+                    title     = "The Butcher",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when    = { mapID = 612 },
+                            kind    = "path",
+                            note    = "After killing ^Kargath^, exit the room to the northwest and follow the path around to ^The Butcher^.",
+                            points  = {
+                                { 0.454, 0.465 },
+                                { 0.268, 0.241 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 610 },
+                            kind    = "path",
+                            note    = "After killing ^Kargath^, exit the room to the northwest and follow the path around to ^The Butcher^.",
+                            points  = {
+                                { 0.633, 0.838 },
+                                { 0.501, 0.672 },
+                                { 0.499, 0.600 },
+                                { 0.529, 0.558 },
+                                { 0.555, 0.554 },
+                            },
+                        },
+                    },
+                },
+
+                -- 4. Brackenspore. Wing skips Tectus, so this is an
+                -- LFR-specific Butcher->Brackenspore route (the standard
+                -- "After defeating Tectus" approach does not apply).
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 4,
+                    title     = "Brackenspore",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when    = { mapID = 610 },
+                            kind    = "path",
+                            note    = "After defeating ^The Butcher^, take the western exit out of his area and follow the path north to ^Brackenspore^.",
+                            points  = {
+                                { 0.547, 0.526 },
+                                { 0.501, 0.487 },
+                                { 0.488, 0.428 },
+                                { 0.519, 0.359 },
+                                { 0.512, 0.210 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 2 -- Arcane Sanctum: Tectus, Twin Ogron, Ko'ragh (LFR
+        -- order). LFR drops the player on mapID 612 (The Coliseum), so
+        -- Tectus's entry is an LFR-specific zone-in walk (612 leg + 610
+        -- path to the boss).
+        [1364] = {
+            name   = "Arcane Sanctum",
+            bosses = { 3, 5, 6 },
+            lockoutBits = { [3] = 6, [5] = 3, [6] = 7 },
+            routing = {
+                -- 3. Tectus (LFR-specific zone-in; 612 leg + 610 path)
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 3,
+                    title     = "Tectus",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 612 },
+                            kind    = "path",
+                            note    = "After zoning in, proceed forward out of ^The Coliseum^.",
+                            points  = {
+                                { 0.368, 0.360 },
+                                { 0.267, 0.238 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 610 },
+                            kind    = "path",
+                            note    = "Follow the path up and to the left to reach ^Tectus^. Kill the (3) rock golems to spawn the boss.",
+                            points  = {
+                                { 0.537, 0.732 },
+                                { 0.501, 0.682 },
+                                { 0.449, 0.602 },
+                                { 0.387, 0.596 },
+                                { 0.353, 0.639 },
+                                { 0.349, 0.708 },
+                            },
+                        },
+                    },
+                },
+
+                -- 5. Twin Ogron. Seg 1 is the LFR-specific Tectus->
+                -- portal walk (replacing the standard "After defeating
+                -- Brackenspore" approach, since this wing skips
+                -- Brackenspore); seg 2 (613 path to the boss) imports
+                -- from standard.
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 5,
+                    title     = "Twin Ogron",
+                    requires  = { 3 },
+                    segments  = {
+                        {
+                            when    = { mapID = 610 },
+                            kind    = "path",
+                            note    = "After defeating ^Tectus^, leave his area and take a left to reach a portal.",
+                            points  = {
+                                { 0.352, 0.671 },
+                                { 0.369, 0.607 },
+                                { 0.337, 0.603 },
+                                { 0.303, 0.615 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 613 },
+                            kind    = "path",
+                            note    = "After taking the portal, follow the path around to find ^Twin Ogron^. Clear trash to start the encounter.",
+                            points  = {
+                                { 0.827, 0.619 },
+                                { 0.675, 0.412 },
+                                { 0.579, 0.375 },
+                            },
+                        },
+                    },
+                },
+
+                -- 6. Ko'ragh (standard 613 seg imported verbatim)
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 6,
+                    title     = "Ko'ragh",
+                    requires  = { 5 },
+                    segments  = {
+                        {
+                            when    = { mapID = 613 },
+                            kind    = "path",
+                            note    = "After defeating ^Twin Ogron^, proceed up the stairwell behind them to reach ^Ko'ragh^. Clear trash to start the encounter.",
+                            points  = {
+                                { 0.512, 0.420 },
+                                { 0.449, 0.383 },
+                                { 0.391, 0.375 },
+                                { 0.383, 0.424 },
+                                { 0.473, 0.495 },
+                                { 0.406, 0.609 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 3 -- Imperator's Rise: Imperator Mar'gok (final wing).
+        -- LFR drops the player on mapID 615 at the boss approach;
+        -- LFR-specific zone-in entry.
+        [1365] = {
+            name   = "Imperator's Rise",
+            bosses = { 7 },
+            lockoutBits = { [7] = 1 },
+            routing = {
+                -- 7. Imperator Mar'gok
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "Imperator Mar'gok",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 615 },
+                            kind    = "path",
+                            note    = "After zoning in, move ahead to clear trash to open the door and reach the final boss, ^Imperator Mar'gok^.",
+                            points  = {
+                                { 0.467, 0.313 },
+                                { 0.449, 0.717 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+
     routing = {
 
         -- 1. Kargath Bladefist
@@ -284,7 +523,20 @@ RetroRuns_Data[1228] = {
             bossIndex = 2,
             title     = "The Butcher",
             requires  = { 1 },
+            -- The Coliseum spans two mapIDs: 612 (Kargath's room, where
+            -- the player stands after the kill) and 610 (the inner ring).
+            -- Both segs carry the same note so the path shows regardless
+            -- of which the player is on.
             segments  = {
+                {
+                    when    = { mapID = 612 },
+                    kind    = "path",
+                    note    = "After killing ^Kargath^, exit the room to the northwest and follow the path around to ^The Butcher^.",
+                    points  = {
+                        { 0.454, 0.465 },
+                        { 0.268, 0.241 },
+                    },
+                },
                 {
                     when    = { mapID = 610 },
                     kind    = "path",

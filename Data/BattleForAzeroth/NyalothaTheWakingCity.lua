@@ -589,7 +589,7 @@ RetroRuns_Data[2217] = {
                     mapLabel = "Re-origination Anchor",
                     mapLabelPos = "above",
                     completionCheck = true,
-                    note    = "After killing ^Vexiona^, interact with the ^Re-origination Anchor^ behind the boss to be teleported.",
+                    note    = "After killing ^Vexiona^, interact with the ^Re-origination Anchor^ behind the boss to be teleported. After you land, continue ahead.",
                     points  = {
                         { 0.295, 0.513 },
                     },
@@ -829,6 +829,415 @@ RetroRuns_Data[2217] = {
                     note     = "After killing ^Carapace^, you will find yourself standing in front of ^N'Zoth^. Attack the boss to start the encounter.",
                     points   = {
                         { 0.483, 0.294 },
+                    },
+                },
+            },
+        },
+    },
+
+    lfrWings = {
+        -- Vision of Destiny: Wrathion(1), Maut(2), The Prophet Skitra(3).
+        -- This is the one Ny'alotha LFR wing that matches encounter order
+        -- (later wings scramble it). LFR zones into the same maps the
+        -- standard route uses (1580 for Wrathion, 1581 for Maut/Skitra) and
+        -- the three bosses chain linearly, so all routing imports verbatim
+        -- from the standard opening.
+        [2036] = {
+            name   = "Vision of Destiny",
+            bosses = { 1, 2, 3 },   -- Wrathion, Maut, The Prophet Skitra
+            exitNote = "Leave instance group via LFG tool.\n\nNote: If you plan to visit the ^Waking Dream^ wing to kill ^N'Zoth^, you must have ^Ashjra'kamas, Shroud of Resolve^ in your inventory for the Queueing NPC to present the option.",
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Wrathion->3, Maut->1, The Prophet Skitra->6.
+            lockoutBits = { [1] = 3, [2] = 1, [3] = 6 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Wrathion, the Black Emperor",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1580 },
+                            kind    = "path",
+                            note    = "Upon zoning in, you will find ^Wrathion^ directly in front of you.",
+                            points  = {
+                                { 0.529, 0.652 },
+                                { 0.527, 0.272 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 2,
+                    title     = "Maut",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1581 },
+                            kind    = "path",
+                            note    = "After killing ^Wrathion^, take the path all the way to the left. Clear the room to spawn ^Maut^, and kill him.",
+                            points  = {
+                                { 0.485, 0.768 },
+                                { 0.464, 0.750 },
+                                { 0.443, 0.748 },
+                                { 0.439, 0.664 },
+                                { 0.232, 0.661 },
+                                { 0.216, 0.608 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 3,
+                    title     = "The Prophet Skitra",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1581 },
+                            kind    = "path",
+                            note    = "After killing ^Maut^, take the long path all the way to the right to reach ^The Prophet Skitra^. Jump off the ledge and die for a shortcut.",
+                            points  = {
+                                { 0.214, 0.587 },
+                                { 0.244, 0.546 },
+                                { 0.469, 0.547 },
+                                { 0.470, 0.566 },
+                                { 0.563, 0.567 },
+                                { 0.619, 0.602 },
+                                { 0.812, 0.604 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Halls of Devotion: Xanesh(4), Vexiona(9), Hivemind(5), Ra-den(10).
+        -- LFR walk order does not match encounter order. LFR zones into
+        -- mapID 1582, so Xanesh's standard entry ("After killing Skitra,
+        -- backtrack...") is replaced by the verbatim LFR zone-in note; the
+        -- 1592 approach to Xanesh and the entire Vexiona step import
+        -- verbatim. Hivemind's standard entry assumes arrival from Il'gynoth
+        -- (a Gift of Flesh boss), so its transition from Vexiona awaits the
+        -- verbatim LFR note + points. Ra-den chains off Hivemind and imports
+        -- verbatim.
+        [2037] = {
+            name   = "Halls of Devotion",
+            bosses = { 4, 9, 5, 10 },   -- Dark Inquisitor Xanesh, Vexiona, The Hivemind, Ra-den the Despoiled
+            exitNote = "Leave instance group via LFG tool.\n\nNote: If you plan to visit the ^Waking Dream^ wing to kill ^N'Zoth^, you must have ^Ashjra'kamas, Shroud of Resolve^ in your inventory for the Queueing NPC to present the option.",
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Xanesh->2, Vexiona->8, The Hivemind->5, Ra-den->4.
+            lockoutBits = { [4] = 2, [9] = 8, [5] = 5, [10] = 4 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 4,
+                    title     = "Dark Inquisitor Xanesh",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1582 },
+                            kind    = "path",
+                            note    = "After zoning in, make your way up the path and stay to the right and find the map exit labeled ^The Ritual Chamber^.",
+                            points  = {
+                                { 0.524, 0.772 },
+                                { 0.564, 0.688 },
+                                { 0.576, 0.536 },
+                                { 0.606, 0.535 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1592 },
+                            kind    = "path",
+                            note    = "Loop your way around the path and you will see ^Queen Azshara^ trapped. Clear the trash to engage ^Dark Inquisitor Xanesh^.",
+                            points  = {
+                                { 0.141, 0.516 },
+                                { 0.141, 0.564 },
+                                { 0.205, 0.551 },
+                                { 0.203, 0.502 },
+                                { 0.435, 0.460 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 9,
+                    title     = "Vexiona",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1592 },
+                            kind    = "path",
+                            note    = "After killing ^Xanesh^, leave the room to the east and towards the map exit for ^Twilight Landing^. Ride the elevator up.",
+                            points  = {
+                                { 0.558, 0.460 },
+                                { 0.740, 0.439 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1593 },
+                            kind    = "path",
+                            note    = "After reaching the top of the elevator, make your way down the path and clear the trash to engage ^Vexiona^.",
+                            points  = {
+                                { 0.733, 0.462 },
+                                { 0.678, 0.474 },
+                                { 0.652, 0.516 },
+                                { 0.591, 0.523 },
+                                { 0.561, 0.482 },
+                                { 0.355, 0.507 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 5,
+                    title     = "The Hivemind",
+                    requires  = { 9 },
+                    segments  = {
+                        {
+                            when            = { mapID = 1593 },
+                            kind            = "poi",
+                            poiSize         = 35,
+                            mapLabel        = "Re-origination Anchor",
+                            mapLabelPos     = "above",
+                            completionCheck = true,
+                            note            = "After killing ^Vexiona^, interact with the ^Re-origination Anchor^ behind the boss to be teleported. After you land, continue ahead.",
+                            points          = {
+                                { 0.295, 0.513 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1582, subZone = "Ny'alotha" },
+                            kind    = "path",
+                            note    = "Follow the path to the map exit labeled ^The Hive^.",
+                            points  = {
+                                { 0.572, 0.535 },
+                                { 0.570, 0.518 },
+                                { 0.522, 0.441 },
+                                { 0.494, 0.482 },
+                                { 0.456, 0.436 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1590 },
+                            kind    = "path",
+                            note    = "Enter the room to engage with ^The Hivemind^.",
+                            points  = {
+                                { 0.733, 0.825 },
+                                { 0.712, 0.850 },
+                                { 0.673, 0.795 },
+                                { 0.689, 0.765 },
+                                { 0.526, 0.556 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 4,
+                    priority  = 1,
+                    bossIndex = 10,
+                    title     = "Ra-den the Despoiled",
+                    requires  = { 5 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1590 },
+                            kind    = "path",
+                            note    = "After killing ^The Hivemind^, continue past them to the next room, and take the elevator up to the ^Terrace of Desolation^.",
+                            points  = {
+                                { 0.487, 0.497 },
+                                { 0.472, 0.450 },
+                                { 0.363, 0.343 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1591 },
+                            kind    = "path",
+                            note    = "After reaching the top of the elevator, follow the path back to find ^Ra-den the Despoiled^.",
+                            points  = {
+                                { 0.389, 0.336 },
+                                { 0.419, 0.372 },
+                                { 0.448, 0.368 },
+                                { 0.496, 0.434 },
+                                { 0.499, 0.480 },
+                                { 0.634, 0.644 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Gift of Flesh: Shad'har(6), Drest'agath(7), Il'gynoth(8). This
+        -- wing matches encounter order. LFR zones into mapID 1582, so
+        -- Shad'har's standard entry (the post-Vexiona anchor + landing path)
+        -- is replaced by the verbatim LFR zone-in note to the Maw of Gor'ma
+        -- exit. The 1594 descent to Shad'har and the entire Drest'agath and
+        -- Il'gynoth steps import verbatim from the standard route.
+        [2038] = {
+            name   = "Gift of Flesh",
+            bosses = { 6, 7, 8 },   -- Shad'har the Insatiable, Drest'agath, Il'gynoth, Corruption Reborn
+            exitNote = "Leave instance group via LFG tool.\n\nNote: If you plan to visit the ^Waking Dream^ wing to kill ^N'Zoth^, you must have ^Ashjra'kamas, Shroud of Resolve^ in your inventory for the Queueing NPC to present the option.",
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Shad'har->7, Drest'agath->10, Il'gynoth->12.
+            lockoutBits = { [6] = 7, [7] = 10, [8] = 12 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 6,
+                    title     = "Shad'har the Insatiable",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1582, subZone = "Ny'alotha" },
+                            kind    = "path",
+                            note    = "After zoning in, follow the path to ^Maw of Gor'ma^.",
+                            points  = {
+                                { 0.563, 0.628 },
+                                { 0.541, 0.561 },
+                                { 0.513, 0.535 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1594 },
+                            kind    = "path",
+                            note    = "Make your way down the spiral, following the path to reach ^Shad'har the Insatiable^.",
+                            points  = {
+                                { 0.599, 0.284 },
+                                { 0.585, 0.231 },
+                                { 0.529, 0.194 },
+                                { 0.460, 0.249 },
+                                { 0.467, 0.357 },
+                                { 0.532, 0.450 },
+                                { 0.528, 0.705 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "Drest'agath",
+                    requires  = { 6 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1594 },
+                            kind    = "path",
+                            note    = "After defeating ^Shad'har^, leave his room and continue down the spiral.",
+                            points  = {
+                                { 0.528, 0.696 },
+                                { 0.532, 0.407 },
+                                { 0.597, 0.350 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1595 },
+                            kind    = "path",
+                            note    = "Enter the next room and kill ^Drest'agath^.",
+                            points  = {
+                                { 0.774, 0.452 },
+                                { 0.698, 0.418 },
+                                { 0.614, 0.564 },
+                                { 0.361, 0.570 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 8,
+                    title     = "Il'gynoth, Corruption Reborn",
+                    requires  = { 6, 7 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1595 },
+                            kind    = "path",
+                            note    = "After killing ^Drest'agath^, leave the room and continue down the spiral toward the map exit ^Chamber of Rebirth^.",
+                            points  = {
+                                { 0.360, 0.572 },
+                                { 0.614, 0.576 },
+                                { 0.637, 0.649 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1596 },
+                            kind    = "path",
+                            note    = "Follow the path all the way back to find ^Il'gynoth, Corruption Reborn^.",
+                            points  = {
+                                { 0.520, 0.845 },
+                                { 0.579, 0.812 },
+                                { 0.579, 0.701 },
+                                { 0.441, 0.619 },
+                                { 0.381, 0.514 },
+                                { 0.462, 0.353 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- The Waking Dream: Carapace of N'Zoth(11), N'Zoth the Corruptor(12).
+        -- The final wing. LFR zones directly into mapID 1597 (the N'Zoth
+        -- area), so the standard Carapace route's first two segments (the
+        -- 1591 anchor + 1582 bridge approach from Ra-den) don't apply -- the
+        -- entry segment awaits the verbatim LFR zone-in note. N'Zoth chains
+        -- off Carapace on 1597 and imports verbatim. No cloak-gate exit note
+        -- here: you are already at N'Zoth, so the reminder shown on the other
+        -- wings would be pointless.
+        [2039] = {
+            name   = "The Waking Dream",
+            bosses = { 11, 12 },   -- Carapace of N'Zoth, N'Zoth the Corruptor
+            exitNote = "Leave instance group via LFG tool.",
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Carapace->9, N'Zoth->11.
+            lockoutBits = { [11] = 9, [12] = 11 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 11,
+                    title     = "Carapace of N'Zoth",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1597 },
+                            kind    = "path",
+                            note    = "After zoning in, talk to ^Wrathion^ to trigger a cutscene, then kill some adds to start the fight with ^Carapace of N'Zoth^.",
+                            points  = {
+                                { 0.487, 0.784 },
+                                { 0.486, 0.715 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 12,
+                    title     = "N'Zoth the Corruptor",
+                    requires  = { 11 },
+                    segments  = {
+                        {
+                            when     = { mapID = 1597 },
+                            kind     = "poi",
+                            noMarker = true,
+                            note     = "After killing ^Carapace^, you will find yourself standing in front of ^N'Zoth^. Attack the boss to start the encounter.",
+                            points   = {
+                                { 0.483, 0.294 },
+                            },
+                        },
                     },
                 },
             },

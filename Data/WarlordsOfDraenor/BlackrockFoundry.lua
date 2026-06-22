@@ -445,6 +445,353 @@ RetroRuns_Data[1205] = {
         },
     },
 
+    lfrWings = {
+        -- Wing 1 -- Slagworks: Oregorger, Gruul, The Blast Furnace
+        -- (standard routing steps 1-3). Notes and routing imported
+        -- verbatim from the standard route.
+        [1361] = {
+            name   = "Slagworks",
+            bosses = { 1, 4, 7 },
+            lockoutBits = { [1] = 8, [4] = 3, [7] = 2 },
+            routing = {
+                -- 1. Oregorger
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Oregorger",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 598 },
+                            kind    = "path",
+                            note    = "After zoning in, follow the path to the right and make your way down a spiral ramp.",
+                            points  = {
+                                { 0.410, 0.895 },
+                                { 0.409, 0.635 },
+                                { 0.457, 0.564 },
+                                { 0.512, 0.544 },
+                                { 0.556, 0.564 },
+                                { 0.564, 0.608 },
+                                { 0.564, 0.651 },
+                                { 0.542, 0.682 },
+                                { 0.508, 0.688 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 597 },
+                            kind    = "path",
+                            note    = "Approach the bridge and take a left. Follow the path to ^Oregorger^. Clear trash to spawn the boss.",
+                            points  = {
+                                { 0.624, 0.533 },
+                                { 0.550, 0.533 },
+                                { 0.549, 0.828 },
+                                { 0.522, 0.836 },
+                                { 0.456, 0.838 },
+                            },
+                        },
+                    },
+                },
+
+                -- 4. Gruul
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 4,
+                    title     = "Gruul",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when    = { mapID = 597 },
+                            kind    = "path",
+                            note    = "After killing ^Oregorger^, leave his area the way you came and follow the path all the way north to find ^Gruul^.",
+                            points  = {
+                                { 0.469, 0.839 },
+                                { 0.533, 0.835 },
+                                { 0.553, 0.792 },
+                                { 0.546, 0.585 },
+                                { 0.546, 0.483 },
+                                { 0.554, 0.442 },
+                                { 0.564, 0.288 },
+                                { 0.536, 0.249 },
+                                { 0.449, 0.241 },
+                            },
+                        },
+                    },
+                },
+
+                -- 7. The Blast Furnace
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 7,
+                    title     = "The Blast Furnace",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when    = { mapID = 597 },
+                            kind    = "path",
+                            note    = "After killing ^Gruul^, backtrack to the bridge and go east. Follow the spiral down, then at the bottom go straight ahead to locate ^The Blast Furnace^.",
+                            points  = {
+                                { 0.457, 0.244 },
+                                { 0.557, 0.257 },
+                                { 0.558, 0.340 },
+                                { 0.547, 0.511 },
+                                { 0.605, 0.513 },
+                                { 0.605, 0.618 },
+                                { 0.617, 0.643 },
+                                { 0.643, 0.645 },
+                                { 0.669, 0.639 },
+                                { 0.683, 0.610 },
+                                { 0.683, 0.576 },
+                                { 0.669, 0.545 },
+                                { 0.490, 0.541 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 2 -- The Black Forge: Hans'gar and Franzok, Flamebender
+        -- Ka'graz, Kromog (LFR order). LFR drops the player on mapID 598
+        -- (The Workshop); the standard route reaches Hans'gar from the
+        -- Iron Maidens (not in this wing), so Hans'gar's approach is
+        -- LFR-specific. Flamebender and Kromog chain from Hans'gar and
+        -- import from standard.
+        [1360] = {
+            name   = "The Black Forge",
+            bosses = { 2, 5, 8 },
+            lockoutBits = { [2] = 5, [5] = 1, [8] = 10 },
+            routing = {
+                -- 2. Hans'gar and Franzok. Seg 1 is the LFR-specific
+                -- zone-in walk from The Workshop (598) toward The Black
+                -- Forge.
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 2,
+                    title     = "Hans'gar and Franzok",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 598 },
+                            kind    = "path",
+                            note    = "After zoning in, take a left and head towards ^The Black Forge^. Take the elevator down.",
+                            points  = {
+                                { 0.408, 0.795 },
+                                { 0.408, 0.625 },
+                                { 0.334, 0.539 },
+                                { 0.286, 0.535 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 596 },
+                            kind    = "path",
+                            note    = "Once you reach the bottom of the elevator, take the southern path to reach ^Hans'gar and Franzok^. After a brief dialog, kill the trash to start the encounter.",
+                            points  = {
+                                { 0.472, 0.623 },
+                                { 0.475, 0.660 },
+                                { 0.474, 0.733 },
+                            },
+                        },
+                    },
+                },
+
+                -- 5. Flamebender Ka'graz (standard seg verbatim)
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 5,
+                    title     = "Flamebender Ka'graz",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when    = { mapID = 596 },
+                            kind    = "path",
+                            note    = "After killing ^Hans'gar and Franzok^, take the southern exit out of the room. Follow the path across the next room to reach ^Flamebender Ka'graz^.",
+                            points  = {
+                                { 0.474, 0.865 },
+                                { 0.474, 0.914 },
+                                { 0.439, 0.929 },
+                                { 0.403, 0.911 },
+                                { 0.399, 0.769 },
+                                { 0.222, 0.768 },
+                            },
+                        },
+                    },
+                },
+
+                -- 8. Kromog (standard seg verbatim)
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 8,
+                    title     = "Kromog",
+                    requires  = { 5 },
+                    segments  = {
+                        {
+                            when    = { mapID = 596 },
+                            kind    = "path",
+                            note    = "After defeating ^Flamebender Ka'graz^, head slightly east and then follow the path north to reach ^Kromog^.",
+                            points  = {
+                                { 0.239, 0.764 },
+                                { 0.309, 0.762 },
+                                { 0.310, 0.699 },
+                                { 0.328, 0.686 },
+                                { 0.331, 0.469 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 3 -- Iron Assembly: Beastlord Darmac, Operator Thogar,
+        -- The Iron Maidens (LFR order). LFR drops the player on mapID
+        -- 598 (The Workshop); Darmac's entry is an LFR-specific zone-in
+        -- walk toward Iron Assembly, then the standard 599 approach.
+        -- Thogar and Iron Maidens chain from Darmac and import.
+        [1362] = {
+            name   = "Iron Assembly",
+            bosses = { 3, 6, 9 },
+            lockoutBits = { [3] = 6, [6] = 4, [9] = 7 },
+            routing = {
+                -- 3. Beastlord Darmac (LFR-specific 598 entry, then
+                -- standard 599 seg)
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 3,
+                    title     = "Beastlord Darmac",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 598 },
+                            kind    = "path",
+                            note    = "After zoning in, take the northeastern path towards the ^Iron Assembly^.",
+                            points  = {
+                                { 0.409, 0.813 },
+                                { 0.409, 0.635 },
+                                { 0.493, 0.543 },
+                                { 0.490, 0.495 },
+                                { 0.511, 0.428 },
+                                { 0.557, 0.425 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 599 },
+                            kind    = "path",
+                            note    = "Inside ^Iron Assembly^, follow the path around to ^Beastlord Darmac^.",
+                            points  = {
+                                { 0.453, 0.836 },
+                                { 0.453, 0.716 },
+                                { 0.578, 0.716 },
+                            },
+                        },
+                    },
+                },
+
+                -- 6. Operator Thogar (standard seg verbatim)
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 6,
+                    title     = "Operator Thogar",
+                    requires  = { 3 },
+                    segments  = {
+                        {
+                            when    = { mapID = 599 },
+                            kind    = "path",
+                            note    = "After killing ^Beastlord Darmac^, leave the room and take a right. Follow the path north to reach ^Operator Thogar^. To open the gate and start the fight, kill trash on both platforms, then kill the gunners on the train that pulls up.",
+                            points  = {
+                                { 0.530, 0.712 },
+                                { 0.453, 0.714 },
+                                { 0.453, 0.435 },
+                            },
+                        },
+                    },
+                },
+
+                -- 9. The Iron Maidens (standard segs verbatim)
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 9,
+                    title     = "The Iron Maidens",
+                    requires  = { 6 },
+                    segments  = {
+                        {
+                            when            = { mapID = 599 },
+                            kind            = "poi",
+                            highlightCircle = true,
+                            mapLabel        = "Jump!",
+                            mapLabelPos     = "above",
+                            note            = "After defeating ^Operator Thogar^, jump down the hole marked on the east side of the room.",
+                            points          = {
+                                { 0.549, 0.489 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 596 },
+                            kind    = "path",
+                            note    = "After landing, clear trash in the water, then move up the short ramp and clear the remaining trash to engage ^Iron Maidens^.",
+                            points  = {
+                                { 0.776, 0.246 },
+                                { 0.790, 0.246 },
+                                { 0.821, 0.249 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 4 -- Blackhand's Crucible: Blackhand (final wing). Routed
+        -- like the skip route (straight across the bridge to the
+        -- elevator) but without the artifact-click pieces -- in LFR the
+        -- bridge gate is already open, so the artifact POI and its
+        -- instruction are omitted. Entry note is LFR-specific; elevator
+        -- seg imports from the skip route.
+        [1359] = {
+            name   = "Blackhand's Crucible",
+            bosses = { 10 },
+            lockoutBits = { [10] = 9 },
+            routing = {
+                -- 10. Blackhand
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 10,
+                    title     = "Blackhand",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 598 },
+                            kind    = "path",
+                            note    = "After zoning in, head straight ahead and follow the route across the bridge.",
+                            points  = {
+                                { 0.407, 0.741 },
+                                { 0.413, 0.154 },
+                                { 0.329, 0.150 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 600 },
+                            kind    = "path",
+                            note    = "Take the elevator up and continue forward to reach ^Blackhand^.",
+                            points  = {
+                                { 0.519, 0.922 },
+                                { 0.484, 0.920 },
+                                { 0.483, 0.389 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+
     routing = {
 
         -- 1. Oregorger

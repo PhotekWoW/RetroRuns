@@ -445,4 +445,180 @@ RetroRuns_Data[1009] = {
         },
 
     },
+
+    lfrWings = {
+
+        -- The Dread Approach: Zor'lok, Ta'yak, Garalon.
+        [832] = {
+            name   = "The Dread Approach",
+            bosses = { 1, 2, 3 },
+            lockoutBits = { [1] = 7, [2] = 6, [3] = 1 },
+            routing = {
+
+                -- 1. Imperial Vizier Zor'lok
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Imperial Vizier Zor'lok",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 474, subZone = "Palace Antechamber" },
+                            kind    = "path",
+                            note    = "After zoning in, follow the linear path to reach ^Imperial Vizier Zor'lok^. Clear all trash in his room to start the fight.",
+                            points  = {
+                                { 0.343, 0.814 },
+                                { 0.342, 0.697 },
+                                { 0.412, 0.611 },
+                                { 0.521, 0.613 },
+                                { 0.529, 0.561 },
+                                { 0.550, 0.538 },
+                                { 0.630, 0.660 },
+                            },
+                        },
+                    },
+                },
+
+                -- 2. Blade Lord Ta'yak
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 2,
+                    title     = "Blade Lord Ta'yak",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 474, subZone = "Oratorium of the Voice" },
+                            kind    = "path",
+                            note    = "After killing ^Zor'lok^, take the northwest stairwell and follow the path into the next room to find ^Blade Lord Ta'yak^. Kill trash in all 4 corners to begin the fight.",
+                            points  = {
+                                { 0.595, 0.604 },
+                                { 0.545, 0.535 },
+                                { 0.570, 0.503 },
+                                { 0.596, 0.494 },
+                                { 0.594, 0.233 },
+                            },
+                        },
+                    },
+                },
+
+                -- 3. Garalon
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 3,
+                    title     = "Garalon",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 474, subZone = "Training Quarters" },
+                            kind    = "path",
+                            note    = "After killing ^Blade Lord Ta'yak^, take the long stairwell exit on the west side of the room.",
+                            points  = {
+                                { 0.516, 0.322 },
+                                { 0.318, 0.324 },
+                                { 0.318, 0.132 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 475, subZone = "Staging Balcony" },
+                            kind    = "path",
+                            note    = "At the top of the stairs, clear the elite trash on the platform to spawn ^Garalon^.",
+                            points  = {
+                                { 0.664, 0.262 },
+                                { 0.663, 0.203 },
+                            },
+                        },
+                    },
+                },
+
+            },
+        },
+
+        -- Nightmare of Shek'zeer: Mel'jarak, Un'sok, Shek'zeer.
+        [833] = {
+            name   = "Nightmare of Shek'zeer",
+            bosses = { 4, 5, 6 },
+            lockoutBits = { [4] = 2, [5] = 3, [6] = 4 },
+            routing = {
+
+                -- 4. Wind Lord Mel'jarak
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 4,
+                    title     = "Wind Lord Mel'jarak",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 475, subZone = "Staging Balcony" },
+                            kind    = "path",
+                            note    = "After zoning in, walk up the ramp in front of you to find ^Wind Lord Mel'jarak^.",
+                            points  = {
+                                { 0.661, 0.212 },
+                                { 0.660, 0.256 },
+                                { 0.638, 0.267 },
+                                { 0.622, 0.289 },
+                                { 0.616, 0.320 },
+                                { 0.619, 0.349 },
+                                { 0.627, 0.370 },
+                                { 0.635, 0.381 },
+                                { 0.648, 0.364 },
+                            },
+                        },
+                    },
+                },
+
+                -- 5. Amber-Shaper Un'sok
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 5,
+                    title     = "Amber-Shaper Un'sok",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 475, subZone = "Staging Balcony" },
+                            kind    = "path",
+                            note    = "After defeating ^Wind Lord Mel'jarak^, take the southern stairwell and follow the linear path all the way to ^Amber-Shaper Un'sok^.",
+                            points  = {
+                                { 0.662, 0.379 },
+                                { 0.663, 0.663 },
+                                { 0.633, 0.679 },
+                                { 0.606, 0.734 },
+                                { 0.473, 0.736 },
+                            },
+                        },
+                    },
+                },
+
+                -- 6. Grand Empress Shek'zeer
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 6,
+                    title     = "Grand Empress Shek'zeer",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 475, subZone = "Amber Research Sanctum" },
+                            kind    = "path",
+                            note    = "After defeating ^Amber-Shaper Un'sok^, exit the room to the west and head straight for ^Grand Empress Shek'zeer^. Clear all the trash to spawn the boss.",
+                            points  = {
+                                { 0.470, 0.736 },
+                                { 0.408, 0.737 },
+                                { 0.399, 0.776 },
+                                { 0.381, 0.793 },
+                                { 0.350, 0.774 },
+                                { 0.295, 0.741 },
+                            },
+                        },
+                    },
+                },
+
+            },
+        },
+
+    },
 }

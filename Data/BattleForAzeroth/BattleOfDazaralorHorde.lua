@@ -333,6 +333,285 @@ RetroRuns_DataHorde[2070] = {
     -- Routing. Boss order matches bossesHorde[] -- Horde fights:
     -- Champion -> Grong (Jungle Lord) -> Jadefire -> Opulence ->
     -- Conclave -> Rastakhan -> Mekkatorque -> Stormwall -> Jaina.
+    lfrWings = {
+        -- Wing 1 -- Defense of Dazar'alor (Horde): Champion, Grong, Jadefire.
+        -- Wing 2 -- Death's Bargain (Horde): Opulence, Conclave, Rastakhan (not yet keyed).
+        -- Wing 3 -- Victory or Death (Horde): Mekkatorque, Stormwall, Jaina (not yet keyed).
+        [1950] = {
+            name   = "Victory or Death",
+            bosses = { 7, 8, 9 },
+            lockoutBits = { [7] = 13, [8] = 17, [9] = 18 },
+            -- Horde drops directly at the 1352 Mekkatorque approach -- the same
+            -- spot the Alliance wing reaches after its boat-delay zone-in -- so
+            -- the routing matches the Alliance wing from that landing point on.
+            routing = {
+                -- 7. High Tinker Mekkatorque
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "High Tinker Mekkatorque",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1352 },
+                            kind    = "path",
+                            note    = "After zoning in, go downstairs and kill trash to begin the fight against ^High Tinker Mekkatorque^.",
+                            points  = {
+                                { 0.492, 0.200 },
+                                { 0.491, 0.285 },
+                            },
+                        },
+                    },
+                },
+
+                -- 8. Stormwall Blockade
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 8,
+                    title     = "Stormwall Blockade",
+                    requires  = { 7 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1352 },
+                            kind    = "path",
+                            note    = "After defeating ^Mekkatorque^, make your way down the long path south, and kill the trash at the end of the bridge. Interact with a ^Pterrordax^ to start the encounter with ^Stormwall Blockade^.",
+                            points  = {
+                                { 0.492, 0.354 },
+                                { 0.492, 0.889 },
+                            },
+                        },
+                    },
+                },
+
+                -- 9. Lady Jaina Proudmoore
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 9,
+                    title     = "Lady Jaina Proudmoore",
+                    requires  = { 8 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1352 },
+                            kind    = "poi",
+                            poiSize = 35,
+                            note    = "After defeating ^Stormwall Blockade^, walk onto the newly-arrived ship and speak with ^Captain Zadari^ to begin the ^Lady Jaina Proudmoore^ encounter.",
+                            points  = {
+                                { 0.484, 0.975 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        [1949] = {
+            name   = "Death's Bargain",
+            bosses = { 4, 5, 6 },
+            lockoutBits = { [4] = 9, [5] = 7, [6] = 10 },
+            routing = {
+                -- 4. Opulence
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 4,
+                    title     = "Opulence",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1357, subZone = "The Heart of the Empire" },
+                            kind    = "path",
+                            note    = "After zoning in, wait for the dialog to complete. You will be transported shortly.",
+                            points  = {},
+                        },
+                        {
+                            when    = { mapID = 1352 },
+                            kind    = "path",
+                            note    = "Follow the path up the stairs and around to the map exit labeled ^Halls of Opulence^. Jump in the hole at the end of the path.",
+                            points  = {
+                                { 0.491, 0.288 },
+                                { 0.491, 0.191 },
+                                { 0.556, 0.189 },
+                                { 0.554, 0.138 },
+                                { 0.504, 0.137 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1353 },
+                            kind    = "path",
+                            note    = "Inside the boss room, head straight ahead to engage ^Opulence^.",
+                            points  = {
+                                { 0.421, 0.838 },
+                                { 0.420, 0.549 },
+                            },
+                        },
+                    },
+                },
+
+                -- 5. Conclave of the Chosen
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 5,
+                    title     = "Conclave of the Chosen",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1353 },
+                            kind    = "path",
+                            note    = "After killing ^Opulence^, exit the room to the north, up some stairs to the map exit labeled ^Loa's Sanctum^.",
+                            points  = {
+                                { 0.420, 0.477 },
+                                { 0.420, 0.217 },
+                                { 0.335, 0.214 },
+                                { 0.333, 0.107 },
+                                { 0.398, 0.085 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1354 },
+                            kind    = "path",
+                            note    = "Once inside ^Loa's Sanctum^, follow the path straight ahead to engage ^Conclave of the Chosen^.",
+                            points  = {
+                                { 0.474, 0.177 },
+                                { 0.475, 0.643 },
+                            },
+                        },
+                    },
+                },
+
+                -- 6. King Rastakhan
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 6,
+                    title     = "King Rastakhan",
+                    requires  = { 5 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1354 },
+                            kind    = "path",
+                            note    = "After defeating ^Conclave of the Chosen^, exit the room to the east, and take the elevator up.",
+                            points  = {
+                                { 0.500, 0.673 },
+                                { 0.641, 0.674 },
+                                { 0.640, 0.782 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1356 },
+                            kind    = "path",
+                            note    = "After getting off the elevator, follow the path around to the map exit labeled ^The Heart of the Empire^.",
+                            points  = {
+                                { 0.648, 0.680 },
+                                { 0.648, 0.385 },
+                                { 0.362, 0.388 },
+                                { 0.360, 0.568 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1357 },
+                            kind    = "path",
+                            note    = "Continue ahead to clear the trash and engage ^King Rastakhan^.",
+                            points  = {
+                                { 0.475, 0.408 },
+                                { 0.473, 0.539 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        [1948] = {
+            name   = "Defense of Dazar'alor",
+            bosses = { 1, 2, 3 },
+            -- Faction-mirrored lockout: the shared encounters set two bits each.
+            -- Champion is faction-exclusive (1 bit); Grong sets {2,3} and Jadefire
+            -- sets {1,5}. The mirror pairs track wing slot, not boss identity --
+            -- Horde's slot-2 (Grong) gets the same {2,3} that Alliance's slot-2
+            -- (Jadefire) does. One representative bit per boss is enough.
+            lockoutBits = { [1] = 4, [2] = 2, [3] = 1 },
+            routing = {
+                -- 1. Champion of the Light
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Champion of the Light",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1358 },
+                            kind    = "path",
+                            note    = "After zoning in, proceed straight ahead to ^Champion of the Light^.",
+                            points  = {
+                                { 0.239, 0.193 },
+                                { 0.241, 0.303 },
+                                { 0.272, 0.351 },
+                            },
+                        },
+                    },
+                },
+
+                -- 2. Grong, the Jungle Lord
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 2,
+                    title     = "Grong, the Jungle Lord",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1358 },
+                            kind    = "path",
+                            note    = "After defeating ^Champion of the Light^, continue down the path, clearing trash on the way to ^Grong^.",
+                            points  = {
+                                { 0.316, 0.413 },
+                                { 0.360, 0.480 },
+                                { 0.337, 0.514 },
+                                { 0.381, 0.576 },
+                                { 0.357, 0.676 },
+                                { 0.413, 0.673 },
+                            },
+                        },
+                    },
+                },
+
+                -- 3. Jadefire Masters
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 3,
+                    title     = "Jadefire Masters",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1358 },
+                            kind    = "path",
+                            note    = "After defeating ^Grong^, follow the winding path around to ^Jadefire Masters^. Kill the trash to start the encounter.",
+                            points  = {
+                                { 0.438, 0.612 },
+                                { 0.462, 0.609 },
+                                { 0.463, 0.576 },
+                                { 0.513, 0.578 },
+                                { 0.514, 0.611 },
+                                { 0.553, 0.612 },
+                                { 0.576, 0.641 },
+                                { 0.574, 0.713 },
+                                { 0.533, 0.714 },
+                                { 0.531, 0.664 },
+                                { 0.513, 0.660 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+
     routing = {
         -- 1. Champion of the Light
         {

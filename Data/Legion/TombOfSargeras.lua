@@ -463,6 +463,318 @@ RetroRuns_Data[1676] = {
 
     exitNote = "Talk to Image of Aegwynn to teleport back to the entrance.",
 
+    lfrWings = {
+        -- Wing 1 -- The Gates of Hell: Goroth, Harjatan, Mistress
+        -- Sassz'ine (LFR order). This wing SKIPS Demonic Inquisition
+        -- (boss 2), which the standard route walks between Goroth and
+        -- Harjatan -- so Harjatan's approach differs from standard and
+        -- uses an LFR-specific route.
+        [1920] = {
+            name   = "The Gates of Hell",
+            bosses = { 1, 3, 5 },
+            lockoutBits = { [1] = 1, [3] = 2, [5] = 3 },
+            routing = {
+                -- 1. Goroth (entrance approach imported verbatim)
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Goroth",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when   = { mapID = 850 },
+                            kind    = "path",
+                            note    = "After zoning in, proceed straight ahead to engage ^Goroth^.",
+                            points  = {
+                                { 0.450, 0.893 },
+                                { 0.451, 0.604 },
+                            },
+                        },
+                    },
+                },
+
+                -- 2. Harjatan. LFR skips Demonic Inquisition, so the
+                -- standard hammer-click poi does not apply. Seg 1 is an
+                -- LFR-specific walk to the Abyssal Throne exit; seg 2
+                -- (851 path to the boss) imports from standard.
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 3,
+                    title     = "Harjatan",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when    = { mapID = 850, subZone = "Chamber of the Moon" },
+                            kind    = "path",
+                            note    = "After killing ^Goroth^, take the western exit labeled ^The Abyssal Throne^.",
+                            points  = {
+                                { 0.426, 0.567 },
+                                { 0.383, 0.566 },
+                            },
+                        },
+                        {
+                            when   = { mapID = 851 },
+                            kind    = "path",
+                            note    = "After jumping in the hole, follow the path straight ahead to find ^Harjatan^.",
+                            points  = {
+                                { 0.146, 0.255 },
+                                { 0.162, 0.292 },
+                                { 0.206, 0.306 },
+                                { 0.223, 0.391 },
+                                { 0.292, 0.438 },
+                                { 0.339, 0.534 },
+                                { 0.433, 0.671 },
+                            },
+                        },
+                    },
+                },
+
+                -- 3. Mistress Sassz'ine (standard 851 seg imported
+                -- verbatim)
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 5,
+                    title     = "Mistress Sassz'ine",
+                    requires  = { 3 },
+                    segments  = {
+                        {
+                            when   = { mapID = 851 },
+                            kind    = "path",
+                            note    = "After killing ^Harjatan^, jump over the ledge to his left and land in the water. Follow the path through the tunnel and continue straight ahead to find ^Mistress Sassz'ine^.",
+                            points  = {
+                                { 0.433, 0.645 },
+                                { 0.475, 0.570 },
+                                { 0.494, 0.612 },
+                                { 0.521, 0.692 },
+                                { 0.582, 0.730 },
+                                { 0.648, 0.679 },
+                                { 0.734, 0.696 },
+                                { 0.791, 0.726 },
+                                { 0.811, 0.789 },
+                                { 0.823, 0.822 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 2 -- Wailing Halls: Demonic Inquisition, Sisters of the
+        -- Moon, The Desolate Host (LFR order). LFR enters this wing at
+        -- mapID 850 and reaches Sisters/Desolate via the Terrace of the
+        -- Moon, NOT through Sassz'ine's room (she is in Wing 1) -- so
+        -- the standard route's Tidestone-in-Sassz'ine approach does not
+        -- apply; the DI->Terrace legs are LFR-specific.
+        [1919] = {
+            name   = "Wailing Halls",
+            bosses = { 2, 4, 6 },
+            lockoutBits = { [2] = 5, [4] = 6, [6] = 9 },
+            routing = {
+                -- 2. Demonic Inquisition (LFR-specific entry)
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 2,
+                    title     = "Demonic Inquisition",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 850 },
+                            kind    = "path",
+                            note    = "After zoning in, run up the stairs straight ahead to engage ^The Demonic Inquisition^.",
+                            points  = {
+                                { 0.449, 0.283 },
+                                { 0.448, 0.246 },
+                                { 0.448, 0.198 },
+                            },
+                        },
+                    },
+                },
+
+                -- 3. Sisters of the Moon. Seg 1 is the LFR-specific
+                -- DI->Terrace walk on mapID 850 (replacing the standard
+                -- Tidestone-in-Sassz'ine approach); seg 2 (852 climb to
+                -- the boss) imports from standard.
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 4,
+                    title     = "Sisters of the Moon",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when    = { mapID = 850 },
+                            kind    = "path",
+                            note    = "After defeating ^The Demonic Inquisition^, follow the path to ^Terrace of the Moon^.",
+                            points  = {
+                                { 0.449, 0.235 },
+                                { 0.449, 0.341 },
+                                { 0.473, 0.349 },
+                                { 0.487, 0.372 },
+                                { 0.490, 0.405 },
+                                { 0.451, 0.455 },
+                                { 0.452, 0.511 },
+                                { 0.477, 0.529 },
+                                { 0.484, 0.568 },
+                                { 0.602, 0.568 },
+                                { 0.613, 0.534 },
+                                { 0.604, 0.515 },
+                                { 0.578, 0.515 },
+                            },
+                        },
+                        {
+                            when   = { mapID = 852 },
+                            kind    = "path",
+                            note    = "Continue down the stairs, following the path until you reach ^Sisters of the Moon^.",
+                            points  = {
+                                { 0.381, 0.642 },
+                                { 0.377, 0.602 },
+                                { 0.412, 0.561 },
+                                { 0.435, 0.568 },
+                                { 0.486, 0.614 },
+                                { 0.506, 0.626 },
+                                { 0.510, 0.605 },
+                            },
+                        },
+                    },
+                },
+
+                -- 4. The Desolate Host (standard 852 seg imported
+                -- verbatim)
+                {
+                    step      = 3,
+                    priority  = 3,
+                    bossIndex = 6,
+                    title     = "The Desolate Host",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when   = { mapID = 852 },
+                            kind    = "path",
+                            note    = "After defeating ^Sisters of the Moon^, leave the boss room and take a left. Follow the winding path back to ^The Desolate Host^.",
+                            points  = {
+                                { 0.511, 0.605 },
+                                { 0.506, 0.625 },
+                                { 0.564, 0.637 },
+                                { 0.594, 0.606 },
+                                { 0.606, 0.555 },
+                                { 0.614, 0.511 },
+                                { 0.604, 0.475 },
+                                { 0.514, 0.380 },
+                                { 0.521, 0.337 },
+                                { 0.574, 0.236 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 3 -- Chamber of the Avatar: Maiden of Vigilance, Fallen
+        -- Avatar (LFR order). Maiden's entry is LFR-specific (LFR drops
+        -- on mapID 853); Fallen Avatar imports from standard.
+        [1918] = {
+            name   = "Chamber of the Avatar",
+            bosses = { 7, 8 },
+            lockoutBits = { [7] = 8, [8] = 4 },
+            routing = {
+                -- 7. Maiden of Vigilance (LFR-specific entry)
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "Maiden of Vigilance",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 853 },
+                            kind    = "path",
+                            note    = "After zoning in, proceed ahead to ^Maiden of Vigilance^.",
+                            points  = {
+                                { 0.498, 0.637 },
+                                { 0.498, 0.546 },
+                                { 0.418, 0.450 },
+                                { 0.417, 0.336 },
+                                { 0.466, 0.285 },
+                            },
+                        },
+                    },
+                },
+
+                -- 8. Fallen Avatar (standard segs imported verbatim)
+                {
+                    step      = 2,
+                    priority  = 2,
+                    bossIndex = 8,
+                    title     = "Fallen Avatar",
+                    requires  = { 7 },
+                    segments  = {
+                        {
+                            when            = { mapID = 853 },
+                            kind            = "poi",
+                            destination     = "Chamber of the Avatar",
+                            noMarker        = true,
+                            mapLabel        = "Click Teleporter",
+                            mapLabelPos     = "middle",
+                            completionCheck = true,
+                            note        = "After killing ^Maiden of Vigilance^, click the nearby ^Teleportation Pad^ to be taken to ^Chamber of the Avatar^. Note: the pad will likely be under the boss corpse until she despawns, but you can still click it.",
+                            points      = {
+                                { 0.501, 0.233 },
+                            },
+                        },
+                        {
+                            when   = { mapID = 854 },
+                            kind    = "path",
+                            note    = "In the ^Chamber of the Avatar^, move forward and kill trash to open the door, then watch some dialog before engaging with ^Fallen Avatar^.",
+                            points  = {
+                                { 0.503, 0.731 },
+                                { 0.501, 0.221 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        -- Wing 4 -- Deceiver's Fall: Kil'jaeden. LFR drops the player on
+        -- mapID 856 (The Twisting Nether), so only the standard route's
+        -- 856 seg applies (the 855 "after Fallen Avatar" seg is skipped).
+        -- The 856 note already reads as a zone-in instruction.
+        [1917] = {
+            name   = "Deceiver's Fall",
+            bosses = { 9 },
+            lockoutBits = { [9] = 7 },
+            routing = {
+                -- 9. Kil'jaeden
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 9,
+                    title     = "Kil'jaeden",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when   = { mapID = 856 },
+                            kind    = "path",
+                            note    = "After arriving in ^The Twisting Nether^, work your way down the path, killing trash all the way until you reach ^Kil'Jaeden^.",
+                            points  = {
+                                { 0.158, 0.468 },
+                                { 0.394, 0.456 },
+                                { 0.423, 0.376 },
+                                { 0.499, 0.352 },
+                                { 0.564, 0.348 },
+                                { 0.626, 0.372 },
+                                { 0.700, 0.425 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+
     routing = {
         -- 1. Goroth
         -- Single segment on mapID 850 (sub-zone "The Breach", a

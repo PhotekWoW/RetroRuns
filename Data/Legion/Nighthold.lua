@@ -347,6 +347,363 @@ RetroRuns_Data[1530] = {
         },
     },
 
+    lfrWings = {
+        -- Wing 1 -- Arcing Aqueducts: Skorpyron, Chronomatic Anomaly,
+        -- Trilliax. All three drop on mapID 764, same as the standard
+        -- route's first three boss steps, so the segments are imported
+        -- verbatim from routing steps 1-3.
+        [1925] = {
+            name   = "Arcing Aqueducts",
+            bosses = { 1, 2, 3 },
+            lockoutBits = { [1] = 2, [2] = 5, [3] = 7 },
+            routing = {
+                -- 1. Skorpyron
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Skorpyron",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 764 },
+                            kind    = "path",
+                            note    = "After zoning in, move forward and take your first left to reach ^Skorpyron^.",
+                            points  = {
+                                { 0.255, 0.886 },
+                                { 0.313, 0.796 },
+                                { 0.262, 0.722 },
+                                { 0.283, 0.661 },
+                                { 0.300, 0.638 },
+                            },
+                        },
+                    },
+                },
+
+                -- 2. Chronomatic Anomaly
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 2,
+                    title     = "Chronomatic Anomaly",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when    = { mapID = 764 },
+                            kind    = "path",
+                            note    = "After defeating ^Skorpyron^, take the new southeast exit up the ramp and make your way towards ^Chronomatic Anomaly^. Kill trash on the way to open the door.",
+                            points  = {
+                                { 0.321, 0.647 },
+                                { 0.367, 0.719 },
+                                { 0.510, 0.507 },
+                            },
+                        },
+                    },
+                },
+
+                -- 3. Trilliax
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 3,
+                    title     = "Trilliax",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when    = { mapID = 764 },
+                            kind    = "path",
+                            note    = "After killing ^Chronomatic Anomaly^, proceed up the stairwell at the northwest side of the room, and clear slimes in the boss room to engage ^Trilliax^.",
+                            points  = {
+                                { 0.504, 0.437 },
+                                { 0.507, 0.334 },
+                                { 0.438, 0.232 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 2 -- Royal Athenaeum: Spellblade Aluriel, Star Augur
+        -- Etraeus, High Botanist Tel'arn (LFR order). Same relative
+        -- order as the standard route (steps 4, 5, 6), so the segments
+        -- are imported verbatim -- except Aluriel's entry: LFR drops the
+        -- player on mapID 765 instead of the standard 764 staircase, so
+        -- the standard 764 seg is omitted and the 765 seg gets a
+        -- zone-in note.
+        [1924] = {
+            name   = "Royal Athenaeum",
+            bosses = { 4, 8, 7 },
+            lockoutBits = { [4] = 8, [8] = 4, [7] = 10 },
+            routing = {
+                -- 4. Spellblade Aluriel
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 4,
+                    title     = "Spellblade Aluriel",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 765 },
+                            kind    = "path",
+                            note    = "After zoning in, continue following the linear path to reach the map exit labeled ^The Nighthold^.",
+                            points  = {
+                                { 0.435, 0.548 },
+                                { 0.459, 0.622 },
+                                { 0.528, 0.661 },
+                                { 0.574, 0.650 },
+                                { 0.607, 0.603 },
+                                { 0.626, 0.531 },
+                                { 0.675, 0.529 },
+                                { 0.675, 0.307 },
+                                { 0.447, 0.314 },
+                                { 0.427, 0.341 },
+                                { 0.439, 0.386 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 766 },
+                            kind    = "path",
+                            note    = "Continue ahead into the main courtyard to find ^Spellblade Aluriel^.",
+                            points  = {
+                                { 0.255, 0.186 },
+                                { 0.335, 0.313 },
+                            },
+                        },
+                    },
+                },
+
+                -- 8. Star Augur Etraeus
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 8,
+                    title     = "Star Augur Etraeus",
+                    requires  = { 4 },
+                    segments  = {
+                        {
+                            when    = { mapID = 766 },
+                            kind    = "path",
+                            note    = "After defeating ^Aluriel^, take the path into the building to the northeast, and clear trash as you approach the map exit labeled ^Astromancer's Rise^.",
+                            points  = {
+                                { 0.404, 0.361 },
+                                { 0.414, 0.274 },
+                                { 0.448, 0.226 },
+                                { 0.463, 0.229 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 769 },
+                            kind    = "path",
+                            note    = "Once the door opens, proceed through it and climb some stairs to reach ^Star Augur Etraeus^.",
+                            points  = {
+                                { 0.516, 0.522 },
+                                { 0.550, 0.477 },
+                                { 0.390, 0.242 },
+                            },
+                        },
+                    },
+                },
+
+                -- 7. High Botanist Tel'arn
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "High Botanist Tel'arn",
+                    requires  = { 8 },
+                    segments  = {
+                        {
+                            when    = { mapID = 769 },
+                            kind    = "path",
+                            note    = "After defeating ^Star Augur Etraeus^, backtrack down the stairs to return to ^Astromancer's Rise^.",
+                            points  = {
+                                { 0.393, 0.243 },
+                                { 0.549, 0.477 },
+                                { 0.503, 0.542 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 766 },
+                            kind    = "path",
+                            note    = "Back on the main level of ^Astromancer's Rise^, take the northeast exit from the building towards the map exit labeled ^Shal'dorei Terrace^.",
+                            points  = {
+                                { 0.455, 0.211 },
+                                { 0.534, 0.093 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 767 },
+                            kind    = "path",
+                            note    = "Once you reach ^Shal'dorei Terrace^, make your way over to ^High Botanist Tel'arn^ to begin the encounter.",
+                            points  = {
+                                { 0.267, 0.516 },
+                                { 0.351, 0.392 },
+                                { 0.415, 0.261 },
+                                { 0.487, 0.324 },
+                                { 0.509, 0.391 },
+                                { 0.623, 0.392 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 3 -- Nightspire: Tichondrius, Krosus, Grand Magistrix
+        -- Elisande (LFR order, same as the standard route). Krosus and
+        -- Elisande import verbatim from standard steps 8 and 9.
+        -- Tichondrius's entry differs: LFR drops on mapID 766, so seg 1
+        -- is a zone-in walk to the Captain's Quarters (recorder coords);
+        -- seg 2 (the 768 stairwell to the boss) imports from standard.
+        [1923] = {
+            name   = "Nightspire",
+            bosses = { 5, 6, 9 },
+            lockoutBits = { [5] = 3, [6] = 1, [9] = 9 },
+            routing = {
+                -- 5. Tichondrius
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 5,
+                    title     = "Tichondrius",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 766 },
+                            kind    = "path",
+                            note    = "After zoning in, proceed ahead to the ^Captain's Quarters^ entrance on the map. Inside the ^Captain's Quarters^, take your first right to go up a short stairwell.",
+                            points  = {
+                                { 0.312, 0.432 },
+                                { 0.282, 0.473 },
+                                { 0.254, 0.477 },
+                                { 0.241, 0.456 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 768 },
+                            kind    = "path",
+                            note    = "Continue up and around the stairwell until you reach ^Tichondrius^.",
+                            points  = {
+                                { 0.373, 0.261 },
+                                { 0.252, 0.428 },
+                                { 0.214, 0.363 },
+                                { 0.254, 0.304 },
+                                { 0.280, 0.337 },
+                                { 0.255, 0.363 },
+                                { 0.302, 0.448 },
+                                { 0.267, 0.589 },
+                            },
+                        },
+                    },
+                },
+
+                -- 6. Krosus
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 6,
+                    title     = "Krosus",
+                    requires  = { 5 },
+                    segments  = {
+                        {
+                            when    = { mapID = 768 },
+                            kind    = "path",
+                            note    = "After killing ^Tichondrius^, backtrack the way you came to return to the main courtyard.",
+                            points  = {
+                                { 0.270, 0.601 },
+                                { 0.286, 0.415 },
+                                { 0.258, 0.367 },
+                                { 0.281, 0.338 },
+                                { 0.259, 0.304 },
+                                { 0.215, 0.370 },
+                                { 0.248, 0.424 },
+                                { 0.390, 0.255 },
+                                { 0.408, 0.289 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 766 },
+                            kind    = "path",
+                            note    = "After returning to the main courtyard, follow the path all the way to the far southeast of the map to reach ^Krosus^.",
+                            points  = {
+                                { 0.280, 0.477 },
+                                { 0.320, 0.429 },
+                                { 0.408, 0.637 },
+                                { 0.475, 0.657 },
+                                { 0.544, 0.620 },
+                                { 0.719, 0.888 },
+                            },
+                        },
+                    },
+                },
+
+                -- 9. Grand Magistrix Elisande
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 9,
+                    title     = "Grand Magistrix Elisande",
+                    requires  = { 6 },
+                    segments  = {
+                        {
+                            when    = { mapID = 766 },
+                            kind    = "path",
+                            note    = "After defeating ^Krosus^, backtrack up to the main courtyard and click the portal to teleport to ^The Nightspire^. After landing, proceed ahead into the boss room.",
+                            points  = {
+                                { 0.718, 0.887 },
+                                { 0.491, 0.542 },
+                                { 0.497, 0.481 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 770 },
+                            kind    = "path",
+                            note    = "Inside ^The Nightspire^, clear trash around the room to begin the encounter with ^Grand Magistrix Elisande^.",
+                            points  = {
+                                { 0.620, 0.346 },
+                                { 0.486, 0.444 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Wing 4 -- Betrayer's Rise: Gul'dan. LFR drops the player
+        -- directly on mapID 772 (The Font of Night) at the boss, so only
+        -- the standard route's 772 poi seg applies (the 770 walk-to-
+        -- teleporter seg is skipped). The standard poi note is already
+        -- boss-agnostic, so it imports verbatim.
+        [1922] = {
+            name   = "Betrayer's Rise",
+            bosses = { 10 },
+            lockoutBits = { [10] = 6 },
+            routing = {
+                -- 10. Gul'dan
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 10,
+                    title     = "Gul'dan",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 772 },
+                            kind    = "poi",
+                            note    = "You have reached the final encounter. Kill ^Gul'dan^!",
+                            poiSize = 35,
+                            points  = {
+                                { 0.495, 0.475 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+
     routing = {
 
         -- 1. Skorpyron

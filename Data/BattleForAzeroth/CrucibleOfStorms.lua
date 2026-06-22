@@ -80,6 +80,61 @@ RetroRuns_Data[2096] = {
         },
     },
 
+    lfrWings = {
+        -- Single LFR wing covering both bosses.
+        [1951] = {
+            name   = "Crucible of Storms",
+            bosses = { 1, 2 },
+            lockoutBits = { [1] = 1, [2] = 2 },
+            routing = {
+                -- 1. The Restless Cabal
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "The Restless Cabal",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when   = { mapID = 1345 },
+                            kind   = "path",
+                            note   = "After zoning in, follow the path straight ahead to find and kill ^The Restless Cabal^.",
+                            points = {
+                                { 0.656, 0.799 },
+                                { 0.520, 0.408 },
+                            },
+                        },
+                    },
+                },
+
+                -- 2. Uu'nat, Harbinger of the Void
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 2,
+                    title     = "Uu'nat, Harbinger of the Void",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when   = { mapID = 1346 },
+                            kind   = "path",
+                            note   = "After defeating ^The Restless Cabal^, there will be a cutscene where you will fall into a deep hole, landing in ^Tendril of Corruption^. Follow the path all the way back to reach ^Uu'nat^.",
+                            points = {
+                                { 0.822, 0.332 },
+                                { 0.776, 0.312 },
+                                { 0.725, 0.318 },
+                                { 0.683, 0.454 },
+                                { 0.579, 0.474 },
+                                { 0.550, 0.529 },
+                                { 0.291, 0.542 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+
     routing = {
         -- DAG: fully linear chain.
         --   1. Restless Cabal     requires {}
