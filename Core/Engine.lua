@@ -161,6 +161,15 @@ function RR:PersistRouteVariant(variant)
     store.routeVariant = variant
 end
 
+-- The route variant ("standard" | "skip") persisted for the current
+-- lockout, or nil if none has been saved yet. Read by the load dialog so
+-- it can mark the previously-chosen route with a "Continue?" hint when
+-- re-prompting before the first kill.
+function RR:GetPersistedRouteVariant()
+    local store = self:GetLockoutStore(false)
+    return store and store.routeVariant or nil
+end
+
 function RR:RestorePersistedProgress()
     self.state.progress       = {}
     self.state.triggersFired  = {}

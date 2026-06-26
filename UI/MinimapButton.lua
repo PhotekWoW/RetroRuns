@@ -96,7 +96,9 @@ btn:SetScript("OnClick", function(self, button)
     if button == "RightButton" then
         RR.UI.ToggleSettings()
     else
-        SlashCmdList["RETRORUNS"]("toggle")
+        -- Always opens the full panel; same toggle as /rr. See
+        -- UI.TogglePanelExpanded for the open-full rationale.
+        RR.UI.TogglePanelExpanded()
     end
 end)
 

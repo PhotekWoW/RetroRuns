@@ -1445,7 +1445,7 @@ RetroRuns_Data[1448] = {
                     mapLabelPos = "above",
                     note     = "After zoning in, click the portal on the right for ^Destructor's Rise^ to be teleported to ^Mannoroth^.",
                     points   = {
-                        { 0.665, 0.391 },
+                        { 0.687, 0.389 },
                     },
                 },
                 {

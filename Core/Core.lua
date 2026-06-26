@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "2.0.0"
+local VERSION    = "2.0.1"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -114,6 +114,30 @@ end
 function RR:Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(
         "|cff4DCCFFR|cffF259C7R|r|cff7f7f7f:|r " .. tostring(msg))
+end
+
+-- Queue a chat line to print after the login version banner. Prints
+-- immediately once the banner has fired; before that, holds the line so
+-- ShowLoginBanner can flush the queue in order behind the banner.
+RR._bannerShown = false
+RR._bannerQueue = {}
+function RR:PrintAfterBanner(msg)
+    if self._bannerShown then
+        self:Print(msg)
+    else
+        table.insert(self._bannerQueue, msg)
+    end
+end
+
+-- Print the login banner, then flush anything queued behind it. Called
+-- from the PLAYER_LOGIN handler's timer.
+function RR:ShowLoginBanner()
+    self:Print(("|cffaaaaaav%s loaded. Type |r|cffffffff/rr help|r|cffaaaaaa for commands.|r"):format(VERSION))
+    self._bannerShown = true
+    for _, msg in ipairs(self._bannerQueue) do
+        self:Print(msg)
+    end
+    wipe(self._bannerQueue)
 end
 
 --- Debug output (only when the debug setting is enabled).
@@ -2085,6 +2109,48 @@ function RR:IsRaidSkipAvailableAtDifficulty(raid, difficultyID)
     return difficultyID <= ceiling
 end
 
+-- Ceiling for the specific skip chain the raid's authored route targets,
+-- matched by skipToBoss against each chain's label. Falls back to the
+-- max-across-all-chains ceiling (GetRaidSkipUnlockedCeiling) when the raid
+-- has no skipToBoss, a single chain, or no chain label matches skipToBoss.
+function RR:GetRouteTargetSkipCeiling(raid)
+    if not raid then return nil end
+    -- Only multi-chain quest skips have the ambiguity; others are single-target.
+    if not raid.skipQuests then return self:GetRaidSkipUnlockedCeiling(raid) end
+
+    local perChain = self:GetSkipChainCeilings(raid)
+    if not perChain then return nil end
+
+    local target = raid.skipToBoss
+    if target then
+        for _, c in ipairs(perChain) do
+            if c.label == target then return c.ceiling end
+        end
+    end
+
+    local maxCeiling
+    for _, c in ipairs(perChain) do
+        if c.ceiling and (not maxCeiling or c.ceiling > maxCeiling) then
+            maxCeiling = c.ceiling
+        end
+    end
+    return maxCeiling
+end
+
+-- Like IsRaidSkipAvailableAtDifficulty, but gated on the chain the
+-- authored route targets (via GetRouteTargetSkipCeiling) rather than any
+-- unlocked chain. Used by the load dialog's single SKIP button.
+function RR:IsRouteTargetSkipAvailableAtDifficulty(raid, difficultyID)
+    if not difficultyID then return false end
+    if difficultyID < 14 or difficultyID > 16 then return false end
+    local ceiling = self:GetRouteTargetSkipCeiling(raid)
+    if not ceiling then return false end
+    if not self:RaidSkipIsCascading(raid) then
+        return difficultyID == ceiling
+    end
+    return difficultyID <= ceiling
+end
+
 -- Binary "is this raid's skip unlocked at any difficulty?" Convenience
 -- wrapper for callers that just want to know whether to surface the
 -- skip-marker affordance. Mostly equivalent to "does
@@ -2199,6 +2265,51 @@ function RR:GetCurrentLockoutId()
         end
     end
     return nil
+end
+
+-- True if the player has killed at least one boss in the current raid's
+-- active lockout. Reads encounterProgress (12th return of
+-- GetSavedInstanceInfo) for the matching instanceID + difficulty. A
+-- lockout id alone does not imply a kill, so this gates "committed."
+function RR:HasAnyKillThisLockout()
+    if not self.currentRaid or not self.currentRaid.instanceID then return false end
+    if not self.state.currentDifficultyID then return false end
+
+    local numSaved = GetNumSavedInstances()
+    for i = 1, numSaved do
+        local _, _, _, difficultyId, _, _, _, isRaid,
+              _, _, _, encounterProgress, _,
+              instanceID = GetSavedInstanceInfo(i)
+        if isRaid
+            and instanceID   == self.currentRaid.instanceID
+            and difficultyId == self.state.currentDifficultyID then
+            return (encounterProgress or 0) > 0
+        end
+    end
+    return false
+end
+
+-- Kill count for the current raid's active lockout, as killed, total.
+-- Reads encounterProgress (12th) and numEncounters (11th) from
+-- GetSavedInstanceInfo for the matching instanceID + difficulty. Returns
+-- 0, 0 when the raid isn't saved (no lockout row yet). Used for the
+-- "Lockout in Progress (n/N)" resume line.
+function RR:GetCurrentLockoutKillCount()
+    if not self.currentRaid or not self.currentRaid.instanceID then return 0, 0 end
+    if not self.state.currentDifficultyID then return 0, 0 end
+
+    local numSaved = GetNumSavedInstances()
+    for i = 1, numSaved do
+        local _, _, _, difficultyId, _, _, _, isRaid,
+              _, _, numEncounters, encounterProgress, _,
+              instanceID = GetSavedInstanceInfo(i)
+        if isRaid
+            and instanceID   == self.currentRaid.instanceID
+            and difficultyId == self.state.currentDifficultyID then
+            return (encounterProgress or 0), (numEncounters or 0)
+        end
+    end
+    return 0, 0
 end
 
 -- Single canonical "go to real raid state" routine. Wipes any test-mode
@@ -2406,14 +2517,20 @@ function RR:HandleLocationChange()
             wipe(self.state.bossesKilled)
             self.state.lastSeenRaidKey = key
 
-            if self:HasPersistedProgressForCurrentLockout() then
-                -- Already loaded a route this lockout (e.g. /reload mid-run).
-                -- Don't re-prompt -- that would let the player switch route
-                -- variant after committing. Silently restore the route they
-                -- were running (LoadCurrentRaid picks up the persisted
-                -- variant via RestorePersistedProgress) and show the panel.
+            if self:HasPersistedProgressForCurrentLockout()
+               and self:HasAnyKillThisLockout() then
+                -- Committed (a route loaded AND a boss dead): restore the
+                -- persisted route silently instead of re-prompting.
                 self.state.loadedRaidKey = key
                 self:LoadCurrentRaid()
+                -- Confirm the resumed route in chat (no dialog showed it).
+                local saved = self:GetPersistedRouteVariant()
+                local routeWord = (saved == "skip") and "SKIP" or "FULL"
+                local killed, total = self:GetCurrentLockoutKillCount()
+                self:PrintAfterBanner(("%s Lockout in Progress (%d/%d).")
+                    :format(self:GetRaidDisplayName() or supported.name,
+                            killed, total))
+                self:PrintAfterBanner(("Resuming %s route."):format(routeWord))
             elseif self:IsInLFR() then
                 -- LFR has no supported route -- neither variant applies, since
                 -- the routing data is authored for the full N/H/M layout and
@@ -3494,14 +3611,6 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                         -- which takes sourceID and returns the
                         -- TransmogIllusionInfo struct (visualID,
                         -- isCollected, sourceID, icon, etc.).
-                        --
-                        -- Earlier Wowpedia docs referenced a
-                        -- GetIllusionSourceInfo function, but
-                        -- that doesn't exist on the live 11.x
-                        -- client (verified by /api search and
-                        -- direct call attempts during v1.7 EN
-                        -- bring-up). GetIllusionInfo is the
-                        -- canonical name now.
                         if not sp.sourceID then
                             table.insert(findings, "[ERR] kind=illusion missing sourceID field")
                             T.special_kind_mismatch = T.special_kind_mismatch + 1
@@ -3882,17 +3991,9 @@ SlashCmdList["RETRORUNS"] = function(input)
     local cmd  = args[1] or ""
     local rest = RR.Trim(msg:sub(#cmd + 1))
 
-    if cmd == "" or cmd == "toggle" then
-        local newShown = not RR:GetSetting("showPanel")
-        RR:SetSetting("showPanel", newShown)
-        if newShown then
-            if RR.currentRaid and not RR.state.loadedRaidKey then
-                RR.state.loadedRaidKey = RR:GetRaidContextKey()
-            end
-            RR:RefreshAll()
-        elseif RetroRunsUI then
-            RetroRunsUI:Hide()
-        end
+    if cmd == "" then
+        -- Always opens the full panel; same toggle as the minimap button.
+        RR.UI.TogglePanelExpanded()
 
     elseif cmd == "settings" then
         RR.UI.ToggleSettings()
@@ -5300,8 +5401,7 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         -- pointer to the help command for discoverability. 2s delay to
         -- avoid clashing with Blizzard's own startup chat spam.
         C_Timer.After(2.0, function()
-            RR:Print(("|cffaaaaaav%s loaded. Type |r|cffffffff/rr help|r|cffaaaaaa for commands.|r"):format(
-                VERSION))
+            RR:ShowLoginBanner()
         end)
 
         -- Register RetroRuns as a known external waypoint source with

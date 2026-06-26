@@ -2,6 +2,22 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [2.0.1] - 2026-06-26
+
+### Changed
+
+- **The load dialog was refreshed.** The prompt now reads "Select Route," the route name is larger, and the route buttons are styled neon FULL and SKIP graphics, centered as a pair. The old Cancel button is replaced by a close [X] in the corner matching the rest of the UI.
+- **The route line in the footer reads "Route: Full"** for the full-clear route (previously "Standard").
+- **Choosing a route is no longer locked in until you kill a boss.** If you reload or step out and back in before your first kill, the route picker reappears so you can still switch between Full and Skip — with a "Continue?" hint marking the route you'd picked. Once you've killed a boss, reloading quietly resumes that route and prints a one-line reminder of which route you're on and your progress, instead of re-asking.
+- **The minimap button and the /rr command both always open the full panel**, regardless of your "On Login Show RetroRuns" preference. That setting now applies only to how the panel appears when you log in outside a raid.
+- **Removed the "What's New?" label from the footer.** The version number stays, and the "!" still appears beside it when there's an update you haven't viewed.
+
+### Fixed
+
+- **The SKIP button on the load dialog now stays locked until the specific shortcut its route uses is unlocked.** On raids with more than one skip (like Hellfire Citadel), it could previously light up as soon as any shortcut was unlocked, even one leading to a different boss.
+- **Picking FULL after previously choosing SKIP now correctly loads the full route.** If you'd selected SKIP earlier in a lockout, then reloaded and chose FULL, the addon could keep running the skip route. Your latest choice is now always honored.
+- **Corrected the portal marker on the Hellfire Citadel Mannoroth skip** so the waypoint sits on the Destructor's Rise portal.
+
 ## [2.0.0] - 2026-06-21
 
 ### Added

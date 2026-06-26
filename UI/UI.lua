@@ -224,10 +224,8 @@ end)
 
 -- Logo
 panel.logo = panel:CreateTexture(nil, "ARTWORK")
--- Logo sized to sit as a peer to the 12pt title text rather than dominating
--- the title row alongside the minimize and close buttons.
--- Logo retained as an object but hidden -- the title bar shows just the
--- "RETRO RUNS" wordmark now (logo removed from the title row by request).
+-- Logo object retained but hidden; the title bar shows the "RETRO RUNS"
+-- wordmark instead. Sized to sit as a peer to the 12pt title text.
 panel.logo:SetSize(24, 24)
 panel.logo:SetPoint("TOPLEFT", PAD_LEFT - 4, -10 - FRAME_INSET_Y)
 panel.logo:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\LogoSquare")
@@ -1227,10 +1225,10 @@ panel.credit:SetText("")
 -- scale with the user's font slider).
 panel.credit:SetFont(BODY_FONT, 10, "")
 
--- Right-side footer cluster: "What's New?" label plus a clickable bracketed
--- version link. A pulsing yellow [!] sits next to the label until the player
--- clicks the version (account-wide, dropped on first click). The pulse reuses
--- the same driver as the encounter-card [!].
+-- Right-side footer cluster: a clickable bracketed version link. A pulsing
+-- yellow [!] sits just left of the version until the player clicks it
+-- (account-wide, dropped on first click). The pulse reuses the same driver
+-- as the encounter-card [!].
 panel.version = CreateFrame("Button", nil, panel)
 panel.version:SetSize(70, 14)
 panel.version:SetPoint("BOTTOMRIGHT", -PAD_RIGHT, 8 + FRAME_INSET_Y)
@@ -1253,26 +1251,28 @@ panel.version:SetScript("OnLeave", function(self)
 end)
 panel.version:SetScript("OnClick", function()
     -- First-ever click clears the persistent dismissed flag and stops
-    -- the [!] pulse. The flag is checked when rendering the label
+    -- the [!] pulse. The flag is checked when rendering the marker
     -- (see the pulse driver at the bottom of UI.lua).
     if RetroRunsDB then
         RetroRunsDB.whatsNewSeenVersion = RetroRuns.VERSION
     end
-    -- Immediately rewrite the label so the [!] disappears even before
+    -- Immediately clear the marker so the [!] disappears even before
     -- the next ticker tick.
     if panel.whatsNewLabel then
-        panel.whatsNewLabel:SetText("|cff9d9d9dWhat's New?|r")
+        panel.whatsNewLabel:SetText("")
     end
     if UI.OpenSettingsToWhatsNew then UI.OpenSettingsToWhatsNew() end
 end)
 
+-- New-version [!] marker, sitting just left of the version glyph. Carries
+-- only the bracketed exclamation (blank when dismissed); the pulse driver
+-- at the bottom of this file rewrites it every ~100ms.
 panel.whatsNewLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 panel.whatsNewLabel:SetPoint("BOTTOMRIGHT", panel.version, "BOTTOMLEFT", -4, 0)
-panel.whatsNewLabel:SetText("|cff9d9d9dWhat's New?|r")
--- Footer label: standard font, locked at construction. The pulse ticker
--- at the bottom of this file rewrites this FontString's text every
--- ~100ms via SetText; SetText preserves the font, so a single SetFont
--- here sticks across the lifetime of the addon.
+panel.whatsNewLabel:SetText("")
+-- Locked font like the rest of the footer (no scaling). The pulse ticker
+-- rewrites this FontString's text every ~100ms via SetText; SetText
+-- preserves the font, so a single SetFont here sticks for the addon's life.
 panel.whatsNewLabel:SetFont(BODY_FONT, 10, "")
 
 -- Centered footer status: "Toaster:" + a colored arrow glyph mirroring the
@@ -2060,6 +2060,34 @@ end
 function UI.SetMinimized(value)
     RR:SetSetting("minimized", value and true or false)
     UI.Update()
+end
+
+-- Shared "open full / close" toggle used by both the minimap button and
+-- the /rr command. Open path always shows the fully-expanded panel,
+-- regardless of the saved launchMode / minimized setting -- both entry
+-- points are explicit "show me the panel" actions, so they ignore the
+-- open-minimized preference and the "don't open on login" launchMode.
+-- Closing simply hides it. Kept in one place so the two entry points
+-- can't drift apart.
+function UI.TogglePanelExpanded()
+    if RR:GetSetting("showPanel") then
+        RR:SetSetting("showPanel", false)
+        if RetroRunsUI then RetroRunsUI:Hide() end
+    else
+        RR:SetSetting("showPanel", true)
+        -- In a raid with nothing loaded yet, adopt the current raid so the
+        -- panel shows its route rather than the idle credit.
+        if RR.currentRaid and not RR.state.loadedRaidKey then
+            RR.state.loadedRaidKey = RR:GetRaidContextKey()
+        end
+        -- Force expanded. SetMinimized repaints via UI.Update, so when it
+        -- runs no separate RefreshAll is needed; otherwise refresh here.
+        if UI.IsMinimized() then
+            UI.SetMinimized(false)
+        else
+            RR:RefreshAll()
+        end
+    end
 end
 
 -- Wire up the minimize button's OnClick now that SetMinimized exists.
@@ -2900,10 +2928,6 @@ end
 -- appearance and check if any are known. We use `pairs` (not `ipairs`)
 -- because GetAllAppearanceSources returns a table that is not always a
 -- contiguous array -- ipairs would stop at the first gap and under-report.
---
--- We previously tried this with `ipairs` and wrongly concluded the function
--- returns too few entries; it actually returned the entries, we just weren't
--- reading past the gaps.
 local function HasAppearanceViaAnySource(appearanceID)
     if not appearanceID or not C_TransmogCollection then return false end
     local sourceIDs = C_TransmogCollection.GetAllAppearanceSources(appearanceID)
@@ -4396,9 +4420,8 @@ local EXPANSION_ORDER_NEWEST_FIRST = {
 }
 -- Also expose on RR so cross-window code (Skips) can reach it without
 -- duplicating the list. Originally only used by BuildIdleListText below;
--- BuildSkipsRows added a guarded read on RR.EXPANSION_ORDER_NEWEST_FIRST
--- but the hoist was never wired up, leaving Skips silently sorting raids
--- alphabetically by expansion. Wired now.
+-- Exposed for BuildSkipsRows so the Skips window sorts raids by
+-- expansion (newest first) rather than alphabetically.
 RR.EXPANSION_ORDER_NEWEST_FIRST = EXPANSION_ORDER_NEWEST_FIRST
 
 -- Shared raid-ordering comparator. Parses a raid's `patch` field
@@ -4783,9 +4806,9 @@ GetOrCreateTmogWindow = function()
     -- Flight button anchored against the sanctum line's RENDERED text
     -- width (GetStringWidth, not the FontString's frame width which
     -- spans the popup). Uses the FlightMaster minimap-tracking texture
-    -- (the idle-list entrance buttons moved to the custom PlaneIcon, but
-    -- this sanctum vendor button keeps the stock glyph). Hidden by
-    -- default; RefreshContent decides whether to show it based on whether
+    -- (the stock glyph, unlike the idle-list entrance buttons which use
+    -- the custom PlaneIcon). Hidden by default; RefreshContent decides
+    -- whether to show it based on whether
     -- the player's covenant has a vendor entry with concrete coords.
     local sanctumBtn = CreateFrame("Button", nil, f)
     sanctumBtn:RegisterForClicks("LeftButtonUp")
@@ -7195,7 +7218,7 @@ function UI.Update()
         elseif RR.state.activeRouteVariant == "skip" then
             routeLabel = "|cff00ffffSkip|r"
         else
-            routeLabel = "|cff00ff00Standard|r"
+            routeLabel = "|cff00ff00Full|r"
         end
         panel.credit:SetText("|cff9d9d9dRoute:|r " .. routeLabel)
     else
@@ -8049,7 +8072,7 @@ end
 function UI._GetOrCreateLoadDialog()
     if UI._loadDialogFrame then return UI._loadDialogFrame end
 
-    local LOAD_DIALOG_BASE = "LOADING"
+    local LOAD_DIALOG_BASE = "SELECT ROUTE"
 
     local f = CreateFrame("Frame", "RetroRunsLoadDialog", UIParent, "BackdropTemplate")
     f.loadBase = LOAD_DIALOG_BASE
@@ -8073,7 +8096,7 @@ function UI._GetOrCreateLoadDialog()
     -- Raid name (replaces "Route data found for:"), retro font, smaller
     -- than the wordmark above.
     local raidName = f:CreateFontString(nil, "OVERLAY")
-    raidName:SetFont(TITLE_FONT, 13, "")
+    raidName:SetFont(TITLE_FONT, 15, "")
     raidName:SetPoint("TOP", brand, "BOTTOM", 0, -14)
     raidName:SetWidth(300)
     raidName:SetWordWrap(true)
@@ -8081,47 +8104,63 @@ function UI._GetOrCreateLoadDialog()
     raidName:SetTextColor(1, 1, 0)
     f.raidName = raidName
 
-    -- Animated LOADING line in the retro font. "LOADING" stays put
-    -- (centered as a unit) and the dots animate in a separate FontString
-    -- anchored to its right, so the word doesn't shift left as dots are
-    -- added. The pair is nudged left by half the max dot width so the
-    -- whole thing reads centered.
+    -- SELECT ROUTE prompt in the retro font, centered.
     local loading = f:CreateFontString(nil, "OVERLAY")
     loading:SetFont(TITLE_FONT, 14, "")
-    loading:SetPoint("TOP", raidName, "BOTTOM", -12, -14)
+    loading:SetPoint("TOP", raidName, "BOTTOM", 0, -14)
     loading:SetJustifyH("CENTER")
     loading:SetText(LOAD_DIALOG_BASE)
     f.loading = loading
 
-    local loadingDots = f:CreateFontString(nil, "OVERLAY")
-    loadingDots:SetFont(TITLE_FONT, 14, "")
-    loadingDots:SetPoint("LEFT", loading, "RIGHT", 2, 0)
-    loadingDots:SetJustifyH("LEFT")
-    loadingDots:SetText("")
-    f.loadingDots = loadingDots
-
-    -- Button row: STANDARD / SKIP / CANCEL, raised off the bottom border
-    -- so the SKIP footer below them stays inside the frame.
-    local BTN_W, BTN_H, BTN_GAP = 84, 22, 6
-    local function MakeButton(label, anchorX)
-        local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    -- Button row: FULL / SKIP, centered as a pair. Each uses custom neon
+    -- textures (the word is baked into the art) for all four button
+    -- states; the engine swaps them automatically on hover/press/disable.
+    -- Cancel is handled by the close [X] in the top-right corner.
+    local BTN_W, BTN_H, BTN_GAP = 140, 36, 4
+    local MEDIA = "Interface\\AddOns\\RetroRuns\\Media\\"
+    local function MakeTextureButton(baseName, anchorX)
+        local b = CreateFrame("Button", nil, f)
         b:SetSize(BTN_W, BTN_H)
-        b:SetText(label)
-        b:SetPoint("BOTTOM", f, "BOTTOM", anchorX, 34)
+        b:SetPoint("BOTTOM", f, "BOTTOM", anchorX, 30)
+
+        b:SetNormalTexture(MEDIA .. baseName)
+        b:SetPushedTexture(MEDIA .. baseName .. "_Pushed")
+        b:SetDisabledTexture(MEDIA .. baseName .. "_Disabled")
+        -- Highlight overlays the current state on hover. BLEND (not ADD)
+        -- since these are full opaque buttons, not glow-only deltas.
+        b:SetHighlightTexture(MEDIA .. baseName .. "_Highlight", "BLEND")
+
+        -- The hover highlight overlay sits above the pushed texture and
+        -- masks it; hide the highlight on press so the pushed art shows,
+        -- restore it on release.
+        b:SetScript("OnMouseDown", function(self)
+            if self:IsEnabled() then
+                local hl = self:GetHighlightTexture()
+                if hl then hl:Hide() end
+            end
+        end)
+        b:SetScript("OnMouseUp", function(self)
+            local hl = self:GetHighlightTexture()
+            if hl then hl:Show() end
+        end)
         return b
     end
-    local rowStride = BTN_W + BTN_GAP
-    f.standardBtn = MakeButton("STANDARD", -rowStride)
-    f.skipBtn     = MakeButton("SKIP", 0)
-    f.cancelBtn   = MakeButton("CANCEL", rowStride)
+    local halfStride = (BTN_W + BTN_GAP) / 2
+    f.fullBtn = MakeTextureButton("FullButton", -halfStride)
+    f.skipBtn = MakeTextureButton("SkipButton", halfStride)
 
-    f.standardBtn:SetScript("OnClick", function()
+    -- Enable/disable the button; the engine swaps to the disabled texture
+    -- automatically, so this is just the state toggle. (Kept as a helper so
+    -- ShowLoadDialog's call sites stay readable.)
+    f.SetButtonEnabled = function(btn, enabled)
+        if enabled then btn:Enable() else btn:Disable() end
+    end
+
+    f.fullBtn:SetScript("OnClick", function()
         f:Hide()
-        RR:LoadCurrentRaid()
-    end)
-    f.cancelBtn:SetScript("OnClick", function()
-        f:Hide()
-        RR:UnloadCurrentRaid()
+        -- Explicit "standard" overrides any persisted variant; a bare call
+        -- would keep the restored one (the silent-reload path).
+        RR:LoadCurrentRaid("standard")
     end)
     f.skipBtn:SetScript("OnClick", function()
         f:Hide()
@@ -8131,9 +8170,37 @@ function UI._GetOrCreateLoadDialog()
     -- Footer beneath SKIP, standard small font (retro is unreadable this
     -- small). Shows the disabled reason; hidden when SKIP is enabled.
     local skipFooter = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    skipFooter:SetPoint("TOP", f.skipBtn, "BOTTOM", 0, -1)
+    skipFooter:SetPoint("TOP", f.skipBtn, "BOTTOM", 0, 3)
     skipFooter:SetJustifyH("CENTER")
     f.skipFooter = skipFooter
+
+    -- "Continue?" hint, re-anchored at show time under whichever button
+    -- matches the route the player already selected this lockout (before
+    -- the first kill, when the picker re-prompts). Blank otherwise.
+    local continueHint = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    continueHint:SetJustifyH("CENTER")
+    continueHint:SetTextColor(0.4, 1, 0.4)
+    continueHint:SetText("")
+    f.continueHint = continueHint
+
+    -- Close [X], matching the main panel: themed CloseIcon texture, hover
+    -- brightens. Closing cancels the load (same as the old CANCEL button).
+    local closeBtn = CreateFrame("Button", nil, f)
+    closeBtn:SetSize(24, 24)
+    closeBtn:SetPoint("TOPRIGHT", -10 - FRAME_INSET_X, -4 - FRAME_INSET_Y)
+    do
+        local tex = closeBtn:CreateTexture(nil, "OVERLAY")
+        tex:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\CloseIcon")
+        tex:SetAllPoints(closeBtn)
+        closeBtn._tex = tex
+        closeBtn:SetScript("OnEnter", function(self) self._tex:SetVertexColor(1.4, 1.4, 1.4) end)
+        closeBtn:SetScript("OnLeave", function(self) self._tex:SetVertexColor(1, 1, 1) end)
+    end
+    closeBtn:SetScript("OnClick", function()
+        f:Hide()
+        RR:UnloadCurrentRaid()
+    end)
+    f.closeBtn = closeBtn
 
     f:SetScript("OnHide", function(self)
         self:SetScript("OnUpdate", nil)
@@ -8160,29 +8227,35 @@ function UI.ShowLoadDialog(raidName)
 
     f.raidName:SetText(raidName or (raid and raid.name) or "?")
     f.loading:SetText(f.loadBase)
-    f.loadingDots:SetText("")
 
-    -- Animate the trailing dots while shown. OnUpdate runs on the frame
-    -- (FontStrings have no OnUpdate); it writes only the dots FontString,
-    -- leaving "LOADING" fixed in place.
-    f._dotElapsed = 0
-    f._dotCount = 0
-    f:SetScript("OnUpdate", function(self, elapsed)
-        self._dotElapsed = (self._dotElapsed or 0) + elapsed
-        if self._dotElapsed < 0.4 then return end
-        self._dotElapsed = 0
-        self._dotCount = ((self._dotCount or 0) + 1) % 4
-        self.loadingDots:SetText(string.rep(".", self._dotCount))
-    end)
-
-    -- Resolve SKIP state.
+    -- Resolve SKIP state. Gate on the chain the authored route targets:
+    -- a raid with multiple skip chains (HFC: Iskar + Mannoroth) but one
+    -- authored route must enable SKIP only when THAT route's chain is
+    -- unlocked, not when any chain is.
+    -- Whether to surface the "Continue?" resume hint: a route was already
+    -- selected this lockout but no boss is dead yet (the picker is
+    -- re-prompting and the player can still switch).
+    local savedVariant = RR.GetPersistedRouteVariant and RR:GetPersistedRouteVariant()
+    local showContinue = savedVariant
+        and not (RR.HasAnyKillThisLockout and RR:HasAnyKillThisLockout())
     local hasRoute = RR:RaidHasSkipRoute(raid)
-    local unlocked = hasRoute and RR:IsRaidSkipAvailableAtDifficulty(raid, diff)
+    local unlocked = hasRoute and RR:IsRouteTargetSkipAvailableAtDifficulty(raid, diff)
+    -- Only treat SKIP as the route being resumed when it's actually
+    -- clickable here. If the persisted variant is "skip" but the skip is
+    -- locked at this difficulty, fall back to the FULL-side hint so we
+    -- don't label a disabled button "Continue?".
+    local resumeIsSkip = showContinue and savedVariant == "skip" and unlocked
+    -- FULL is always a valid choice; ensure it's enabled and full-color
+    -- (it may have been left desaturated from a prior disabled state).
+    f.SetButtonEnabled(f.fullBtn, true)
     if hasRoute and unlocked then
-        f.skipBtn:Enable()
-        f.skipFooter:SetText(raid.skipToBoss or "")
+        f.SetButtonEnabled(f.skipBtn, true)
+        -- When SKIP is the route being resumed, the footer becomes the
+        -- "Continue?" hint (replacing the boss name) so it lands in the
+        -- footer slot rather than stacking onto the frame border below it.
+        f.skipFooter:SetText(resumeIsSkip and "Continue?" or (raid.skipToBoss or ""))
     else
-        f.skipBtn:Disable()
+        f.SetButtonEnabled(f.skipBtn, false)
         if not hasRoute then
             f.skipFooter:SetText("N/A")
         elseif not RR:RaidSkipIsCascading(raid) then
@@ -8191,6 +8264,22 @@ function UI.ShowLoadDialog(raidName)
         else
             f.skipFooter:SetText("locked")
         end
+    end
+    -- Color the footer green while it's serving as the Continue? hint,
+    -- matching the FULL-side hint; otherwise the default disabled grey.
+    if resumeIsSkip then
+        f.skipFooter:SetTextColor(0.4, 1, 0.4)
+    else
+        f.skipFooter:SetTextColor(0.5, 0.5, 0.5)
+    end
+
+    -- FULL-side "Continue?" sits under the FULL button. (The SKIP-side
+    -- case is handled in the footer above.)
+    f.continueHint:ClearAllPoints()
+    f.continueHint:SetText("")
+    if showContinue and savedVariant ~= "skip" then
+        f.continueHint:SetPoint("TOP", f.fullBtn, "BOTTOM", 0, 3)
+        f.continueHint:SetText("Continue?")
     end
 
     f:Show()
@@ -8360,9 +8449,8 @@ local function FingerprintAchRows(rows, currentBossName)
 end
 
 -- Initialize achState with empty fields. Filled by EnsureAchDefaults() on
--- first open, then maintained by dropdown clicks. Boss-level selection was
--- removed when the window switched to a full-raid table; only Expansion
--- and Raid are user-selectable now.
+-- first open, then maintained by dropdown clicks. Only Expansion and
+-- Raid are user-selectable (the window uses a full-raid table).
 achState = {
     expansion = nil,
     raidKey   = nil,
@@ -9266,16 +9354,16 @@ C_Timer.NewTicker(0.1, function()
     UI.Update()
 end)
 
--- Second pulse driver: the "What's New?" footer [!] indicator.
+-- Second pulse driver: the footer new-version [!] indicator.
 -- Independent gating from the encounter-card pulse (runs whenever the
 -- panel is allowed and the [!] hasn't been dismissed for the current
 -- version), but reuses the same encounterPulsePhase and color table
--- so both pulses breathe in sync. The label is rewritten in place
+-- so both pulses breathe in sync. The marker is rewritten in place
 -- per tick -- no UI.Update call needed, just a SetText on the FontString.
 --
 -- Dismissed state is keyed off RetroRunsDB.whatsNewSeenVersion: the [!]
 -- shows whenever the stored value != current VERSION (i.e., the player
--- hasn't clicked the link since this version shipped). First-ever click
+-- hasn't clicked the version since this version shipped). First-ever click
 -- writes the current VERSION into the saved-var, suppressing the [!]
 -- until the next version bump.
 C_Timer.NewTicker(0.1, function()
@@ -9284,12 +9372,10 @@ C_Timer.NewTicker(0.1, function()
     local dismissed = RetroRunsDB
         and RetroRunsDB.whatsNewSeenVersion == RetroRuns.VERSION
     if dismissed then
-        -- Static muted label, no pulse. SetText is cheap; skipping the
-        -- re-set entirely would also be fine but the cost is trivial.
-        panel.whatsNewLabel:SetText("|cff9d9d9dWhat's New?|r")
+        -- No marker once dismissed for this version.
+        panel.whatsNewLabel:SetText("")
         return
     end
     local pulseColor = ENCOUNTER_PULSE_COLORS[encounterPulsePhase] or "|cffffff00"
-    panel.whatsNewLabel:SetText(
-        "|cff9d9d9dWhat's New?|r " .. pulseColor .. "[!]|r")
+    panel.whatsNewLabel:SetText(pulseColor .. "[!]|r")
 end)
