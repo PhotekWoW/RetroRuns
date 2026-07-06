@@ -4308,10 +4308,19 @@ BuildTransmogDetail = function(stepOrCtx)
         local ta, tb = isTier(a), isTier(b)
         if ta ~= tb then return ta end           -- tier block first
         if ta then
-            -- Within tier: class ID ascending, then name.
+            -- Within tier: class ID ascending, then the same bucket-count ->
+            -- signature -> name ordering regular gear uses. The signature
+            -- term matters because the row emitter separates groups on
+            -- signature change: without it, a class's lone all-difficulty
+            -- token piece sorts alphabetically into the middle of its
+            -- LFR-only pieces and gets sandwiched between two blank lines.
             local ka = a.classes[1] or 0
             local kb = b.classes[1] or 0
             if ka ~= kb then return ka < kb end
+            local ca, cb = bucketCount(a), bucketCount(b)
+            if ca ~= cb then return ca < cb end
+            local sa, sb = bucketSignature(a), bucketSignature(b)
+            if sa ~= sb then return sa < sb end
             return (a.name or "") < (b.name or "")
         end
         -- Within regular gear: shorter bucket strips first, then a stable
