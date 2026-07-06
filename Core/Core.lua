@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "2.0.1"
+local VERSION    = "2.1.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -234,6 +234,57 @@ end
 function RR:GetRaidEntrance(raid)
     if not raid then return nil end
     return raid.entrance
+end
+
+--- For a raid gated behind faction control of an outdoor zone (Baradin
+--- Hold requires your faction to hold Tol Barad), reads the zone's
+--- control state from the world-map area POI and reports whether the
+--- player's faction currently has access.
+---
+--- The raid opts in with an `accessGate` table:
+---     accessGate = { mapID = 244, areaPoiID = 2485, zoneName = "Tol Barad" }
+--- mapID + areaPoiID identify the control POI (areaPoiID is stable across
+--- locales; the POI's name and description are localized). The POI's
+--- `description` reads "<Faction> Controlled" in the client locale, so the
+--- controlling side is matched by testing whether that text contains the
+--- player's own localized faction noun (FACTION_ALLIANCE / FACTION_HORDE)
+--- rather than parsing the English string -- the comparison holds on any
+--- locale because both sides come from the same localization.
+---
+--- Returns nil when the raid has no accessGate, or when the POI can't be
+--- read yet (the control state isn't available to the client until the
+--- player has loaded that continent's map data -- treat unknown as "don't
+--- assert", never as a false "unavailable"). Otherwise returns:
+---     { available = bool, controller = "Alliance"|"Horde"|nil,
+---       zoneName = string }
+--- controller is the player-relative side that holds the zone, resolved to
+--- the canonical English token for callers; it is nil if the description
+--- matched neither faction noun (defensive -- shouldn't happen).
+function RR:GetRaidAccessState(raid)
+    local gate = raid and raid.accessGate
+    if not gate or not gate.mapID or not gate.areaPoiID then return nil end
+    if not C_AreaPoiInfo or not C_AreaPoiInfo.GetAreaPOIInfo then return nil end
+
+    local info = C_AreaPoiInfo.GetAreaPOIInfo(gate.mapID, gate.areaPoiID)
+    local desc = info and info.description
+    if not desc or desc == "" then return nil end
+
+    local mine = UnitFactionGroup("player")
+    local allianceHeld = desc:find(FACTION_ALLIANCE, 1, true) ~= nil
+    local hordeHeld    = desc:find(FACTION_HORDE, 1, true) ~= nil
+
+    local controller
+    if allianceHeld then
+        controller = "Alliance"
+    elseif hordeHeld then
+        controller = "Horde"
+    end
+
+    return {
+        available  = (controller ~= nil and controller == mine),
+        controller = controller,
+        zoneName   = gate.zoneName,
+    }
 end
 
 --- Shared destination dispatch. Drops a waypoint at (mapID, x, y) across
@@ -469,6 +520,12 @@ RR.LFR_QUEUE_NPCS = {
         npcName = "Lorewalker Han",
         zone    = "Mogu'shan Palace, Seat of Knowledge",
         mapID   = 1530, x = 0.837, y = 0.281,
+    },
+    ["Cataclysm"] = {
+        -- Dragon Soul is the only Cataclysm raid with a Raid Finder wing.
+        npcName = "Auridormi",
+        zone    = "Caverns of Time, Tanaris",
+        mapID   = 75, x = 0.631, y = 0.273,
     },
 }
 
@@ -1146,42 +1203,89 @@ end
 
 -- Difficulty models.
 --
--- Most raids RetroRuns covers use the modern scheme: one difficulty ID
+-- Most raids RetroRuns covers use the independent scheme: one difficulty ID
 -- per tier, Normal/Heroic/Mythic plus Raid Finder, and the loot data
 -- keys its sources by those same IDs (14/15/16/17). For those raids the
 -- bucket IDs and the live difficulty IDs are one and the same.
 --
--- Mists-of-Pandaria raids are different. They predate Mythic and split
+-- Mists-of-Pandaria raids -- and Dragon Soul, which shares their
+-- difficulty layout -- are different. They predate Mythic and split
 -- Normal and Heroic by raid size, so the game hands back four separate
 -- raid difficulties -- 10-player Normal (3), 25-player Normal (4),
 -- 10-player Heroic (5), 25-player Heroic (6) -- plus Raid Finder (7).
 -- The loot and appearances are identical across size, so we fold the
 -- two sizes into a single Normal and a single Heroic. Each model below
 -- lists the live difficulty IDs the game can report and the display
--- bucket each one folds into. Display buckets reuse the modern IDs
+-- bucket each one folds into. Display buckets reuse the independent
+-- scheme's IDs
 -- (17=LFR, 14=Normal, 15=Heroic) so the loot browser and source data
 -- speak one language regardless of era.
 --
 -- A raid opts into a model with `difficultyModel` in its data file;
--- absent means "modern".
+-- absent means "independent".
 local DIFFICULTY_MODELS = {
-    modern = {
+    independent = {
         -- live id -> display bucket (identity)
         fold    = { [17] = 17, [14] = 14, [15] = 15, [16] = 16 },
         -- display buckets in pill / browser order
         buckets = { 17, 14, 15, 16 },
     },
-    mop = {
+    sharedLfr = {
         -- 7=LFR, 3/4=Normal (10/25), 5/6=Heroic (10/25)
         fold    = { [7] = 17, [3] = 14, [4] = 14, [5] = 15, [6] = 15 },
         buckets = { 17, 14, 15 },
     },
+    shared = {
+        -- Cataclysm raids (WotLK-style shared lockout): Normal and Heroic
+        -- share ONE weekly lockout -- committing to either difficulty locks
+        -- the sibling until reset (symmetric, live-verified both directions).
+        -- Displayed as TWO pills (like the Mists fold) with a lock glyph on
+        -- the committed-out side; the shared-lockout constraint is surfaced
+        -- by GetLockedOutBucket, not by collapsing the buckets. Folding is
+        -- therefore identical to sharedLfr minus LFR: 3=10N, 4=25N -> Normal
+        -- (14); 5=10H, 6=25H -> Heroic (15). Dragon Soul, the one Cataclysm
+        -- raid with Raid Finder, uses sharedLfr instead.
+        fold    = { [3] = 14, [4] = 14, [5] = 15, [6] = 15 },
+        buckets = { 14, 15 },
+    },
+    single = {
+        -- Raids that exist at exactly one difficulty: Baradin Hold (10/25
+        -- Normal only), and the Vanilla/TBC raids when they arrive. One
+        -- bucket, one pill, nothing to lock. Folds the 10/25 Normal size
+        -- ids into the one Normal bucket; Vanilla/TBC raids report other
+        -- raw ids (40-player, 20-player, etc.) -- add those to this fold at
+        -- their bring-up, verified by a live kill test, not assumed.
+        fold    = { [3] = 14, [4] = 14 },
+        buckets = { 14 },
+    },
 }
 
--- Resolve a raid's difficulty model, defaulting to modern.
+-- Resolve a raid's difficulty model, defaulting to independent.
 function RR:GetDifficultyModel(raid)
-    local key = raid and raid.difficultyModel or "modern"
-    return DIFFICULTY_MODELS[key] or DIFFICULTY_MODELS.modern
+    local key = raid and raid.difficultyModel or "independent"
+    return DIFFICULTY_MODELS[key] or DIFFICULTY_MODELS.independent
+end
+
+-- The display buckets to show for a raid, in pill / browser order.
+--
+-- Defaults to the full bucket list of the raid's model. A raid that
+-- doesn't offer every difficulty its model defines (e.g. Baradin Hold
+-- exists only at 10/25 Normal, never Heroic) declares a raid-level
+-- `availableDifficulties` list of the display buckets it actually has;
+-- this filters the model's full list down to those, preserving order, so
+-- the missing buckets never render as empty 0/0 pills. Absent the field,
+-- every model bucket is shown.
+function RR:GetDisplayBuckets(raid)
+    local model = self:GetDifficultyModel(raid)
+    local allowed = raid and raid.availableDifficulties
+    if not allowed then return model.buckets end
+    local allow = {}
+    for _, b in ipairs(allowed) do allow[b] = true end
+    local out = {}
+    for _, b in ipairs(model.buckets) do
+        if allow[b] then table.insert(out, b) end
+    end
+    return out
 end
 
 -- Fold a live difficulty ID (what GetInstanceInfo / GetSavedInstanceInfo
@@ -1327,7 +1431,7 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
         table.insert(liveIdsForBucket[bucket], liveId)
     end
 
-    for _, bucket in ipairs(model.buckets) do
+    for _, bucket in ipairs(self:GetDisplayBuckets(raid)) do
         local complete = 0
         local total    = 0
         for _, b in ipairs(raid.bosses or {}) do
@@ -1687,17 +1791,40 @@ function RR:CaptureLFRBitForKill(encounterName)
     C_Timer.After(DELAYS[1], function() tryCapture(1) end)
 end
 
--- Mists raids share one lockout across Normal and Heroic: killing a boss
--- on one mode commits the ID to that mode for the week, so the other mode
--- is unreachable until reset. Given the per-bucket counts, return the
--- display bucket that is locked OUT this lockout -- the Normal/Heroic
--- sibling of whichever one already has a kill. Returns nil when nothing
--- is committed yet (both zero), when both somehow show kills, or for any
--- raid that isn't on the shared-lockout model. Callers use this to mark
--- the locked pill; it does not change counts or gate anything.
+-- Shared-lockout raids commit the week's difficulty at the first kill, so
+-- one mode can render the other unreachable until reset. Given the
+-- per-bucket counts, return the display bucket that is locked OUT this
+-- lockout, or nil when nothing is committed (or no lock applies). Callers
+-- use this to mark the locked pill and arm its tooltip; it does not change
+-- counts or gate anything. Two shared-lockout models qualify:
+--
+-- sharedLfr (the Mists raids and Dragon Soul): killing on one mode locks
+-- the Normal/Heroic sibling,
+-- symmetrically -- whichever side has kills locks the other.
+--
+-- shared (the remaining Cataclysm raids) behaves IDENTICALLY: Normal and
+-- Heroic share one
+-- weekly lockout, committing to either locks the sibling until reset
+-- (symmetric, live-verified both directions -- a Normal kill blocks Heroic
+-- entry, and a Heroic kill blocks Normal re-entry). Both models display two
+-- buckets, so the same count-based test serves both: the difficulty with no
+-- kills is the one locked out, once the other has a kill.
+--
+-- Guard: only claim a lock when the raid actually offers BOTH difficulties.
+-- Baradin Hold is shared-model but Normal-only (availableDifficulties =
+-- {14}); its Heroic side doesn't exist, so nothing is ever locked. Without
+-- this, a Normal kill there would wrongly report Heroic (15) as locked.
 function RR:GetLockedOutBucket(raid, counts)
     if not raid or not counts then return nil end
-    if (raid.difficultyModel or "modern") ~= "mop" then return nil end
+    local model = raid.difficultyModel or "independent"
+    if model ~= "sharedLfr" and model ~= "shared" then return nil end
+
+    local offersNormal, offersHeroic = false, false
+    for _, bucket in ipairs(raid.availableDifficulties or { 14, 15 }) do
+        if bucket == 14 then offersNormal = true end
+        if bucket == 15 then offersHeroic = true end
+    end
+    if not (offersNormal and offersHeroic) then return nil end
 
     local nDone = counts[14] and counts[14].complete > 0
     local hDone = counts[15] and counts[15].complete > 0
@@ -1789,6 +1916,40 @@ function RR:LockProbe()
                             :format(tostring(b.name), tostring(dungeonEncID),
                                     tostring(r)))
                     end
+                end
+            end
+
+            -- Cross-difficulty completion matrix. For each boss, probe
+            -- IsEncounterComplete against every legacy size/difficulty id
+            -- (3=10N, 4=25N, 5=10H, 6=25H) plus the display buckets
+            -- (14=N, 15=H) and LFR (7, 17). Resolves whether a kill on one
+            -- difficulty reads complete under the others: if a single kill
+            -- lights up only its own id, difficulties are independent and a
+            -- per-bucket pill split is honest; if it lights up siblings too,
+            -- the kill is one-per-boss across difficulties and those
+            -- difficulties must fold to a single bucket. Uses the data-file
+            -- dungeonEncounterID as a fallback so it still resolves when the
+            -- journal map is empty.
+            local matrixIds = { 3, 4, 5, 6, 14, 15, 7, 17 }
+            add("    cross-difficulty matrix [3=10N 4=25N 5=10H 6=25H 14=N 15=H 7=LFRlegacy 17=LFR]:")
+            for _, b in ipairs(raid.bosses or {}) do
+                local dungeonEncID =
+                    (journalToDungeonEnc and journalToDungeonEnc[b.journalEncounterID])
+                    or b.dungeonEncounterID
+                if dungeonEncID then
+                    local cells = {}
+                    for _, probeId in ipairs(matrixIds) do
+                        local complete = C_RaidLocks.IsEncounterComplete(
+                            instanceID, dungeonEncID, probeId)
+                        cells[#cells + 1] = ("%s=%s"):format(
+                            tostring(probeId), complete and "T" or "f")
+                    end
+                    add(("      %s (deID=%s): %s")
+                        :format(tostring(b.name), tostring(dungeonEncID),
+                                table.concat(cells, " ")))
+                else
+                    add(("      %s: no dungeonEncounterID (EJ map empty, no data fallback)")
+                        :format(tostring(b.name)))
                 end
             end
         end
@@ -3175,13 +3336,13 @@ function RR:VerifyOneRaid(raid, opts, onDone)
             special_kind_mismatch = 0, -- S2
             special_item_unknown  = 0, -- S1
         }
-        -- Difficulty buckets to check. Mists raids have no Mythic, so
+        -- Difficulty buckets to check. sharedLfr raids have no Mythic, so
         -- driving difficulty 16 just wastes a settle-timeout per boss and
-        -- checks a bucket the data never carries. The mop model also
+        -- checks a bucket the data never carries. The sharedLfr model also
         -- stores a separate itemID per tier (see the E2 note below), so
         -- the per-item checks need to know which model they're in.
-        local isMop = (raid.difficultyModel == "mop")
-        local DIFFS = isMop and { 17, 14, 15 } or { 17, 14, 15, 16 }
+        local isSharedLfr = (raid.difficultyModel == "sharedLfr")
+        local DIFFS = isSharedLfr and { 17, 14, 15 } or { 17, 14, 15, 16 }
         local DIFF_NAME = { [17]="LFR", [14]="N", [15]="H", [16]="M" }
 
         if verbose then add(("tmogverify: raid=%s"):format(tostring(raid.name or "?"))) end
@@ -3308,16 +3469,16 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                             -- own sourceID. So a bucket source belonging
                             -- to a different itemID is EXPECTED here --
                             -- it's the tier-sibling item, not a wrong
-                            -- source. db2 cross-reference (the mop loot
+                            -- source. db2 cross-reference (the loot
                             -- audit) already confirms these per tier;
                             -- the live check that still matters is E1
                             -- (does the source resolve at all), which
                             -- runs above. So skip the equality assertion
-                            -- for mop raids.
+                            -- for sharedLfr raids.
                             local sharedAppearance =
                                 rowAppearanceID and b.visualID
                                 and b.visualID == rowAppearanceID
-                            if not sharedAppearance and not isMop then
+                            if not sharedAppearance and not isSharedLfr then
                                 table.insert(findings, ("[ERR] %s src=%d: API itemID=%d, expected %d"):format(
                                     DIFF_NAME[diffID], b.src, b.apiItemID, item.id))
                                 T.item_mismatch = T.item_mismatch + 1
@@ -3513,11 +3674,12 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                                 -- differs), giving "2 visuals across 3
                                 -- buckets". That's the expected shape
                                 -- for this era, not a half-resolved
-                                -- outlier, so don't warn for mop raids.
+                                -- outlier, so don't warn for sharedLfr
+                                -- raids.
                                 -- The nh-shared shape (Siege-era N+H
                                 -- sharing one appearance) is likewise
                                 -- expected, not a defect.
-                                if not isMop and shapeTag ~= "nh-shared" then
+                                if not isSharedLfr and shapeTag ~= "nh-shared" then
                                     -- Build a compact "visualID=count" summary.
                                     local parts = {}
                                     for v, c in pairs(vCounts) do
@@ -3628,6 +3790,7 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                     local mythicTag = sp.mythicOnly and " [Mythic only]"
                         or (sp.lfrOnly and " [LFR only]")
                         or (sp.normalHeroicOnly and " [Normal/Heroic only]")
+                        or (sp.heroicOnly and " [Heroic only]")
                         or ""
                     if #findings == 0 then
                         if verbose then
@@ -3672,24 +3835,30 @@ function RR:VerifyOneRaid(raid, opts, onDone)
         --                    (what the data file keys sources by).
         --   * ejDriveIDs  -- the LIVE difficulty IDs we actually set on
         --                    the journal via EJ_SetDifficulty.
-        -- For modern raids these coincide (14/15/16/17 are both the live
+        -- For independent-model raids these coincide (14/15/16/17 are both the live
         -- IDs and the buckets). For Mists they don't: the live journal
         -- only responds to 3/4/5/6/7, and each folds into a bucket
         -- (3,4 -> 14 Normal; 5,6 -> 15 Heroic; 7 -> 17 LFR). Driving the
-        -- modern IDs against a MoP raid exposed nothing AND timed out on
+        -- independent-scheme IDs against a MoP raid exposed nothing AND timed out on
         -- the non-existent Mythic pass -- the cause of the apparent hang.
-        local DIFFS_LIST = isMop and { 17, 14, 15 } or { 17, 14, 15, 16 }
+        -- Any non-independent model (Mists, Cataclysm) responds only to its own
+        -- live fold-key IDs and keys sources by its own buckets, so drive
+        -- both from the model rather than a per-era literal.
         local model      = RR:GetDifficultyModel(raid)
+        local isIndependent = (raid.difficultyModel or "independent") == "independent"
+        local DIFFS_LIST
         local ejDriveIDs
-        if isMop then
+        if isIndependent then
+            DIFFS_LIST  = { 17, 14, 15, 16 }
+            ejDriveIDs  = DIFFS_LIST
+        else
+            DIFFS_LIST  = model.buckets
             -- Drive the live IDs (fold keys), sorted for determinism.
             ejDriveIDs = {}
             for liveID in pairs(model.fold) do
                 table.insert(ejDriveIDs, liveID)
             end
             table.sort(ejDriveIDs)
-        else
-            ejDriveIDs = DIFFS_LIST
         end
 
         if opts and opts.banner then
@@ -3906,7 +4075,7 @@ function RR:VerifyOneRaid(raid, opts, onDone)
 
                 local diffID = ejDriveIDs[diffIdx]
                 -- Fold the live difficulty into the display bucket the
-                -- data file keys against (identity for modern raids;
+                -- data file keys against (identity for independent-model raids;
                 -- 3/4->14, 5/6->15, 7->17 for Mists).
                 local bucket = RR:FoldDifficulty(raid, diffID)
                 EJ_SetDifficulty(diffID)
@@ -4172,6 +4341,9 @@ SlashCmdList["RETRORUNS"] = function(input)
 
     elseif cmd == "lockprobe" then
         RR:LockProbe()
+
+    elseif cmd == "locale" then
+        RR:DevLocaleCommand(rest)
 
     elseif cmd == "garroshskip" then
         -- Discovery probe for the Siege of Orgrimmar Garrosh skip. Dumps
@@ -4882,6 +5054,7 @@ SlashCmdList["RETRORUNS"] = function(input)
                         local mythicTag = sp.mythicOnly and " [Mythic only]"
                             or (sp.lfrOnly and " [LFR only]")
                             or (sp.normalHeroicOnly and " [Normal/Heroic only]")
+                            or (sp.heroicOnly and " [Heroic only]")
                             or ""
                         add(("  [%s]  %-7d  (%s) %s%s"):format(
                             ch, sp.id or 0, sp.kind or "?",
@@ -5317,6 +5490,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         if     sub == "on"    then RR:EnableToaster()
         elseif sub == "off"   then RR:DisableToaster()
         elseif sub == "debug" then RR:ToasterDebug()
+        elseif sub == "clear" then RR:ToasterClearTrace()
         else                       RR:ToggleToaster()
         end
 
@@ -5385,6 +5559,7 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
     if event == "ADDON_LOADED" then
         if ... == ADDON_NAME then
             RR:InitializeDB()
+            RR:ApplyLocale()
             if RR:GetSetting("debug") then ValidateRaidData() end
             C_Timer.After(0, function()
                 RR:RestorePanelPosition()

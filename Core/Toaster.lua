@@ -46,7 +46,21 @@ local M = {
     source     = nil,   -- our capture frame
     guardHook  = false, -- AlertFrame.RegisterEvent re-detach guard installed
     chatFilterInstalled = false,
+    -- Timestamp (GetTime) through which the appearance-collected system line
+    -- should be suppressed regardless of whether it's readable. Set when a
+    -- TRANSMOG_COLLECTION_SOURCE_ADDED event fires; the event is positive
+    -- proof an "added to your appearance collection" line is imminent, so the
+    -- filter can drop the line even when it arrives as a secret value (which
+    -- can't be pattern-matched). Covers the case the text-match path misses.
+    appearanceLineWindowUntil = 0,
 }
+
+-- How long after an appearance event the suppression window stays open.
+-- Long enough to cover the chat line arriving a few frames later (observed
+-- lines trail their event by up to ~0.3s, sometimes just past the loot
+-- bracket), short enough that an unrelated secret system line is very
+-- unlikely to fall inside it.
+local APPEARANCE_LINE_WINDOW = 0.5
 
 -- Route AlertFrame detach/attach through a protected call.
 local function Protected(fn, ...)
@@ -173,12 +187,23 @@ local C_PINK = { 0.95, 0.35, 0.78 }
 local C_BLUE = { 0.30, 0.80, 1.00 }
 local C_LABEL_HEX = "ff7cfc00"  -- section-label green
 
+-- The colored "RR:" tag prepended to every line RetroRuns prints to chat.
+-- Kept as one constant so the loot-summary emitter and the AddMessage guard
+-- (which must recognize and never suppress RetroRuns' own lines) share it.
+local CHAT_PREFIX = "|cff4DCCFFR|cffF259C7R|r|cff7f7f7f:|r "
+
 -- Lifecycle trace: a bounded ring of recent pipeline decision points,
--- surfaced via /rr toaster debug.
-local TRACE_MAX = 60
+-- surfaced in the toaster debug dump. Sized to hold a full loot burst
+-- so no decision points are lost between the drop and the dump.
+local TRACE_MAX = 200
 local Trace = {}
 local function T(msg)
-    Trace[#Trace + 1] = ("%.1f  %s"):format(GetTime and GetTime() or 0, msg)
+    -- Millisecond timestamps. At 0.1s resolution an appearance event and
+    -- the secret system line it triggers land on the same printed tick,
+    -- hiding their true ordering; %.3f exposes whether the line precedes
+    -- or follows the window-arm on the same frame, which distinguishes a
+    -- filter-pipeline bypass from a window-arm race.
+    Trace[#Trace + 1] = ("%.3f  %s"):format(GetTime and GetTime() or 0, msg)
     if #Trace > TRACE_MAX then
         table.remove(Trace, 1)
     end
@@ -981,6 +1006,37 @@ end
 
 local function OnDropEvent(_, event, ...)
     if not M.enabled then return end
+
+    -- Raw system-line stream. Logs every CHAT_MSG_SYSTEM the client
+    -- receives, with secret-status and (if readable) pattern-match, so the
+    -- event-to-line relationship and the secret-leak path can be
+    -- correlated against the appearance events in a single debug dump.
+    if event == "CHAT_MSG_SYSTEM" then
+        local rawmsg = ...
+        local isSecret = issecretvalue and issecretvalue(rawmsg) or false
+        -- lineID (arg 11 of CHAT_MSG_SYSTEM) is a per-message id. Logging it
+        -- lets the same system line be correlated across the raw event stream
+        -- and any other interception layer, confirming whether the event we see
+        -- and the line that reaches chat are literally the same message.
+        local lineID = select(11, ...)
+        -- Build the match pattern locally (the file-level
+        -- TRANSMOG_COLLECTED_PATTERN is declared later in the chunk and so
+        -- isn't in scope here -- a Lua 5.1 forward-reference trap).
+        local matched = "n/a"
+        if not isSecret and type(rawmsg) == "string" then
+            local s = _G.ERR_LEARN_TRANSMOG_S
+            if type(s) == "string" then
+                local lit = s:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+                local pat = lit:gsub("%%%%s", ".*")
+                matched = rawmsg:match(pat) and "MATCH" or "nomatch"
+            end
+        end
+        T(("RAW CHAT_MSG_SYSTEM  secret=%s  match=%s  capturing=%s  lineID=%s")
+            :format(tostring(isSecret), matched, tostring(Summary.capturing),
+                    tostring(lineID)))
+        return
+    end
+
     local kind = EVENT_KIND[event]
     if not kind then return end
     T("OnDropEvent " .. tostring(event) .. " kind=" .. tostring(kind))
@@ -1069,6 +1125,21 @@ local function OnDropEvent(_, event, ...)
         })
 
     elseif kind == "appearance" then
+        -- An appearance was just learned, so its "added to your appearance
+        -- collection" system line is imminent. Open the suppression window so
+        -- the filter drops that line even if it arrives as a secret value the
+        -- text pattern can't read. Armed before the sourceID guard because the
+        -- line comes regardless of whether we can resolve the source for a toast.
+        local nowT = (GetTime and GetTime() or 0)
+        M.appearanceLineWindowUntil = nowT + APPEARANCE_LINE_WINDOW
+        -- Record the exact armed-until deadline so each raw secret line's
+        -- timestamp can be checked against it directly. This is the test
+        -- for whether a leaked line fell inside or outside the window, and
+        -- whether it arrived before the arm (a same-frame race) or after
+        -- it (a pipeline bypass).
+        T(("APPEARANCE-ARM  now=%.3f  windowUntil=%.3f")
+            :format(nowT, M.appearanceLineWindowUntil))
+
         local sourceID = ...
         if not sourceID then return end
 
@@ -1198,6 +1269,26 @@ do
 end
 
 local function TransmogChatFilter(_, _, msg)
+    -- Event-keyed suppression. When an appearance is learned the game fires
+    -- TRANSMOG_COLLECTION_SOURCE_ADDED just before the "added to your
+    -- appearance collection" system line. We open a short window on that event
+    -- and drop the system line(s) that follow even when they arrive as secret
+    -- values (which the text pattern below can't read). This runs BEFORE the
+    -- secret-value bail so secret appearance lines are caught instead of
+    -- passed.
+    --
+    -- The window is NOT closed on the first drop: a multi-appearance loot can
+    -- produce several "collected" lines (all uniformly secret), so every line
+    -- inside the window is dropped. The window is only open for a short span
+    -- after an actual appearance event, and the line can arrive just past the
+    -- loot bracket (observed firing with capturing already false), so the drop
+    -- is gated on the event window alone -- not on an open loot bracket.
+    if M.enabled and LootSummaryOn()
+       and (GetTime and GetTime() or 0) <= M.appearanceLineWindowUntil then
+        T("TransmogChatFilter EVENT-WINDOW -> DROP")
+        return true
+    end
+
     if issecretvalue and issecretvalue(msg) then
         T(("TransmogChatFilter SECRET -> PASS  enabled=%s capturing=%s newApp=%s")
             :format(tostring(M.enabled), tostring(Summary.capturing),
@@ -1214,6 +1305,54 @@ local function TransmogChatFilter(_, _, msg)
             :format(tostring(M.enabled)))
     end
     return false
+end
+
+-- The appearance-collected line reaches chat as a secret value under certain
+-- loot conditions, and a secret system line skips the ChatFrame message-event
+-- filter chain entirely -- so TransmogChatFilter above never runs on it and the
+-- line leaks. Every displayed line, secret or not, still passes through a chat
+-- frame's AddMessage method, so a wrapper there is the one interception point
+-- the secret line cannot route around. During the same appearance window the
+-- filter uses, the wrapper drops the secret line by timing alone.
+--
+-- Scope is deliberately narrow: the guard drops ONLY secret lines inside the
+-- window -- the exact case the filter misses. Non-secret appearance lines are
+-- already caught by the filter's EVENT-WINDOW/MATCH branches before they reach
+-- AddMessage (confirmed in traces), so passing every non-secret line here keeps
+-- the guard from ever suppressing an unrelated system message that happens to
+-- land in the window, and RetroRuns' own (non-secret) lines are never at risk.
+-- A secret value errors under string operations, so the guard never inspects
+-- message text -- it decides on secret-status and the timing window alone.
+local function ShouldSuppressChatLine(msg)
+    if not (M.enabled and LootSummaryOn()) then return false end
+    if (GetTime and GetTime() or 0) > M.appearanceLineWindowUntil then
+        return false
+    end
+    if issecretvalue and issecretvalue(msg) then
+        T("AddMessageGuard EVENT-WINDOW SECRET -> DROP")
+        return true
+    end
+    return false
+end
+
+-- Wrap each chat frame's AddMessage once, storing the original so the wrapper
+-- can choose to call through or drop. Idempotent: a frame already carrying the
+-- guard is skipped, and new frames (e.g. combat log, added later) are covered
+-- on the next install pass.
+local function InstallAddMessageGuard()
+    local function wrap(frame)
+        if not frame or frame.rrToasterOrigAddMessage then return end
+        local orig = frame.AddMessage
+        if type(orig) ~= "function" then return end
+        frame.rrToasterOrigAddMessage = orig
+        frame.AddMessage = function(self, msg, ...)
+            if ShouldSuppressChatLine(msg) then return end
+            return orig(self, msg, ...)
+        end
+    end
+    for i = 1, (NUM_CHAT_WINDOWS or 10) do
+        wrap(_G["ChatFrame" .. i])
+    end
 end
 
 -- Flush the batch: reveal the toast cascade, print one consolidated chat line,
@@ -1312,13 +1451,12 @@ FlushBatch = function()
             end
             -- Re-emit with the RR prefix, label tinted loot-green; the item
             -- link keeps its own quality color.
-            local PREFIX = "|cff4DCCFFR|cffF259C7R|r|cff7f7f7f:|r "
             local c = ChatTypeInfo and ChatTypeInfo["LOOT"]
             local r, g, b = 0, 0.667, 0
             if c and (c.r ~= 1 or c.g ~= 1 or c.b ~= 1) then
                 r, g, b = c.r, c.g, c.b
             end
-            DEFAULT_CHAT_FRAME:AddMessage(PREFIX .. line, r, g, b)
+            DEFAULT_CHAT_FRAME:AddMessage(CHAT_PREFIX .. line, r, g, b)
         end
         return
     end
@@ -1547,6 +1685,9 @@ local function ActivateToaster()
     for _, ev in ipairs(EVENT_LIST) do
         Protected(M.source.RegisterEvent, M.source, ev)
     end
+    -- Also feed raw CHAT_MSG_SYSTEM into OnDropEvent's logging branch so
+    -- the system-line stream above sees every message.
+    Protected(M.source.RegisterEvent, M.source, "CHAT_MSG_SYSTEM")
 
     -- Summary listener: the loot bracket + CHAT_MSG_LOOT (for link capture).
     if not Summary.frame then
@@ -1565,6 +1706,10 @@ local function ActivateToaster()
 
         M.chatFilterInstalled = true
     end
+    -- The AddMessage guard is (re)installed every activation, not gated on
+    -- chatFilterInstalled: it's idempotent per frame and picks up any chat
+    -- window created since the last pass.
+    InstallAddMessageGuard()
 
     M.enabled = true
     Suppressor.InstallGuard()
@@ -1627,6 +1772,14 @@ function RR:ToasterDebug()
         for _, t in ipairs(Trace) do add(t) end
     end
     RR:ShowCopyWindow("Toaster Debug", table.concat(lines, "\n"))
+end
+
+-- Wipe the trace ring so a later debug dump shows only the events after
+-- this point. Run right before a loot burst to isolate it from unrelated
+-- system messages that would otherwise fill the bounded ring.
+function RR:ToasterClearTrace()
+    for i = #Trace, 1, -1 do Trace[i] = nil end
+    RR:Print("Toaster trace cleared.")
 end
 
 function RR:BuildPreviewBatch(parent)

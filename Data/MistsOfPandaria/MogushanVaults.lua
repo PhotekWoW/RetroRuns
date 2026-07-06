@@ -18,8 +18,8 @@ RetroRuns_Data[1008] = {
     -- than offering Mythic. Loot is shared across sizes, so the two
     -- Normal lockouts fold into one Normal bucket and the two Heroic
     -- lockouts into one Heroic; Raid Finder stands alone. This tells the
-    -- difficulty engine to fold that way instead of the modern scheme.
-    difficultyModel   = "mop",
+    -- difficulty engine to fold that way instead of the independent scheme.
+    difficultyModel   = "sharedLfr",
 
     entrance = {
         mapID = 379,

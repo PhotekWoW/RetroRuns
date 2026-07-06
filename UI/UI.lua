@@ -355,31 +355,63 @@ panel.wingLine:SetText("")
 -- others in gray. Format: "[ LFR x/y | N x/y | H x/y | M x/y ]".
 panel.pills = AddField(panel.wingLine, "TOPLEFT", "BOTTOMLEFT", -2, BODY_WIDTH, "GameFontNormalSmall")
 
+-- Lockout info tooltip, shown on every raid's pill row (not only locked
+-- ones): a short label naming the raid's lockout system plus a one-line
+-- plain-English consequence. Keyed by difficultyModel; raids with no
+-- model field use independent. The lock glyph still
+-- marks a committed-out pill separately via GetLockedOutBucket.
+-- Wording notes: the independent gloss is difficulty-set agnostic on purpose
+-- (raids span N/H, N/H/M, and LFR/N/H/M -- "both" or a count would be
+-- wrong somewhere). The sharedLfr label names the N/H SHARING as the defining
+-- rule, with LFR's separateness as the qualifier -- "has LFR" can't be
+-- the label since independent raids have LFR too, with fully separate locks.
+-- Lives on RR (not a file local) to stay under UI.lua's 200-local limit.
+RR.LockoutTipByModel = {
+    single = {
+        label = "Single difficulty",
+        gloss = "One difficulty, one weekly lockout",
+    },
+    shared = {
+        label = "Shared lockout",
+        gloss = "One difficulty per week",
+    },
+    sharedLfr = {
+        label = "Shared lockout (LFR separate)",
+        gloss = "LFR + one difficulty per week",
+    },
+    independent = {
+        label = "Independent lockouts",
+        gloss = "Each difficulty has its own weekly lockout",
+    },
+}
+function RR:GetLockoutTooltipInfo(model)
+    return self.LockoutTipByModel[model or "independent"]
+end
+
 -- Invisible hover region over the pills row. FontStrings can't take
--- mouse scripts, so a sibling frame sits on top to surface the
--- shared-lockout tooltip. It only arms its tooltip when the current
--- raid is actually on a single-lockout model (set in UI.Update); when
--- disarmed it still exists but shows nothing on hover.
+-- mouse scripts, so a sibling frame sits on top to surface the raid's
+-- lockout-system tooltip (short label + plain-English consequence).
+-- Armed for EVERY loaded raid in UI.Update -- lockout info is useful
+-- whether or not a pill is currently locked; the raid's model is stored
+-- on the frame so hover picks the right lines.
 panel.pillsHover = CreateFrame("Frame", nil, panel)
 panel.pillsHover:SetPoint("TOPLEFT", panel.pills, "TOPLEFT", 0, 0)
 panel.pillsHover:SetPoint("BOTTOM", panel.pills, "BOTTOM", 0, 0)
 panel.pillsHover:SetWidth(1)
 panel.pillsHover:EnableMouse(true)
 panel.pillsHover._lockoutTip = false
+panel.pillsHover._lockoutModel = nil
 panel.pillsHover:SetScript("OnEnter", function(self)
     if not self._lockoutTip then return end
+    local tipInfo = RR:GetLockoutTooltipInfo(self._lockoutModel)
+    if not tipInfo then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine("This raid only supports a single lockout per character", 1, 1, 1, true)
-    if GameTooltipTextSmall then
-        GameTooltipTextLeft1:SetFontObject(GameTooltipTextSmall)
-    end
+    GameTooltip:AddLine(tipInfo.label, 1, 1, 1, true)
+    GameTooltip:AddLine(tipInfo.gloss, 0.8, 0.8, 0.8, true)
     GameTooltip:Show()
 end)
 panel.pillsHover:SetScript("OnLeave", function()
     GameTooltip:Hide()
-    if GameTooltipText then
-        GameTooltipTextLeft1:SetFontObject(GameTooltipText)
-    end
 end)
 
 panel.progress  = AddField(panel.pills, "TOPLEFT", "BOTTOMLEFT", -6,  BODY_WIDTH, "GameFontNormal")
@@ -781,6 +813,18 @@ do
     function panel.ShowNavChooser(anchorFrame, raid)
         if not anchorFrame or not raid then return end
 
+        -- The chooser exists to pick between the LFR queue NPC and the
+        -- physical entrance. A raid with no LFR wings has only the entrance,
+        -- so there's nothing to choose -- navigate straight there and skip
+        -- the popup entirely.
+        if raid.lfrWings == nil then
+            local result = RR:NavigateToEntrance(raid)
+            if result and not result.planner then
+                ShowWaypointToast(anchorFrame, "Waypoint set")
+            end
+            return
+        end
+
         -- Lazy construction of the singleton frame + its two option buttons.
         if not navChooser then
             local f = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
@@ -1078,14 +1122,17 @@ local function AcquirePillHoverFrame()
     local f = table.remove(panel.pillHoverFramePool)
     if f then return f end
     f = CreateFrame("Frame", nil, panel)
-    f:SetFrameLevel((panel:GetFrameLevel() or 0) + 10)
+    -- +8, deliberately BELOW the +10 clickables that share the pill row
+    -- (entrance plane button, wing chevrons): the lockout tooltip is
+    -- passive info and must never intercept clicks meant for buttons.
+    f:SetFrameLevel((panel:GetFrameLevel() or 0) + 8)
     f:EnableMouse(true)
     f:SetScript("OnEnter", function(self)
+        local tipInfo = RR:GetLockoutTooltipInfo(self._lockoutModel)
+        if not tipInfo then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("This raid only supports a single lockout per character", 1, 1, 1, true)
-        if GameTooltipTextSmall then
-            GameTooltipTextLeft1:SetFontObject(GameTooltipTextSmall)
-        end
+        GameTooltip:AddLine(tipInfo.label, 1, 1, 1, true)
+        GameTooltip:AddLine(tipInfo.gloss, 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
     end)
     f:SetScript("OnLeave", function()
@@ -2239,68 +2286,124 @@ function UI.AutoSize()
     if PositionLegendDivider then PositionLegendDivider() end
 
     -- TRANSMOG POPUP -------------------------------------------------------
-    -- Size the popup deterministically from the content's line count rather
-    -- than measuring rendered text, because GetStringHeight is lazy after
-    -- SetFont and produces a visible pop-in on the first frame. Line-height
-    -- is approximated from the font size; the content widgets are all
-    -- rendered at fontSize-1 (see RefreshContent's SetBodyFont calls). The
-    -- per-line vertical advance for FRIZQT at that size is about 11.3 px, so
-    -- a +2 px per-line safety margin absorbs a modest amount of word-wrap
-    -- without over-allocating.
+    -- Size deterministically from the content's line count rather than
+    -- measuring rendered text (GetStringHeight is lazy after SetFont and
+    -- pops in on the first frame). The content + sanctum line live in a
+    -- ScrollFrame; the legend is a fixed footer. So we:
+    --   1. Size the scroll CHILD to the full content height (text+sanctum),
+    --      so everything is reachable by scrolling.
+    --   2. Size the POPUP to chrome + a capped content viewport + the legend
+    --      footer, clamped to the ceiling. When content fits under the cap,
+    --      the viewport equals the content and no scrollbar shows; when it
+    --      exceeds, the viewport caps and UIPanelScrollFrameTemplate's bar
+    --      appears.
     if tmogWindow and tmogWindow.contentText then
-        local text = tmogWindow.contentText
-        local content = text:GetText() or ""
-        local lines = 1
-        for _ in content:gmatch("\n") do lines = lines + 1 end
+        local text   = tmogWindow.contentText
+        local scroll = tmogWindow.contentScroll
+        local child  = tmogWindow.contentChild
 
-        local fontSize = RR:GetSetting("fontSize", 12)
-        -- Match the actual rendered font size (fontSize - 1, per
-        -- RefreshContent) and the active body font's sizeFactor so
-        -- the height budget matches the rendered text for non-FRIZQT
-        -- fonts too.
-        --
-        -- Per-line advance: measured against rendered text, the real vertical
-        -- advance is GetBodyFontSize plus a fraction of a pixel of leading
-        -- (e.g. a 43-line list rendered at size 11 measured 480.5px -> 11.17
-        -- px/line, vs GetBodyFontSize(11) = 11). The previous +2 budget left
-        -- ~1.8 px of slack per line, which on a 43-line list piled up into an
-        -- ~80px blank strip below the legend. A +0.5 pad covers the real
-        -- leading with a little rounding headroom while keeping the per-line
-        -- slack negligible (~0.3 px), so long lists no longer over-grow.
+        local fontSize     = RR:GetSetting("fontSize", 12)
         local renderedSize = math.max(8, fontSize - 1)
         local lineHeight   = GetBodyFontSize(renderedSize) + 0.5
-        local textH        = lines * lineHeight
 
-        -- Sanctum vendor line (Castle Nathria) lives on its own
-        -- FontString below the main content. When shown, it adds one
-        -- line of text plus the 2px gap from the BOTTOMLEFT anchor
-        -- (tight so the redeem line reads as a continuation of the
-        -- weapon-token heading directly above it). Hidden -- which
-        -- is the case for every non-CN raid and every CN boss that
-        -- doesn't drop weapon tokens -- contributes 0.
-        local sanctumH = 0
-        if tmogWindow.sanctumLine and tmogWindow.sanctumLine:IsShown() then
-            sanctumH = lineHeight + 2
+        -- Set the scroll + child WIDTH first, before measuring text height.
+        -- The content text wraps to the child's width, so its rendered height
+        -- depends on that width -- measuring before the width is finalized
+        -- would read a height for the wrong wrap. Width is deterministic from
+        -- the popup width (minus a 22px left inset and a 28px right inset that
+        -- leaves room for the scrollbar) and does not depend on height, so it
+        -- is safe to set first.
+        if scroll then
+            scroll:ClearAllPoints()
+            -- Two single-axis anchors: vertical position from the dropdown
+            -- stack (just below ddClass), horizontal from the frame's content
+            -- margin (where legend + loot list align). This keeps the scroll
+            -- column aligned with the content regardless of how far the
+            -- labeled dropdowns are inset, without depending on GetTop/GetBottom
+            -- (which can be nil mid-layout).
+            local margin = tmogWindow.contentMargin or 22
+            scroll:SetPoint("TOP",  tmogWindow.ddClass, "BOTTOM", 0, -10)
+            scroll:SetPoint("LEFT", tmogWindow, "LEFT", margin, 0)
+            local popupW = tmogWindow:GetWidth() or 440
+            scroll:SetWidth(math.max(1, popupW - margin - 28))
+        end
+        if child and scroll then
+            local vw = scroll:GetWidth()
+            if not vw or vw < 1 then vw = (tmogWindow:GetWidth() or 440) - 28 - 22 end
+            child:SetWidth(vw)
         end
 
-        -- Color legend always renders as a global footer below the
-        -- sanctum line (or below the main text when sanctum is
-        -- hidden). Two lines of text plus the 8px gap.
+        -- Line-count estimate, kept ONLY as a fallback for when GetStringHeight
+        -- returns 0 (text not laid out yet). The measured height is the
+        -- authority: the estimate undercounts wrapped rows and real font
+        -- leading (a 4-line list estimated 46px but rendered 52.7px), and that
+        -- undercount sized the scroll child shorter than its own content,
+        -- producing phantom scroll range and a scrollbar on lists that fit.
+        local content = text:GetText() or ""
+        local lineCount = 1
+        for _ in content:gmatch("\n") do lineCount = lineCount + 1 end
+        local estTextH = lineCount * lineHeight
+
+        local measuredTextH = text:GetStringHeight() or 0
+        local textH = (measuredTextH > 1) and measuredTextH or estTextH
+
+        -- Sanctum vendor line (Castle Nathria): measured height plus the 2px
+        -- gap when shown. Hidden for every non-CN raid -> contributes 0.
+        local sanctumH = 0
+        if tmogWindow.sanctumLine and tmogWindow.sanctumLine:IsShown() then
+            local sH = tmogWindow.sanctumLine:GetStringHeight() or 0
+            sanctumH = ((sH > 1) and sH or lineHeight) + 2
+        end
+
+        -- Full content height the scroll child must span so nothing is clipped.
+        local contentH = textH + sanctumH
+
+        -- Color legend footer: two lines plus an 8px gap above it.
         local legendH = 2 * lineHeight + 8
 
-        -- Popup chrome: dropdown stack + top inset + margins. The
-        -- dropdowns anchor via BOTTOMLEFT +4 (positive y = up in WoW),
-        -- which means each successive dropdown OVERLAPS the one above
-        -- it by 4 px. Three dropdowns produce two overlaps, so the
-        -- effective stack height is 3*32 - 8 = 88, not 96.
-        local chrome = 32         -- top: close-button reserve
-                     + 3 * 32 - 8 -- three dropdowns, two 4px overlaps
-                     + 10         -- gap between dropdowns and text
-                     + 14         -- bottom margin
-        local desired = chrome + textH + sanctumH + legendH
+        -- Popup chrome: top close-button reserve + dropdown stack (four
+        -- dropdowns anchored BOTTOMLEFT +4 overlap by 4px each, so 4*32-12=116)
+        -- + gap below dropdowns + bottom margin.
+        local chromeTop = 32 + (4 * 32 - 12) + 10   -- above the scroll region
+        local chromeBot = 14                        -- bottom margin under legend
+
+        -- Maximum content viewport: whatever the ceiling leaves after chrome
+        -- and the legend footer. Content taller than this scrolls.
+        local maxViewport = POPUP_CONTENT_CEILING - chromeTop - chromeBot - legendH
+        if maxViewport < lineHeight then maxViewport = lineHeight end
+        local viewportH = math.min(contentH, maxViewport)
+
+        local desired = chromeTop + viewportH + legendH + chromeBot
         local clamped = math.max(POPUP_CONTENT_MIN,
                                  math.min(POPUP_CONTENT_CEILING, desired))
         tmogWindow:SetHeight(clamped)
+
+        -- Now set the heights: scroll viewport to EXACTLY viewportH, child to
+        -- EXACTLY contentH (the measured content). When the content fits
+        -- (contentH <= viewportH) these are equal and the scroll range is
+        -- precisely zero, so no scrollbar appears.
+        if scroll and child then
+            scroll:SetHeight(math.max(1, viewportH))
+            child:SetHeight(math.max(1, contentH))
+
+            -- UIPanelScrollFrameTemplate shows its scrollbar unconditionally,
+            -- even when content fits. Install the persistent OnShow guard (no-op
+            -- after first call) and set the immediate state from the actual
+            -- range. The guard + the OnScrollRangeChanged hook together cover
+            -- the template's deferred re-show paths.
+            if tmogWindow.EnsureTmogBarGuard then tmogWindow.EnsureTmogBarGuard() end
+            local bar = tmogWindow.ResolveTmogScrollBar
+                        and tmogWindow.ResolveTmogScrollBar()
+            if bar then
+                local range = scroll:GetVerticalScrollRange() or 0
+                if range > 1 then
+                    bar:Show()
+                else
+                    bar:Hide()
+                    if scroll.SetVerticalScroll then scroll:SetVerticalScroll(0) end
+                end
+            end
+        end
     end
 
     -- ACHIEVEMENTS POPUP: sized inside RefreshContent (row-based layout,
@@ -2479,23 +2582,24 @@ local function BuildPillsText()
     -- like the rest of the addon, the pill row covers Normal and up,
     -- while LFR sources live in the transmog browser. Mists raids drop
     -- Mythic (16); the model's bucket list handles that automatically.
-    local BUCKET_LABEL = { [14] = "N", [15] = "H", [16] = "M" }
+    local BUCKET_LABEL = {
+        [14] = "N", [15] = "H", [16] = "M",
+    }
 
     -- Order matches typical Blizzard UI: easiest -> hardest. Built from
-    -- the raid's difficulty model so Mists raids show N | H and modern
-    -- raids show N | H | M without a per-era branch here.
-    local model = RR:GetDifficultyModel(raid)
+    -- the raid's difficulty model so shared-lockout raids show N | H and
+    -- independent raids show N | H | M without a per-model branch here.
     local PILLS = {}
-    for _, bucket in ipairs(model.buckets) do
+    for _, bucket in ipairs(RR:GetDisplayBuckets(raid)) do
         local label = BUCKET_LABEL[bucket]
         if label then
             table.insert(PILLS, { id = bucket, label = label })
         end
     end
 
-    -- Mists shared lockout: the Normal/Heroic sibling of a committed mode
-    -- is locked for the week. Lock glyph marks it (no recolor; see the
-    -- idle builder for why color alone won't read here).
+    -- Shared lockout (Mists fold or Cataclysm): the Normal/Heroic sibling
+    -- of a committed mode is locked for the week. Lock glyph marks it (no
+    -- recolor; see the idle builder for why color alone won't read here).
     local lockedBucket = RR:GetLockedOutBucket(raid, counts)
     -- yOffset drops the icon onto the text baseline; trailing RGB tints it
     -- gold (the LFG lock is the locked-out marker).
@@ -2532,16 +2636,26 @@ local function BuildPillsText()
                 hex = PENDING_HEX
             end
             local lock = (p.id == lockedBucket) and LOCK_GLYPH or ""
-            table.insert(parts, ("|cff%s%s %d/%d|r%s"):format(
-                hex, p.label, c.complete, c.total, lock))
+            if p.label then
+                table.insert(parts, ("|cff%s%s %d/%d|r%s"):format(
+                    hex, p.label, c.complete, c.total, lock))
+            else
+                -- Flexible with no committed difficulty yet: count only, no
+                -- N/H letter (asserting either would be inaccurate).
+                table.insert(parts, ("|cff%s%d/%d|r%s"):format(
+                    hex, c.complete, c.total, lock))
+            end
         end
     end
+
     if #parts == 0 then return "" end
 
     local sep = "|cff555555 | |r"
-    return "|cff777777[ |r"
+    local bracketOpen = "|cff777777[ |r"
+    local text = bracketOpen
         .. table.concat(parts, sep)
         .. "|cff777777 ]|r"
+    return text
 end
 
 -- Last-rendered travel text, cached so the pane can freeze for the
@@ -2782,8 +2896,12 @@ local function BuildAchievementsBlock(boss)
     return table.concat(lines, "\n")
 end
 
--- BuildEncounterText returns up to two values:
---   text    - the rendered string for panel.encounter
+-- BuildEncounterText returns five values: headerLine, achBlock,
+-- specialBlock, clickable, headerPulsing. headerPulsing is true only
+-- for the collapsed custom-note form, whose [!] glyph animates; the
+-- pulse ticker reads it to refresh the header label alone rather than
+-- the whole panel.
+--   headerLine - the rendered string for panel.encounter
 --   clickable - whether panel.encounter should accept clicks (custom
 --               soloTip exists; collapsed or expanded both clickable,
 --               so the user can toggle either way)
@@ -2807,6 +2925,7 @@ local function BuildEncounterText(step)
     -- Compose the Boss Encounter line based on state.
     local headerLine
     local clickable
+    local headerPulsing = false
     if not hasCustom then
         headerLine = prefix .. "|cffaaaaaaStandard|r"
         clickable  = false
@@ -2825,6 +2944,7 @@ local function BuildEncounterText(step)
         local pulseColor = ENCOUNTER_PULSE_COLORS[encounterPulsePhase] or "|cffffff00"
         headerLine = prefix .. pulseColor .. "[!]|r |cffaaaaaaview special note|r"
         clickable  = true
+        headerPulsing = true
     else
         local tip = (boss and boss.soloTip) or step.soloTip or ""
         tip = HighlightNames(tip)
@@ -2842,7 +2962,7 @@ local function BuildEncounterText(step)
         end
     end
 
-    return headerLine, achBlock, specialBlock, clickable
+    return headerLine, achBlock, specialBlock, clickable, headerPulsing
 end
 
 -- Slots that have no transmog value -- exclude from display entirely
@@ -3021,6 +3141,85 @@ end
 -- the state logic and silently drift from the UI over time.
 RR.CollectionStateForSource = CollectionStateForSource
 RR.FallbackStateForItem     = FallbackStateForItem
+
+-- Classify an item's difficulty sources as "binary" (all sources resolve
+-- to a single appearance) or "perdiff" (sources are distinct appearances,
+-- one per difficulty -- e.g. tier recolors where LFR/N/H/M each have their
+-- own look). Returns nil when the item has no sources.
+--
+-- Binary is expressed two ways in the data:
+--   (a) one sourceID cloned across difficulty keys, or
+--   (b) distinct sourceIDs that all resolve to the same visualID (Blizzard
+--       tracks per-(item x difficulty) acquisition even when the visual is
+--       shared; its own appearance tab shows these as one appearance).
+-- Falls through to "perdiff" if any source's visualID can't be resolved
+-- (cold cache); the next call after the cache warms reclassifies correctly.
+local function ItemShape(item)
+    if not item.sources then return nil end
+    local bucketCount = 0
+    local uniqueSources = {}
+    for _, src in pairs(item.sources) do
+        bucketCount = bucketCount + 1
+        uniqueSources[src] = true
+    end
+    local uniqueCount = 0
+    for _ in pairs(uniqueSources) do uniqueCount = uniqueCount + 1 end
+
+    if uniqueCount == 0 then return nil end
+
+    if bucketCount >= 2 then
+        if uniqueCount == 1 then
+            return "binary"
+        end
+        local seenAppearances = {}
+        local apCount = 0
+        local allResolved = true
+        for _, src in pairs(item.sources) do
+            local ap = GetAppearanceIDForSource(src)
+            if not ap then
+                allResolved = false
+                break
+            end
+            if not seenAppearances[ap] then
+                seenAppearances[ap] = true
+                apCount = apCount + 1
+            end
+        end
+        if allResolved and apCount == 1 then
+            return "binary"
+        end
+    end
+
+    return "perdiff"
+end
+
+-- The single collection state of a binary item, folded across every one of
+-- its sources keeping the strongest result: collected > shared > missing.
+-- A binary item is ONE appearance, so its state is not per-difficulty --
+-- owning any one difficulty's source means the appearance is collected, and
+-- the other difficulties read collected too (not "shared"). Picking one
+-- arbitrary source would report "shared" whenever the pick landed on an
+-- uncollected difficulty even though the look is owned via another.
+--
+-- Both the browser's binary row and the main-panel summary counter classify
+-- binary items through this one function so the two can never disagree.
+function RR.BinaryFoldedState(item)
+    if not item.sources then
+        return FallbackStateForItem(item.id)
+    end
+    local best = "missing"
+    for _, s in pairs(item.sources) do
+        local st = CollectionStateForSource(s, item.id)
+        if st == "collected" then
+            return "collected"
+        elseif st == "shared" then
+            best = "shared"
+        end
+    end
+    return best
+end
+
+RR.ItemShape        = ItemShape
 
 -------------------------------------------------------------------------------
 -- Special Loot: mount / pet / toy / decor collection state
@@ -3329,6 +3528,8 @@ BuildSpecialLootSection = function(boss)
                 kindInner = kindLabel .. ", |r|cffF259C7LFR only|r|c" .. kindColor
             elseif item.normalHeroicOnly then
                 kindInner = kindLabel .. ", |r|cffF259C7Normal/Heroic only|r|c" .. kindColor
+            elseif item.heroicOnly then
+                kindInner = kindLabel .. ", |r|cffF259C7Heroic only|r|c" .. kindColor
             end
 
             -- Bracketed state indicator before the name, matching the
@@ -3345,20 +3546,59 @@ BuildSpecialLootSection = function(boss)
     return table.concat(lines, "\n")
 end
 
--- Tier items only show if the player's class is in item.classes, or
--- the user has toggled "show all classes" in the tmog browser.
-local function ItemIsForPlayer(item)
-    if not item.classes then return true end
-    if RR:GetSetting("showAllTierClasses") then return true end
+-- Visibility filter for the transmog popup. Two independent class fields
+-- gate a row:
+--   * `classes`      -- tier TOKEN rows (one appearance per class). Hidden
+--                       for non-matching classes unless "show all" is on.
+--   * `equipClasses` -- armor-class restriction (who can equip the piece;
+--                       e.g. Cataclysm Baradin Hold sets, where every drop
+--                       is class-restricted armor but NONE are tier tokens).
+--                       Filtered the same way, but drives no tier label.
+-- A row matches if the active filter class is listed in whichever field is
+-- present. The class browser dropdown chooses the filter class.
+--
+-- Active class filter: which class the tmog browser is currently showing
+-- class-gated loot for. Stored in the `tmogClassFilter` setting as a class
+-- ID (1-13), or 0 meaning "all classes". When unset (nil), defaults to the
+-- player's own class, so the out-of-box view matches what a player expects
+-- to collect. Returns nil for the "all classes" case, otherwise a class ID.
+local function ActiveClassFilter()
+    local sel = RR:GetSetting("tmogClassFilter")
+    if sel == 0 then return nil end          -- explicit "all classes"
+    if type(sel) == "number" and sel >= 1 and sel <= 13 then
+        return sel
+    end
+    -- Unset / invalid: default to the player's class.
     local _, _, classID = UnitClass("player")
-    for _, cid in ipairs(item.classes) do
-        if cid == classID then return true end
+    return classID
+end
+
+-- The player's own class ID. The main-panel summary counts against this
+-- rather than ActiveClassFilter so it always reflects what THIS character
+-- can collect in the raid they're standing in -- independent of whatever
+-- class the browser's dropdown is currently previewing.
+function RR.PlayerClassID()
+    local _, _, classID = UnitClass("player")
+    return classID
+end
+
+local function ItemIsForPlayer(item, classOverride)
+    local gate = item.classes or item.equipClasses
+    if not gate then return true end
+    local filterClass = classOverride or ActiveClassFilter()
+    if not filterClass then return true end   -- "all classes" selected
+    for _, cid in ipairs(gate) do
+        if cid == filterClass then return true end
     end
     return false
 end
 
 -- Is an item a "display candidate" for the transmog popup?
-local function ItemIsTransmogCandidate(item)
+-- classOverride forces a specific class gate (used by the main-panel
+-- summary, which always reflects the player's own class regardless of the
+-- browser's class dropdown). When nil, falls back to ActiveClassFilter --
+-- the browser dropdown selection.
+local function ItemIsTransmogCandidate(item, classOverride)
     -- Special-loot entries (pets, mounts, toys, illusions, manuscripts,
     -- decor) carry a `kind` and belong in the boss specialLoot list, which
     -- the core UI surfaces separately. They have no equip slot and no
@@ -3366,14 +3606,14 @@ local function ItemIsTransmogCandidate(item)
     -- transmog browser regardless of which array they were authored into.
     if item.kind then return false end
     if TRANSMOG_EXCLUDED_SLOTS[item.slot] then return false end
-    if not ItemIsForPlayer(item) then return false end
+    if not ItemIsForPlayer(item, classOverride) then return false end
     return true
 end
 
 -- The "active" (current in-game) difficulty, folded to its display
 -- bucket so it lines up with the 14/15/16/17 keys the source data uses.
--- Under the Mists model a live size variant (e.g. 25-player Heroic)
--- folds to its Heroic bucket; under the modern model the id is returned
+-- Under a size-folding model a live size variant (e.g. 25-player Heroic)
+-- folds to its Heroic bucket; under the independent model the id is returned
 -- unchanged. Used to choose the white vs gray dot colour in the browser.
 local function ActiveDifficulty()
     return RR:FoldDifficulty(RR.currentRaid, RR.state and RR.state.currentDifficultyID)
@@ -3420,28 +3660,50 @@ end
 -- Returns (needed, shared, total). Only counts items that HAVE a source
 -- for the given difficulty; items with no source for that difficulty
 -- (some raids have fewer variants) are skipped entirely, not counted.
-local function CountBossLootForDifficulty(boss, diffID)
+local function CountBossLootForDifficulty(boss, diffID, classOverride)
     if not boss or not boss.loot or #boss.loot == 0 then return nil end
     if not diffID then return nil end
     local needed, shared, total = 0, 0, 0
     for _, item in ipairs(boss.loot) do
-        if ItemIsTransmogCandidate(item) then
-            local src = item.sources and item.sources[diffID]
-            if src then
-                total = total + 1
-                local s = CollectionStateForSource(src, item.id)
-                if s == "missing" then
-                    needed = needed + 1
-                elseif s == "shared" then
-                    shared = shared + 1
+        if ItemIsTransmogCandidate(item, classOverride) then
+            local shape = ItemShape(item)
+            if shape == "binary" then
+                -- Binary item: one appearance across all its difficulty
+                -- sources. Count it once on this difficulty line only if it
+                -- is reachable here (has a source at diffID), classified by
+                -- the folded per-item state rather than this difficulty's
+                -- source in isolation -- so an item collected via Heroic
+                -- reads collected under Normal too, matching the browser.
+                if item.sources and item.sources[diffID] then
+                    total = total + 1
+                    local s = RR.BinaryFoldedState(item)
+                    if s == "missing" then
+                        needed = needed + 1
+                    elseif s == "shared" then
+                        shared = shared + 1
+                    end
                 end
-            elseif not item.sources then
-                total = total + 1
-                local s = FallbackStateForItem(item.id)
-                if s == "missing" then
-                    needed = needed + 1
-                elseif s == "shared" then
-                    shared = shared + 1
+            else
+                -- Perdiff (distinct appearance per difficulty) or single
+                -- source: evaluate this difficulty's source on its own, so
+                -- each difficulty's recolor is counted under its own line.
+                local src = item.sources and item.sources[diffID]
+                if src then
+                    total = total + 1
+                    local s = CollectionStateForSource(src, item.id)
+                    if s == "missing" then
+                        needed = needed + 1
+                    elseif s == "shared" then
+                        shared = shared + 1
+                    end
+                elseif not item.sources then
+                    total = total + 1
+                    local s = FallbackStateForItem(item.id)
+                    if s == "missing" then
+                        needed = needed + 1
+                    elseif s == "shared" then
+                        shared = shared + 1
+                    end
                 end
             end
         end
@@ -3453,11 +3715,11 @@ end
 -- Count items where AT LEAST ONE of the given difficulty buckets is
 -- missing/shared. Used for the "Other difficulties" summary row, which
 -- rolls up the three non-active difficulties into a single count.
-local function CountBossLootAcrossDifficulties(boss, diffIDs)
+local function CountBossLootAcrossDifficulties(boss, diffIDs, classOverride)
     if not boss or not boss.loot or #boss.loot == 0 then return nil end
     local needed, shared, total = 0, 0, 0
     for _, item in ipairs(boss.loot) do
-        if ItemIsTransmogCandidate(item) then
+        if ItemIsTransmogCandidate(item, classOverride) then
             if item.sources then
                 -- Evaluate each difficulty bucket in this item's sources.
                 -- "hasMissing/hasShared" per-item: the item rolls up to
@@ -3568,7 +3830,22 @@ end
 -- difficulty Missing/Shared counts. Zero in both -> "Complete" (green).
 -- Numbers: 0 green, 1+ orange. Collapses to "All appearances
 -- collected!" when every difficulty is done.
-local function BuildTransmogSummary(step)
+-- Collection-state generation counter. Bumped by the watcher frame
+-- below whenever the player's transmog collection changes; the cached
+-- summary keys on it so a new appearance invalidates the cache without
+-- recounting on every panel refresh.
+UI.collectionGeneration = 0
+do
+    local collectionWatcher = CreateFrame("Frame")
+    collectionWatcher:RegisterEvent("TRANSMOG_COLLECTION_SOURCE_ADDED")
+    collectionWatcher:RegisterEvent("TRANSMOG_COLLECTION_SOURCE_REMOVED")
+    collectionWatcher:RegisterEvent("TRANSMOG_COLLECTION_UPDATED")
+    collectionWatcher:SetScript("OnEvent", function()
+        UI.collectionGeneration = UI.collectionGeneration + 1
+    end)
+end
+
+function UI.BuildTransmogSummaryUncached(step)
     if not step then return nil end
     local boss = RR:GetBossByIndex(step.bossIndex)
     if not boss then return nil end
@@ -3577,25 +3854,47 @@ local function BuildTransmogSummary(step)
     local clickHnt = "|cff555555[click to browse]|r"
     local activeID = ActiveDifficulty()
 
+    -- Buckets to summarize come from the raid's difficulty model, not a
+    -- fixed list, so era-specific bucket IDs (Cataclysm's 3/4/5/6) are
+    -- counted instead of silently skipped.
+    local summaryBuckets = RR:GetDisplayBuckets(RR.currentRaid)
+        or DIFFS_FOR_SUMMARY
+
+    -- When the raid shows a single lockout bucket (Cataclysm folds both
+    -- sizes and both difficulties into one weekly lockout), the
+    -- Current-vs-Other difficulty split is redundant -- there is only one
+    -- bucket on the pill. Collapse to a single cross-bucket rollup line.
+    -- Per-item N/H appearance differences are still surfaced in the loot
+    -- rows themselves by the item-shape logic; this only affects the
+    -- boss-level summary line.
+    if #summaryBuckets <= 1 then
+        local n, s, t = CountBossLootAcrossDifficulties(boss, DIFFS_FOR_SUMMARY, RR.PlayerClassID())
+        if not t then return nil end
+        if n == 0 and s == 0 then
+            return header .. " |cffF259C7All appearances collected!|r"
+        end
+        return header .. "\n- " .. FormatStatsFragment(n, s) .. "  " .. clickHnt
+    end
+
     -- Compute the current-difficulty counts (if active difficulty known).
     local curNeeded, curShared, curTotal
     if activeID then
-        curNeeded, curShared, curTotal = CountBossLootForDifficulty(boss, activeID)
+        curNeeded, curShared, curTotal = CountBossLootForDifficulty(boss, activeID, RR.PlayerClassID())
     end
 
-    -- Compute the other-difficulties counts (rollup of the 3 non-active).
+    -- Compute the other-difficulties counts (rollup of the non-active).
     local otherIDs = {}
-    for _, diffID in ipairs(DIFFS_FOR_SUMMARY) do
+    for _, diffID in ipairs(summaryBuckets) do
         if diffID ~= activeID then
             table.insert(otherIDs, diffID)
         end
     end
-    local othNeeded, othShared, othTotal = CountBossLootAcrossDifficulties(boss, otherIDs)
+    local othNeeded, othShared, othTotal = CountBossLootAcrossDifficulties(boss, otherIDs, RR.PlayerClassID())
 
     -- Edge case: active difficulty not set / not tracked. Fall back to
     -- a cross-all-difficulties single-line rollup.
     if not activeID or not curTotal then
-        local n, s, t = CountBossLootAcrossDifficulties(boss, DIFFS_FOR_SUMMARY)
+        local n, s, t = CountBossLootAcrossDifficulties(boss, summaryBuckets, RR.PlayerClassID())
         if not t then return nil end
         if n == 0 and s == 0 then
             return header .. " |cffF259C7All appearances collected!|r"
@@ -3623,6 +3922,26 @@ local function BuildTransmogSummary(step)
     return header .. "\n" .. line1 .. "\n" .. line2
 end
 
+-- Cached front for the summary. Counting is pure: it depends only on
+-- the boss, the shown difficulty, the player's class (fixed), and
+-- collection state -- so the result is reused until any of those
+-- change. Boss and difficulty are in the key; collection changes bump
+-- UI.collectionGeneration; nil results cache like any other.
+local function BuildTransmogSummary(step)
+    if not step then return nil end
+    local cacheKey = tostring(RR.state.loadedRaidKey or "?")
+        .. ":" .. tostring(step.bossIndex or "?")
+        .. ":" .. tostring(ActiveDifficulty() or "?")
+        .. ":" .. tostring(UI.collectionGeneration)
+    local cache = UI.tmogSummaryCache
+    if cache and cache.key == cacheKey then
+        return cache.text
+    end
+    local summaryText = UI.BuildTransmogSummaryUncached(step)
+    UI.tmogSummaryCache = { key = cacheKey, text = summaryText }
+    return summaryText
+end
+
 -------------------------------------------------------------------------------
 -- Per-difficulty dot row builder
 -------------------------------------------------------------------------------
@@ -3635,79 +3954,6 @@ end
 -- The "|" literal in the strip is escaped as "||" since WoW reads
 -- "|r" as a reset-color sequence.
 -------------------------------------------------------------------------------
-
--- Count unique non-nil values in the sources table. Returns 0 if sources
--- is nil or empty, which pushes the caller into the FallbackStateForItem
--- path (binary-shape with a single state).
-local function CountUniqueSources(sources)
-    if not sources then return 0 end
-    local seen = {}
-    local count = 0
-    for _, src in pairs(sources) do
-        if src and not seen[src] then
-            seen[src] = true
-            count = count + 1
-        end
-    end
-    return count
-end
-
-local function ItemShape(item)
-    if not item.sources then return nil end
-    local bucketCount = 0
-    local uniqueSources = {}
-    for _, src in pairs(item.sources) do
-        bucketCount = bucketCount + 1
-        uniqueSources[src] = true
-    end
-    local uniqueCount = 0
-    for _ in pairs(uniqueSources) do uniqueCount = uniqueCount + 1 end
-
-    if uniqueCount == 0 then return nil end
-
-    -- Binary shape: a single appearance across multiple buckets. Two
-    -- ways the source data expresses this:
-    --   (a) Single sourceID cloned across buckets -- e.g. Sepulcher's
-    --       Gavel of the First Arbiter (all 4 diffs same source), or
-    --       WoD N/H/M items where Normal/Heroic/Mythic all resolve
-    --       to the same source.
-    --   (b) Multiple sourceIDs that all resolve to ONE visualID. WoW's
-    --       transmog system tracks per-(item x difficulty) acquisition
-    --       paths even when they share a visual; Blackrock Foundry's
-    --       The Black Hand has sourceIDs 62893 and 62895 both pointing
-    --       at visual 23383. Blizzard's own appearance tab shows it as
-    --       one appearance. Render as one bracket to match.
-    -- 1-bucket items (e.g. WoD LFR-only {[17]=X}) deliberately don't
-    -- qualify -- they render as "[ LFR ]" via the perdiff path, which
-    -- cues the player to queue Raid Finder specifically.
-    if bucketCount >= 2 then
-        if uniqueCount == 1 then
-            return "binary"
-        end
-        -- visualID equivalence path. Falls through to perdiff if any
-        -- source's visualID is unresolved (cold cache); the next
-        -- render after the cache warms reclassifies correctly.
-        local seenAppearances = {}
-        local apCount = 0
-        local allResolved = true
-        for _, src in pairs(item.sources) do
-            local ap = GetAppearanceIDForSource(src)
-            if not ap then
-                allResolved = false
-                break
-            end
-            if not seenAppearances[ap] then
-                seenAppearances[ap] = true
-                apCount = apCount + 1
-            end
-        end
-        if allResolved and apCount == 1 then
-            return "binary"
-        end
-    end
-
-    return "perdiff"
-end
 
 -- Glyphs for the binary-shape bracketed indicator. Collected uses
 -- ReadyCheck-Ready (native green). Missing uses ReadyCheck-NotReady
@@ -3740,41 +3986,11 @@ end
 -- missing that field renders safely instead of crashing BinaryStateRendering.
 local function BuildBinaryRow(item)
     local debugEnabled = RR:GetSetting("debug")
-    local state
-
-    -- Every source of a binary item resolves to the same visualID, but the
-    -- sources do NOT share one per-source collected state: WoW tracks each
-    -- (item x difficulty) source's acquisition independently. A player who
-    -- looted the Mythic source has THAT source directly collected, while the
-    -- Normal/Heroic sources stay uncollected -- the appearance is owned, so
-    -- those read "shared" rather than "collected". Picking one arbitrary
-    -- source (pairs order is undefined) would report "shared" (gold)
-    -- whenever the pick landed on an uncollected source, even though the
-    -- player collected this very item on another difficulty and it should
-    -- read "collected" (green).
-    --
-    -- Fold across every source and keep the strongest state:
-    --   collected (green) > shared (gold) > missing (red).
-    -- "collected" means at least one of THIS item's own sources is directly
-    -- known; "shared" means none are, but the appearance is owned via some
-    -- other item; "missing" means the look isn't owned at all.
-    if item.sources then
-        local best = "missing"
-        for _, s in pairs(item.sources) do
-            local st = CollectionStateForSource(s, item.id)
-            if st == "collected" then
-                best = "collected"
-                break
-            elseif st == "shared" then
-                best = "shared"
-            end
-        end
-        state = best
-    else
-        -- sources nil/empty (hand-edited data file missing the field);
-        -- without this BinaryStateRendering would crash on state=nil.
-        state = FallbackStateForItem(item.id)
-    end
+    -- One appearance across all difficulty sources. State is folded across
+    -- every source (strongest wins: collected > shared > missing) via the
+    -- shared helper the summary counter also uses, so the row and the
+    -- main-panel count can never disagree on a binary item.
+    local state = RR.BinaryFoldedState(item)
 
     local colour, glyph = BinaryStateRendering(state)
 
@@ -4056,7 +4272,28 @@ BuildTransmogDetail = function(stepOrCtx)
         table.sort(ids)
         return table.concat(ids, ",")
     end
-    table.sort(binaryItems, function(a, b) return (a.name or "") < (b.name or "") end)
+    -- Binary-shape rows sort by class first, then name -- mirroring the
+    -- per-difficulty tier ordering below, so class-restricted binary gear
+    -- (e.g. Cataclysm Baradin Hold sets, where every drop is binary and
+    -- class-gated via `equipClasses`) clusters by class under "show all"
+    -- rather than interleaving alphabetically across classes. Rows with no
+    -- class info (`classKey` 0) sort together at the top, then by name.
+    -- Uses the lowest class ID in the row's class set as its sort key, same
+    -- convention as the tier block's `a.classes[1]`.
+    local function classKey(item)
+        local set = item.classes or item.equipClasses
+        if not set or #set == 0 then return 0 end
+        local lo = set[1] or 0
+        for _, cid in ipairs(set) do
+            if cid < lo then lo = cid end
+        end
+        return lo
+    end
+    table.sort(binaryItems, function(a, b)
+        local ka, kb = classKey(a), classKey(b)
+        if ka ~= kb then return ka < kb end
+        return (a.name or "") < (b.name or "")
+    end)
     -- Tier rows (those carrying `item.classes`) sort as a block ABOVE the
     -- regular gear, ordered by class ID then name. Regular (non-tier) rows
     -- keep the bucket-count -> signature -> name ordering. This makes the
@@ -4168,6 +4405,35 @@ BuildTransmogDetail = function(stepOrCtx)
                     -- normal-toned tag rather than a louder label.
                     nameText = ("%s |cffffffff(|r|c%s%s|r|cffffffff only)|r"):format(
                         nameText, rcHex, rcName)
+                end
+            end
+
+            -- Armor-class-restricted rows (equipClasses; e.g. Baradin Hold
+            -- sets) are already filtered to the chosen class, so no suffix is
+            -- needed when a specific class is selected. When "all classes" is
+            -- selected the list mixes every class's armor, so append a colored
+            -- class tag naming who can wear the piece -- otherwise an all-class
+            -- armor dump is unreadable. Single-class pieces name that class;
+            -- multi-class (shared-armor) pieces list each, comma-separated.
+            if item.equipClasses and ActiveClassFilter() == nil then
+                local tags = {}
+                for _, ecID in ipairs(item.equipClasses) do
+                    local ecName  = (ecID == playerClassID and playerClassName)
+                                    or ClassNameForID(ecID)
+                    local ecToken = (ecID == playerClassID and playerClassToken)
+                                    or CLASS_ID_TO_TOKEN[ecID]
+                    if ecName then
+                        local ecHex = "ffff8000"
+                        if ecToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[ecToken] then
+                            local c = RAID_CLASS_COLORS[ecToken]
+                            if c.colorStr then ecHex = c.colorStr end
+                        end
+                        table.insert(tags, ("|c%s%s|r"):format(ecHex, ecName))
+                    end
+                end
+                if #tags > 0 then
+                    nameText = ("%s |cffffffff(|r%s|cffffffff)|r"):format(
+                        nameText, table.concat(tags, "|cffffffff, |r"))
                 end
             end
         end
@@ -4708,9 +4974,25 @@ GetOrCreateTmogWindow = function()
     -- Three cascading dropdowns: Expansion / Raid / Boss.
     -- Each refreshes its successors when changed, so selecting a new
     -- expansion resets the raid + boss dropdowns to their first entries.
-    local function MakeDD(name, width, parent)
+    -- Creates a dropdown with an optional label to its LEFT. The template's
+    -- text element is right-justified by default with wide internal padding,
+    -- which leaves an awkward blank gap on the left of the bar; we re-justify
+    -- it LEFT so the selected text starts at the bar's left edge. `labelText`,
+    -- when given, places a caption to the left of the bar in the space that
+    -- gap used to waste.
+    local function MakeDD(name, width, parent, labelText)
         local dd = CreateFrame("Frame", "RetroRuns" .. name .. "DD", parent, "UIDropDownMenuTemplate")
         UIDropDownMenu_SetWidth(dd, width)
+        -- Left-justify the selected-value text (template default is RIGHT).
+        local fs = _G[dd:GetName() .. "Text"]
+        if fs then fs:SetJustifyH("LEFT") end
+        -- Optional caption to the left of the bar.
+        if labelText then
+            local lbl = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            lbl:SetText(labelText)
+            lbl:SetJustifyH("LEFT")
+            dd.label = lbl
+        end
         -- Dropdown menus render as separate top-level frames; their hover
         -- isn't inherited by the popup, so we cancel the hide timer while
         -- the menu is open to prevent the popup from disappearing.
@@ -4724,80 +5006,330 @@ GetOrCreateTmogWindow = function()
         return dd
     end
 
-    local ddExp  = MakeDD("Expansion", 140, f)
-    local ddRaid = MakeDD("Raid",      220, f)
-    local ddBoss = MakeDD("Boss",      220, f)
+    -- Caption column on the left, bars to its right. Labels are left-aligned
+    -- starting at LABEL_LEFT; bars are sized to fit the longest real content
+    -- (Exp/Class are the narrow "1" slots, Raid/Boss the wider "2" slots) so
+    -- there's no dead space inside the bar after the text.
+    local LABEL_LEFT = 14   -- left margin where captions start
+    local LABEL_GAP  = 4    -- gap between the caption column and the bars
+    -- Measure the widest caption so the column is exactly as wide as it needs
+    -- to be (a guessed fixed width either clipped "Class:" or left a gap).
+    local capMeasure = f:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    capMeasure:Hide()
+    local LABEL_W = 0
+    for _, cap in ipairs({ "Exp:", "Raid:", "Boss:", "Class:" }) do
+        capMeasure:SetText(cap)
+        local w = capMeasure:GetStringWidth() or 0
+        if w > LABEL_W then LABEL_W = w end
+    end
+    LABEL_W = math.ceil(LABEL_W)
+    -- The dropdown template frame has ~16px of non-visible left inset before
+    -- the bar's visible edge, so to put the VISIBLE bar at a target X we
+    -- offset the frame left by DD_INSET.
+    local DD_INSET   = 16
 
-    ddExp:SetPoint("TOPLEFT",  f, "TOPLEFT", -4, -32)
-    ddRaid:SetPoint("TOPLEFT", ddExp, "BOTTOMLEFT", 0, 4)
-    ddBoss:SetPoint("TOPLEFT", ddRaid, "BOTTOMLEFT", 0, 4)
+    local ddExp  = MakeDD("Expansion", 110, f, "Exp:")
+    local ddRaid = MakeDD("Raid",      185, f, "Raid:")
+    local ddBoss = MakeDD("Boss",      185, f, "Boss:")
+
+    -- Bars: stacked, each stepped slightly right of the one above so the
+    -- left edges cascade top-to-bottom. Exp anchors to the frame; Raid,
+    -- Boss, and Class each inset by DD_STEP from their predecessor.
+    local barVisibleLeft = LABEL_LEFT + LABEL_W + LABEL_GAP
+    local barLeft = barVisibleLeft - DD_INSET
+    local DD_STEP = 5
+    ddExp:SetPoint("TOPLEFT",  f,     "TOPLEFT",     barLeft, -32)
+    ddRaid:SetPoint("TOPLEFT", ddExp, "BOTTOMLEFT",  DD_STEP,  4)
+    ddBoss:SetPoint("TOPLEFT", ddRaid, "BOTTOMLEFT", DD_STEP,  4)
+
+    -- Labels: anchored to each bar's own left edge with a fixed gap, so
+    -- they cascade rightward in step with the indented bars. The dropdown
+    -- frame has DD_INSET of invisible padding before its visible bar, so
+    -- offset the caption's right edge out to (frame LEFT + DD_INSET) minus
+    -- the gap -- that lands the caption the same distance from the visible
+    -- bar as before, at every indent depth.
+    local function anchorLabel(dd)
+        if not dd.label then return end
+        dd.label:ClearAllPoints()
+        dd.label:SetPoint("RIGHT", dd, "LEFT", DD_INSET - LABEL_GAP, 2)
+        dd.label:SetPoint("TOP",  dd, "TOP",  0, -6)
+        dd.label:SetWidth(LABEL_W)
+    end
+    anchorLabel(ddExp); anchorLabel(ddRaid); anchorLabel(ddBoss)
 
     f.ddExp, f.ddRaid, f.ddBoss = ddExp, ddRaid, ddBoss
+    -- Left margin where below-dropdown content (loot list, legend, scroll
+    -- region) aligns. Independent of the dropdowns' indented left edge.
+    f.contentMargin = 22
 
-    -- "Show all classes" checkbox -- when enabled, tier rows for ALL 12
-    -- classes show up under each boss, not just the player's class. Useful
-    -- for multi-class players. Persisted to RetroRunsDB.showAllTierClasses.
-    local showAllCheck = CreateFrame("CheckButton", "RetroRunsShowAllTierCheck",
-                                     f, "UICheckButtonTemplate")
-    showAllCheck:SetPoint("TOPLEFT", ddBoss, "TOPRIGHT", 8, -4)
-    showAllCheck:SetSize(20, 20)
-    showAllCheck.text = showAllCheck:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    showAllCheck.text:SetPoint("LEFT", showAllCheck, "RIGHT", 2, 1)
-    showAllCheck.text:SetText("Show all class tier")
-    showAllCheck:SetScript("OnShow", function(self)
-        self:SetChecked(RR:GetSetting("showAllTierClasses") or false)
-    end)
-    showAllCheck:SetScript("OnClick", function(self)
-        RR:SetSetting("showAllTierClasses", self:GetChecked() and true or false)
-        if f.RefreshAll then f:RefreshAll() end
-    end)
-    -- Hovering the checkbox shouldn't dismiss the popup.
-    showAllCheck:HookScript("OnEnter", CancelTmogHide)
-    showAllCheck:HookScript("OnLeave", ScheduleTmogHide)
-    f.showAllCheck = showAllCheck
+    -- Class filter dropdown -- chooses which class's class-gated loot (tier
+    -- tokens, or Baradin Hold's equipClasses armor) the browser shows. Each
+    -- class is listed by its localized name in its class color, plus an "All
+    -- classes" entry. Defaults to the player's own class (see
+    -- ActiveClassFilter), so the out-of-box view is unchanged. Replaces the
+    -- older "show all class tier" checkbox -- a dropdown lets you pick any
+    -- single class, not just your-own-vs-everyone. Persisted to
+    -- RetroRunsDB.tmogClassFilter (class ID, or 0 for "all").
+    local ddClass = MakeDD("Class", 110, f, "Class:")
+    ddClass:SetPoint("TOPLEFT", ddBoss, "BOTTOMLEFT", DD_STEP, 4)
+    anchorLabel(ddClass)
+    f.ddClass = ddClass
 
-    -- Content text sits directly on the popup (no scroll frame). The popup
-    -- auto-sizes to fit whatever the current boss produces, so there's no
-    -- need for scrolling in practice.
-    local text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    text:SetPoint("TOPLEFT",     ddBoss, "BOTTOMLEFT", 22, -10)
-    text:SetPoint("TOPRIGHT",    f,      "TOPRIGHT",   -14, 0)   -- width only
+    -- Size each dropdown bar to its widest real content by MEASURING the
+    -- rendered string width, rather than a hardcoded guess (which truncated
+    -- "Warlords of Draenor" and would not survive longer future names like
+    -- "Wrath of the Lich King"). A hidden FontString at the dropdown's font
+    -- (GameFontHighlightSmall) measures each candidate; the bar is set to the
+    -- widest plus padding for the dropdown's arrow button and inner margins.
+    --
+    -- Expansion is measured against the FULL expansion-order constant (which
+    -- already lists every expansion, including ones with no data yet), so the
+    -- bar is wide enough the moment those raids are added -- no width edit
+    -- needed. Raid/Boss are measured against all current names; Class against
+    -- the class names plus "All classes". Re-runnable: RefreshDropdowns calls
+    -- this so newly-added data is accommodated on the next open.
+    local measureFS = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    measureFS:Hide()
+    local function widestStringWidth(strings)
+        local maxW = 0
+        for _, s in ipairs(strings) do
+            measureFS:SetText(s or "")
+            local w = measureFS:GetStringWidth() or 0
+            if w > maxW then maxW = w end
+        end
+        return maxW
+    end
+
+    f.SizeDropdownsToContent = function(self)
+        -- ARROW_PAD covers the dropdown's right-side arrow button plus the
+        -- template's inner left/right text margins. UIDropDownMenu_SetWidth
+        -- sets the text region; the visible frame is wider, but the text that
+        -- must not clip is what we measure, so pad enough that the arrow never
+        -- overlaps the longest string.
+        local ARROW_PAD = 30
+
+        -- Expansion: full constant list (future names included).
+        local expW = widestStringWidth(EXPANSION_ORDER_NEWEST_FIRST)
+
+        -- Raid + Boss: every current raid and boss name.
+        local raidNames, bossNames = {}, {}
+        for _, raid in pairs(RetroRuns_Data or {}) do
+            if raid.instanceID and raid.instanceID > 0 then
+                raidNames[#raidNames + 1] = raid.name or ""
+                for _, boss in ipairs(raid.bosses or {}) do
+                    bossNames[#bossNames + 1] = boss.name or ""
+                end
+            end
+        end
+        local raidW = widestStringWidth(raidNames)
+        local bossW = widestStringWidth(bossNames)
+
+        -- Class: localized class names plus the "All classes" entry.
+        local classNames = { "All classes" }
+        for classID = 1, 13 do
+            if CLASS_ID_TO_TOKEN[classID] then
+                classNames[#classNames + 1] = ClassNameForID(classID) or ""
+            end
+        end
+        local classW = widestStringWidth(classNames)
+
+        -- Pair the widths so the layout stays tidy: Raid and Boss share the
+        -- wider of the two (the "2" slots), Exp and Class share the wider of
+        -- those two (the "1" slots). This keeps clean uniform pairs while
+        -- still fitting the longest content in each pair -- ragged per-bar
+        -- widths would look messy.
+        local wide   = math.max(raidW, bossW)
+        local narrow = math.max(expW, classW)
+        UIDropDownMenu_SetWidth(ddRaid,  math.ceil(wide)   + ARROW_PAD)
+        UIDropDownMenu_SetWidth(ddBoss,  math.ceil(wide)   + ARROW_PAD)
+        UIDropDownMenu_SetWidth(ddExp,   math.ceil(narrow) + ARROW_PAD)
+        UIDropDownMenu_SetWidth(ddClass, math.ceil(narrow) + ARROW_PAD)
+    end
+
+    -- Class display order for the dropdown: ascending class ID, matching the
+    -- by-class sort used in the loot list. Only IDs that resolve to a real
+    -- class token are shown (so the list stays correct across game versions).
+    local CLASS_FILTER_ORDER = {}
+    for classID = 1, 13 do
+        if CLASS_ID_TO_TOKEN[classID] then
+            CLASS_FILTER_ORDER[#CLASS_FILTER_ORDER + 1] = classID
+        end
+    end
+
+    -- Localized, class-colored label for a class ID. Falls back to a plain
+    -- name (or the raw ID) if color/localization tables aren't ready.
+    local function ClassFilterLabel(classID)
+        local name  = ClassNameForID(classID) or tostring(classID)
+        local token = CLASS_ID_TO_TOKEN[classID]
+        local hex   = "ffffffff"
+        if token and RAID_CLASS_COLORS and RAID_CLASS_COLORS[token] then
+            local c = RAID_CLASS_COLORS[token]
+            if c.colorStr then hex = c.colorStr end
+        end
+        return ("|c%s%s|r"):format(hex, name)
+    end
+
+    f.RefreshClassDropdown = function(self)
+        local active = ActiveClassFilter()   -- nil = all classes
+        UIDropDownMenu_Initialize(ddClass, function()
+            -- "All classes" first.
+            local allInfo = UIDropDownMenu_CreateInfo()
+            allInfo.text    = "All classes"
+            allInfo.value   = 0
+            allInfo.checked = (active == nil)
+            allInfo.func    = function()
+                RR:SetSetting("tmogClassFilter", 0)
+                if f.RefreshAll then f:RefreshAll() end
+            end
+            UIDropDownMenu_AddButton(allInfo)
+
+            for _, classID in ipairs(CLASS_FILTER_ORDER) do
+                local info = UIDropDownMenu_CreateInfo()
+                info.text    = ClassFilterLabel(classID)
+                info.value   = classID
+                info.checked = (active == classID)
+                info.func    = function()
+                    RR:SetSetting("tmogClassFilter", classID)
+                    if f.RefreshAll then f:RefreshAll() end
+                end
+                UIDropDownMenu_AddButton(info)
+            end
+        end)
+        if active == nil then
+            UIDropDownMenu_SetText(ddClass, "All classes")
+        else
+            UIDropDownMenu_SetText(ddClass, ClassFilterLabel(active))
+        end
+    end
+
+    -- Scrollable content region. The per-boss appearance list can run long
+    -- (a full class's worth of shared-armor sets, or every class's gear when
+    -- "show all" is on), past any sane fixed height. A ScrollFrame holds the
+    -- content + sanctum line so the list scrolls; the color legend below is a
+    -- FIXED footer on the popup itself, so it never scrolls out of view.
+    -- Pattern mirrors the What's New page in SettingsCanvas.
+    local scroll = CreateFrame("ScrollFrame", "RetroRunsTmogScroll", f,
+                               "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOP",  ddClass, "BOTTOM", 0, -10)
+    scroll:SetPoint("LEFT", f, "LEFT", 22, 0)
+    -- Initial size is a placeholder; AutoSize clears these points and re-sizes
+    -- the scroll region every layout pass (TOP from the dropdown stack, LEFT
+    -- from the frame's content margin, explicit width and height = exactly the
+    -- content viewport, so range is zero when content fits). -28 right inset
+    -- leaves room for the scrollbar.
+    scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -28, 40)
+    scroll:HookScript("OnEnter", CancelTmogHide)
+    scroll:HookScript("OnLeave", ScheduleTmogHide)
+    f.contentScroll = scroll
+
+    -- Resolve this scroll's scrollbar across client versions. Older clients
+    -- expose it as the global "<name>ScrollBar"; modern (10.x+) ones attach
+    -- it as a `.ScrollBar` child on the ScrollFrame. Return whichever exists.
+    local function ResolveScrollBar()
+        return scroll.ScrollBar or _G["RetroRunsTmogScrollScrollBar"]
+    end
+    f.ResolveTmogScrollBar = ResolveScrollBar
+
+    -- Install a persistent guard on the scrollbar that re-hides it whenever
+    -- there is no scrollable range. UIPanelScrollFrameTemplate (and the modern
+    -- MinimalScrollBar it may use) re-shows the bar from several internal
+    -- paths -- OnScrollRangeChanged, OnSizeChanged, data-provider updates --
+    -- any of which can fire a frame after our layout-pass hide. Hooking the
+    -- bar's own OnShow means whichever path re-shows it, we immediately
+    -- re-hide if the range is still zero. The guard is installed once, lazily,
+    -- since the bar object may not exist until the template finishes setup.
+    local barGuardInstalled = false
+    local function EnsureBarGuard()
+        if barGuardInstalled then return end
+        local bar = ResolveScrollBar()
+        if not bar then return end
+        bar:HookScript("OnShow", function(self)
+            local range = scroll:GetVerticalScrollRange() or 0
+            if range <= 1 then
+                self:Hide()
+            end
+        end)
+        barGuardInstalled = true
+    end
+    f.EnsureTmogBarGuard = EnsureBarGuard
+
+    -- Also react to the range-changed event directly: when the range drops to
+    -- zero (switching from a long boss list to a short one), hide the bar and
+    -- snap to top; when real range appears, show it.
+    scroll:HookScript("OnScrollRangeChanged", function(self)
+        EnsureBarGuard()
+        local bar = ResolveScrollBar()
+        if not bar then return end
+        local range = self:GetVerticalScrollRange() or 0
+        if range > 1 then
+            bar:Show()
+        else
+            bar:Hide()
+            if self.SetVerticalScroll then self:SetVerticalScroll(0) end
+        end
+    end)
+
+    local scrollChild = CreateFrame("Frame", "RetroRunsTmogScrollChild", scroll)
+    scrollChild:SetSize(10, 10)   -- real size set per layout pass
+    scroll:SetScrollChild(scrollChild)
+    f.contentChild = scrollChild
+
+    -- The loot list (contentText) and sanctum line render into the scroll
+    -- child, so item/achievement link clicks route through the child's
+    -- hyperlink scripts, not the popup's. Mirror the popup's handlers here
+    -- so links inside the scrolled content stay clickable.
+    scrollChild:SetHyperlinksEnabled(true)
+    scrollChild:SetScript("OnHyperlinkClick", function(_, link, linkText, button)
+        SetItemRef(link, linkText, button)
+    end)
+    scrollChild:SetScript("OnHyperlinkEnter", function(self, link)
+        CancelTmogHide()
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetHyperlink(link)
+        GameTooltip:Show()
+    end)
+    scrollChild:SetScript("OnHyperlinkLeave", function()
+        GameTooltip:Hide()
+        ScheduleTmogHide()
+    end)
+    scrollChild:HookScript("OnEnter", CancelTmogHide)
+    scrollChild:HookScript("OnLeave", ScheduleTmogHide)
+
+    -- Content text sits inside the scroll child. Width is driven by the
+    -- scroll child (which the layout sizes to the viewport width), so text
+    -- wraps to the visible column, not the full popup.
+    local text = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    text:SetPoint("TOPLEFT",  scrollChild, "TOPLEFT",  0, 0)
+    text:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", 0, 0)
     text:SetJustifyH("LEFT")
     text:SetJustifyV("TOP")
     text:SetWordWrap(true)
 
     f.contentText = text
 
-    -- Sanctum vendor line. Lives on its own FontString below the
-    -- main content text so the Flight button can anchor cleanly
-    -- against rendered text width (no overlay positioning, no
-    -- stride-drift bugs -- same lesson PositionEntranceButton
-    -- encodes for the idle list). Width matches the main text so
-    -- wrapping behaves consistently. Hidden when BuildSanctumLine
-    -- returns nil (boss doesn't drop weapon tokens, or raid has no
-    -- weaponVendors -- non-CN raids).
+    -- Sanctum vendor line. Lives inside the scroll child, below the main
+    -- content text, so it scrolls with the content it belongs to. Width
+    -- matches the content column so wrapping behaves consistently. Hidden
+    -- when BuildSanctumLine returns nil (boss doesn't drop weapon tokens, or
+    -- raid has no weaponVendors -- non-CN raids).
     --
-    -- Gap to main text is tight (-2) so the redeem line reads as
-    -- the continuation of the weapon-token heading it sits beneath,
-    -- rather than as a separate paragraph.
-    local sanctumLine = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    sanctumLine:SetPoint("TOPLEFT",  text, "BOTTOMLEFT",  0, -2)
-    sanctumLine:SetPoint("TOPRIGHT", f,    "TOPRIGHT",   -14, 0)   -- width only
+    -- Gap to main text is tight (-2) so the redeem line reads as the
+    -- continuation of the weapon-token heading it sits beneath.
+    local sanctumLine = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    sanctumLine:SetPoint("TOPLEFT",  text,        "BOTTOMLEFT",  0, -2)
+    sanctumLine:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT",    0, 0)
     sanctumLine:SetJustifyH("LEFT")
     sanctumLine:SetJustifyV("TOP")
     sanctumLine:SetWordWrap(true)
     sanctumLine:Hide()
     f.sanctumLine = sanctumLine
 
-    -- Color legend. Lives at the bottom of the window as a global
-    -- footer. Anchored just below the sanctum line so the redemption
-    -- hint (when present) sits between the per-boss content and the
-    -- legend. When the sanctum line is hidden, RefreshContent
-    -- re-anchors the legend directly under the main text so the
-    -- vertical gap doesn't double.
+    -- Color legend. FIXED footer on the popup (NOT in the scroll child), so
+    -- it stays pinned at the bottom while the content above it scrolls.
+    -- Anchored to the popup's bottom in the layout pass.
     local legendLine = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    legendLine:SetPoint("TOPLEFT",  sanctumLine, "BOTTOMLEFT",  0, -8)
-    legendLine:SetPoint("TOPRIGHT", f,           "TOPRIGHT",   -14, 0)
+    legendLine:SetPoint("BOTTOMLEFT",  f, "BOTTOMLEFT",  22, 12)
+    legendLine:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 12)
     legendLine:SetJustifyH("LEFT")
     legendLine:SetJustifyV("TOP")
     legendLine:SetWordWrap(true)
@@ -4810,9 +5342,11 @@ GetOrCreateTmogWindow = function()
     -- the custom PlaneIcon). Hidden by default; RefreshContent decides
     -- whether to show it based on whether
     -- the player's covenant has a vendor entry with concrete coords.
-    local sanctumBtn = CreateFrame("Button", nil, f)
+    -- Parented to the scroll child so it travels with the sanctum line it
+    -- anchors against, rather than floating over a scrolled-away position.
+    local sanctumBtn = CreateFrame("Button", nil, scrollChild)
     sanctumBtn:RegisterForClicks("LeftButtonUp")
-    sanctumBtn:SetFrameLevel((f:GetFrameLevel() or 0) + 10)
+    sanctumBtn:SetFrameLevel((scrollChild:GetFrameLevel() or 0) + 10)
     sanctumBtn:SetNormalTexture("Interface\\Minimap\\Tracking\\FlightMaster")
     sanctumBtn:SetHighlightTexture(
         "Interface\\Minimap\\Tracking\\FlightMaster", "ADD")
@@ -4896,6 +5430,9 @@ GetOrCreateTmogWindow = function()
         local _, selBoss = GetBrowserSelection()
         if selBoss then bossName = selBoss.name or "?" end
         UIDropDownMenu_SetText(ddBoss, bossName)
+
+        -- Fit the bars to their content (measured, not guessed).
+        if self.SizeDropdownsToContent then self:SizeDropdownsToContent() end
     end
 
     f.RefreshContent = function(self)
@@ -4975,20 +5512,12 @@ GetOrCreateTmogWindow = function()
             sanctumBtn:SetScript("OnLeave", ScheduleTmogHide)
         end
 
-        -- Legend: always rendered. Re-anchored so it sits directly
-        -- below whichever widget above it is visible -- under the
-        -- sanctum line when that's shown, otherwise directly under
-        -- the main text. Keeps the gap consistent (8px) in either
-        -- case rather than doubling when sanctum is hidden.
+        -- Legend: always rendered, text refreshed here. Position is fixed
+        -- (a footer pinned to the popup bottom at construction), so it does
+        -- not get re-anchored per boss -- it stays put while the content
+        -- above it scrolls.
         SetBodyFont(legendLine, fontSize - 1, "")
         legendLine:SetText(BuildTmogLegendText())
-        legendLine:ClearAllPoints()
-        if sanctumLine:IsShown() then
-            legendLine:SetPoint("TOPLEFT",  sanctumLine, "BOTTOMLEFT",  0, -8)
-        else
-            legendLine:SetPoint("TOPLEFT",  text,        "BOTTOMLEFT",  0, -8)
-        end
-        legendLine:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, 0)
 
         -- The "Show all class tier" checkbox's enabled state depends on
         -- whether the currently-selected boss drops tier tokens. Refresh
@@ -4997,8 +5526,11 @@ GetOrCreateTmogWindow = function()
         -- RefreshContent only (not the full RefreshAll), so anchoring
         -- this check to RefreshContent is what keeps it correct on a
         -- boss-by-boss stepthrough.
-        if self.RefreshShowAllCheckEnabled then
-            self:RefreshShowAllCheckEnabled()
+        if self.RefreshClassDropdown then
+            self:RefreshClassDropdown()
+        end
+        if self.RefreshClassDropdownEnabled then
+            self:RefreshClassDropdownEnabled()
         end
         -- Resize popup to fit the new content. We count newlines rather
         -- than calling GetStringHeight because the latter returns stale
@@ -5032,17 +5564,33 @@ GetOrCreateTmogWindow = function()
     -- Tier tokens aren't the only class-restricted loot, though: some
     -- raids (WoD's Blackrock Foundry, Highmaul) drop class-specific armor
     -- pieces tagged with a `classes` field but no tier-set membership
-    -- (e.g. Blackhand's Faceguard, Warrior-only). Those are hidden for
-    -- off-class players by ItemIsForPlayer just like tier rows, so the
-    -- "show all" toggle must be live for them too. Enable the toggle when
-    -- the boss has tier tokens OR any class-restricted loot item.
-    f.RefreshShowAllCheckEnabled = function(self)
+    -- (e.g. Blackhand's Faceguard, Warrior-only), and Cataclysm Baradin
+    -- Hold sets carry `equipClasses` (armor restriction, not tier). Both
+    -- are hidden for off-class players by ItemIsForPlayer just like tier
+    -- rows, so the "show all" toggle must be live for them too. Enable the
+    -- toggle when the boss has tier tokens OR any class-restricted loot.
+    -- The class dropdown is only meaningful on bosses that actually drop
+    -- class-gated loot (tier tokens, or equipClasses armor). On non-tier
+    -- bosses (and the first/last bosses of a raid which traditionally don't
+    -- drop tier), no row is class-gated, so filtering by class does nothing.
+    -- Disable (grey + dim) the dropdown there so the player gets a visible
+    -- "this control doesn't apply right now" signal rather than a live
+    -- control with no observable effect.
+    f.RefreshClassDropdownEnabled = function(self)
         local raid, boss = GetBrowserSelection()
         local hasClassFiltered = false
         if raid and boss then
             if raid.tierSets and raid.tierSets.tokenSources then
-                for _, bossIdx in pairs(raid.tierSets.tokenSources) do
-                    if bossIdx == boss.index then
+                for _, bossIdxVal in pairs(raid.tierSets.tokenSources) do
+                    if type(bossIdxVal) == "table" then
+                        for _, tokenBossIdx in ipairs(bossIdxVal) do
+                            if tokenBossIdx == boss.index then
+                                hasClassFiltered = true
+                                break
+                            end
+                        end
+                        if hasClassFiltered then break end
+                    elseif bossIdxVal == boss.index then
                         hasClassFiltered = true
                         break
                     end
@@ -5050,7 +5598,7 @@ GetOrCreateTmogWindow = function()
             end
             if not hasClassFiltered and boss.loot then
                 for _, item in ipairs(boss.loot) do
-                    if item.classes then
+                    if item.classes or item.equipClasses then
                         hasClassFiltered = true
                         break
                     end
@@ -5058,13 +5606,17 @@ GetOrCreateTmogWindow = function()
             end
         end
         if hasClassFiltered then
-            showAllCheck:Enable()
-            showAllCheck:SetAlpha(1.0)
-            showAllCheck.text:SetTextColor(1, 1, 1)
+            UIDropDownMenu_EnableDropDown(ddClass)
+            ddClass:SetAlpha(1.0)
+            if ddClass.label then ddClass.label:SetAlpha(1.0) end
         else
-            showAllCheck:Disable()
-            showAllCheck:SetAlpha(0.45)
-            showAllCheck.text:SetTextColor(0.5, 0.5, 0.5)
+            UIDropDownMenu_DisableDropDown(ddClass)
+            ddClass:SetAlpha(0.45)
+            if ddClass.label then ddClass.label:SetAlpha(0.45) end
+            -- Replace the class name with an explicit unavailable marker so a
+            -- disabled bar doesn't read as a still-selectable class. Runs
+            -- after RefreshClassDropdown sets the name, so this wins.
+            UIDropDownMenu_SetText(ddClass, "N/A")
         end
     end
 
@@ -5236,7 +5788,7 @@ function UI.DumpTmogSize()
     end
     local legendH = 2 * lineHeight + 8
 
-    local chrome = 32 + (3 * 32 - 8) + 10 + 14
+    local chrome = 32 + (4 * 32 - 12) + 10 + 14
     local desired = chrome + textH + sanctumH + legendH
 
     add("")
@@ -5264,6 +5816,43 @@ function UI.DumpTmogSize()
         add(("Visible gap below legend = %.1f px"):format(gap))
         add("  (positive = blank space below legend, negative = legend clipped past frame)")
     end
+
+    -- Scroll region runtime state: the actual values driving whether the
+    -- scrollbar shows. The scrollbar appears whenever GetVerticalScrollRange
+    -- > 0, which is child height minus scroll viewport height. If range is
+    -- nonzero on a short list, either the child is taller than the viewport
+    -- (height mismatch) or the range is stale from a prior layout.
+    local scroll = tmogWindow.contentScroll
+    local child  = tmogWindow.contentChild
+    add("")
+    add("Scroll region:")
+    if scroll then
+        local sH = scroll:GetHeight() or 0
+        local sW = scroll:GetWidth() or 0
+        local range = (scroll.GetVerticalScrollRange and scroll:GetVerticalScrollRange()) or -1
+        local vScroll = (scroll.GetVerticalScroll and scroll:GetVerticalScroll()) or -1
+        add(("  scroll: height=%.1f  width=%.1f"):format(sH, sW))
+        add(("  scroll: verticalScrollRange=%.1f  verticalScroll=%.1f"):format(range, vScroll))
+    else
+        add("  scroll: nil")
+    end
+    if child then
+        add(("  child: height=%.1f  width=%.1f"):format(
+            child:GetHeight() or 0, child:GetWidth() or 0))
+    else
+        add("  child: nil")
+    end
+    -- Which scrollbar object exists, and is it shown?
+    local barChild  = scroll and scroll.ScrollBar
+    local barGlobal = _G["RetroRunsTmogScrollScrollBar"]
+    add(("  scrollbar via .ScrollBar child: %s%s"):format(
+        barChild and "EXISTS" or "nil",
+        barChild and (barChild:IsShown() and " (shown)" or " (hidden)") or ""))
+    add(("  scrollbar via global name:      %s%s"):format(
+        barGlobal and "EXISTS" or "nil",
+        barGlobal and (barGlobal:IsShown() and " (shown)" or " (hidden)") or ""))
+    -- Report the AutoSize viewportH the bar decision used.
+    add(("  (AutoSize textH estimate=%d -- compare to child.height above)"):format(textH))
 
     RR:ShowCopyWindow("tmogsize", table.concat(lines, "\n"))
 end
@@ -6327,21 +6916,21 @@ local function BuildIdleListPills(raid)
     local counts = RR:GetPerDifficultyKillCountsForRaid(raid)
     if not counts then return "" end
 
-    -- Build from the raid's difficulty model so Mists raids show N | H
-    -- and modern raids show N | H | M without a per-era branch. LFR (17)
+    -- Build from the raid's difficulty model so shared-lockout raids show
+    -- N | H and independent raids show N | H | M without a per-model branch. LFR (17)
     -- is intentionally absent from the label map, matching the in-raid
     -- pill row -- LFR sources live in the transmog browser.
-    local BUCKET_LABEL = { [14] = "N", [15] = "H", [16] = "M" }
-    local model = RR:GetDifficultyModel(raid)
+    local BUCKET_LABEL = {
+        [14] = "N", [15] = "H", [16] = "M",
+    }
     local PILLS = {}
-    for _, bucket in ipairs(model.buckets) do
+    for _, bucket in ipairs(RR:GetDisplayBuckets(raid)) do
         local label = BUCKET_LABEL[bucket]
         if label then
             table.insert(PILLS, { id = bucket, label = label })
         end
     end
 
-    -- Color constants are 6-char RGB; the format string prepends |cff.
     -- No alpha byte here, or it leaks as visible characters before the label.
     local CLEARED  = "00ff00"  -- matches SPECIAL_COLLECTED RGB
     local PARTIAL  = "ff9333"  -- matches SPECIAL_PARTIAL RGB
@@ -6403,10 +6992,20 @@ local function BuildIdleListPills(raid)
             else
                 hex = FRESH
             end
-            table.insert(parts, ("|cff%s%s %d/%d|r%s"):format(
-                hex, label, c.complete, c.total, lock))
+            if label then
+                table.insert(parts, ("|cff%s%s %d/%d|r%s"):format(
+                    hex, label, c.complete, c.total, lock))
+            else
+                -- Flexible, no committed difficulty yet: count only.
+                table.insert(parts, ("|cff%s%d/%d|r%s"):format(
+                    hex, c.complete, c.total, lock))
+            end
         else
-            table.insert(parts, ("|cff%s%s -|r%s"):format(INACTIVE, label, lock))
+            if label then
+                table.insert(parts, ("|cff%s%s -|r%s"):format(INACTIVE, label, lock))
+            else
+                table.insert(parts, ("|cff%s-|r%s"):format(INACTIVE, lock))
+            end
         end
     end
 
@@ -6528,7 +7127,6 @@ local function BuildIdleListRows()
         table.insert(rows, { kind = "raidName", text = label, raid = raid })
         local pills = BuildIdleListPills(raid)
         if pills ~= "" then
-            local counts = RR:GetPerDifficultyKillCountsForRaid(raid)
             -- Raids with LFR wing data get a wing-expand chevron on the pill
             -- row, positioned in RefreshIdleList.
             local hasWings = raid.lfrWings ~= nil
@@ -6538,10 +7136,10 @@ local function BuildIdleListRows()
             local gutter = hasPlane and RR.PILL_PLANE_GUTTER or ""
             -- Pill row text: sub-line indent, plane gutter, then the pills.
             -- The indent renders it as a sub-line under the raid name.
+            local rowIndent = RR.PILL_SUBLINE_INDENT .. gutter .. "  "
             table.insert(rows, {
                 kind = "pillRow",
-                text = RR.PILL_SUBLINE_INDENT .. gutter .. "  " .. pills,
-                lockedOut = (RR:GetLockedOutBucket(raid, counts) ~= nil),
+                text = rowIndent .. pills,
                 raid = raid,
                 hasWings = hasWings,
                 hasPlane = hasPlane,
@@ -6840,19 +7438,22 @@ RefreshIdleList = function()
             end
             fs:Show()
 
-            -- Locked-out pill rows get an invisible hover frame on top
-            -- so the shared-lockout tooltip can fire (the FontString
-            -- itself can't take mouse events). Sized to the rendered pill
-            -- string, not the full column width, so the hit area matches
-            -- what's visible.
-            if row.kind == "pillRow" and row.lockedOut then
-                local hf = AcquirePillHoverFrame()
-                hf:ClearAllPoints()
-                hf:SetPoint("TOPLEFT", fs, "TOPLEFT", 0, 0)
-                hf:SetPoint("BOTTOMRIGHT", fs, "BOTTOMLEFT",
+            -- Every pill row gets an invisible hover frame on top so the
+            -- lockout-info tooltip can fire (the FontString itself can't
+            -- take mouse events). The tooltip names the raid's lockout
+            -- system (shared / LFR-split / independent), which applies to
+            -- the whole row, LFR pill included -- so the overlay covers the
+            -- full rendered pill string.
+            if row.kind == "pillRow" then
+                local hoverFrame = AcquirePillHoverFrame()
+                hoverFrame:ClearAllPoints()
+                hoverFrame:SetPoint("TOPLEFT", fs, "TOPLEFT", 0, 0)
+                hoverFrame:SetPoint("BOTTOMRIGHT", fs, "BOTTOMLEFT",
                     (fs:GetStringWidth() or 0), 0)
-                hf:Show()
-                table.insert(panel.pillHoverFrames, hf)
+                hoverFrame:Show()
+                hoverFrame._lockoutModel =
+                    row.raid and row.raid.difficultyModel or nil
+                table.insert(panel.pillHoverFrames, hoverFrame)
             end
 
             -- Dead boss rows (mapped wings only) get a strikethrough over the
@@ -7265,17 +7866,21 @@ function UI.Update()
         else
             panel.wingLine:SetText("")
         end
-        panel.pills:SetText(BuildPillsText())
-        -- Arm the lockout tooltip only when a mode is actually claimed
-        -- this week (the lock glyph is showing); otherwise hovering the
-        -- pills row says nothing.
+        local pillsText = BuildPillsText()
+        panel.pills:SetText(pillsText)
+        -- Arm the lockout-info tooltip for every loaded raid: it names the
+        -- raid's lockout system (shared / LFR-split / independent), which is
+        -- useful before any kill commits a difficulty, not only when the
+        -- lock glyph shows. Covers the whole pill row -- the info applies to
+        -- every pill in it, LFR included.
         if panel.pillsHover then
-            local counts = RR:GetPerDifficultyKillCounts()
-            local locked = (RR:GetLockedOutBucket(raid, counts) ~= nil)
-            panel.pillsHover._lockoutTip = locked
-            if locked then
-                panel.pillsHover:SetWidth((panel.pills:GetStringWidth() or 0) + 2)
-            end
+            panel.pillsHover._lockoutTip = true
+            panel.pillsHover._lockoutModel = raid.difficultyModel
+            panel.pillsHover:ClearAllPoints()
+            panel.pillsHover:SetPoint("TOPLEFT", panel.pills, "TOPLEFT", 0, 0)
+            panel.pillsHover:SetPoint("BOTTOM", panel.pills, "BOTTOM", 0, 0)
+            panel.pillsHover:SetWidth(
+                (panel.pills:GetStringWidth() or 0) + 2)
         end
         -- Progress line was "Progress: X/Y" -- the player's current-
         -- difficulty kill count -- but the pills row now displays the
@@ -7307,6 +7912,7 @@ function UI.Update()
             panel.travel:SetText("")
             panel.exitNote:SetText("")
             panel.exitNote:Hide()
+            panel.encounter.headerPulsing = false
             panel.encounter.header.label:SetText("")
             panel.encounter.header.clickable = false
             panel.encounter.header:EnableMouse(false)
@@ -7351,10 +7957,14 @@ function UI.Update()
             panel.travel:SetText(BuildTravelText(step))
             panel.exitNote:SetText("")
             panel.exitNote:Hide()
-            local headerText, achText, specialText, encClickable = BuildEncounterText(step)
+            local headerText, achText, specialText, encClickable,
+                  headerPulsing = BuildEncounterText(step)
 
             -- Header sub-widget: shows the Boss Encounter line; OnClick
             -- toggles soloTip expand/collapse when clickable is true.
+            -- headerPulsing tells the [!] pulse ticker it may refresh
+            -- this label's text in place between full updates.
+            panel.encounter.headerPulsing = headerPulsing
             panel.encounter.header.label:SetText(headerText or "")
             panel.encounter.header.clickable = encClickable
             panel.encounter.header:EnableMouse(encClickable)
@@ -7525,6 +8135,7 @@ function UI.Update()
                 panel.exitNote:Hide()
             end
             panel.travel:SetText("")
+            panel.encounter.headerPulsing = false
             panel.encounter.header.label:SetText("")
             panel.encounter.header.clickable = false
             panel.encounter.header:EnableMouse(false)
@@ -7586,6 +8197,7 @@ function UI.Update()
         panel.travel:SetText("")
         panel.exitNote:SetText("")
         panel.exitNote:Hide()
+        panel.encounter.headerPulsing = false
         panel.encounter.header.label:SetText("")
         panel.encounter.header.clickable = false
         panel.encounter.header:EnableMouse(false)
@@ -8072,11 +8684,14 @@ end
 function UI._GetOrCreateLoadDialog()
     if UI._loadDialogFrame then return UI._loadDialogFrame end
 
-    local LOAD_DIALOG_BASE = "SELECT ROUTE"
+    local LOAD_DIALOG_BASE = RR.L["SELECT ROUTE"]
 
     local f = CreateFrame("Frame", "RetroRunsLoadDialog", UIParent, "BackdropTemplate")
     f.loadBase = LOAD_DIALOG_BASE
     f:SetSize(340, 175)
+    -- Height for a single-line raid name; ShowLoadDialog grows the frame
+    -- when the name wraps so the prompt and buttons keep their spacing.
+    f.baseHeight = 175
     f:SetBackdrop(PanelBackdrop(PANEL_EDGE_SIZE_FULL))
     f:SetBackdropColor(1, 1, 1, RR:GetSetting("panelOpacity", 1.0))
     f:SetBackdropBorderColor(1, 1, 1, 1)
@@ -8228,6 +8843,14 @@ function UI.ShowLoadDialog(raidName)
     f.raidName:SetText(raidName or (raid and raid.name) or "?")
     f.loading:SetText(f.loadBase)
 
+    -- Long raid names (difficulty suffix included) wrap to a second line.
+    -- The buttons anchor to the frame bottom, so a fixed height lets the
+    -- wrapped name shove the prompt into the button row. Grow the frame
+    -- by the overflow past one line so the vertical spacing holds.
+    local nameLineHeight = f.raidName:GetLineHeight() or 15
+    local nameTextHeight = f.raidName:GetStringHeight() or nameLineHeight
+    f:SetHeight(f.baseHeight + math.max(0, nameTextHeight - nameLineHeight))
+
     -- Resolve SKIP state. Gate on the chain the authored route targets:
     -- a raid with multiple skip chains (HFC: Iskar + Mannoroth) but one
     -- authored route must enable SKIP only when THAT route's chain is
@@ -8253,16 +8876,16 @@ function UI.ShowLoadDialog(raidName)
         -- When SKIP is the route being resumed, the footer becomes the
         -- "Continue?" hint (replacing the boss name) so it lands in the
         -- footer slot rather than stacking onto the frame border below it.
-        f.skipFooter:SetText(resumeIsSkip and "Continue?" or (raid.skipToBoss or ""))
+        f.skipFooter:SetText(resumeIsSkip and RR.L["Continue?"] or (raid.skipToBoss or ""))
     else
         f.SetButtonEnabled(f.skipBtn, false)
         if not hasRoute then
-            f.skipFooter:SetText("N/A")
+            f.skipFooter:SetText(RR.L["N/A"])
         elseif not RR:RaidSkipIsCascading(raid) then
             -- Non-cascading (achievement-gated) skips are Mythic-only.
-            f.skipFooter:SetText("Mythic only")
+            f.skipFooter:SetText(RR.L["Mythic only"])
         else
-            f.skipFooter:SetText("locked")
+            f.skipFooter:SetText(RR.L["locked"])
         end
     end
     -- Color the footer green while it's serving as the Continue? hint,
@@ -8279,7 +8902,7 @@ function UI.ShowLoadDialog(raidName)
     f.continueHint:SetText("")
     if showContinue and savedVariant ~= "skip" then
         f.continueHint:SetPoint("TOP", f.fullBtn, "BOTTOM", 0, 3)
-        f.continueHint:SetText("Continue?")
+        f.continueHint:SetText(RR.L["Continue?"])
     end
 
     f:Show()
@@ -8718,21 +9341,96 @@ GetOrCreateAchievementsWindow = function()
 
     -- Two cascading dropdowns: Expansion / Raid. Boss-level selection
     -- was removed when the window switched to a full-raid table view --
-    -- all bosses for the selected raid render simultaneously.
-    local function MakeDD(name, width, parent)
+    -- all bosses for the selected raid render simultaneously. Layout
+    -- mirrors the transmog browser: a measured caption column ("Exp:"/
+    -- "Raid:") on the left, bars to its right, selected-value text
+    -- left-justified, and bar widths sized to the longest content.
+    local function MakeDD(name, width, parent, labelText)
         local dd = CreateFrame("Frame", "RetroRunsAch" .. name .. "DD", parent,
                                "UIDropDownMenuTemplate")
         UIDropDownMenu_SetWidth(dd, width)
+        -- Left-justify the selected-value text (template default is RIGHT).
+        local fs = _G[dd:GetName() .. "Text"]
+        if fs then fs:SetJustifyH("LEFT") end
+        -- Optional caption to the left of the bar.
+        if labelText then
+            local lbl = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            lbl:SetText(labelText)
+            lbl:SetJustifyH("LEFT")
+            dd.label = lbl
+        end
         return dd
     end
 
-    local ddExp  = MakeDD("Expansion", 140, f)
-    local ddRaid = MakeDD("Raid",      220, f)
+    -- Caption column on the left, bars to its right. Measure the widest
+    -- caption so the column is exactly as wide as it needs to be.
+    local LABEL_LEFT = 14   -- left margin where captions start
+    local LABEL_GAP  = 4    -- gap between the caption column and the bars
+    -- Measure against the same caption set as the transmog browser
+    -- ("Exp:"/"Raid:"/"Boss:"/"Class:") even though this window only renders
+    -- Exp and Raid, so the caption column -- and therefore the gap between
+    -- the caption and the bar -- lines up exactly with the browser.
+    local capMeasure = f:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    capMeasure:Hide()
+    local LABEL_W = 0
+    for _, cap in ipairs({ "Exp:", "Raid:", "Boss:", "Class:" }) do
+        capMeasure:SetText(cap)
+        local w = capMeasure:GetStringWidth() or 0
+        if w > LABEL_W then LABEL_W = w end
+    end
+    LABEL_W = math.ceil(LABEL_W)
+    -- The dropdown template frame has ~16px of non-visible left inset before
+    -- the bar's visible edge, so to put the VISIBLE bar at a target X we
+    -- offset the frame left by DD_INSET.
+    local DD_INSET = 16
 
-    ddExp:SetPoint("TOPLEFT",  f,     "TOPLEFT",     -4, -32)
-    ddRaid:SetPoint("TOPLEFT", ddExp, "BOTTOMLEFT",   0,   4)
+    local ddExp  = MakeDD("Expansion", 140, f, "Exp:")
+    local ddRaid = MakeDD("Raid",      220, f, "Raid:")
+
+    -- Bars: stacked. Visible left edge sits just right of the caption column;
+    -- subtract DD_INSET so the frame's offset lands the visible bar there.
+    local barVisibleLeft = LABEL_LEFT + LABEL_W + LABEL_GAP
+    local barLeft = barVisibleLeft - DD_INSET
+    ddExp:SetPoint("TOPLEFT",  f,     "TOPLEFT",     barLeft, -32)
+    ddRaid:SetPoint("TOPLEFT", ddExp, "BOTTOMLEFT",  0,       4)
+
+    -- Labels: left-aligned at LABEL_LEFT, vertically aligned to each bar.
+    local function anchorLabel(dd)
+        if not dd.label then return end
+        dd.label:ClearAllPoints()
+        dd.label:SetPoint("LEFT", f, "LEFT", LABEL_LEFT, 2)
+        dd.label:SetPoint("TOP",  dd, "TOP",  0, -6)
+        dd.label:SetWidth(LABEL_W)
+    end
+    anchorLabel(ddExp); anchorLabel(ddRaid)
 
     f.ddExp, f.ddRaid = ddExp, ddRaid
+
+    -- Size the bars to their content, matching the transmog browser's rule:
+    -- each bar fits its longest string plus room for the arrow. Exp uses the
+    -- expansion list; Raid uses every current raid name.
+    local function widestAchStringWidth(strings)
+        local maxW = 0
+        for _, s in ipairs(strings) do
+            capMeasure:SetText(s)
+            local w = capMeasure:GetStringWidth() or 0
+            if w > maxW then maxW = w end
+        end
+        return maxW
+    end
+    f.SizeDropdownsToContent = function(self)
+        local ARROW_PAD = 30
+        local expW = widestAchStringWidth(EXPANSION_ORDER_NEWEST_FIRST)
+        local raidNames = {}
+        for _, raid in pairs(RetroRuns_Data or {}) do
+            if raid.instanceID and raid.instanceID > 0 then
+                raidNames[#raidNames + 1] = raid.name or ""
+            end
+        end
+        local raidW = widestAchStringWidth(raidNames)
+        UIDropDownMenu_SetWidth(ddExp,  math.ceil(expW)  + ARROW_PAD)
+        UIDropDownMenu_SetWidth(ddRaid, math.ceil(raidW) + ARROW_PAD)
+    end
 
     -- Glory header section (above the column-header row). Three FontStrings
     -- repositioned by RefreshContent based on whether the raid has a
@@ -8857,6 +9555,7 @@ GetOrCreateAchievementsWindow = function()
     -- Rebuilds the table content, positions all row widgets, sizes the
     -- window. Same shape as RefreshSkipsContent.
     f.RefreshContent = function(self)
+        if self.SizeDropdownsToContent then self:SizeDropdownsToContent() end
         local raid = achState.raidKey and RR:GetRaidByInstanceID(achState.raidKey) or nil
         local rows = BuildAchievementRows(raid)
 
@@ -9351,7 +10050,18 @@ C_Timer.NewTicker(0.1, function()
     if RR:GetSetting("encounterExpanded") then return end
 
     encounterPulsePhase = (encounterPulsePhase + 1) % ENCOUNTER_PULSE_STEPS
-    UI.Update()
+
+    -- Refresh the header label alone. Content updates are the
+    -- heartbeat ticker's job; this only restyles the [!] glyph, so a
+    -- single SetText on the header keeps the animation off the panel
+    -- rebuild path.
+    if panel.encounter and panel.encounter.headerPulsing
+        and panel.encounter.header and panel.encounter.header.label then
+        local pulseColor = ENCOUNTER_PULSE_COLORS[encounterPulsePhase] or "|cffffff00"
+        panel.encounter.header.label:SetText(
+            ("|cff%sBoss Encounter:|r "):format(C_LABEL)
+            .. pulseColor .. "[!]|r |cffaaaaaaview special note|r")
+    end
 end)
 
 -- Second pulse driver: the footer new-version [!] indicator.

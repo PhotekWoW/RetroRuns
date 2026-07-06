@@ -7,7 +7,7 @@
 local RR = RetroRuns
 
 local btn = CreateFrame("Button", "RetroRunsMinimapButton", Minimap)
-btn:SetSize(36, 36)
+btn:SetSize(31, 31)
 btn:SetFrameStrata("HIGH")
 btn:SetMovable(true)
 btn:EnableMouse(true)

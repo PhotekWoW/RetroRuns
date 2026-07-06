@@ -25,6 +25,41 @@
 local RR = RetroRuns
 RR.WhatsNew = {
     {
+        version  = "2.1.0",
+        date     = "2026-07-06",
+        sections = {
+            {
+                heading = "Added",
+                bullets = {
+                    "**The Cataclysm raids join RetroRuns.** All six now have full routing and transmog tracking: Baradin Hold, Blackwing Descent, The Bastion of Twilight, Throne of the Four Winds, Firelands, and Dragon Soul. Dragon Soul includes both Raid Finder wings, The Siege of Wyrmrest Temple and Fall of Deathwing, with per-wing routing and loot.",
+                    "**The transmog browser can filter by class.** A class dropdown replaces the old show-all-tier toggle: pick any class to see only the gear it can collect, or choose \"All classes\" to see everything. It defaults to your own class, and shows as unavailable on bosses that drop no class-restricted gear.",
+                    "**Hovering a raid in the supported-raids list shows how its lockout works.** A tooltip explains whether the raid uses a shared Normal/Heroic lockout, separate lockouts per difficulty, a standalone Raid Finder lockout, or a single difficulty.",
+                    "**A new minimap button icon**, the neon mirrored-RR mark on a dark disc.",
+                },
+            },
+            {
+                heading = "Changed",
+                bullets = {
+                    "**The load dialog was refreshed.** The prompt now reads \"Select Route,\" the route name is larger, and the route buttons are styled neon FULL and SKIP graphics, centered as a pair. The old Cancel button is replaced by a close button in the top-right corner matching the rest of the UI.",
+                    "**The transmog browser dropdowns are relabeled and resized.** Each dropdown now carries a label (Exp, Raid, Boss, Class), the bars are sized to fit their contents instead of leaving empty space, and they cascade in a slight left-to-right stagger.",
+                    "**The route line in the footer reads \"Route: Full\"** for the full-clear route (previously \"Standard\").",
+                    "**Choosing a route is no longer locked in until you kill a boss.** If you reload or step out and back in before your first kill, the route picker reappears so you can still switch between Full and Skip, with a \"Continue?\" hint marking the route you'd picked. Once you've killed a boss, reloading quietly resumes that route and prints a one-line reminder of which route you're on and your progress.",
+                    "**The minimap button and the /rr command both always open the full panel**, regardless of your \"On Login Show RetroRuns\" preference. That setting now applies only to how the panel appears when you log in outside a raid.",
+                    "**Removed the \"What's New?\" label from the footer.** The version number stays, and the \"!\" still appears beside it when there's an update you haven't viewed.",
+                },
+            },
+            {
+                heading = "Fixed",
+                bullets = {
+                    "**The SKIP button on the load dialog now stays locked until the specific shortcut its route uses is unlocked.** On raids with more than one skip (like Hellfire Citadel), it could previously light up as soon as any shortcut was unlocked, even one leading to a different boss.",
+                    "**Picking FULL after previously choosing SKIP now correctly loads the full route.** If you'd selected SKIP earlier in a lockout, then reloaded and chose FULL, the addon could keep running the skip route. Your latest choice is now always honored.",
+                    "**Corrected the portal marker on the Hellfire Citadel Mannoroth skip** so the waypoint sits on the Destructor's Rise portal.",
+                    "**The transmog summary and browser now agree on collected items.** An appearance you owned through one difficulty could be tallied as still-needed in the main-panel summary while the browser correctly showed it collected; the two now count it the same way.",
+                },
+            },
+        },
+    },
+    {
         version  = "2.0.1",
         date     = "2026-06-26",
         sections = {
@@ -121,35 +156,4 @@ RR.WhatsNew = {
         },
     },
 
-    {
-        version  = "1.13.0",
-        date     = "2026-06-09",
-        sections = {
-            {
-                heading = "Added",
-                bullets = {
-                    "**All five Mists of Pandaria raids are now fully supported: Mogu'shan Vaults, Heart of Fear, Terrace of Endless Spring, Throne of Thunder, and Siege of Orgrimmar.** Each has complete routing through every encounter with travel notes and map lines for every leg, including the portals, teleports, and tower and door transitions between sub-zones. Per-boss loot is tracked alongside tier set tokens and other unique drops, and each raid's Glory meta-achievement sub-achievements are rated for solo difficulty. Where a raid has skip paths, those are tracked too.",
-                    "**Mists of Pandaria raids show a lockout indicator on their difficulty pills.** Mogu'shan Vaults, Heart of Fear, Terrace of Endless Spring, and Throne of Thunder share a single lockout between their Normal and Heroic difficulties for the week -- clearing a boss on one locks the other until reset. When one difficulty is committed, its sibling now shows a small lock glyph; hovering it explains that the other difficulty is unavailable until the weekly reset.",
-                    "**New feature: Toaster.** A loot notification system built for solo legacy-raid running. When you loot a boss, Toaster pops a clean on-screen toast for the things that matter -- new transmog appearances and special loot like mounts, pets, and toys -- while everything else (gear you'll vendor, crafting mats, tier tokens) is rolled into a single tidy summary line in chat with a clickable option to expand the full list. It replaces Blizzard's scattered loot spam with one consolidated line per kill. Its own settings page lets you toggle the toasts and the loot summary independently, adjust the toast scale, and drag the toasts wherever you want them.",
-                },
-            },
-            {
-                heading = "Changed",
-                bullets = {
-                    "**The main window has a new look.** The panel and its minimized title bar now use a custom themed frame with ornate corners and a glowing trim, replacing the plain default border, and section dividers match the new style.",
-                    "**Settings have moved into the standard interface options.** RetroRuns' settings now live in the game's own Settings window under the AddOns section, alongside every other addon, instead of a separate standalone panel.",
-                    "**Tier set pieces now sort to the top of the transmog browser** and are grouped by class rather than listed alphabetically, so your set pieces are together and easy to find.",
-                },
-            },
-            {
-                heading = "Fixed",
-                bullets = {
-                    "**Archimonde's loot in Hellfire Citadel** is no longer shown as Normal-only in the transmog browser; its difficulty availability now displays correctly.",
-                    "**Hellfire Citadel no longer shows special loot in the transmog browser** where it doesn't belong.",
-                    "**The transmog browser sizes itself correctly to its contents** when opened.",
-                    "**Removed an empty gap at the bottom of the main window.**",
-                },
-            },
-        },
-    },
 }

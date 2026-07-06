@@ -42,6 +42,14 @@ Currently supports:
 * Heart of Fear (5.0.4)
 * Mogu'shan Vaults (5.0.4)
 
+**Cataclysm**
+* Dragon Soul (4.3)
+* Firelands (4.2)
+* Throne of the Four Winds (4.0.1)
+* Blackwing Descent (4.0.1)
+* The Bastion of Twilight (4.0.1)
+* Baradin Hold (4.0.1)
+
 ## Installation
 
 1. Download the latest `RetroRuns.zip`.
@@ -113,7 +121,7 @@ Main commands, type in chat:
 
 ## Status
 
-Version **2.0.1**
+Version **2.1.0**
 
 ## Reporting bugs / requesting features
 

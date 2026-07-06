@@ -2,7 +2,7 @@
 ## Title: RetroRuns
 ## Notes: Solo legacy raid navigator — routing, tips, and achievement tracking
 ## Author: Photek
-## Version: 2.0.1
+## Version: 2.1.0
 ## X-License: MIT
 ## SavedVariables: RetroRunsDB, RetroRunsDebug
 ## IconTexture: Interface\AddOns\RetroRuns\Media\MinimapIcon
@@ -34,9 +34,17 @@ Data\MistsOfPandaria\HeartOfFear.lua
 Data\MistsOfPandaria\TerraceOfEndlessSpring.lua
 Data\MistsOfPandaria\ThroneofThunder.lua
 Data\MistsOfPandaria\SiegeOfOrgrimmar.lua
+Data\Cataclysm\BaradinHold.lua
+Data\Cataclysm\BastionOfTwilight.lua
+Data\Cataclysm\BlackwingDescent.lua
+Data\Cataclysm\ThroneOfTheFourWinds.lua
+Data\Cataclysm\Firelands.lua
+Data\Cataclysm\DragonSoul.lua
 
 # ── Core ──────────────────────────────────────────────────────────────────────
 Core\Core.lua
+Locales\enUS.lua
+Locales\esES.lua
 Core\Navigation.lua
 Core\Engine.lua
 Core\RaidState.lua
