@@ -48,11 +48,9 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
 
         -- Only read kills from an ACTIVE lockout. GetSavedInstanceInfo keeps
         -- expired entries after a weekly reset with their per-boss isKilled
-        -- flags still set, so syncing from one credits last week's kills
-        -- (observed: Eranog showing dead in Boss Progress with no kill this
-        -- week, sourced from Vault's expired LFR lockout). An active lockout
-        -- has locked=true and a positive reset; this mirrors the same guard
-        -- the LFR pill applies in GetLFRLockoutCounts.
+        -- flags still set, so syncing from one credits last week's kills. An
+        -- active lockout has locked=true and a positive reset; this mirrors
+        -- the same guard the LFR pill applies in GetLFRLockoutCounts.
         if isRaid
             and locked and (reset or 0) > 0
             and instanceID   == self.currentRaid.instanceID
@@ -100,10 +98,10 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
     -- correct state.
     if hasRemoval and not hasAddition then
         if self.ZoneLog then
-            local function setSummary(t)
+            local function setSummary(summaryText)
                 local count = 0
                 local list  = {}
-                for k in pairs(t) do
+                for k in pairs(summaryText) do
                     count = count + 1
                     table.insert(list, tostring(k))
                 end
@@ -122,10 +120,10 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
     -- accepted. Useful for understanding state transitions during
     -- normal play (kills, lockout loads).
     if self.ZoneLog then
-        local function setSummary(t)
+        local function setSummary(summaryText)
             local count = 0
             local list  = {}
-            for k in pairs(t) do
+            for k in pairs(summaryText) do
                 count = count + 1
                 table.insert(list, tostring(k))
             end

@@ -164,6 +164,7 @@ RetroRuns_Data[754] = {
                     mapLabel    = "1",
                     mapLabelPos = "middle",
                     note        = "After zoning in, go to the West platform to start the fight with ^Conclave of the Wind^.",
+                    minNote     = "West to Conclave",
                     points      = {
                         { 0.352, 0.494 },
                     },
@@ -206,6 +207,7 @@ RetroRuns_Data[754] = {
                     mapLabel    = "Slipstream",
                     mapLabelPos = "middle",
                     note        = "After defeating ^Conclave of Wind^, collect the loot chest on the north platform, then click on the nearby ^Slipstream^ to be flown to the main platform to face ^Al'Akir^.",
+                    minNote     = "North to Chest then Slipstream",
                     points      = {
                         { 0.475, 0.227 },
                     },

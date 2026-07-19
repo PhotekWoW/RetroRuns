@@ -124,6 +124,7 @@ RetroRuns_Data[1648] = {
                             when    = { mapID = 807 },
                             kind    = "path",
                             note    = "After zoning in, take the escalator all the way up to engage ^Odyn^.",
+                            minNote = "Ahead to Odyn",
                             points  = {
                                 { 0.514, 0.087 },
                                 { 0.515, 0.784 },
@@ -144,6 +145,7 @@ RetroRuns_Data[1648] = {
                             when    = { mapID = 807 },
                             kind    = "poi",
                             note    = "After defeating ^Odyn^, talk to him and select the only dialog option available. You will be dropped into ^Helheim^.",
+                            minNote = "Talk to Odyn",
                             points  = {
                                 { 0.514, 0.892 },
                             },
@@ -152,6 +154,7 @@ RetroRuns_Data[1648] = {
                             when    = { mapID = 806 },
                             kind    = "path",
                             note    = "After landing down below, take the downhill path and kill trash as you walk through the ^Helheim^ portal at the bottom.",
+                            minNote = "Clear Trash to Portal",
                             points  = {
                                 { 0.539, 0.588 },
                                 { 0.695, 0.354 },
@@ -161,6 +164,7 @@ RetroRuns_Data[1648] = {
                             when    = { mapID = 808 },
                             kind    = "path",
                             note    = "Once you reach ^Helheim^, follow the path around to find ^Guarm^.",
+                            minNote = "Path to Guarm",
                             points  = {
                                 { 0.638, 0.450 },
                                 { 0.592, 0.399 },
@@ -183,6 +187,7 @@ RetroRuns_Data[1648] = {
                             when    = { mapID = 808 },
                             kind    = "path",
                             note    = "After killing ^Guarm^, continue down the path to meet ^Helya^. Kill the trash to start the encounter.",
+                            minNote = "Trash then Helya",
                             points  = {
                                 { 0.481, 0.319 },
                                 { 0.385, 0.265 },
@@ -206,6 +211,7 @@ RetroRuns_Data[1648] = {
                     when    = { mapID = 807 },
                     kind    = "path",
                     note    = "After zoning in, take the escalator all the way up to engage ^Odyn^.",
+                    minNote = "Ahead to Odyn",
                     points  = {
                         { 0.514, 0.087 },
                         { 0.515, 0.784 },
@@ -225,6 +231,7 @@ RetroRuns_Data[1648] = {
                     when    = { mapID = 807 },
                     kind    = "poi",
                     note    = "After defeating ^Odyn^, talk to him and select the only dialog option available. You will be dropped into ^Helheim^.",
+                    minNote = "Talk to Odyn",
                     points  = {
                         { 0.514, 0.892 },
                     },
@@ -233,6 +240,7 @@ RetroRuns_Data[1648] = {
                     when    = { mapID = 806 },
                     kind    = "path",
                     note    = "After landing down below, take the downhill path and kill trash as you walk through the ^Helheim^ portal at the bottom.",
+                    minNote = "Clear Trash to Portal",
                     points  = {
                         { 0.539, 0.588 },
                         { 0.695, 0.354 },
@@ -242,6 +250,7 @@ RetroRuns_Data[1648] = {
                     when    = { mapID = 808 },
                     kind    = "path",
                     note    = "Once you reach ^Helheim^, follow the path around to find ^Guarm^.",
+                    minNote = "Path to Guarm",
                     points  = {
                         { 0.638, 0.450 },
                         { 0.592, 0.399 },
@@ -263,6 +272,7 @@ RetroRuns_Data[1648] = {
                     when    = { mapID = 808 },
                     kind    = "path",
                     note    = "After killing ^Guarm^, continue down the path to meet ^Helya^. Kill the trash to start the encounter.",
+                    minNote = "Trash then Helya",
                     points  = {
                         { 0.481, 0.319 },
                         { 0.385, 0.265 },

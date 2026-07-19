@@ -350,6 +350,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 850 },
                     kind    = "path",
                     note    = "After zoning in, proceed straight ahead to engage ^Goroth^.",
+                    minNote = "Ahead to Goroth",
                     points  = {
                         { 0.450, 0.893 },
                         { 0.451, 0.604 },
@@ -374,6 +375,7 @@ RetroRuns_Data[1676] = {
                     mapLabel        = "Go Here",
                     mapLabelPos     = "above",
                     note            = "After killing ^Goroth^, go down the staircase behind ^Image of Aegwynn^.",
+                    minNote         = "Stairwell Behind Aegwynn",
                     points          = {
                         { 0.451, 0.423 },
                     },
@@ -382,6 +384,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 853 },
                     kind    = "path",
                     note    = "When you reach the bottom of the stairwell, cross the room and engage ^Maiden of Vigilance^.",
+                    minNote = "Ahead to Maiden",
                     points  = {
                         { 0.484, 0.863 },
                         { 0.500, 0.812 },
@@ -405,12 +408,12 @@ RetroRuns_Data[1676] = {
                 {
                     when            = { mapID = 853 },
                     kind            = "poi",
-                    destination     = "Chamber of the Avatar",
                     noMarker        = true,
                     mapLabel        = "Click Teleporter",
                     mapLabelPos     = "middle",
                     completionCheck = true,
                     note        = "After killing ^Maiden of Vigilance^, click the nearby ^Teleportation Pad^ to be taken to ^Chamber of the Avatar^. Note: the pad will likely be under the boss corpse until she despawns, but you can still click it.",
+                    minNote     = "Click Teleportation Pad",
                     points      = {
                         { 0.501, 0.233 },
                     },
@@ -419,6 +422,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 854 },
                     kind    = "path",
                     note    = "In the ^Chamber of the Avatar^, move forward and kill trash to open the door, then watch some dialog before engaging with ^Fallen Avatar^.",
+                    minNote = "Ahead to Fallen Avatar",
                     points  = {
                         { 0.503, 0.731 },
                         { 0.501, 0.221 },
@@ -439,6 +443,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 855 },
                     kind    = "path",
                     note    = "After killing ^Fallen Avatar^, continue straight ahead across the slime to the map exit labeled ^The Twisting Nether^. Walk into the green swirly portal.",
+                    minNote = "Ahead to Portal",
                     points  = {
                         { 0.525, 0.301 },
                         { 0.532, 0.189 },
@@ -448,6 +453,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 856 },
                     kind    = "path",
                     note    = "After arriving in ^The Twisting Nether^, work your way down the path, killing trash all the way until you reach ^Kil'Jaeden^.",
+                    minNote = "Trash then Kil'Jaeden",
                     points  = {
                         { 0.158, 0.468 },
                         { 0.394, 0.456 },
@@ -486,6 +492,7 @@ RetroRuns_Data[1676] = {
                             when   = { mapID = 850 },
                             kind    = "path",
                             note    = "After zoning in, proceed straight ahead to engage ^Goroth^.",
+                            minNote = "Ahead to Goroth",
                             points  = {
                                 { 0.450, 0.893 },
                                 { 0.451, 0.604 },
@@ -509,6 +516,7 @@ RetroRuns_Data[1676] = {
                             when    = { mapID = 850, subZone = "Chamber of the Moon" },
                             kind    = "path",
                             note    = "After killing ^Goroth^, take the western exit labeled ^The Abyssal Throne^.",
+                            minNote = "West to Abyssal Throne",
                             points  = {
                                 { 0.426, 0.567 },
                                 { 0.383, 0.566 },
@@ -518,6 +526,7 @@ RetroRuns_Data[1676] = {
                             when   = { mapID = 851 },
                             kind    = "path",
                             note    = "After jumping in the hole, follow the path straight ahead to find ^Harjatan^.",
+                            minNote = "Path to Harjatan",
                             points  = {
                                 { 0.146, 0.255 },
                                 { 0.162, 0.292 },
@@ -544,6 +553,7 @@ RetroRuns_Data[1676] = {
                             when   = { mapID = 851 },
                             kind    = "path",
                             note    = "After killing ^Harjatan^, jump over the ledge to his left and land in the water. Follow the path through the tunnel and continue straight ahead to find ^Mistress Sassz'ine^.",
+                            minNote = "Jump ledge to Sassz'ine",
                             points  = {
                                 { 0.433, 0.645 },
                                 { 0.475, 0.570 },
@@ -585,6 +595,7 @@ RetroRuns_Data[1676] = {
                             when    = { mapID = 850 },
                             kind    = "path",
                             note    = "After zoning in, run up the stairs straight ahead to engage ^The Demonic Inquisition^.",
+                            minNote = "Up to Inquisition",
                             points  = {
                                 { 0.449, 0.283 },
                                 { 0.448, 0.246 },
@@ -609,6 +620,7 @@ RetroRuns_Data[1676] = {
                             when    = { mapID = 850 },
                             kind    = "path",
                             note    = "After defeating ^The Demonic Inquisition^, follow the path to ^Terrace of the Moon^.",
+                            minNote = "Path to Terrace of the Moon",
                             points  = {
                                 { 0.449, 0.235 },
                                 { 0.449, 0.341 },
@@ -629,6 +641,7 @@ RetroRuns_Data[1676] = {
                             when   = { mapID = 852 },
                             kind    = "path",
                             note    = "Continue down the stairs, following the path until you reach ^Sisters of the Moon^.",
+                            minNote = "Down to Sisters",
                             points  = {
                                 { 0.381, 0.642 },
                                 { 0.377, 0.602 },
@@ -655,6 +668,7 @@ RetroRuns_Data[1676] = {
                             when   = { mapID = 852 },
                             kind    = "path",
                             note    = "After defeating ^Sisters of the Moon^, leave the boss room and take a left. Follow the winding path back to ^The Desolate Host^.",
+                            minNote = "Path to Desolate Host",
                             points  = {
                                 { 0.511, 0.605 },
                                 { 0.506, 0.625 },
@@ -693,6 +707,7 @@ RetroRuns_Data[1676] = {
                             when    = { mapID = 853 },
                             kind    = "path",
                             note    = "After zoning in, proceed ahead to ^Maiden of Vigilance^.",
+                            minNote = "Cross to Maiden",
                             points  = {
                                 { 0.498, 0.637 },
                                 { 0.498, 0.546 },
@@ -715,12 +730,12 @@ RetroRuns_Data[1676] = {
                         {
                             when            = { mapID = 853 },
                             kind            = "poi",
-                            destination     = "Chamber of the Avatar",
                             noMarker        = true,
                             mapLabel        = "Click Teleporter",
                             mapLabelPos     = "middle",
                             completionCheck = true,
                             note        = "After killing ^Maiden of Vigilance^, click the nearby ^Teleportation Pad^ to be taken to ^Chamber of the Avatar^. Note: the pad will likely be under the boss corpse until she despawns, but you can still click it.",
+                            minNote     = "Click Teleportation Pad",
                             points      = {
                                 { 0.501, 0.233 },
                             },
@@ -729,6 +744,7 @@ RetroRuns_Data[1676] = {
                             when   = { mapID = 854 },
                             kind    = "path",
                             note    = "In the ^Chamber of the Avatar^, move forward and kill trash to open the door, then watch some dialog before engaging with ^Fallen Avatar^.",
+                            minNote = "Trash then Fallen Avatar",
                             points  = {
                                 { 0.503, 0.731 },
                                 { 0.501, 0.221 },
@@ -759,6 +775,7 @@ RetroRuns_Data[1676] = {
                             when   = { mapID = 856 },
                             kind    = "path",
                             note    = "After arriving in ^The Twisting Nether^, work your way down the path, killing trash all the way until you reach ^Kil'Jaeden^.",
+                            minNote = "Trash then Kil'jaeden",
                             points  = {
                                 { 0.158, 0.468 },
                                 { 0.394, 0.456 },
@@ -791,6 +808,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 850 },
                     kind    = "path",
                     note    = "After zoning in, proceed straight ahead to engage ^Goroth^.",
+                    minNote = "Ahead to Goroth",
                     points  = {
                         { 0.450, 0.893 },
                         { 0.451, 0.604 },
@@ -816,6 +834,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 850 },
                     kind    = "path",
                     note    = "After defeating ^Goroth^, proceed straight ahead past the group of NPCs and go up the stairs to find ^Demonic Inquisition^.",
+                    minNote = "Up to Inquisition",
                     points  = {
                         { 0.450, 0.532 },
                         { 0.451, 0.447 },
@@ -859,6 +878,7 @@ RetroRuns_Data[1676] = {
                     mapLabelPos     = "middle",
                     completionCheck = true,
                     note    = "Click the ^Hammer of Khaz'goroth^ in the middle of this room after killing ^Demonic Inquisition^.",
+                    minNote = "Click Hammer",
                     triggeredBy = { dialog = { npc = "Image of Aegwynn", match = "shatters the bonds of fate" } },
                     points  = {
                         { 0.449, 0.195 },
@@ -868,6 +888,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 850 },
                     kind    = "path",
                     note    = "After clicking the ^Hammer^, proceed down the stairs towards the west side of the room and the map exit labeled ^The Abyssal Throne^.",
+                    minNote = "West to Abyssal Throne",
                     points  = {
                         { 0.449, 0.213 },
                         { 0.448, 0.340 },
@@ -884,6 +905,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 851 },
                     kind    = "path",
                     note    = "After jumping in the hole, follow the path straight ahead to find ^Harjatan^.",
+                    minNote = "Path to Harjatan",
                     points  = {
                         { 0.146, 0.255 },
                         { 0.162, 0.292 },
@@ -916,6 +938,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 851 },
                     kind    = "path",
                     note    = "After killing ^Harjatan^, jump over the ledge to his left and land in the water. Follow the path through the tunnel and continue straight ahead to find ^Mistress Sassz'ine^.",
+                    minNote = "Jump ledge to Sassz'ine",
                     points  = {
                         { 0.433, 0.645 },
                         { 0.475, 0.570 },
@@ -966,6 +989,7 @@ RetroRuns_Data[1676] = {
                     mapLabelPos     = "middle",
                     completionCheck = true,
                     note    = "Click the ^Tidestone of Golganneth^ after killing ^Mistress Sassz'ine^.",
+                    minNote = "Click Tidestone",
                     triggeredBy = { dialog = { npc = "Image of Aegwynn", match = "washes clean the darkness" } },
                     points  = {
                         { 0.833, 0.824 },
@@ -975,6 +999,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 851 },
                     kind    = "path",
                     note    = "After clicking the ^Tidestone^, backtrack a bit and take a right towards the map exit labeled ^Terrace of the Moon^. You will pass a giant statue and begin climbing a long, winding staircase.",
+                    minNote = "Right to Moon Terrace",
                     points  = {
                         { 0.833, 0.824 },
                         { 0.815, 0.796 },
@@ -993,6 +1018,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 852 },
                     kind    = "path",
                     note    = "When you reach the top of the staircase, you will go through a door and continue north to reach ^Sisters of the Moon^. For the next few areas, avoid the purple circular areas on the ground as they will stun you.",
+                    minNote = "North to Sisters",
                     points  = {
                         { 0.576, 0.835 },
                         { 0.575, 0.886 },
@@ -1026,6 +1052,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 852 },
                     kind    = "path",
                     note    = "After defeating ^Sisters of the Moon^, leave the boss room and take a left. Follow the winding path back to ^The Desolate Host^.",
+                    minNote = "Left to Desolate Host",
                     points  = {
                         { 0.511, 0.605 },
                         { 0.506, 0.625 },
@@ -1079,6 +1106,7 @@ RetroRuns_Data[1676] = {
                     mapLabelPos     = "above",
                     completionCheck = true,
                     note    = "Click the ^Tears of Elune^ in the middle of the room after killing ^The Desolate Host^.",
+                    minNote = "Click Tears of Elune",
                     triggeredBy = { dialog = { npc = "Image of Aegwynn", match = "purify your hearts" } },
                     points  = {
                         { 0.591, 0.235 },
@@ -1089,6 +1117,7 @@ RetroRuns_Data[1676] = {
                     kind         = "path",
                     endpointKind = "skull",
                     note    = "After clicking the ^Tears of Elune^, jump off the edge to die and respawn back in ^Chamber of the Moon^.",
+                    minNote = "Jump off to respawn",
                     points  = {
                         { 0.591, 0.235 },
                         { 0.601, 0.291 },
@@ -1098,6 +1127,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 850 },
                     kind    = "path",
                     note    = "After respawning in ^Chamber of the Moon^, proceed towards the group of NPCs and enter the descending stairwell behind them.",
+                    minNote = "Stairwell behind NPCs",
                     points  = {
                         { 0.449, 0.605 },
                         { 0.450, 0.453 },
@@ -1107,6 +1137,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 853 },
                     kind    = "path",
                     note    = "When you reach the bottom of the stairwell, cross the room and engage ^Maiden of Vigilance^.",
+                    minNote = "Cross to Maiden",
                     points  = {
                         { 0.484, 0.863 },
                         { 0.500, 0.812 },
@@ -1138,12 +1169,12 @@ RetroRuns_Data[1676] = {
                 {
                     when            = { mapID = 853 },
                     kind            = "poi",
-                    destination     = "Chamber of the Avatar",
                     noMarker        = true,
                     mapLabel        = "Click Teleporter",
                     mapLabelPos     = "middle",
                     completionCheck = true,
                     note        = "After killing ^Maiden of Vigilance^, click the nearby ^Teleportation Pad^ to be taken to ^Chamber of the Avatar^. Note: the pad will likely be under the boss corpse until she despawns, but you can still click it.",
+                    minNote     = "Click Teleportation Pad",
                     points      = {
                         { 0.501, 0.233 },
                     },
@@ -1152,6 +1183,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 854 },
                     kind    = "path",
                     note    = "In the ^Chamber of the Avatar^, move forward and kill trash to open the door, then watch some dialog before engaging with ^Fallen Avatar^.",
+                    minNote = "Trash then Fallen Avatar",
                     points  = {
                         { 0.503, 0.731 },
                         { 0.501, 0.221 },
@@ -1181,6 +1213,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 855 },
                     kind    = "path",
                     note    = "After killing ^Fallen Avatar^, continue straight ahead across the slime to the map exit labeled ^The Twisting Nether^. Walk into the green swirly portal.",
+                    minNote = "Ahead to green Portal",
                     points  = {
                         { 0.525, 0.301 },
                         { 0.532, 0.189 },
@@ -1190,6 +1223,7 @@ RetroRuns_Data[1676] = {
                     when   = { mapID = 856 },
                     kind    = "path",
                     note    = "After arriving in ^The Twisting Nether^, work your way down the path, killing trash all the way until you reach ^Kil'Jaeden^.",
+                    minNote = "Trash then Kil'jaeden",
                     points  = {
                         { 0.158, 0.468 },
                         { 0.394, 0.456 },

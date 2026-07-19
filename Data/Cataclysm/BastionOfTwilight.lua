@@ -233,6 +233,7 @@ RetroRuns_Data[671] = {
                     when    = { mapID = 294, subZone = "Bastion Antechamber" },
                     kind    = "path",
                     note    = "After zoning in, follow the linear path to ^Halfus Wyrmbreaker^.",
+                    minNote = "Path to Halfus",
                     points  = {
                         { 0.394, 0.480 },
                         { 0.395, 0.194 },
@@ -254,6 +255,7 @@ RetroRuns_Data[671] = {
                     when    = { mapID = 294, subZone = "Wyrmbreaker's Rookery" },
                     kind    = "path",
                     note    = "After defeating ^Halfus^, follow the path straight south to reach ^Theralion and Valiona^. Kill trash to begin the gauntlet on the way to the boss.",
+                    minNote = "Gauntlet then Dragons",
                     points  = {
                         { 0.536, 0.250 },
                         { 0.536, 0.741 },
@@ -274,6 +276,7 @@ RetroRuns_Data[671] = {
                     when    = { mapID = 294, subZone = "The Twilight Enclave" },
                     kind    = "path",
                     note    = "After killing ^Theralion and Valiona^, head south and exit this area.",
+                    minNote = "South exit",
                     points  = {
                         { 0.536, 0.843 },
                         { 0.534, 0.920 },
@@ -285,6 +288,7 @@ RetroRuns_Data[671] = {
                     when    = { mapID = 295, subZone = "The Twilight Enclave" },
                     kind    = "path",
                     note    = "Follow the path to reach the ^Ascendant Council^.",
+                    minNote = "Path to Council",
                     points  = {
                         { 0.550, 0.125 },
                         { 0.483, 0.143 },
@@ -307,6 +311,7 @@ RetroRuns_Data[671] = {
                     when    = { mapID = 295, subZone = "Sanctum of the Ascended" },
                     kind    = "path",
                     note    = "After defeating the ^Ascendant Council^, continue down the southern path until you reach ^Cho'gall^.",
+                    minNote = "South to Cho'gall",
                     points  = {
                         { 0.424, 0.496 },
                         { 0.423, 0.755 },
@@ -328,6 +333,7 @@ RetroRuns_Data[671] = {
                     when     = { mapID = 295, subZone = "Throne of the Apocalypse" },
                     kind     = "poi",
                     note     = "After defeating ^Cho'gall^, jump in the hole in the middle of the room.",
+                    minNote  = "Jump in hole",
                     mapLabel = "Jump in Hole",
                     points   = {
                         { 0.696, 0.754 },
@@ -337,6 +343,7 @@ RetroRuns_Data[671] = {
                     when    = { mapID = 296, subZone = "The Twilight Caverns" },
                     kind    = "path",
                     note    = "After landing, follow the path ahead to reach ^Sinestra^.",
+                    minNote = "Ahead to Sinestra",
                     points  = {
                         { 0.579, 0.594 },
                         { 0.589, 0.546 },

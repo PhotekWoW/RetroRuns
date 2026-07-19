@@ -315,6 +315,7 @@ RetroRuns_Data[757] = {
                     when    = { mapID = 282 },
                     kind    = "path",
                     note    = "After zoning in, head to the right wing to engage ^Argaloth^.",
+                    minNote = "Right to Argaloth",
                     points  = {
                         { 0.475, 0.810 },
                         { 0.477, 0.722 },
@@ -338,6 +339,7 @@ RetroRuns_Data[757] = {
                     when    = { mapID = 282 },
                     kind    = "path",
                     note    = "After defeating ^Argaloth^, head to the north wing to face ^Alizabal^.",
+                    minNote = "North to Alizabal",
                     points  = {
                         { 0.757, 0.627 },
                         { 0.541, 0.627 },
@@ -361,6 +363,7 @@ RetroRuns_Data[757] = {
                     when    = { mapID = 282 },
                     kind    = "path",
                     note    = "After killing ^Alizabal^, visit the final wing on the west to defeat ^Occu'thar^.",
+                    minNote = "West to Occu'thar",
                     points  = {
                         { 0.478, 0.293 },
                         { 0.479, 0.526 },

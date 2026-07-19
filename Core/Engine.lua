@@ -5,7 +5,6 @@
 -- instruction to display next. Every raid runs on this engine.
 -------------------------------------------------------------------------------
 
-local addonName, addon = ...
 local RR = _G.RetroRuns
 
 -------------------------------------------------------------------------------
@@ -247,7 +246,18 @@ local function WhenMatches(seg, mapID, subZone)
     if not segMapID then return false end
     if segMapID ~= mapID then return false end
     local gateSubZone = SegWhenSubZone(seg)
-    if gateSubZone and gateSubZone ~= subZone then return false end
+    if gateSubZone and gateSubZone ~= subZone then
+        -- On a non-English client GetSubZoneText() returns the localized
+        -- area name, so an authored English gate can never text-match it.
+        -- Accept the gate's localized form from the locale table as well.
+        -- Inert on English clients and for gates without a locale entry:
+        -- there RR.L returns the key itself, which already failed above.
+        local localizedGate = RR and RR.L and RR.L[gateSubZone]
+        if not (localizedGate and localizedGate ~= gateSubZone
+                and localizedGate == subZone) then
+            return false
+        end
+    end
     return true
 end
 
@@ -271,13 +281,37 @@ local function TriggerMatches(seg, event, eventData)
         -- npc is optional. Some events -- notably CHAT_MSG_RAID_BOSS_EMOTE
         -- for ambient "boss rises" lines -- carry an empty sender field, so
         -- the speaker name isn't a reliable key. When a trigger omits npc,
-        -- match on the dialog text alone. When npc IS specified, it must
-        -- match exactly (unchanged behavior for every existing trigger).
+        -- match on the dialog text alone. When npc IS specified, the sender
+        -- must equal it or its locale-table form.
         if dialogTrigger.npc and eventData.npc ~= dialogTrigger.npc then
-            return false
+            -- On a non-English client the event's sender name arrives in
+            -- the client's language, so an authored English npc name can
+            -- never text-match it. Accept the npc's localized form from
+            -- the locale table as well, compared case-insensitively:
+            -- the two Spanish locales can differ solely in casing for
+            -- the same npc (e.g. "Primera arcanista" vs "Primera
+            -- Arcanista"), and one table serves both. Inert on English
+            -- clients and for names without a locale entry: there RR.L
+            -- returns the key itself, which already failed above.
+            local localizedNpc = RR and RR.L and RR.L[dialogTrigger.npc]
+            if not (localizedNpc and localizedNpc ~= dialogTrigger.npc
+                    and eventData.npc ~= nil
+                    and string.lower(localizedNpc)
+                        == string.lower(eventData.npc)) then
+                return false
+            end
         end
         if not dialogTrigger.match or not eventData.text then return false end
-        return string.find(eventData.text, dialogTrigger.match, 1, true) ~= nil
+        if string.find(eventData.text, dialogTrigger.match, 1, true) then
+            return true
+        end
+        -- The spoken line also arrives in the client's language; the locale
+        -- table maps the authored English fragment to a fragment of the
+        -- localized line, matched the same way.
+        local localizedMatch = RR and RR.L and RR.L[dialogTrigger.match]
+        return localizedMatch ~= nil
+            and localizedMatch ~= dialogTrigger.match
+            and string.find(eventData.text, localizedMatch, 1, true) ~= nil
     end
 
     return false
@@ -356,20 +390,20 @@ local function ComputeAdvancedProgress(segments, progress, state, event, eventDa
     end
 
     local advancedPastNoted = false
-    local i = progress + 1
-    while i <= segCount do
-        local seg = segments[i]
+    local segIndex = progress + 1
+    while segIndex <= segCount do
+        local seg = segments[segIndex]
         if not seg then break end
 
         if not WhenMatches(seg, state.mapID, state.subZone) then break end
-        if not AfterSatisfied(seg, i) then break end
+        if not AfterSatisfied(seg, segIndex) then break end
         if not TriggerMatches(seg, event, eventData) then break end
 
         if seg.note and advancedPastNoted then break end
 
-        progress = i
+        progress = segIndex
         if seg.note then advancedPastNoted = true end
-        i = i + 1
+        segIndex = segIndex + 1
     end
 
     return progress
@@ -507,7 +541,9 @@ function RR:GetActiveMinNote()
     if not step then return nil end
     local seg = self:PickNoteSeg(step)
     if seg and seg.minNote and seg.minNote ~= "" then
-        return seg.minNote
+        -- Resolved through the locale table at the source so every consumer
+        -- (bar body, layout measuring) sees the same translated text.
+        return RR.L[seg.minNote]
     end
     return nil
 end
@@ -606,7 +642,7 @@ end
 function RR:BuildEngineProbeLines(opts)
     opts = opts or {}
     local lines = {}
-    local function add(s) lines[#lines + 1] = s end
+    local function add(line) lines[#lines + 1] = line end
     local raid = self.currentRaid
 
     add(("currentRaid: %s (instanceID=%s)"):format(
@@ -770,7 +806,7 @@ end
 
 function RR:DiagDump()
     local lines = {}
-    local function add(s) lines[#lines + 1] = s or "" end
+    local function add(line) lines[#lines + 1] = line or "" end
     local function divider(num, label, desc)
         add("")
         add(("=== %d. %s "):format(num, label) ..
@@ -829,9 +865,9 @@ function RR:DiagDump()
         divider(5, "LFR BIT CAPTURE",
             "per-boss lockout bit, recorded on each LFR kill -- also via /rr lfrbits")
         for i = 1, #bitLog do
-            local e = bitLog[i]
+            local entry = bitLog[i]
             add(("%s  %s  ->  bit %s   [%s]"):format(
-                tostring(e.t), tostring(e.boss), tostring(e.bit), tostring(e.raid)))
+                tostring(entry.t), tostring(entry.boss), tostring(entry.bit), tostring(entry.raid)))
         end
     end
 
@@ -851,7 +887,7 @@ end
 -- boss stands out instead of needing a separate probe to find.
 function RR:BuildCompletionDiagLines()
     local out = {}
-    local function add(s) out[#out + 1] = s or "" end
+    local function add(line) out[#out + 1] = line or "" end
 
     local raid = self.currentRaid
     if not raid then

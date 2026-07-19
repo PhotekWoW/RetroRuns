@@ -95,7 +95,7 @@ RetroRuns_Data[1861] = {
             index              = 3,
             name               = "Fetid Devourer",
             journalEncounterID = 2146,
-            aliases            = { "Fetid" },
+            aliases            = {},
             achievements       = {
                 { id = 12823, name = "Thrash Mouth - All Stars", meta = true, soloable = "yes" },
             },
@@ -245,6 +245,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1148 },
                     kind    = "path",
                     note    = "After zoning in, walk straight ahead and kill the Tendrils to start the encounter with ^Taloc^.",
+                    minNote = "Ahead to Taloc",
                     points  = {
                         { 0.521, 0.828 },
                         { 0.520, 0.346 },
@@ -269,6 +270,7 @@ RetroRuns_Data[1861] = {
                     mapLabelPos     = "middle",
                     completionCheck = true,
                     note     = "After killing ^Taloc^, the floor will start to descend. Once you reach the bottom, go straight ahead and click the ^Titan Console^.",
+                    minNote  = "Click Titan Console",
                     points   = {
                         { 0.499, 0.583 },
                     },
@@ -277,6 +279,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1149 },
                     kind    = "path",
                     note    = "After activating the ^Titan Console^, kill several waves of adds from the previous room to unlock the door to the next room.",
+                    minNote = "Kill Trash to Unlock Door",
                     triggeredBy = { dialog = { npc = "Brann Bronzebeard", match = "get these doors open" } },
                     points  = {},
                 },
@@ -285,6 +288,7 @@ RetroRuns_Data[1861] = {
                     kind    = "poi",
                     poiSize = 35,
                     note    = "After finishing the adds, proceed forward and defeat ^MOTHER^.",
+                    minNote = "Ahead to MOTHER",
                     triggeredBy = { dialog = { npc = "MOTHER", match = "decontamination chamber" } },
                     points  = {
                         { 0.507, 0.568 },
@@ -305,6 +309,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1149 },
                     kind    = "path",
                     note    = "After defeating ^MOTHER^, continue forward to the map exit labeled ^Ring of Containment^.",
+                    minNote = "Ahead to Ring of Containment",
                     points  = {
                         { 0.508, 0.402 },
                         { 0.509, 0.133 },
@@ -314,6 +319,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1150 },
                     kind    = "path",
                     note    = "Once you reach the ^Ring of Containment^, take a right and head for the map exit labeled ^Gallery of Failures^.",
+                    minNote = "Right to Gallery of Failures",
                     points  = {
                         { 0.475, 0.842 },
                         { 0.552, 0.839 },
@@ -325,6 +331,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1153 },
                     kind    = "path",
                     note    = "Continue following the path to engage ^Fetid Devourer^.",
+                    minNote = "Path to Fetid Devourer",
                     points  = {
                         { 0.113, 0.495 },
                         { 0.144, 0.554 },
@@ -347,6 +354,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1153 },
                     kind    = "path",
                     note    = "After killing ^Fetid Devourer^, go back the way you came to arrive back in the ^Ring of Containment^.",
+                    minNote = "Backtrack to Ring of Containment",
                     points  = {
                         { 0.627, 0.484 },
                         { 0.181, 0.476 },
@@ -358,6 +366,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1150 },
                     kind    = "path",
                     note    = "Back in the ^Ring of Containment^, head north to the map exit labeled ^Plague Vault^.",
+                    minNote = "North to Plague Vault",
                     points  = {
                         { 0.702, 0.500 },
                         { 0.701, 0.385 },
@@ -369,6 +378,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1152 },
                     kind    = "path",
                     note    = "Continue following the path to reach ^Vectis^.",
+                    minNote = "Path to Vectis",
                     points  = {
                         { 0.537, 0.915 },
                         { 0.564, 0.879 },
@@ -391,6 +401,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1152 },
                     kind    = "path",
                     note    = "After killing ^Vectis^, go back the way you came to arrive back in the ^Ring of Containment^.",
+                    minNote = "Backtrack to Ring of Containment",
                     points  = {
                         { 0.525, 0.343 },
                         { 0.527, 0.842 },
@@ -402,6 +413,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1150 },
                     kind    = "path",
                     note    = "After back in the ^Ring of Containment^, head to the leftmost map exit labeled ^Archives of Eternity^.",
+                    minNote = "Left to Archives of Eternity",
                     points  = {
                         { 0.475, 0.165 },
                         { 0.401, 0.163 },
@@ -413,6 +425,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1151 },
                     kind    = "path",
                     note    = "Continue following the path to reach ^Zek'voz, Herald of N'Zoth^. Clear trash to start the encounter.",
+                    minNote = "Trash then Zek'voz",
                     points  = {
                         { 0.867, 0.507 },
                         { 0.834, 0.428 },
@@ -435,6 +448,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1151 },
                     kind    = "path",
                     note    = "After killing ^Zek'voz^, go back the way you came to arrive back in the ^Ring of Containment^.",
+                    minNote = "Backtrack to Ring of Containment",
                     points  = {
                         { 0.405, 0.508 },
                         { 0.798, 0.511 },
@@ -446,6 +460,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1150 },
                     kind    = "path",
                     note    = "After arriving back in the ^Ring of Containment^, head straight ahead towards the map exit labeled ^The Oblivion Door^.",
+                    minNote = "Ahead to Oblivion Door",
                     points  = {
                         { 0.246, 0.503 },
                         { 0.378, 0.504 },
@@ -455,6 +470,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1154 },
                     kind    = "path",
                     note    = "After arriving in ^The Oblivion Door^, clear all trash to start the encounter with ^Zul, Reborn^.",
+                    minNote = "Trash then Zul",
                     points  = {
                         { 0.341, 0.531 },
                         { 0.487, 0.533 },
@@ -478,6 +494,7 @@ RetroRuns_Data[1861] = {
                     mapLabel        = "Click Titan Console",
                     completionCheck = true,
                     note     = "After killing ^Zul^, activate the ^Titan Console^ on the south end of the platform. Then jump into ^The Festering Core^ to fight ^Mythrax the Unraveler^.",
+                    minNote  = "Click Titan Console then Jump In",
                     points   = {
                         { 0.512, 0.752 },
                     },
@@ -497,6 +514,7 @@ RetroRuns_Data[1861] = {
                     when    = { mapID = 1155 },
                     kind    = "path",
                     note    = "After defeating ^Mythrax^, follow the path north to engage the final boss, ^G'huun^.",
+                    minNote = "North to G'huun",
                     points  = {
                         { 0.527, 0.809 },
                         { 0.523, 0.258 },
@@ -533,6 +551,7 @@ RetroRuns_Data[1861] = {
                             when    = { mapID = 1148 },
                             kind    = "path",
                             note    = "After zoning in, walk straight ahead and kill the Tendrils to start the encounter with ^Taloc^.",
+                            minNote = "Ahead to Taloc",
                             points  = {
                                 { 0.521, 0.828 },
                                 { 0.520, 0.346 },
@@ -555,6 +574,7 @@ RetroRuns_Data[1861] = {
                             mapLabelPos     = "middle",
                             completionCheck = true,
                             note     = "After killing ^Taloc^, the floor will start to descend. Once you reach the bottom, go straight ahead and click the ^Titan Console^.",
+                            minNote  = "Click Titan Console",
                             points   = {
                                 { 0.499, 0.583 },
                             },
@@ -563,6 +583,7 @@ RetroRuns_Data[1861] = {
                             when    = { mapID = 1149 },
                             kind    = "path",
                             note    = "After activating the ^Titan Console^, kill several waves of adds from the previous room to unlock the door to the next room.",
+                            minNote = "Kill Trash to Unlock Door",
                             triggeredBy = { dialog = { npc = "Brann Bronzebeard", match = "get these doors open" } },
                             points  = {},
                         },
@@ -571,6 +592,7 @@ RetroRuns_Data[1861] = {
                             kind    = "poi",
                             poiSize = 35,
                             note    = "After finishing the adds, proceed forward and defeat ^MOTHER^.",
+                            minNote = "Ahead to MOTHER",
                             triggeredBy = { dialog = { npc = "MOTHER", match = "decontamination chamber" } },
                             points  = {
                                 { 0.507, 0.568 },
@@ -589,6 +611,7 @@ RetroRuns_Data[1861] = {
                             when    = { mapID = 1149 },
                             kind    = "path",
                             note    = "After defeating ^MOTHER^, continue forward to the map exit labeled ^Ring of Containment^.",
+                            minNote = "Ahead to Ring of Containment",
                             points  = {
                                 { 0.508, 0.402 },
                                 { 0.509, 0.133 },
@@ -598,6 +621,7 @@ RetroRuns_Data[1861] = {
                             when    = { mapID = 1150, subZone = "Ring of Containment" },
                             kind    = "path",
                             note    = "Once in the ^Ring of Containment^, head to the leftmost map exit labeled ^Archives of Eternity^.",
+                            minNote = "Left to Archives of Eternity",
                             points  = {
                                 { 0.476, 0.842 },
                                 { 0.403, 0.839 },
@@ -609,6 +633,7 @@ RetroRuns_Data[1861] = {
                             when    = { mapID = 1151 },
                             kind    = "path",
                             note    = "Continue following the path to reach ^Zek'voz, Herald of N'Zoth^. Clear trash to start the encounter.",
+                            minNote = "Trash then Zek'voz",
                             points  = {
                                 { 0.867, 0.507 },
                                 { 0.834, 0.428 },
@@ -647,6 +672,7 @@ RetroRuns_Data[1861] = {
                             when    = { mapID = 1150 },
                             kind    = "path",
                             note    = "After zoning in, take a right and head for the map exit labeled ^Gallery of Failures^.",
+                            minNote = "Right to Gallery of Failures",
                             points  = {
                                 { 0.475, 0.842 },
                                 { 0.552, 0.839 },
@@ -658,6 +684,7 @@ RetroRuns_Data[1861] = {
                             when    = { mapID = 1153 },
                             kind    = "path",
                             note    = "Continue following the path to engage ^Fetid Devourer^.",
+                            minNote = "Path to Fetid Devourer",
                             points  = {
                                 { 0.113, 0.495 },
                                 { 0.144, 0.554 },
@@ -678,6 +705,7 @@ RetroRuns_Data[1861] = {
                             when    = { mapID = 1153 },
                             kind    = "path",
                             note    = "After killing ^Fetid Devourer^, go back the way you came to arrive back in the ^Ring of Containment^.",
+                            minNote = "Backtrack to Ring of Containment",
                             points  = {
                                 { 0.627, 0.484 },
                                 { 0.181, 0.476 },
@@ -689,6 +717,7 @@ RetroRuns_Data[1861] = {
                             when    = { mapID = 1150 },
                             kind    = "path",
                             note    = "Back in the ^Ring of Containment^, head north to the map exit labeled ^Plague Vault^.",
+                            minNote = "North to Plague Vault",
                             points  = {
                                 { 0.702, 0.500 },
                                 { 0.701, 0.385 },
@@ -700,6 +729,7 @@ RetroRuns_Data[1861] = {
                             when    = { mapID = 1152 },
                             kind    = "path",
                             note    = "Continue following the path to reach ^Vectis^.",
+                            minNote = "Path to Vectis",
                             points  = {
                                 { 0.537, 0.915 },
                                 { 0.564, 0.879 },
@@ -720,6 +750,7 @@ RetroRuns_Data[1861] = {
                             when    = { mapID = 1152 },
                             kind    = "path",
                             note    = "After killing ^Vectis^, go back the way you came to arrive back in the ^Ring of Containment^.",
+                            minNote = "Backtrack to Ring of Containment",
                             points  = {
                                 { 0.525, 0.343 },
                                 { 0.527, 0.842 },
@@ -731,6 +762,7 @@ RetroRuns_Data[1861] = {
                             when    = { mapID = 1150, subZone = "Ring of Containment" },
                             kind    = "path",
                             note    = "After arriving back in the ^Ring of Containment^, head straight ahead towards the map exit labeled ^The Oblivion Door^.",
+                            minNote = "Ahead to Oblivion Door",
                             points  = {
                                 { 0.477, 0.177 },
                                 { 0.476, 0.361 },
@@ -740,6 +772,7 @@ RetroRuns_Data[1861] = {
                             when    = { mapID = 1154 },
                             kind    = "path",
                             note    = "After arriving in ^The Oblivion Door^, clear all trash to start the encounter with ^Zul, Reborn^.",
+                            minNote = "Trash then Zul",
                         },
                     },
                 },
@@ -770,6 +803,7 @@ RetroRuns_Data[1861] = {
                             when    = { mapID = 1154 },
                             kind    = "path",
                             note    = "After zoning in, jump into ^The Festering Core^ to fight ^Mythrax the Unraveler^.",
+                            minNote = "Jump in to meet Mythrax",
                         },
                     },
                 },
@@ -784,6 +818,7 @@ RetroRuns_Data[1861] = {
                             when    = { mapID = 1155 },
                             kind    = "path",
                             note    = "After defeating ^Mythrax^, follow the path north to engage the final boss, ^G'huun^.",
+                            minNote = "North to G'huun",
                             points  = {
                                 { 0.527, 0.809 },
                                 { 0.523, 0.258 },

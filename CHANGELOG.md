@@ -2,6 +2,26 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [2.2.0] - 2026-07-18
+
+### Added
+
+- **Localization support, starting with Spanish.** The groundwork is in place for RetroRuns to run in languages other than English: player-facing text now goes through a translation layer, and raid, wing, boss, and place names follow your game client's language. Spanish is the first language built on it, covering the interface and all route content on esES and esMX clients. More languages can now be added without further engine work. English clients are unchanged.
+
+- **Minimized mode comes to life.** Collapse the main panel to enable minimized mode. The main panel is replaced with a much smaller bar that shows an abbreviated version of every step-by-step travel note, along with a quick snapshot of current boss progress. Supported on all raids, all routes; Full, Skip, and LFR.
+
+### Fixed
+
+- **The panel now keeps one position across all characters.** The window's position has always been saved account-wide, but the game's own per-character frame memory was re-applying each character's last position over it, so every character ended up with the panel somewhere different. The saved position now wins everywhere: move it once and it stays there for the whole account.
+
+- **The loot summary no longer misses drops when loot arrives a moment after the loot window closes.** On higher-latency pulls the summary could appear empty; it now waits briefly for the last items.
+
+- **The transmog window no longer shows a scrollbar when a boss's loot list fits.** A scrollbar, and a clipped travel button, appeared on bosses with a weapon-token footnote even when the list fit.
+
+- **The vendor travel button in the transmog window uses the correct plane icon and no longer sits under the scrollbar.**
+
+- **The Dragon Soul routing hint before Ultraxion now appears.** The step telling you to talk to Thrall to begin the encounter could never display.
+
 ## [2.1.0] - 2026-07-06
 
 ### Added
@@ -43,17 +63,17 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Looking For Raid routing.** Queue into any LFR wing and RetroRuns lays out the path through that wing — only the bosses you'll face, in the order you reach them, with the same walk-along directions, map lines, and waypoints as the full-raid routes. Wing progress and the per-difficulty pills track each wing on its own, so running a second wing of the same raid keeps its counts straight. This covers more than 80 wings across two dozen raids, spanning every expansion from Mists of Pandaria through Dragonflight. Expand any raid in the supported list to see its wings and per-wing progress at a glance.
+- **Looking For Raid routing.** Queue into any LFR wing and RetroRuns lays out the path through that wing -- only the bosses you'll face, in the order you reach them, with the same walk-along directions, map lines, and waypoints as the full-raid routes. Wing progress and the per-difficulty pills track each wing on its own, so running a second wing of the same raid keeps its counts straight. This covers more than 80 wings across two dozen raids, spanning every expansion from Mists of Pandaria through Dragonflight. Expand any raid in the supported list to see its wings and per-wing progress at a glance.
 
 ### Changed
 
 - **New travel icon, with a destination choice.** The travel icon beside each raid has a fresh look, and clicking it now lets you pick where to go: the raid entrance, or the Looking For Raid queue NPC.
 - **Skip-availability stars no longer appear next to the raid name while you're on an active route.** They stay in the supported-raids list and the Skips window, where they help you choose a route; once you're running one, the choice is already made.
-- **The Skips window difficulty columns read Normal, Heroic, Mythic from left to right** — the traditional progression order, with Mythic on the right.
+- **The Skips window difficulty columns read Normal, Heroic, Mythic from left to right** -- the traditional progression order, with Mythic on the right.
 
 ### Fixed
 
-- **Continued refinement of routes and travel notes across raids** — smoother paths and clearer directions in a number of places.
+- **Continued refinement of routes and travel notes across raids** -- smoother paths and clearer directions in a number of places.
 
 ## [1.14.0a] - 2026-06-19
 
@@ -88,9 +108,9 @@ All notable changes to RetroRuns are documented here.
 
 - **All five Mists of Pandaria raids are now fully supported: Mogu'shan Vaults, Heart of Fear, Terrace of Endless Spring, Throne of Thunder, and Siege of Orgrimmar.** Each has complete routing through every encounter with travel notes and map lines for every leg, including the portals, teleports, and tower and door transitions between sub-zones. Per-boss loot is tracked alongside tier set tokens and other unique drops, and each raid's Glory meta-achievement sub-achievements are rated for solo difficulty. Where a raid has skip paths, those are tracked too.
 
-- **Mists of Pandaria raids show a lockout indicator on their difficulty pills.** Mogu'shan Vaults, Heart of Fear, Terrace of Endless Spring, and Throne of Thunder share a single lockout between their Normal and Heroic difficulties for the week — clearing a boss on one locks the other until reset. When one difficulty is committed, its sibling now shows a small lock glyph; hovering it explains that the other difficulty is unavailable until the weekly reset.
+- **Mists of Pandaria raids show a lockout indicator on their difficulty pills.** Mogu'shan Vaults, Heart of Fear, Terrace of Endless Spring, and Throne of Thunder share a single lockout between their Normal and Heroic difficulties for the week -- clearing a boss on one locks the other until reset. When one difficulty is committed, its sibling now shows a small lock glyph; hovering it explains that the other difficulty is unavailable until the weekly reset.
 
-- **New feature: Toaster.** A loot notification system built for solo legacy-raid running. When you loot a boss, Toaster pops a clean on-screen toast for the things that matter — new transmog appearances and special loot like mounts, pets, and toys — while everything else (gear you'll vendor, crafting mats, tier tokens) is rolled into a single tidy summary line in chat with a clickable option to expand the full list. It replaces Blizzard's scattered loot spam with one consolidated line per kill. Its own settings page lets you toggle the toasts and the loot summary independently, adjust the toast scale, and drag the toasts wherever you want them.
+- **New feature: Toaster.** A loot notification system built for solo legacy-raid running. When you loot a boss, Toaster pops a clean on-screen toast for the things that matter -- new transmog appearances and special loot like mounts, pets, and toys -- while everything else (gear you'll vendor, crafting mats, tier tokens) is rolled into a single tidy summary line in chat with a clickable option to expand the full list. It replaces Blizzard's scattered loot spam with one consolidated line per kill. Its own settings page lets you toggle the toasts and the loot summary independently, adjust the toast scale, and drag the toasts wherever you want them.
 
 ### Changed
 
@@ -137,25 +157,25 @@ All notable changes to RetroRuns are documented here.
 
 ### Changed
 
-- **LFR support has been removed from the in-raid panel and from per-difficulty kill pills.** Until now, RetroRuns treated LFR as just another difficulty alongside Normal, Heroic, and Mythic — same routing, same boss progress, same pill row. That assumption was incorrect. LFR splits each raid into multiple wings, each with its own boss subset and its own path through the instance; the routing data RetroRuns ships is authored for the full N/H/M layout and doesn't match any single wing. Players in LFR were seeing routing directions toward bosses that don't exist in their current wing, and pill counts that summed kills across all wings of the lockout (so first-wing entry could show "LFR 8/8" before any boss was killed). For now: when you zone into LFR, the in-raid panel shows a single message in place of the routing content, and LFR has been dropped from the pill row everywhere it appeared. Achievements and Transmog browsers continue to track LFR sources unchanged. Restoring full LFR support is a substantial project — per-wing routing data for nearly every raid, queueing-NPC entrance handoffs for each expansion's LFR access point, and per-wing lockout tracking — and it will land in a future release as a dedicated effort.
+- **LFR support has been removed from the in-raid panel and from per-difficulty kill pills.** Until now, RetroRuns treated LFR as just another difficulty alongside Normal, Heroic, and Mythic -- same routing, same boss progress, same pill row. That assumption was incorrect. LFR splits each raid into multiple wings, each with its own boss subset and its own path through the instance; the routing data RetroRuns ships is authored for the full N/H/M layout and doesn't match any single wing. Players in LFR were seeing routing directions toward bosses that don't exist in their current wing, and pill counts that summed kills across all wings of the lockout (so first-wing entry could show "LFR 8/8" before any boss was killed). For now: when you zone into LFR, the in-raid panel shows a single message in place of the routing content, and LFR has been dropped from the pill row everywhere it appeared. Achievements and Transmog browsers continue to track LFR sources unchanged. Restoring full LFR support is a substantial project -- per-wing routing data for nearly every raid, queueing-NPC entrance handoffs for each expansion's LFR access point, and per-wing lockout tracking -- and it will land in a future release as a dedicated effort.
 
 ### Fixed
 
 - **The "What's New?" window no longer overflows past its bottom edge.** Long release-note entries are now contained inside a scrollable viewport; the window itself stays a fixed height and a scrollbar appears on the right when there's more content to read.
-- **Castle Nathria weapon-token section: redesigned for clarity.** The "Main-Hand Weapons" / "Off-Hand Weapons" lines used to carry a bracketed `[some collected]` / `[all collected]` / `[none collected]` label, but "some" gave the player no actionable signal about what they still needed. Each line now reads as a section heading naming the slot, the word "Weapon Token", and the classes that family covers — e.g. "Main-Hand Weapon Token: Hunter / Mage / Druid". Bosses that drop tokens for every class in a slot (Sire Denathrius) show "All classes" instead of listing all 13. The redemption-vendor hint and its travel button now sit directly below the heading rather than below the color legend, so the boss → redemption → legend flow reads top-to-bottom in priority order.
+- **Castle Nathria weapon-token section: redesigned for clarity.** The "Main-Hand Weapons" / "Off-Hand Weapons" lines used to carry a bracketed `[some collected]` / `[all collected]` / `[none collected]` label, but "some" gave the player no actionable signal about what they still needed. Each line now reads as a section heading naming the slot, the word "Weapon Token", and the classes that family covers -- e.g. "Main-Hand Weapon Token: Hunter / Mage / Druid". Bosses that drop tokens for every class in a slot (Sire Denathrius) show "All classes" instead of listing all 13. The redemption-vendor hint and its travel button now sit directly below the heading rather than below the color legend, so the boss → redemption → legend flow reads top-to-bottom in priority order.
 
 ## [1.11.0a] - 2026-05-26
 
 ### Fixed
 
-- **Vault of the Incarnates — Eranog route on the map.** After landing from the dragon flight, the pink route lines could partially disappear or the end arrow could detach from the rest of the path. Eranog's approach has been redesigned with red destination circles at the dragon platform and at Volcanius, plus a clean arrow line up to Eranog.
+- **Vault of the Incarnates -- Eranog route on the map.** After landing from the dragon flight, the pink route lines could partially disappear or the end arrow could detach from the rest of the path. Eranog's approach has been redesigned with red destination circles at the dragon platform and at Volcanius, plus a clean arrow line up to Eranog.
 
 ## [1.11.0] - 2026-05-26
 
 ### Added
 
-- **Map markers and labels.** Points of interest on the world map can now carry a text label next to the icon — useful for one-time interactive objects like teleport orbs, consoles, runes, and entrance arches that aren't obvious from a dot alone. Labels position around the icon to avoid colliding with map art, and can pulse gently while a click is pending, then switch to gray with a green check the moment the interaction completes. Red rings now highlight specific named map exits along a route. Star markers call out specific clickable objects. Visual cues like these have been added across several raids where the routing benefits from a more concrete pointer than a path line.
-- **Zygor waypoint-arrow detection.** If Zygor is loaded but the waypoint arrow is disabled in your Zygor settings, the entrance legend below the raid list now shows a red "Waypoint Arrow Disabled — Click to Enable" warning. Clicking the warning flips the Zygor setting on for you.
+- **Map markers and labels.** Points of interest on the world map can now carry a text label next to the icon -- useful for one-time interactive objects like teleport orbs, consoles, runes, and entrance arches that aren't obvious from a dot alone. Labels position around the icon to avoid colliding with map art, and can pulse gently while a click is pending, then switch to gray with a green check the moment the interaction completes. Red rings now highlight specific named map exits along a route. Star markers call out specific clickable objects. Visual cues like these have been added across several raids where the routing benefits from a more concrete pointer than a path line.
+- **Zygor waypoint-arrow detection.** If Zygor is loaded but the waypoint arrow is disabled in your Zygor settings, the entrance legend below the raid list now shows a red "Waypoint Arrow Disabled -- Click to Enable" warning. Clicking the warning flips the Zygor setting on for you.
 - **Suicide-jump shortcuts.** Several raids include ledge-jump shortcuts that skip a chunk of walking; travel notes now call these out where applicable.
 
 ### Changed
@@ -164,15 +184,15 @@ All notable changes to RetroRuns are documented here.
   - Map lines and travel directions follow you correctly when you backtrack to an earlier step's area instead of getting stuck on the latest step.
   - Same-subZone cross-zone transitions advance cleanly without a transient flicker.
   - Fewer "Open the map and select a section…" default-text flashes during zone transitions.
-  - Yell-triggered step advances now survive a mid-raid logout or reload — both the advance memory and your step progress persist alongside the rest of your lockout, so reloading mid-step no longer rewinds your travel directions.
+  - Yell-triggered step advances now survive a mid-raid logout or reload -- both the advance memory and your step progress persist alongside the rest of your lockout, so reloading mid-step no longer rewinds your travel directions.
 - **Special Loot, Achievements, and Skips brackets are now visually aligned.** The "not collected / not done / not unlocked" red X is now a proper texture matching the size of the green check, so the brackets line up cleanly instead of the X reading narrower than the check.
-- **Per-difficulty kill-count pills now use the Boss Progress color palette.** Fully cleared difficulties (e.g. `M 8/8`) render in green, your active difficulty renders in yellow, and the rest render in gray — matching the green-check / yellow-arrow / gray-pending grammar already used by the in-raid boss checklist below. A player sitting in a fully cleared difficulty sees green (complete trumps active).
-- **Uldir achievement soloability ratings refreshed.** Edgelords (Zul) and Existential Crisis (Mythrax) both moved from "kinda" to "yes" based on recent solo-run reports — Edgelords needs only that you avoid the central square, and Existential Crisis's "no other player touches an Existence Fragment" condition is satisfied for free when you're solo.
+- **Per-difficulty kill-count pills now use the Boss Progress color palette.** Fully cleared difficulties (e.g. `M 8/8`) render in green, your active difficulty renders in yellow, and the rest render in gray -- matching the green-check / yellow-arrow / gray-pending grammar already used by the in-raid boss checklist below. A player sitting in a fully cleared difficulty sees green (complete trumps active).
+- **Uldir achievement soloability ratings refreshed.** Edgelords (Zul) and Existential Crisis (Mythrax) both moved from "kinda" to "yes" based on recent solo-run reports -- Edgelords needs only that you avoid the central square, and Existential Crisis's "no other player touches an Existence Fragment" condition is satisfied for free when you're solo.
 - **Solo strategy tips refreshed across several encounters.** Shorter, more direct, dropping mythic-only and class-specific caveats that weren't useful for solo runs.
 
 ### Fixed
 
-- **Action buttons no longer occasionally appear with blank labels at game launch.** The Map / Tmog / Achieves / Skips / Settings buttons along the bottom of the panel previously used the addon's pixel font, applied with a direct font call that could fail on a cold startup if the font file wasn't fully cached yet — leaving one of the buttons blank until a `/reload`. They now use the standard interface button font and render reliably on every launch.
+- **Action buttons no longer occasionally appear with blank labels at game launch.** The Map / Tmog / Achieves / Skips / Settings buttons along the bottom of the panel previously used the addon's pixel font, applied with a direct font call that could fail on a cold startup if the font file wasn't fully cached yet -- leaving one of the buttons blank until a `/reload`. They now use the standard interface button font and render reliably on every launch.
 - **Zygor flight buttons no longer silently do nothing.** When Zygor's waypoint arrow setting was disabled, the addon's entrance click-to-navigate buttons were calling Zygor's waypoint API but Zygor was silently dropping the call. The new detection (above) surfaces this state and offers a one-click fix.
 
 ## [1.10.2] - 2026-05-17
@@ -180,9 +200,9 @@ All notable changes to RetroRuns are documented here.
 ### Added
 
 - **WaypointUI is now a recognized navigation handoff target.** WaypointUI joins the existing list of supported providers (AzerothWaypoint, Zygor, Mapzeroth, TomTom, and Blizzard's native waypoint) for the raid-entrance click handoff. The entrance-legend below the raid list shows which components are active on your install.
-- **The Skips window has been expanded with per-raid skip details.** Each row now has an `[ i ]` icon next to the raid name; click it to see exactly what unlocks the skip on that raid — the quest name, the prerequisite kills, the teleporter or shortcut it opens up, and what difficulty levels the skip applies to.
+- **The Skips window has been expanded with per-raid skip details.** Each row now has an `[ i ]` icon next to the raid name; click it to see exactly what unlocks the skip on that raid -- the quest name, the prerequisite kills, the teleporter or shortcut it opens up, and what difficulty levels the skip applies to.
 - **"What's New?" footer link.** The version number in the bottom-right corner of the panel is now a clickable button that opens a window with recent release notes. A pulsing yellow `[!]` indicator next to the link draws attention until you've opened the window for the current version.
-- **Launch mode setting.** Choose what RetroRuns does on login: open fully expanded, open in compact minimized mode, or stay hidden until you click the minimap icon. Setting lives in the Settings window. Default is minimized so the panel is reachable but not intrusive. Clicking "Load" on the in-raid prompt always opens the panel fully regardless of this setting — you asked for the addon, you get the addon.
+- **Launch mode setting.** Choose what RetroRuns does on login: open fully expanded, open in compact minimized mode, or stay hidden until you click the minimap icon. Setting lives in the Settings window. Default is minimized so the panel is reachable but not intrusive. Clicking "Load" on the in-raid prompt always opens the panel fully regardless of this setting -- you asked for the addon, you get the addon.
 - **Body font options.** Three choices for the panel's body text: Friz Quadrata (the default; matches WoW's native UI text), 04B_03 (pixel font; matches the addon's title bar for full retro feel), and VT323 (a clean terminal-style font, retro feel with comfortable readability). Header chrome (title, action buttons, footer) stays consistent across all three. Setting lives in the Settings window.
 
 ## [1.10.1] - 2026-05-16
@@ -195,8 +215,8 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Antorus, the Burning Throne** is now fully supported — walk-along routes for all 11 bosses across the Legion finale raid. Per-difficulty transmog tracking with full Tier 21 coverage, with achievement callouts and soloability ratings. Notable routing: the post-Antoran-High-Command elevator suicide-jump shortcut, the Eonar orb-teleport back to Antorus, and the Lightforged Beacon transition to The Burning Throne. Special loot: the Antoran Charhound mount from Felhounds of Sargeras.
-- **Glory meta-achievement tracking for Legion raids.** The Achievements pane now shows Glory progress and the mount/pet/title reward for Emerald Nightmare, The Nighthold, Tomb of Sargeras, and Antorus — joining the existing tracking for BfA, Shadowlands, and Dragonflight raids.
+- **Antorus, the Burning Throne** is now fully supported -- walk-along routes for all 11 bosses across the Legion finale raid. Per-difficulty transmog tracking with full Tier 21 coverage, with achievement callouts and soloability ratings. Notable routing: the post-Antoran-High-Command elevator suicide-jump shortcut, the Eonar orb-teleport back to Antorus, and the Lightforged Beacon transition to The Burning Throne. Special loot: the Antoran Charhound mount from Felhounds of Sargeras.
+- **Glory meta-achievement tracking for Legion raids.** The Achievements pane now shows Glory progress and the mount/pet/title reward for Emerald Nightmare, The Nighthold, Tomb of Sargeras, and Antorus -- joining the existing tracking for BfA, Shadowlands, and Dragonflight raids.
 - **Cosmetic weapon and armor appearances now tracked on several Legion bosses.** Aggramar drops Taeshalach (2H sword), Argus drops Scythe of the Unmaker (2H polearm, blue and red color variants), and Xavius drops The First Satyr's Spaulders (leather shoulders). These appearances aren't surfaced by the in-game Adventure Guide; they now appear in their boss's transmog list with collection state.
 
 ### Fixed
@@ -208,7 +228,7 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Tomb of Sargeras** is now fully supported — walk-along routes for all 9 bosses across the Broken Shore raid. Per-difficulty transmog tracking with full Tier 20 coverage (6-piece sets, the second six-piece tier in WoW history after Black Temple's T6), with achievement callouts and soloability ratings. Notable routing: the Maiden-of-Vigilance step's canonical suicide-jump-respawn shortcut that drops you back to Chamber of the Moon. Special loot: Mistress Sassz'ine's Abyss Worm mount.
+- **Tomb of Sargeras** is now fully supported -- walk-along routes for all 9 bosses across the Broken Shore raid. Per-difficulty transmog tracking with full Tier 20 coverage (6-piece sets, the second six-piece tier in WoW history after Black Temple's T6), with achievement callouts and soloability ratings. Notable routing: the Maiden-of-Vigilance step's canonical suicide-jump-respawn shortcut that drops you back to Chamber of the Moon. Special loot: Mistress Sassz'ine's Abyss Worm mount.
 
 ### Fixed
 
@@ -218,21 +238,21 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **The Nighthold** is now fully supported — walk-along routes for all 10 bosses through Suramar's most opulent palace. Per-difficulty transmog tracking with full Legion-tier coverage, with achievement callouts and soloability ratings. Notable routing: Suramar Portal teleport segments to The Nightspire (Elisande) and The Font of Night (Gul'dan).
-- **Illusion: Chronos tracking on Chronomatic Anomaly.** The weapon-enchant illusion that drops from the time-warping arcane fight now appears in his encounter card with a collected/missing indicator pulled from your transmog collection — same treatment Xavius's Illusion: Nightmare got in v1.7.0.
-- **Toy and decor tracking on Gul'dan and Spellblade Aluriel.** Two toys drop from Gul'dan and aren't surfaced in the in-game Adventure Guide — Golden Hearthstone Card: Lord Jaraxxus (all difficulties, all classes) and Skull of Corruption (Demon Hunter only). Both now appear in Gul'dan's Special Loot section with collection state. The Nighthold also drops Magistrix's Garden Fountain from Spellblade Aluriel — a housing decor item added in the 11.2.7 patch — and that's now surfaced too.
+- **The Nighthold** is now fully supported -- walk-along routes for all 10 bosses through Suramar's most opulent palace. Per-difficulty transmog tracking with full Legion-tier coverage, with achievement callouts and soloability ratings. Notable routing: Suramar Portal teleport segments to The Nightspire (Elisande) and The Font of Night (Gul'dan).
+- **Illusion: Chronos tracking on Chronomatic Anomaly.** The weapon-enchant illusion that drops from the time-warping arcane fight now appears in his encounter card with a collected/missing indicator pulled from your transmog collection -- same treatment Xavius's Illusion: Nightmare got in v1.7.0.
+- **Toy and decor tracking on Gul'dan and Spellblade Aluriel.** Two toys drop from Gul'dan and aren't surfaced in the in-game Adventure Guide -- Golden Hearthstone Card: Lord Jaraxxus (all difficulties, all classes) and Skull of Corruption (Demon Hunter only). Both now appear in Gul'dan's Special Loot section with collection state. The Nighthold also drops Magistrix's Garden Fountain from Spellblade Aluriel -- a housing decor item added in the 11.2.7 patch -- and that's now surfaced too.
 
 ### Fixed
 
-- **Wowhead `?` buttons on the Achievements window now respond consistently to clicks.** Same dispatch race that affected the `+` expansion toggles in v1.7.1, on a different surface. The Achievements window was rebuilding every row on the once-per-second UI tick — clicks that straddled a rebuild got eaten as the button vanished mid-click. The window now skips the rebuild when nothing has changed.
-- **Special Loot items you've already collected stay clickable.** Previously, collecting a mount, pet, toy, illusion, or decor would gray out its name in the Special Loot section and remove the click-to-tooltip behavior. The item link is now preserved — collected items render in their quality color (same as uncollected) and stay clickable, so you can still preview the appearance, link it to chat, or check stats. The `[check]` glyph on the left is now the sole visual signal that the item is collected.
+- **Wowhead `?` buttons on the Achievements window now respond consistently to clicks.** Same dispatch race that affected the `+` expansion toggles in v1.7.1, on a different surface. The Achievements window was rebuilding every row on the once-per-second UI tick -- clicks that straddled a rebuild got eaten as the button vanished mid-click. The window now skips the rebuild when nothing has changed.
+- **Special Loot items you've already collected stay clickable.** Previously, collecting a mount, pet, toy, illusion, or decor would gray out its name in the Special Loot section and remove the click-to-tooltip behavior. The item link is now preserved -- collected items render in their quality color (same as uncollected) and stay clickable, so you can still preview the appearance, link it to chat, or check stats. The `[check]` glyph on the left is now the sole visual signal that the item is collected.
 - **Weapon-enchant illusions in the Special Loot section now show with a proper "Illusion" label and a distinct color.** Previously rendered as lowercase `(illusion)` in a neutral fallback gray; now reads as `(Illusion)` in a pale violet, matching the color-coded conventions for mounts, pets, toys, decor, and manuscripts.
 
 ## [1.7.1] - 2026-05-10
 
 ### Added
 
-- **Trial of Valor** is now fully supported — walk-along routes for Legion's 3-boss mini-raid bridging Emerald Nightmare and Nighthold. Per-difficulty transmog tracking, with achievement callouts and soloability ratings. Notable routing: the canonical post-Odyn dialog teleport into Helheim.
+- **Trial of Valor** is now fully supported -- walk-along routes for Legion's 3-boss mini-raid bridging Emerald Nightmare and Nighthold. Per-difficulty transmog tracking, with achievement callouts and soloability ratings. Notable routing: the canonical post-Odyn dialog teleport into Helheim.
 
 ### Fixed
 
@@ -242,10 +262,10 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **The Emerald Nightmare** is now fully supported — walk-along routes for all 7 bosses, with achievement callouts and soloability ratings. Per-difficulty transmog tracking.
-- **Illusion: Nightmare tracking on Xavius.** The weapon-enchant illusion that drops from Xavius now appears in his encounter card with a collected/missing indicator pulled from your transmog collection — same treatment mounts, pets, and toys get on other bosses. Reflects whether you've personally collected the illusion (account-wide).
-- **Minimize button on the main panel.** A small `-` button just left of the close X collapses the panel down to its title bar — logo, RETRO RUNS text, and the close + minimize buttons. The body content (raid info, route note, supported-raids list) and the action-button row (Map, Tmog, Achieves, Skips, Settings) hide when minimized; click the `+` button to expand back. The panel's top edge stays put across the resize, so it grows downward from the title bar rather than shifting up. Minimized state persists across `/reload` — if you logged out minimized, the panel comes back up minimized next session.
-- **Flight to the Castle Nathria covenant weapon vendor.** When viewing the transmog details for a Castle Nathria boss that drops weapon tokens, a small flight-master button appears next to the "Redeem at..." vendor hint. Click it to drop a waypoint directly on the Mythic Nathrian Weaponsmith for your active covenant (Battlemaster Endios in Elysian Hold for Kyrian, Vorpalia in Sinfall for Venthyr, Sulanoom in Heart of the Forest for Night Fae, or Odious Gwor in Seat of the Primus for Necrolord). Uses the same waypoint cascade as the raid-entrance buttons — AzerothWaypoint, Zygor, Mapzeroth, TomTom, or the Blizzard map pin — picking the routing-capable one you have installed. Hover for a tooltip showing which vendor you're being sent to. The button doesn't appear if you haven't picked a covenant yet.
+- **The Emerald Nightmare** is now fully supported -- walk-along routes for all 7 bosses, with achievement callouts and soloability ratings. Per-difficulty transmog tracking.
+- **Illusion: Nightmare tracking on Xavius.** The weapon-enchant illusion that drops from Xavius now appears in his encounter card with a collected/missing indicator pulled from your transmog collection -- same treatment mounts, pets, and toys get on other bosses. Reflects whether you've personally collected the illusion (account-wide).
+- **Minimize button on the main panel.** A small `-` button just left of the close X collapses the panel down to its title bar -- logo, RETRO RUNS text, and the close + minimize buttons. The body content (raid info, route note, supported-raids list) and the action-button row (Map, Tmog, Achieves, Skips, Settings) hide when minimized; click the `+` button to expand back. The panel's top edge stays put across the resize, so it grows downward from the title bar rather than shifting up. Minimized state persists across `/reload` -- if you logged out minimized, the panel comes back up minimized next session.
+- **Flight to the Castle Nathria covenant weapon vendor.** When viewing the transmog details for a Castle Nathria boss that drops weapon tokens, a small flight-master button appears next to the "Redeem at..." vendor hint. Click it to drop a waypoint directly on the Mythic Nathrian Weaponsmith for your active covenant (Battlemaster Endios in Elysian Hold for Kyrian, Vorpalia in Sinfall for Venthyr, Sulanoom in Heart of the Forest for Night Fae, or Odious Gwor in Seat of the Primus for Necrolord). Uses the same waypoint cascade as the raid-entrance buttons -- AzerothWaypoint, Zygor, Mapzeroth, TomTom, or the Blizzard map pin -- picking the routing-capable one you have installed. Hover for a tooltip showing which vendor you're being sent to. The button doesn't appear if you haven't picked a covenant yet.
 
 ### Fixed
 
@@ -255,21 +275,21 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Battle of Dazar'alor** is now fully supported — walk-along routes for all 9 bosses with full faction-asymmetric handling. Alliance and Horde have different entrances, different boss orders, and different paths through the same nine rooms; the addon detects your faction and serves the right route, with a small `[A]` or `[H]` faction marker in the panel. Per-difficulty transmog tracking, with achievement callouts and soloability ratings. Special loot: Jaina's Glacial Tidestorm mount and the Conclave-of-the-Chosen pets.
+- **Battle of Dazar'alor** is now fully supported -- walk-along routes for all 9 bosses with full faction-asymmetric handling. Alliance and Horde have different entrances, different boss orders, and different paths through the same nine rooms; the addon detects your faction and serves the right route, with a small `[A]` or `[H]` faction marker in the panel. Per-difficulty transmog tracking, with achievement callouts and soloability ratings. Special loot: Jaina's Glacial Tidestorm mount and the Conclave-of-the-Chosen pets.
 - **AzerothWaypoint integration on the entrance buttons.** If you have AWP installed, clicking a raid entrance routes through AWP's planner, which gives you full step-by-step routing if you also have Zygor, Mapzeroth, or Farstrider installed alongside it. Without a backend, AWP behaves like a single TomTom waypoint. The footer pill bar now reads `[ AWP | Zygor | Mapzeroth ]` with each pill lit in its brand color when that addon is loaded and dimmed to gray otherwise.
 
 ### Changed
 
-- **The yellow `[!]` next to "view special note" now pulses subtly.** A gentle brightness-breathing effect — full-bright down to about 70% and back over a 1.6-second cycle — to draw the eye to bosses that have custom solo-play notes. The link text itself stays static and fully readable; only the leading `[!]` glyph pulses. Stops automatically once you expand the note.
+- **The yellow `[!]` next to "view special note" now pulses subtly.** A gentle brightness-breathing effect -- full-bright down to about 70% and back over a 1.6-second cycle -- to draw the eye to bosses that have custom solo-play notes. The link text itself stays static and fully readable; only the leading `[!]` glyph pulses. Stops automatically once you expand the note.
 
 ## [1.5.0] - 2026-05-07
 
 ### Added
 
-- **One-click navigation to raid entrances.** Each raid in the supported-raids list now has a flight-master icon next to its name. Clicking it routes you to that raid's entrance. With Zygor or Mapzeroth installed, you get full step-by-step turn directions through portals, flight paths, hearthstones, mage teleports, class abilities, toys, and items — whatever the routing addon's travel graph covers. Without either of those installed, a single waypoint is set at the entrance via TomTom (if loaded) or Blizzard's native pin. The icon is full color when a routing addon is loaded and muted when only single-waypoint providers are available, so you can tell at a glance whether you're getting the full experience. A footer pill bar shows `[ Zygor | Mapzeroth ]` with the active routing addon lit in its brand color and the inactive one dimmed to gray, or — if neither is installed — a prompt to install one for full routing. Cancel an active route at any time with `/rr cancelnav`.
+- **One-click navigation to raid entrances.** Each raid in the supported-raids list now has a flight-master icon next to its name. Clicking it routes you to that raid's entrance. With Zygor or Mapzeroth installed, you get full step-by-step turn directions through portals, flight paths, hearthstones, mage teleports, class abilities, toys, and items -- whatever the routing addon's travel graph covers. Without either of those installed, a single waypoint is set at the entrance via TomTom (if loaded) or Blizzard's native pin. The icon is full color when a routing addon is loaded and muted when only single-waypoint providers are available, so you can tell at a glance whether you're getting the full experience. A footer pill bar shows `[ Zygor | Mapzeroth ]` with the active routing addon lit in its brand color and the inactive one dimmed to gray, or -- if neither is installed -- a prompt to install one for full routing. Cancel an active route at any time with `/rr cancelnav`.
 - **"Waypoint set" toast.** When you click the entrance icon and the route falls through to TomTom or Blizzard's native pin (the silent paths), a brief gold "Waypoint set" notice fades in next to the icon for spatial confirmation that the click did something.
-- **Redesigned route lines on the World Map.** The pink route polylines now carry direction-of-travel cyan chevrons placed at a fixed pixel stride along each segment, so you can tell at a glance which way the path runs. The destination marker at the end of each route is a cyan-fill / pink-border triangle pointing at the boss, replacing the prior generic icon. Same routing behavior — just a clearer read on direction and destination.
-- **Skip-status indicator on every raid row.** Each raid in the supported-raids list now leads with a yellow star whose state tells you whether the raid's skip is unlocked on this account: filled for unlocked, dim for "raid has a skip system but you haven't earned it yet," and invisible (column-aligned blank) for raids with no skip mechanic. Per-difficulty granularity (which difficulties the skip applies to) lives in the dedicated Skips window — the supported-raids list shows the binary state only.
+- **Redesigned route lines on the World Map.** The pink route polylines now carry direction-of-travel cyan chevrons placed at a fixed pixel stride along each segment, so you can tell at a glance which way the path runs. The destination marker at the end of each route is a cyan-fill / pink-border triangle pointing at the boss, replacing the prior generic icon. Same routing behavior -- just a clearer read on direction and destination.
+- **Skip-status indicator on every raid row.** Each raid in the supported-raids list now leads with a yellow star whose state tells you whether the raid's skip is unlocked on this account: filled for unlocked, dim for "raid has a skip system but you haven't earned it yet," and invisible (column-aligned blank) for raids with no skip mechanic. Per-difficulty granularity (which difficulties the skip applies to) lives in the dedicated Skips window -- the supported-raids list shows the binary state only.
 - **Single-expand accordion behavior on the supported-raids list.** Click an expansion to expand it; opening one collapses any other that's currently open. Click an already-open section to collapse it. Keeps the panel compact regardless of how many expansions are supported.
 - **Submit-a-bug and feedback buttons in Settings.** A pair of icon buttons next to the Defaults button. The pink beetle opens a copyable popup with the GitHub Issues URL for filing tracked bug reports. The cyan chat-bubble opens a copyable popup with the CurseForge comments URL for general feedback, questions, and suggestions. Ctrl+C, paste into your browser, talk at me.
 
@@ -282,24 +302,24 @@ All notable changes to RetroRuns are documented here.
 ### Added
 
 - **Achievements window.** A new "Achieves" button in the action row opens a standalone achievements window with Expansion and Raid dropdowns and a row-table layout showing every achievement for the selected raid: status indicator (earned or not), achievement name with click-through to the in-game tooltip, the boss it drops from, and a `?` button that opens a copyable Wowhead URL for the achievement. Each raid that has a Glory meta-achievement shows the Glory header at top with its current completion count and the mount reward link. A blue highlight marks the boss the route is currently on so you can see at a glance which row matters right now. The window updates live as you progress: earning an achievement flips its status indicator within a fraction of a second, the Glory count ticks up per criterion, and the highlight follows the route as you kill bosses. Achievements you've already earned render in gray to de-emphasize them.
-- **Soloable indicators on each achievement.** A colored star next to each achievement name tells you whether it's soloable: green for "yes, any class can solo this", orange for "kinda — you'll need specific class abilities", red for "no, confirmed not soloable".
+- **Soloable indicators on each achievement.** A colored star next to each achievement name tells you whether it's soloable: green for "yes, any class can solo this", orange for "kinda -- you'll need specific class abilities", red for "no, confirmed not soloable".
 
 ### Changed
 
-- **Eranog (Vault of the Incarnates) routing reworked.** Pre-flight, the panel now shows just the dragon-platform instruction and a single map line, instead of three numbered legs all drawn at once with a dense combined instruction. Once the dragon ride ends and you land, the dragon stub disappears and two color-coded numbered lines for Volcanius and Eranog appear with a matching "kill (1) Volcanius, then (2) Eranog" instruction. Same coordinates and same kill detection — just a less crowded view at each phase of the encounter.
-- **Hover behavior removed from the in-panel boss encounter line.** Earlier the encounter widget would gold-tint its label and show a "Notes assume Mythic difficulty" tooltip when you hovered. The widget is now click-only — click to expand, click an achievement link to see its tooltip, no hover behavior.
+- **Eranog (Vault of the Incarnates) routing reworked.** Pre-flight, the panel now shows just the dragon-platform instruction and a single map line, instead of three numbered legs all drawn at once with a dense combined instruction. Once the dragon ride ends and you land, the dragon stub disappears and two color-coded numbered lines for Volcanius and Eranog appear with a matching "kill (1) Volcanius, then (2) Eranog" instruction. Same coordinates and same kill detection -- just a less crowded view at each phase of the encounter.
+- **Hover behavior removed from the in-panel boss encounter line.** Earlier the encounter widget would gold-tint its label and show a "Notes assume Mythic difficulty" tooltip when you hovered. The widget is now click-only -- click to expand, click an achievement link to see its tooltip, no hover behavior.
 
 ### Fixed
 
-- **Idle UI panel no longer "jumps" when you expand the Battle for Azeroth section.** The panel grows downward as content expands instead of growing upward and downward equally — so the `+` toggle button stays under your cursor when you click it.
+- **Idle UI panel no longer "jumps" when you expand the Battle for Azeroth section.** The panel grows downward as content expands instead of growing upward and downward equally -- so the `+` toggle button stays under your cursor when you click it.
 - **Panel position now stable when Window Scale is set to anything other than 1.00x.** Two related symptoms went away: dragging the panel no longer makes it snap to a wrong spot when you release the mouse, and clicking an expansion `+`/`-` toggle no longer drifts the panel toward the upper-left of the screen with each click. Affects the main panel and the Settings window's drag handler.
 
 ## [1.3.0] - 2026-05-04
 
 ### Added
 
-- **Crucible of Storms** is now fully supported — walk-along routes for both bosses (The Restless Cabal in the Shrine of Shadows, Uu'nat in the Tendril of Corruption), with achievement callouts. Special loot: Restless Cabal's Crucible Votive Rack, the first housing decor item to ship in Special Loot.
-- **Uldir** is now fully supported — walk-along routes for all 8 bosses across the three wings, with achievement callouts and soloability ratings. Notable routing: Brann Bronzebeard's and MOTHER's voicelines advance the travel pane through the Titan Console sequence so on-screen instructions track in-fight action.
+- **Crucible of Storms** is now fully supported -- walk-along routes for both bosses (The Restless Cabal in the Shrine of Shadows, Uu'nat in the Tendril of Corruption), with achievement callouts. Special loot: Restless Cabal's Crucible Votive Rack, the first housing decor item to ship in Special Loot.
+- **Uldir** is now fully supported -- walk-along routes for all 8 bosses across the three wings, with achievement callouts and soloability ratings. Notable routing: Brann Bronzebeard's and MOTHER's voicelines advance the travel pane through the Titan Console sequence so on-screen instructions track in-fight action.
 
 ### Changed
 
@@ -313,12 +333,12 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **The Eternal Palace** is now fully supported — walk-along routes for all 8 bosses across the underwater Nazjatar palace, with achievement callouts and soloability ratings. Notable routing: the two Font of Power orb gates between Behemoth and Ashvane detect First Arcanist Thalyssra's voicelines so the route advances correctly after each orb click; Orgozoa's teleport-pad room uses numbered-waypoint rendering instead of polylines. Special loot: four Storm's Wake pets.
-- **Panel opacity slider in Settings.** Drag the new "Panel Opacity" slider to dim the dark backdrop on every RetroRuns window — main panel, transmog browser, raid skips, and settings itself — anywhere from 100% (default, fully opaque) down to 20%. Text and icons stay fully readable; only the background tint changes. Useful if you want the panel less visually intrusive while you've got it parked over your raid frames or world map.
+- **The Eternal Palace** is now fully supported -- walk-along routes for all 8 bosses across the underwater Nazjatar palace, with achievement callouts and soloability ratings. Notable routing: the two Font of Power orb gates between Behemoth and Ashvane detect First Arcanist Thalyssra's voicelines so the route advances correctly after each orb click; Orgozoa's teleport-pad room uses numbered-waypoint rendering instead of polylines. Special loot: four Storm's Wake pets.
+- **Panel opacity slider in Settings.** Drag the new "Panel Opacity" slider to dim the dark backdrop on every RetroRuns window -- main panel, transmog browser, raid skips, and settings itself -- anywhere from 100% (default, fully opaque) down to 20%. Text and icons stay fully readable; only the background tint changes. Useful if you want the panel less visually intrusive while you've got it parked over your raid frames or world map.
 
 ### Changed
 
-- **Settings panel cleaned up.** The header now matches the styled "RETRORUNS" treatment used on the Tmog and Raid Skips windows. The Minimap button toggle moved from its old top-left spot to the bottom-right corner, alongside the (now shorter) "Defaults" reset button — gives the new opacity slider room to breathe and tightens the bottom row.
+- **Settings panel cleaned up.** The header now matches the styled "RETRORUNS" treatment used on the Tmog and Raid Skips windows. The Minimap button toggle moved from its old top-left spot to the bottom-right corner, alongside the (now shorter) "Defaults" reset button -- gives the new opacity slider room to breathe and tightens the bottom row.
 - **Main panel no longer prefixes the next boss with a number.** The "Boss #2: Sun King's Salvation" line now just reads "Sun King's Salvation". The number was a leftover from earlier development and was misleading on raids where the recorded route doesn't follow the in-game encounter ordering.
 
 ### Fixed
@@ -330,7 +350,7 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Ny'alotha, the Waking City** is now fully supported — walk-along routes for all 12 bosses across the three mid-raid wings, with achievement callouts and soloability ratings (including multi-phase callouts on Carapace of N'Zoth and N'Zoth the Corruptor). Special loot: the Ny'alotha Allseer mount and all five raid pets.
+- **Ny'alotha, the Waking City** is now fully supported -- walk-along routes for all 12 bosses across the three mid-raid wings, with achievement callouts and soloability ratings (including multi-phase callouts on Carapace of N'Zoth and N'Zoth the Corruptor). Special loot: the Ny'alotha Allseer mount and all five raid pets.
 
 ### Changed
 
@@ -344,16 +364,16 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Account-wide raid skip detection** — RetroRuns now knows which raid skips your account has unlocked across all your characters. A new `Skips` button in the panel footer opens a dedicated window showing each supported raid in a Mythic / Heroic / Normal table with checkmarks for unlocked difficulties. The cascade is downward-only: completing the Mythic skip quest unlocks Mythic + Heroic + Normal; completing Heroic unlocks Heroic + Normal; completing Normal unlocks Normal alone.
+- **Account-wide raid skip detection** -- RetroRuns now knows which raid skips your account has unlocked across all your characters. A new `Skips` button in the panel footer opens a dedicated window showing each supported raid in a Mythic / Heroic / Normal table with checkmarks for unlocked difficulties. The cascade is downward-only: completing the Mythic skip quest unlocks Mythic + Heroic + Normal; completing Heroic unlocks Heroic + Normal; completing Normal unlocks Normal alone.
 - **Skip-status indicators in the supported-raids list.** When a raid's skip is unlocked at all difficulties (Mythic ceiling), a yellow star appears next to the raid name. When only some difficulties are unlocked (Heroic or Normal ceiling), the star appears next to each affected difficulty pill (e.g. `N★`, `H★`). LFR pills are never marked since the in-game raid skip system doesn't apply to LFR.
-- **Skip-status indicator in the active-raid header.** When you zone into a supported raid, a yellow star appears next to the raid name if your current difficulty is at or below your account's cascade ceiling — meaning the in-game skip NPC will actually let you use the skip on this run.
-- **Action button row at the bottom of the panel** — Map / Tmog / Skips / Settings, all four equally accessible. Replaces the previous slash-command reference text. Map and Tmog were previously in the panel header; they now live in the bottom row alongside the new Skips button and a Settings shortcut.
+- **Skip-status indicator in the active-raid header.** When you zone into a supported raid, a yellow star appears next to the raid name if your current difficulty is at or below your account's cascade ceiling -- meaning the in-game skip NPC will actually let you use the skip on this run.
+- **Action button row at the bottom of the panel** -- Map / Tmog / Skips / Settings, all four equally accessible. Replaces the previous slash-command reference text. Map and Tmog were previously in the panel header; they now live in the bottom row alongside the new Skips button and a Settings shortcut.
 
 ### Changed
 
-- **Expansion-section toggles in the supported-raids list now use the standard Blizzard plus/minus button graphic** instead of the ASCII `[+]` / `[-]` markers. Same click behavior, same per-session collapsed state — just a more polished look that matches collapsible lists in the default game UI.
+- **Expansion-section toggles in the supported-raids list now use the standard Blizzard plus/minus button graphic** instead of the ASCII `[+]` / `[-]` markers. Same click behavior, same per-session collapsed state -- just a more polished look that matches collapsible lists in the default game UI.
 - **Tmog button defaults to the current raid when zoned into a supported raid.** Previously the Tmog browser would open to whatever raid you last browsed. Now if you're in Aberrus and click Tmog, it opens to Aberrus directly. The dropdown is still right there for switching to a different raid.
-- **The "Designed for max-level characters running legacy content" tagline** has been removed from the panel — the same information appears in the addon's CurseForge description and the panel itself feels more action-oriented now with the new button row.
+- **The "Designed for max-level characters running legacy content" tagline** has been removed from the panel -- the same information appears in the addon's CurseForge description and the panel itself feels more action-oriented now with the new button row.
 
 ### Fixed
 
@@ -366,7 +386,7 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Amirdrassil, the Dream's Hope** is now fully supported — walk-along routes for all 9 bosses, with achievement callouts and soloability ratings. Notable routing: branching priority routes (Volcoross and Council of Dreams can be cleared in either order after Igira) and POI markers (a map pin marks the fire portal on Fyrakk's platform). Special loot: Drakewatcher Manuscript tracking for Fyrakk's Highland Drake: Embodiment of the Blazing.
+- **Amirdrassil, the Dream's Hope** is now fully supported -- walk-along routes for all 9 bosses, with achievement callouts and soloability ratings. Notable routing: branching priority routes (Volcoross and Council of Dreams can be cleared in either order after Igira) and POI markers (a map pin marks the fire portal on Fyrakk's platform). Special loot: Drakewatcher Manuscript tracking for Fyrakk's Highland Drake: Embodiment of the Blazing.
 - **Tmog browser button on the main panel.** A dedicated "Tmog" button sits in the panel header and opens the transmog browser for the current raid at any time, regardless of whether you're actively in a boss encounter.
 - **Collapsible expansion sections in the supported-raids list.** Each expansion header on the idle panel now has a `[+]` / `[-]` toggle that expands or collapses the raids beneath it. All expansions start collapsed at login or reload, so the panel boots compact and you expand only what you want to see. Clicking the toggle resizes the panel automatically.
 - **Encounter notes disclaimer.** Hovering over the Boss Encounter section now surfaces a tooltip noting that encounter notes assume Mythic difficulty. Mechanics that no longer apply (or apply differently) on lower difficulties won't be flagged separately.
@@ -376,8 +396,8 @@ All notable changes to RetroRuns are documented here.
 - **Yellow `[!]` marker on bosses with custom encounter notes.** When a boss has a hand-written solo tip, the "view special note" affordance under the Boss Encounter line is now prefixed with a yellow `[!]` so it's easier to spot at a glance. Bosses with the default Mythic note (most of them) continue to read "Standard" with no marker.
 - **Supported raid list now sorted newest-first by patch.** When the panel is idle, raids appear in descending patch order (10.2 → 10.1 → 10.0 → 9.2 → 9.1 → 9.0) with the patch number shown next to each name.
 - **Transmog browser dropdowns sorted newest-first to match the idle panel.** The expansion dropdown now leads with the most recent expansion, and within each expansion the raids appear newest-patch-first. Boss order within a raid is unchanged (still encounter order).
-- **Per-row counts removed from the browser dropdowns.** The expansion, raid, and boss dropdowns no longer show `(collected/total)` suffixes after each entry — those numbers had a tendency to misread as "missing/total" or otherwise confuse, and the per-difficulty dot rows already convey the same information more clearly when you actually look at a boss.
-- **Boss encounter section starts collapsed each session.** The section resets to collapsed on each login or reload, keeping the panel tidy. Your toggle during a run still works as before — it just won't carry over to the next session.
+- **Per-row counts removed from the browser dropdowns.** The expansion, raid, and boss dropdowns no longer show `(collected/total)` suffixes after each entry -- those numbers had a tendency to misread as "missing/total" or otherwise confuse, and the per-difficulty dot rows already convey the same information more clearly when you actually look at a boss.
+- **Boss encounter section starts collapsed each session.** The section resets to collapsed on each login or reload, keeping the panel tidy. Your toggle during a run still works as before -- it just won't carry over to the next session.
 - **Travel pane stays stable during boss fights.** Route directions no longer update mid-encounter when the game transitions between sub-zones (relevant to multi-platform encounters like Tindral Sageswift). The pre-fight directions hold until the kill, then snap to the next step.
 
 ### Fixed
@@ -390,7 +410,7 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Aberrus, the Shadowed Crucible** is now fully supported — walk-along routes for all 9 bosses, with achievement callouts and soloability ratings. Special loot: Drakewatcher Manuscript tracking for Sarkareth's Highland Drake: Embodiment of the Hellforged.
+- **Aberrus, the Shadowed Crucible** is now fully supported -- walk-along routes for all 9 bosses, with achievement callouts and soloability ratings. Special loot: Drakewatcher Manuscript tracking for Sarkareth's Highland Drake: Embodiment of the Hellforged.
 - **Sarkareth Void-Touched Curio note in the transmog browser.** A small footnote on Sarkareth's transmog view calls out that the omnitoken exists but isn't tracked by the addon (it exchanges for any tier slot of the player's choice, which doesn't fit the per-slot tracking model).
 
 ### Changed
@@ -408,7 +428,7 @@ All notable changes to RetroRuns are documented here.
 ### Added
 
 - **Drakewatcher Manuscript tracking.** Raszageth's Renewed Proto-Drake: Embodiment of the Storm-Eater now appears in Vault of the Incarnates' Special Loot section with a per-character collected/missing indicator. Pattern will extend to future Drakewatcher Manuscripts as new raids ship.
-- **Per-raid lockout pills in the supported-raids list.** When the panel is idle (not in a raid), each supported raid now shows a `[ LFR | N | H | M ]` pill row colored by lockout state — green for fully cleared, amber for partial, gray for fresh. Tells you at a glance which raids have farmable lockouts available right now.
+- **Per-raid lockout pills in the supported-raids list.** When the panel is idle (not in a raid), each supported raid now shows a `[ LFR | N | H | M ]` pill row colored by lockout state -- green for fully cleared, amber for partial, gray for fresh. Tells you at a glance which raids have farmable lockouts available right now.
 
 ### Changed
 
@@ -426,16 +446,16 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Vault of the Incarnates** is now fully supported — walk-along routes for all 8 bosses, with achievement callouts. Special loot: Iskaara Trader's Ottuk barter-mount tracking.
+- **Vault of the Incarnates** is now fully supported -- walk-along routes for all 8 bosses, with achievement callouts. Special loot: Iskaara Trader's Ottuk barter-mount tracking.
 - **Per-difficulty kill counts in the panel header.** New pill row `[ LFR | N | H | M ]` shows X/Y kill counts per difficulty. Your active difficulty renders in white, others in gray. Updates instantly on boss kill.
 - **Collapsible Boss Encounter section.** Encounter notes line now reads `Boss Encounter: Standard` for routine fights or `Boss Encounter: view special note` (clickable) for fights with custom guidance. One global toggle expands/collapses across all bosses, persisted across `/reload`.
 
 ### Changed
 
-- Iskaara Trader's Ottuk barter mount now tracked in Vault of the Incarnates (Terros and Dathea). Shows live "0/N necks in bags" progress with per-ingredient rows and a trade-location hint. Bank contents aren't scanned — only what's currently in your bags counts.
+- Iskaara Trader's Ottuk barter mount now tracked in Vault of the Incarnates (Terros and Dathea). Shows live "0/N necks in bags" progress with per-ingredient rows and a trade-location hint. Bank contents aren't scanned -- only what's currently in your bags counts.
 - Encounter notes across all 4 raids cleaned up. Bosses with no special notes now read simply as "Standard" instead of "Standard Nuke". Bosses with custom guidance keep it intact.
 - "Encounter:" panel section renamed to "Boss Encounter:" for clarity.
-- Removed redundant "Progress: X/Y" line from the panel header — same count is now in the difficulty pills row.
+- Removed redundant "Progress: X/Y" line from the panel header -- same count is now in the difficulty pills row.
 
 ### Fixed
 
@@ -476,7 +496,7 @@ All notable changes to RetroRuns are documented here.
 
 ### Added
 
-- **Castle Nathria** is now fully supported — Shadowlands' first raid with weapon-token tracking and covenant-aware vendor hints.
+- **Castle Nathria** is now fully supported -- Shadowlands' first raid with weapon-token tracking and covenant-aware vendor hints.
 - MIT License. RetroRuns is now formally licensed and free to use, modify, and redistribute under the MIT terms.
 
 ### Changed

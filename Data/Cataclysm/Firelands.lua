@@ -398,6 +398,7 @@ RetroRuns_Data[720] = {
                     when    = { mapID = 367 },
                     kind    = "path",
                     note    = "After zoning in, make your way down the path in front of you. When you can, hang a left and work your way around to ^Beth'tilac^.",
+                    minNote = "Left to Beth'tilac",
                     points  = {
                         { 0.277, 0.831 },
                         { 0.332, 0.757 },
@@ -430,6 +431,7 @@ RetroRuns_Data[720] = {
                     when    = { mapID = 367 },
                     kind    = "path",
                     note    = "After defeating ^Beth'tilac^, follow the path all the way to the southeastern corner of the map to reach ^Lord Rhyolith^. Kill trash on your path, to minimize the amount you have to kill later to spawn ^Shannox^.",
+                    minNote = "Southeast to Rhyolith",
                     points  = {
                         { 0.238, 0.368 },
                         { 0.272, 0.431 },
@@ -456,6 +458,7 @@ RetroRuns_Data[720] = {
                     when    = { mapID = 367 },
                     kind    = "path",
                     note    = "After killing ^Lord Rhyolith^, make your way north to reach ^Alysrazor^. Tag ^Majordomo^ to start the encounter.",
+                    minNote = "Tag Majordomo to start Alysrazor",
                     points  = {
                         { 0.682, 0.736 },
                         { 0.713, 0.720 },
@@ -479,6 +482,7 @@ RetroRuns_Data[720] = {
                     when    = { mapID = 367 },
                     kind    = "path",
                     note    = "After defeating ^Alysrazor^, you will find ^Shannox^ patrolling around the main circular path of the instance. If he hasn't spawned yet, kill random trash until he emotes.",
+                    minNote = "Kill Trash to Spawn Shannox",
                     points  = {
                         { 0.634, 0.422 },
                         { 0.594, 0.535 },
@@ -501,6 +505,7 @@ RetroRuns_Data[720] = {
                     when    = { mapID = 367 },
                     kind    = "path",
                     note    = "After defeating ^Shannox^, head north to reach ^Baleroc^.",
+                    minNote = "North to Baleroc",
                     points  = {
                         { 0.494, 0.405 },
                         { 0.494, 0.350 },
@@ -522,6 +527,7 @@ RetroRuns_Data[720] = {
                     mapLabel        = "Magma Orb",
                     mapLabelPos     = "above",
                     note            = "After killing ^Baleroc^, interact with the ^Magma Orb^ behind him to open the bridge. Cross the bridge and kill the trash to engage ^Majordomo Staghelm^.",
+                    minNote         = "Orb then bridge to Majordomo",
                     points          = {
                         { 0.509, 0.249 },
                     },
@@ -540,6 +546,7 @@ RetroRuns_Data[720] = {
                     when    = { mapID = 369 },
                     kind    = "path",
                     note    = "After killing ^Majordomo Staghelm^, proceed straight ahead all the way to ^Ragnaros^.",
+                    minNote = "Ahead to Ragnaros",
                     points  = {
                         { 0.508, 0.682 },
                         { 0.504, 0.635 },
@@ -555,6 +562,7 @@ RetroRuns_Data[720] = {
                     noMarker    = true,
                     triggeredBy = { dialog = { npc = "Malfurion Stormrage", match = "It is finished then" } },
                     note        = "Ragnaros defeated! Due to a Blizzard bug, it may take a moment for the game to register the kill. If your progress doesn't update after 10-15 seconds, /reload or re-log to force it.",
+                    minNote     = "/reload if stuck",
                     points      = {
                         { 0.505, 0.194 },
                     },

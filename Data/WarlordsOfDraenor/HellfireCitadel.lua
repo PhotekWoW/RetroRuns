@@ -584,6 +584,7 @@ RetroRuns_Data[1448] = {
                             kind    = "poi",
                             noMarker = true,
                             note    = "Run around the room killing elites/vehicles until the encounter with ^Hellfire Assault^ begins.",
+                            minNote = "Trash then Boss",
                             points  = {
                                 { 0.671, 0.438 },
                             },
@@ -604,6 +605,7 @@ RetroRuns_Data[1448] = {
                             kind    = "poi",
                             noMarker = true,
                             note    = "After completing the ^Hellfire Assault^ encounter, you will find ^Iron Reaver^ spawned right in front of you.",
+                            minNote = "Kill Iron Reaver",
                             points  = {
                                 { 0.671, 0.438 },
                             },
@@ -623,6 +625,7 @@ RetroRuns_Data[1448] = {
                             when    = { mapID = 661, subZone = "The Iron Bulwark" },
                             kind    = "path",
                             note    = "After killing ^Iron Reaver^, continue up the stairs behind him to the next area.",
+                            minNote = "Straight ahead",
                             points  = {
                                 { 0.403, 0.507 },
                                 { 0.323, 0.509 },
@@ -632,6 +635,7 @@ RetroRuns_Data[1448] = {
                             when    = { mapID = 662 },
                             kind    = "path",
                             note    = "In the next area, follow the path upstairs to the right and follow it around.",
+                            minNote = "Upstairs to the Right",
                             points  = {
                                 { 0.837, 0.475 },
                                 { 0.777, 0.440 },
@@ -644,6 +648,7 @@ RetroRuns_Data[1448] = {
                             when    = { mapID = 663 },
                             kind    = "path",
                             note    = "Continue following the linear path into the next room.",
+                            minNote = "Follow path",
                             points  = {
                                 { 0.677, 0.878 },
                                 { 0.676, 0.753 },
@@ -655,6 +660,7 @@ RetroRuns_Data[1448] = {
                             when    = { mapID = 664 },
                             kind    = "path",
                             note    = "In the boss room, kill all of the trash and approach the boss to start the encounter with ^Kormrok^.",
+                            minNote = "Trash then Kormrok",
                             points  = {
                                 { 0.606, 0.781 },
                                 { 0.530, 0.501 },
@@ -688,6 +694,7 @@ RetroRuns_Data[1448] = {
                             when    = { mapID = 665 },
                             kind    = "path",
                             note    = "After zoning in, follow the path around to ^Hellfire High Council^.",
+                            minNote = "Path to Council",
                             points  = {
                                 { 0.816, 0.245 },
                                 { 0.816, 0.332 },
@@ -710,6 +717,7 @@ RetroRuns_Data[1448] = {
                             when    = { mapID = 665 },
                             kind    = "path",
                             note    = "After defeating the ^Hellfire High Council^, take the southwestern exit out of the room and follow the long linear path to ^Kilrogg Deadeye^.",
+                            minNote = "SW Exit to Kilrogg",
                             points  = {
                                 { 0.684, 0.700 },
                                 { 0.576, 0.797 },
@@ -735,6 +743,7 @@ RetroRuns_Data[1448] = {
                             when    = { mapID = 665 },
                             kind    = "path",
                             note    = "After killing ^Kilrogg Deadeye^, exit behind him to the east and follow the path out of this area.",
+                            minNote = "East Exit",
                             points  = {
                                 { 0.541, 0.334 },
                                 { 0.819, 0.330 },
@@ -745,6 +754,7 @@ RetroRuns_Data[1448] = {
                             when    = { mapID = 662 },
                             kind    = "path",
                             note    = "Back in ^Hellfire Antechamber^, follow the path to reach ^Gorefiend^. Kill the trash to start the encounter.",
+                            minNote = "Path to Gorefiend",
                             points  = {
                                 { 0.726, 0.659 },
                                 { 0.780, 0.596 },
@@ -787,6 +797,7 @@ RetroRuns_Data[1448] = {
                             when    = { mapID = 666 },
                             kind    = "path",
                             note    = "After zoning in, go west to reach ^Shadow-Lord Iskar^.",
+                            minNote = "West to Iskar",
                             points  = {
                                 { 0.593, 0.766 },
                                 { 0.425, 0.764 },
@@ -807,6 +818,7 @@ RetroRuns_Data[1448] = {
                             when    = { mapID = 666 },
                             kind    = "path",
                             note    = "After killing ^Shadow-Lord Iskar^, exit the room to the east. At the first intersection, go south to the next area.",
+                            minNote = "East then South",
                             points  = {
                                 { 0.424, 0.765 },
                                 { 0.594, 0.766 },
@@ -818,6 +830,7 @@ RetroRuns_Data[1448] = {
                             when    = { mapID = 668 },
                             kind    = "path",
                             note    = "In the next area, go east, then south down some stairs. When you reach the boss room, clear the trash to start the encounter with ^Socrethar the Eternal^.",
+                            minNote = "Path to Socrethar",
                             points  = {
                                 { 0.424, 0.204 },
                                 { 0.425, 0.254 },
@@ -842,6 +855,7 @@ RetroRuns_Data[1448] = {
                             when    = { mapID = 668 },
                             kind    = "path",
                             note    = "After defeating ^Socrethar the Eternal^, leave the room to the south. In the next room, click 4x ^Demon Portals^ then kill ^Lord Aram'el^ to open the door. Proceed along the path to ^Tyrant Velhari^.",
+                            minNote = "Portals then Velhari",
                             points  = {
                                 { 0.593, 0.572 },
                                 { 0.571, 0.619 },
@@ -879,6 +893,7 @@ RetroRuns_Data[1448] = {
                             when    = { mapID = 666 },
                             kind    = "path",
                             note    = "After zoning in, go left to find ^Fel Lord Zakuun^.",
+                            minNote = "Left to Zakuun",
                             points  = {
                                 { 0.463, 0.482 },
                                 { 0.495, 0.372 },
@@ -900,6 +915,7 @@ RetroRuns_Data[1448] = {
                             when    = { mapID = 666 },
                             kind    = "path",
                             note    = "After defeating ^Fel Lord Zakuun^, climb out of this area the way you came, and go all the way east to reach ^Xhul'horac^. Kill trash to start the encounter.",
+                            minNote = "East to Xhul'horac",
                             points  = {
                                 { 0.500, 0.217 },
                                 { 0.499, 0.386 },
@@ -925,6 +941,7 @@ RetroRuns_Data[1448] = {
                             mapLabel    = "Take Portal",
                             mapLabelPos = "above",
                             note        = "After killing ^Xhul'horac^, take the portal that appears right next to you.",
+                            minNote = "Click portal",
                             points      = {
                                 { 0.484, 0.507 },
                             },
@@ -934,6 +951,7 @@ RetroRuns_Data[1448] = {
                             kind    = "poi",
                             noMarker = true,
                             note    = "After taking the portal, you will arrive in ^Destructor's Rise^. On ^Mythic^, do NOT kill the ^Fel Iron Summoners^. Just tag them, and let ^Mannoroth^ kill them or you could bug the encounter. On other difficulties, kill the ^Fel Iron Summoners^ to begin the fight.",
+                            minNote = "Kill Summoners then Mannoroth",
                             points  = {
                                 { 0.511, 0.369 },
                             },
@@ -965,6 +983,7 @@ RetroRuns_Data[1448] = {
                             kind     = "poi",
                             noMarker = true,
                             note     = "You will zone in right in front of ^Archimonde^. Kill him!",
+                            minNote = "Kill Archimonde",
                             points   = {
                                 { 0.462, 0.515 },
                             },
@@ -990,6 +1009,7 @@ RetroRuns_Data[1448] = {
                     kind    = "poi",
                     noMarker = true,
                     note    = "Run around the room killing elites/vehicles until the encounter with ^Hellfire Assault^ begins.",
+                    minNote = "Trash then Boss",
                     points  = {
                         { 0.671, 0.438 },
                     },
@@ -1010,6 +1030,7 @@ RetroRuns_Data[1448] = {
                     kind    = "poi",
                     noMarker = true,
                     note    = "After completing the ^Hellfire Assault^ encounter, you will find ^Iron Reaver^ spawned right in front of you.",
+                    minNote = "Kill Iron Reaver",
                     points  = {
                         { 0.671, 0.438 },
                     },
@@ -1029,6 +1050,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 661, subZone = "The Iron Bulwark" },
                     kind    = "path",
                     note    = "After killing ^Iron Reaver^, continue up the stairs behind him to the next area.",
+                    minNote = "Straight ahead",
                     points  = {
                         { 0.403, 0.507 },
                         { 0.323, 0.509 },
@@ -1038,6 +1060,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 662 },
                     kind    = "path",
                     note    = "In the next area, follow the path upstairs to the right and follow it around.",
+                    minNote = "Upstairs to the Right",
                     points  = {
                         { 0.837, 0.475 },
                         { 0.777, 0.440 },
@@ -1050,6 +1073,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 663 },
                     kind    = "path",
                     note    = "Continue following the linear path into the next room.",
+                    minNote = "Follow path",
                     points  = {
                         { 0.677, 0.878 },
                         { 0.676, 0.753 },
@@ -1061,6 +1085,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 664 },
                     kind    = "path",
                     note    = "In the boss room, kill all of the trash and approach the boss to start the encounter with ^Kormrok^.",
+                    minNote = "Trash then Kormrok",
                     points  = {
                         { 0.606, 0.781 },
                         { 0.530, 0.501 },
@@ -1081,6 +1106,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 664 },
                     kind    = "path",
                     note    = "After killing ^Kormrok^, exit the room the way you entered.",
+                    minNote = "Backtrack",
                     points  = {
                         { 0.547, 0.491 },
                         { 0.606, 0.755 },
@@ -1091,6 +1117,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 663 },
                     kind    = "path",
                     note    = "Continue backtracking through this room.",
+                    minNote = "Backtrack",
                     points  = {
                         { 0.509, 0.229 },
                         { 0.509, 0.745 },
@@ -1102,6 +1129,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 662 },
                     kind    = "path",
                     note    = "Cross the room and take the southern exit.",
+                    minNote = "Southern Exit",
                     points  = {
                         { 0.722, 0.245 },
                         { 0.777, 0.347 },
@@ -1114,6 +1142,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 665 },
                     kind    = "path",
                     note    = "Follow the path around to ^Hellfire High Council^.",
+                    minNote = "Path to Council",
                     points  = {
                         { 0.816, 0.245 },
                         { 0.816, 0.332 },
@@ -1136,6 +1165,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 665 },
                     kind    = "path",
                     note    = "After defeating the ^Hellfire High Council^, take the southwestern exit out of the room and follow the long linear path to ^Kilrogg Deadeye^.",
+                    minNote = "SW Exit to Kilrogg",
                     points  = {
                         { 0.684, 0.700 },
                         { 0.576, 0.797 },
@@ -1161,6 +1191,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 665 },
                     kind    = "path",
                     note    = "After killing ^Kilrogg Deadeye^, exit behind him to the east and follow the path out of this area.",
+                    minNote = "East Exit",
                     points  = {
                         { 0.541, 0.334 },
                         { 0.819, 0.330 },
@@ -1171,6 +1202,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 662 },
                     kind    = "path",
                     note    = "Back in ^Hellfire Antechamber^, follow the path to reach ^Gorefiend^. Kill the trash to start the encounter.",
+                    minNote = "Path to Gorefiend",
                     points  = {
                         { 0.726, 0.659 },
                         { 0.780, 0.596 },
@@ -1202,6 +1234,7 @@ RetroRuns_Data[1448] = {
                     mapLabel    = "Portal",
                     mapLabelPos = "above",
                     note    = "After killing ^Gorefiend^, click the nearby portal.",
+                    minNote = "Click Nearby Portal",
                     points  = {
                         { 0.238, 0.466 },
                     },
@@ -1210,6 +1243,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 666 },
                     kind    = "path",
                     note    = "After landing in the next area, go west to reach ^Shadow-Lord Iskar^.",
+                    minNote = "West to Iskar",
                     points  = {
                         { 0.593, 0.766 },
                         { 0.425, 0.764 },
@@ -1230,6 +1264,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 666 },
                     kind    = "path",
                     note    = "After killing ^Shadow-Lord Iskar^, exit the room to the east. At the first intersection, go south to the next area.",
+                    minNote = "East then South",
                     points  = {
                         { 0.424, 0.765 },
                         { 0.594, 0.766 },
@@ -1241,6 +1276,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 668 },
                     kind    = "path",
                     note    = "In the next area, go east, then south down some stairs. When you reach the boss room, clear the trash to start the encounter with ^Socrethar the Eternal^.",
+                    minNote = "Path to Socrethar",
                     points  = {
                         { 0.424, 0.204 },
                         { 0.425, 0.254 },
@@ -1267,6 +1303,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 668 },
                     kind    = "path",
                     note    = "After defeating ^Socrethar the Eternal^, leave the room to the south. In the next room, click 4x ^Demon Portals^ then kill ^Lord Aram'el^ to open the door. Proceed along the path to ^Tyrant Velhari^.",
+                    minNote = "Portals then Velhari",
                     points  = {
                         { 0.593, 0.572 },
                         { 0.571, 0.619 },
@@ -1294,6 +1331,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 668 },
                     kind    = "path",
                     note    = "After killing ^Tyrant Velhari^, leave the room to the west and proceed up the path to the north.",
+                    minNote = "West then North",
                     points  = {
                         { 0.261, 0.571 },
                         { 0.214, 0.569 },
@@ -1308,6 +1346,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 666 },
                     kind    = "path",
                     note    = "In the next area, you will pass through the spot where you killed ^Shadow-Lord Iskar^ previously. Continue following the path around, eventually reaching ^Fel Lord Zakuun^.",
+                    minNote = "Path to Zakuun",
                     points  = {
                         { 0.456, 0.904 },
                         { 0.456, 0.767 },
@@ -1336,6 +1375,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 666 },
                     kind    = "path",
                     note    = "After defeating ^Fel Lord Zakuun^, climb out of this area the way you came, and go all the way east to reach ^Xhul'horac^. Kill trash to start the encounter.",
+                    minNote = "East to Xhul'horac",
                     points  = {
                         { 0.500, 0.217 },
                         { 0.499, 0.386 },
@@ -1359,6 +1399,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 667 },
                     kind    = "path",
                     note    = "After killing ^Xhul'horac^, head west out of the room the same way you came in.",
+                    minNote = "West exit",
                     points  = {
                         { 0.454, 0.505 },
                         { 0.175, 0.509 },
@@ -1371,6 +1412,7 @@ RetroRuns_Data[1448] = {
                     mapLabel    = "Portal",
                     mapLabelPos = "above",
                     note    = "In the next area, follow the path to click a portal being channeled by ^Archmage Khadgar^.",
+                    minNote = "Click portal",
                     points  = {
                         { 0.844, 0.509 },
                         { 0.795, 0.440 },
@@ -1385,6 +1427,7 @@ RetroRuns_Data[1448] = {
                     kind    = "poi",
                     noMarker = true,
                     note    = "After taking the portal, you will arrive in ^Destructor's Rise^. On ^Mythic^, do NOT kill the ^Fel Iron Summoners^. Just tag them, and let ^Mannoroth^ kill them or you could bug the encounter. On other difficulties, kill the ^Fel Iron Summoners^ to begin the fight.",
+                    minNote = "View special note",
                     points  = {
                         { 0.511, 0.369 },
                     },
@@ -1406,6 +1449,7 @@ RetroRuns_Data[1448] = {
                     mapLabel    = "Portal",
                     mapLabelPos = "above",
                     note    = "After killing ^Mannoroth^, click the nearby portal.",
+                    minNote = "Click portal",
                     points  = {
                         { 0.511, 0.369 },
                     },
@@ -1415,6 +1459,7 @@ RetroRuns_Data[1448] = {
                     kind    = "poi",
                     noMarker = true,
                     note    = "After taking the teleport, you will land right in front of ^Archimonde^. Kill him!",
+                    minNote = "Kill Archimonde",
                     points  = {
                         { 0.462, 0.515 },
                     },
@@ -1444,6 +1489,7 @@ RetroRuns_Data[1448] = {
                     mapLabel = "Click Portal",
                     mapLabelPos = "above",
                     note     = "After zoning in, click the portal on the right for ^Destructor's Rise^ to be teleported to ^Mannoroth^.",
+                    minNote  = "Portal to Destructor's Rise",
                     points   = {
                         { 0.687, 0.389 },
                     },
@@ -1452,6 +1498,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 669 },
                     kind    = "poi",
                     note    = "After taking the portal, you will arrive in ^Destructor's Rise^. On ^Mythic^, do NOT kill the ^Fel Iron Summoners^. Just tag them, and let ^Mannoroth^ kill them or you could bug the encounter. On other difficulties, kill the ^Fel Iron Summoners^ to begin the fight.",
+                    minNote = "Tag Summoners",
                     points  = {
                         { 0.511, 0.369 },
                     },
@@ -1471,6 +1518,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 669 },
                     kind    = "poi",
                     note    = "After killing ^Mannoroth^, click the nearby portal.",
+                    minNote = "Click Portal",
                     points  = {
                         { 0.511, 0.369 },
                     },
@@ -1479,6 +1527,7 @@ RetroRuns_Data[1448] = {
                     when    = { mapID = 670 },
                     kind    = "poi",
                     note    = "After taking the teleport, you will land right in front of ^Archimonde^. Kill him!",
+                    minNote = "Kill Archimonde",
                     points  = {
                         { 0.462, 0.515 },
                     },

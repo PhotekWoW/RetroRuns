@@ -184,8 +184,6 @@ local COIN_FINAL_SOUND      = "Interface\\AddOns\\RetroRuns\\Media\\Sounds\\coin
 -- Brand constants, mirroring the file-local tokens in UI.lua.
 local TITLE_FONT = "Interface\\AddOns\\RetroRuns\\Media\\Fonts\\04B_03.TTF"
 local C_PINK = { 0.95, 0.35, 0.78 }
-local C_BLUE = { 0.30, 0.80, 1.00 }
-local C_LABEL_HEX = "ff7cfc00"  -- section-label green
 
 -- The colored "RR:" tag prepended to every line RetroRuns prints to chat.
 -- Kept as one constant so the loot-summary emitter and the AddMessage guard
@@ -212,104 +210,104 @@ end
 -- Construct a toast frame's visuals on a parent. Shared by the live pool and
 -- the settings preview. Does not pool or set live behavior.
 local function ConstructToastFrame(parent)
-    local f = CreateFrame("Frame", nil, parent or UIParent)
-    f:SetSize(TOAST_W, TOAST_H)
-    f:SetScale(TOAST_SCALE)
-    f:SetFrameStrata("HIGH")
+    local toastFrame = CreateFrame("Frame", nil, parent or UIParent)
+    toastFrame:SetSize(TOAST_W, TOAST_H)
+    toastFrame:SetScale(TOAST_SCALE)
+    toastFrame:SetFrameStrata("HIGH")
 
     -- Glow: soft rectangular halo (EpicGlow), additive, tinted/pulsed per
     -- quality (forced pink for appearances). Anchored wider than the frame.
-    f.glow = f:CreateTexture(nil, "BACKGROUND", nil, -1)
-    f.glow:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\EpicGlow")
-    f.glow:SetPoint("TOPLEFT", -180, 50)
-    f.glow:SetPoint("BOTTOMRIGHT", 180, -50)
-    f.glow:SetBlendMode("ADD")
-    f.glow:Hide()
+    toastFrame.glow = toastFrame:CreateTexture(nil, "BACKGROUND", nil, -1)
+    toastFrame.glow:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\EpicGlow")
+    toastFrame.glow:SetPoint("TOPLEFT", -180, 50)
+    toastFrame.glow:SetPoint("BOTTOMRIGHT", 180, -50)
+    toastFrame.glow:SetBlendMode("ADD")
+    toastFrame.glow:Hide()
 
     -- Backdrop: dark fill behind the banner art. Takes the per-kind tint.
-    f.bg = f:CreateTexture(nil, "BACKGROUND")
-    f.bg:SetAllPoints()
-    f.bg:SetColorTexture(0.04, 0.04, 0.06, 0.92)
+    toastFrame.bg = toastFrame:CreateTexture(nil, "BACKGROUND")
+    toastFrame.bg:SetAllPoints()
+    toastFrame.bg:SetColorTexture(0.04, 0.04, 0.06, 0.92)
 
     -- Per-kind banner frame art (512x128). Texture set in ApplyContent; hidden
     -- until then.
-    f.banner = f:CreateTexture(nil, "BORDER")
-    f.banner:SetAllPoints()
+    toastFrame.banner = toastFrame:CreateTexture(nil, "BORDER")
+    toastFrame.banner:SetAllPoints()
 
     -- Edge slivers: the no-art fallback frame, quality-colored. Hidden when
     -- banner art is active.
     local function edge()
-        local t = f:CreateTexture(nil, "BORDER")
-        t:SetColorTexture(1, 1, 1, 1)
-        return t
+        local tex = toastFrame:CreateTexture(nil, "BORDER")
+        tex:SetColorTexture(1, 1, 1, 1)
+        return tex
     end
-    f.edgeT = edge(); f.edgeT:SetPoint("TOPLEFT", 0, 0);    f.edgeT:SetPoint("TOPRIGHT", 0, 0);    f.edgeT:SetHeight(2)
-    f.edgeB = edge(); f.edgeB:SetPoint("BOTTOMLEFT", 0, 0); f.edgeB:SetPoint("BOTTOMRIGHT", 0, 0); f.edgeB:SetHeight(2)
-    f.edgeL = edge(); f.edgeL:SetPoint("TOPLEFT", 0, 0);    f.edgeL:SetPoint("BOTTOMLEFT", 0, 0);  f.edgeL:SetWidth(2)
-    f.edgeR = edge(); f.edgeR:SetPoint("TOPRIGHT", 0, 0);   f.edgeR:SetPoint("BOTTOMRIGHT", 0, 0); f.edgeR:SetWidth(2)
+    toastFrame.edgeT = edge(); toastFrame.edgeT:SetPoint("TOPLEFT", 0, 0);    toastFrame.edgeT:SetPoint("TOPRIGHT", 0, 0);    toastFrame.edgeT:SetHeight(2)
+    toastFrame.edgeB = edge(); toastFrame.edgeB:SetPoint("BOTTOMLEFT", 0, 0); toastFrame.edgeB:SetPoint("BOTTOMRIGHT", 0, 0); toastFrame.edgeB:SetHeight(2)
+    toastFrame.edgeL = edge(); toastFrame.edgeL:SetPoint("TOPLEFT", 0, 0);    toastFrame.edgeL:SetPoint("BOTTOMLEFT", 0, 0);  toastFrame.edgeL:SetWidth(2)
+    toastFrame.edgeR = edge(); toastFrame.edgeR:SetPoint("TOPRIGHT", 0, 0);   toastFrame.edgeR:SetPoint("BOTTOMRIGHT", 0, 0); toastFrame.edgeR:SetWidth(2)
 
     -- Icon with a thin frame to match panel item rows. Centered vertically.
-    f.icon = f:CreateTexture(nil, "ARTWORK")
-    f.icon:SetSize(TOAST_ICON, TOAST_ICON)
-    f.icon:SetPoint("LEFT", 6, 0)
-    f.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    toastFrame.icon = toastFrame:CreateTexture(nil, "ARTWORK")
+    toastFrame.icon:SetSize(TOAST_ICON, TOAST_ICON)
+    toastFrame.icon:SetPoint("LEFT", 6, 0)
+    toastFrame.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 
-    f.iconEdge = f:CreateTexture(nil, "BORDER")
-    f.iconEdge:SetColorTexture(0, 0, 0, 1)
-    f.iconEdge:SetPoint("TOPLEFT", f.icon, "TOPLEFT", -1, 1)
-    f.iconEdge:SetPoint("BOTTOMRIGHT", f.icon, "BOTTOMRIGHT", 1, -1)
+    toastFrame.iconEdge = toastFrame:CreateTexture(nil, "BORDER")
+    toastFrame.iconEdge:SetColorTexture(0, 0, 0, 1)
+    toastFrame.iconEdge:SetPoint("TOPLEFT", toastFrame.icon, "TOPLEFT", -1, 1)
+    toastFrame.iconEdge:SetPoint("BOTTOMRIGHT", toastFrame.icon, "BOTTOMRIGHT", 1, -1)
 
     -- Quality-tinted icon ring (the rarity cue the banner doesn't carry).
     -- Tint/show set in ApplyContent.
-    f.iconRing = f:CreateTexture(nil, "OVERLAY")
-    f.iconRing:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\icon-border-white")
-    f.iconRing:SetPoint("TOPLEFT", f.icon, "TOPLEFT", -5, 5)
-    f.iconRing:SetPoint("BOTTOMRIGHT", f.icon, "BOTTOMRIGHT", 5, -5)
-    f.iconRing:Hide()
+    toastFrame.iconRing = toastFrame:CreateTexture(nil, "OVERLAY")
+    toastFrame.iconRing:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\icon-border-white")
+    toastFrame.iconRing:SetPoint("TOPLEFT", toastFrame.icon, "TOPLEFT", -5, 5)
+    toastFrame.iconRing:SetPoint("BOTTOMRIGHT", toastFrame.icon, "BOTTOMRIGHT", 5, -5)
+    toastFrame.iconRing:Hide()
 
     -- Header: green pixel-font category label ("NEW APPEARANCE", "SPECIAL LOOT").
-    f.header = f:CreateFontString(nil, "OVERLAY")
-    f.header:SetFont(TITLE_FONT, 16, "OUTLINE")
-    f.header:SetPoint("TOPLEFT", f.icon, "TOPRIGHT", 9, -4)
-    f.header:SetPoint("RIGHT", -8, 0)
-    f.header:SetJustifyH("LEFT")
-    f.header:SetTextColor(0.49, 0.99, 0.0)  -- C_LABEL green
+    toastFrame.header = toastFrame:CreateFontString(nil, "OVERLAY")
+    toastFrame.header:SetFont(TITLE_FONT, 16, "OUTLINE")
+    toastFrame.header:SetPoint("TOPLEFT", toastFrame.icon, "TOPRIGHT", 9, -4)
+    toastFrame.header:SetPoint("RIGHT", -8, 0)
+    toastFrame.header:SetJustifyH("LEFT")
+    toastFrame.header:SetTextColor(0.49, 0.99, 0.0)  -- C_LABEL green
 
     -- Body: item name, quality-colored. Wraps to a second line, capped at 2.
-    f.itemNameText = f:CreateFontString(nil, "OVERLAY")
-    f.itemNameText:SetFont(TITLE_FONT, 20, "OUTLINE")
-    f.itemNameText:SetPoint("TOPLEFT", f.header, "BOTTOMLEFT", 0, -3)
-    f.itemNameText:SetPoint("RIGHT", -8, 0)
-    f.itemNameText:SetJustifyH("LEFT")
-    f.itemNameText:SetJustifyV("TOP")
-    f.itemNameText:SetWordWrap(true)
-    if f.itemNameText.SetMaxLines then f.itemNameText:SetMaxLines(2) end
+    toastFrame.itemNameText = toastFrame:CreateFontString(nil, "OVERLAY")
+    toastFrame.itemNameText:SetFont(TITLE_FONT, 20, "OUTLINE")
+    toastFrame.itemNameText:SetPoint("TOPLEFT", toastFrame.header, "BOTTOMLEFT", 0, -3)
+    toastFrame.itemNameText:SetPoint("RIGHT", -8, 0)
+    toastFrame.itemNameText:SetJustifyH("LEFT")
+    toastFrame.itemNameText:SetJustifyV("TOP")
+    toastFrame.itemNameText:SetWordWrap(true)
+    if toastFrame.itemNameText.SetMaxLines then toastFrame.itemNameText:SetMaxLines(2) end
 
-    f.count = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.count:SetPoint("BOTTOMRIGHT", f.icon, "BOTTOMRIGHT", 1, 0)
+    toastFrame.count = toastFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    toastFrame.count:SetPoint("BOTTOMRIGHT", toastFrame.icon, "BOTTOMRIGHT", 1, 0)
 
-    return f
+    return toastFrame
 end
 
 local function AcquireFrame()
-    local f = table.remove(Presenter.pool)
-    if f then return f end
+    local toastFrame = table.remove(Presenter.pool)
+    if toastFrame then return toastFrame end
     return ConstructToastFrame(UIParent)
 end
 
-local function ReleaseFrame(f)
-    f:Hide()
-    f:SetScript("OnUpdate", nil)
+local function ReleaseFrame(toastFrame)
+    toastFrame:Hide()
+    toastFrame:SetScript("OnUpdate", nil)
     -- Clear stay-until-click wiring before pooling.
-    f:SetScript("OnMouseDown", nil)
-    f:EnableMouse(false)
-    if f.mergeKey then Presenter.byKey[f.mergeKey] = nil end
-    f.mergeKey = nil
-    f.qty = nil
-    f.glowOn = nil
-    f.quality = nil
-    if f.glow then f.glow:Hide() end
-    Presenter.pool[#Presenter.pool + 1] = f
+    toastFrame:SetScript("OnMouseDown", nil)
+    toastFrame:EnableMouse(false)
+    if toastFrame.mergeKey then Presenter.byKey[toastFrame.mergeKey] = nil end
+    toastFrame.mergeKey = nil
+    toastFrame.qty = nil
+    toastFrame.glowOn = nil
+    toastFrame.quality = nil
+    if toastFrame.glow then toastFrame.glow:Hide() end
+    Presenter.pool[#Presenter.pool + 1] = toastFrame
 end
 
 -- Returns the user's saved free-floating anchor as point,x,y if they've moved
@@ -318,9 +316,9 @@ end
 -- is the toast corner pinned to the matching UIParent corner, and x,y are the
 -- screen-space offset from that corner.
 local function GetSavedAnchor()
-    local a = RR.GetSetting and RR:GetSetting("toasterAnchor", nil)
-    if type(a) == "table" and a.point and a.x and a.y then
-        return a.point, a.x, a.y
+    local anchorSetting = RR.GetSetting and RR:GetSetting("toasterAnchor", nil)
+    if type(anchorSetting) == "table" and anchorSetting.point and anchorSetting.x and anchorSetting.y then
+        return anchorSetting.point, anchorSetting.x, anchorSetting.y
     end
     return nil
 end
@@ -334,7 +332,7 @@ local function DeriveAnchor(frame)
     local screenH = UIParent:GetTop() or 0
     if not cx then return "TOPLEFT", 0, 0 end
 
-    local y = (frame:GetTop() or 0) - screenH         -- negative: down from screen top
+    local topOffset = (frame:GetTop() or 0) - screenH         -- negative: down from screen top
     local point, x
     if cx >= screenW / 2 then
         point = "TOPRIGHT"
@@ -344,7 +342,7 @@ local function DeriveAnchor(frame)
         x = (frame:GetLeft() or 0)                    -- positive: right from screen left
     end
 
-    return point, math.floor(x + 0.5), math.floor(y + 0.5)
+    return point, math.floor(x + 0.5), math.floor(topOffset + 0.5)
 end
 
 local function Restack()
@@ -376,11 +374,11 @@ local function Restack()
     end
 end
 
-local function SetCount(f)
-    if (f.qty or 1) > 1 then
-        f.count:SetText("x" .. f.qty)
+local function SetCount(toastFrame)
+    if (toastFrame.qty or 1) > 1 then
+        toastFrame.count:SetText("x" .. toastFrame.qty)
     else
-        f.count:SetText("")
+        toastFrame.count:SetText("")
     end
 end
 
@@ -395,13 +393,13 @@ local GLOW_QUALITY_FLOOR = 4  -- epic+
 local BG_NEUTRAL    = { 0.04, 0.04, 0.06, 0.92 }   -- current default fill
 local BG_APPEARANCE = { 0.10, 0.055, 0.095, 0.92 }  -- pink-black
 local BG_SPECIAL    = { 0.025, 0.08, 0.105, 0.92 }  -- cyan-black
-local function StyleBgByKind(f, toast)
-    local c = BG_NEUTRAL
+local function StyleBgByKind(toastFrame, toast)
+    local bgColor = BG_NEUTRAL
     if toast then
-        if toast.isAppearance then c = BG_APPEARANCE
-        elseif toast.isSpecial then c = BG_SPECIAL end
+        if toast.isAppearance then bgColor = BG_APPEARANCE
+        elseif toast.isSpecial then bgColor = BG_SPECIAL end
     end
-    f.bg:SetColorTexture(c[1], c[2], c[3], c[4])
+    toastFrame.bg:SetColorTexture(bgColor[1], bgColor[2], bgColor[3], bgColor[4])
 end
 
 -- Banner art paths per toast kind. No kind (preview/overlay) falls back to the
@@ -414,7 +412,7 @@ local BANNER_BY_KIND = {
 
 -- Apply the per-kind banner art. With a banner, hide the edge slivers, glow,
 -- and bg fill (the icon ring stays). With no kind, leave the legacy frame.
-local function StyleBannerByKind(f, toast)
+local function StyleBannerByKind(toastFrame, toast)
     local kind
     if toast then
         if toast.isAppearance then kind = "appearance"
@@ -422,68 +420,68 @@ local function StyleBannerByKind(f, toast)
     end
     local path = kind and BANNER_BY_KIND[kind]
     if path then
-        f.banner:SetTexture(path)
-        f.banner:Show()
-        f.bg:Hide()
-        f.edgeT:Hide(); f.edgeB:Hide(); f.edgeL:Hide(); f.edgeR:Hide()
-        f.iconEdge:Hide()
-        f.glow:Hide()        -- the banner art supplies its own glow
-        f.glowOn = false
-        f.useBanner = true
+        toastFrame.banner:SetTexture(path)
+        toastFrame.banner:Show()
+        toastFrame.bg:Hide()
+        toastFrame.edgeT:Hide(); toastFrame.edgeB:Hide(); toastFrame.edgeL:Hide(); toastFrame.edgeR:Hide()
+        toastFrame.iconEdge:Hide()
+        toastFrame.glow:Hide()        -- the banner art supplies its own glow
+        toastFrame.glowOn = false
+        toastFrame.useBanner = true
         -- Seat the icon in the art's baked well.
-        f.icon:SetSize(BANNER_ICON_SIZE, BANNER_ICON_SIZE)
-        f.icon:ClearAllPoints()
-        f.icon:SetPoint("LEFT", BANNER_ICON_INSET, 0)
+        toastFrame.icon:SetSize(BANNER_ICON_SIZE, BANNER_ICON_SIZE)
+        toastFrame.icon:ClearAllPoints()
+        toastFrame.icon:SetPoint("LEFT", BANNER_ICON_INSET, 0)
     else
-        f.banner:Hide()
-        f.bg:Show()
-        f.edgeT:Show(); f.edgeB:Show(); f.edgeL:Show(); f.edgeR:Show()
-        f.iconEdge:Show()
-        f.useBanner = false
-        f.icon:SetSize(TOAST_ICON, TOAST_ICON)
-        f.icon:ClearAllPoints()
-        f.icon:SetPoint("LEFT", 6, 0)
+        toastFrame.banner:Hide()
+        toastFrame.bg:Show()
+        toastFrame.edgeT:Show(); toastFrame.edgeB:Show(); toastFrame.edgeL:Show(); toastFrame.edgeR:Show()
+        toastFrame.iconEdge:Show()
+        toastFrame.useBanner = false
+        toastFrame.icon:SetSize(TOAST_ICON, TOAST_ICON)
+        toastFrame.icon:ClearAllPoints()
+        toastFrame.icon:SetPoint("LEFT", 6, 0)
     end
 end
 
-local function StyleByQuality(f, quality, glowColor)
-    f.quality = quality
+local function StyleByQuality(toastFrame, quality, glowColor)
+    toastFrame.quality = quality
     local r, g, b
     if quality then
         r, g, b = C_Item.GetItemQualityColor(quality)
     end
     if not r then r, g, b = C_PINK[1], C_PINK[2], C_PINK[3] end
 
-    for _, e in ipairs({ f.edgeT, f.edgeB, f.edgeL, f.edgeR }) do
+    for _, e in ipairs({ toastFrame.edgeT, toastFrame.edgeB, toastFrame.edgeL, toastFrame.edgeR }) do
         e:SetVertexColor(r, g, b, 0.95)
     end
 
     -- Quality-colored icon ring, shown when banner art is active.
-    if f.useBanner then
-        f.iconRing:SetVertexColor(r, g, b, 1)
-        f.iconRing:Show()
+    if toastFrame.useBanner then
+        toastFrame.iconRing:SetVertexColor(r, g, b, 1)
+        toastFrame.iconRing:Show()
     else
-        f.iconRing:Hide()
+        toastFrame.iconRing:Hide()
     end
 
     -- Glow color: forced override if given, else the quality color.
-    f.glowColor = glowColor or { r, g, b }
+    toastFrame.glowColor = glowColor or { r, g, b }
 
     -- Glow shows for epic+ or a forced color, never with banner art.
-    if not f.useBanner and (glowColor or (quality and quality >= GLOW_QUALITY_FLOOR)) then
-        f.glowOn = true
-        f.glow:Show()
+    if not toastFrame.useBanner and (glowColor or (quality and quality >= GLOW_QUALITY_FLOOR)) then
+        toastFrame.glowOn = true
+        toastFrame.glow:Show()
     else
-        f.glowOn = false
-        f.glow:Hide()
+        toastFrame.glowOn = false
+        toastFrame.glow:Hide()
     end
 end
 
 -- Full-opacity hold (seconds) from toasterDuration, clamped 1.5..8.0.
 local function EffectiveHold()
-    local d = (RR.GetSetting and RR:GetSetting("toasterDuration", 3.0)) or 3.0
-    if d < 1.5 then d = 1.5 elseif d > 8.0 then d = 8.0 end
-    return d
+    local duration = (RR.GetSetting and RR:GetSetting("toasterDuration", 3.0)) or 3.0
+    if duration < 1.5 then duration = 1.5 elseif duration > 8.0 then duration = 8.0 end
+    return duration
 end
 
 local function StayUntilClick()
@@ -491,12 +489,12 @@ local function StayUntilClick()
 end
 
 -- Remove a toast immediately (click-to-dismiss in stay-until-click mode).
-local function DismissToast(f)
-    f:SetScript("OnUpdate", nil)
+local function DismissToast(toastFrame)
+    toastFrame:SetScript("OnUpdate", nil)
     for i, lf in ipairs(Presenter.live) do
-        if lf == f then table.remove(Presenter.live, i) break end
+        if lf == toastFrame then table.remove(Presenter.live, i) break end
     end
-    ReleaseFrame(f)
+    ReleaseFrame(toastFrame)
     Restack()
 end
 
@@ -504,32 +502,32 @@ end
 -- re-hit refreshes the dwell time instead of letting an old toast expire.
 -- In stay-until-click mode the toast fades in then holds at full opacity
 -- indefinitely; a mouse click dismisses it (wired here, cleared on release).
-local function StartFade(f)
-    f.born = GetTime()
+local function StartFade(toastFrame)
+    toastFrame.born = GetTime()
 
     local stay = StayUntilClick()
     if stay then
         -- Clickable, dismiss-on-click; cleared in ReleaseFrame.
-        f:EnableMouse(true)
-        f:SetScript("OnMouseDown", function(self) DismissToast(self) end)
+        toastFrame:EnableMouse(true)
+        toastFrame:SetScript("OnMouseDown", function(self) DismissToast(self) end)
     else
-        f:EnableMouse(false)
-        f:SetScript("OnMouseDown", nil)
+        toastFrame:EnableMouse(false)
+        toastFrame:SetScript("OnMouseDown", nil)
     end
 
     local hold = EffectiveHold()
-    f:SetScript("OnUpdate", function(self)
-        local t = GetTime() - self.born
+    toastFrame:SetScript("OnUpdate", function(self)
+        local elapsed = GetTime() - self.born
         local a
-        if t < FADE_IN then
-            a = t / FADE_IN
+        if elapsed < FADE_IN then
+            a = elapsed / FADE_IN
         elseif stay then
             -- Hold at full opacity until clicked; never auto-expire.
             a = 1
-        elseif t < FADE_IN + hold then
+        elseif elapsed < FADE_IN + hold then
             a = 1
-        elseif t < FADE_IN + hold + FADE_OUT then
-            a = 1 - (t - FADE_IN - hold) / FADE_OUT
+        elseif elapsed < FADE_IN + hold + FADE_OUT then
+            a = 1 - (elapsed - FADE_IN - hold) / FADE_OUT
         else
             -- expired
             self:SetScript("OnUpdate", nil)
@@ -549,8 +547,8 @@ C_Timer.NewTicker(0.05, function()
     local pulse = (RR.GetRingPulseRed and RR:GetRingPulseRed()) or 1.0
     for _, f in ipairs(Presenter.live) do
         if f.glowOn and f.glow then
-            local c = f.glowColor or GLOW_PINK
-            f.glow:SetVertexColor(c[1], c[2], c[3], 0.85 * pulse)
+            local glow = f.glowColor or GLOW_PINK
+            f.glow:SetVertexColor(glow[1], glow[2], glow[3], 0.85 * pulse)
         end
     end
 end)
@@ -558,50 +556,50 @@ end)
 -- Apply item content (icon, name, quality, banner, glow) to a frame from a
 -- descriptor. Separate from ShowOne so an async name load can refresh a visible
 -- toast in place. mergeKey groups identical drops; nil disables merging.
-local function ApplyContent(f, toast)
-    f.icon:SetTexture(toast.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-    f.itemNameText:SetText(toast.name or "")
+local function ApplyContent(toastFrame, toast)
+    toastFrame.icon:SetTexture(toast.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+    toastFrame.itemNameText:SetText(toast.name or "")
     local r, g, b
     if toast.quality then r, g, b = C_Item.GetItemQualityColor(toast.quality) end
-    f.itemNameText:SetTextColor(r or 1, g or 1, b or 1)
-    StyleBgByKind(f, toast)
-    StyleBannerByKind(f, toast)
-    StyleByQuality(f, toast.quality, toast.glowColor)
+    toastFrame.itemNameText:SetTextColor(r or 1, g or 1, b or 1)
+    StyleBgByKind(toastFrame, toast)
+    StyleBannerByKind(toastFrame, toast)
+    StyleByQuality(toastFrame, toast.quality, toast.glowColor)
 end
 
 local function ShowOne(toast)
-    local f = AcquireFrame()
-    f.mergeKey = nil
-    f.qty = 1
+    local toastFrame = AcquireFrame()
+    toastFrame.mergeKey = nil
+    toastFrame.qty = 1
 
     -- Scale = base x windowScale x toasterScale.
     local userScale  = (RR.GetSetting and RR:GetSetting("windowScale", 1.0)) or 1.0
     local toastScale = (RR.GetSetting and RR:GetSetting("toasterScale", 1.0)) or 1.0
-    f:SetScale(TOAST_SCALE * userScale * toastScale)
+    toastFrame:SetScale(TOAST_SCALE * userScale * toastScale)
 
     -- Typeface follows bodyFontStyle; sizes fixed.
     local bodyFont = (RR.GetBodyFont and RR:GetBodyFont()) or TITLE_FONT
-    f.header:SetFont(bodyFont, 16, "OUTLINE")
-    f.itemNameText:SetFont(bodyFont, 20, "OUTLINE")
+    toastFrame.header:SetFont(bodyFont, 16, "OUTLINE")
+    toastFrame.itemNameText:SetFont(bodyFont, 20, "OUTLINE")
 
-    if toast.width then f:SetWidth(toast.width) end
-    f.header:SetText(toast.header and toast.header:upper() or "RETRORUNS")
-    ApplyContent(f, toast)
+    if toast.width then toastFrame:SetWidth(toast.width) end
+    toastFrame.header:SetText(toast.header and RR.L[toast.header]:upper() or "RETRORUNS")
+    ApplyContent(toastFrame, toast)
 
     -- Let a pending item load refresh this frame.
-    toast.frame = f
+    toast.frame = toastFrame
 
-    SetCount(f)
+    SetCount(toastFrame)
     -- Append at the tail so every toast joins the bottom of the stack, no
     -- matter which batch it came from or when its reveal timer fires. Restack
     -- pins the head to the anchor and chains the rest downward, so the stack
     -- always cascades top-to-bottom. Front-inserting here let a later reveal
     -- jump to the top and flip the growth direction mid-cascade.
-    Presenter.live[#Presenter.live + 1] = f
-    f:SetAlpha(0)
-    f:Show()
+    Presenter.live[#Presenter.live + 1] = toastFrame
+    toastFrame:SetAlpha(0)
+    toastFrame:Show()
     Restack()
-    StartFade(f)
+    StartFade(toastFrame)
 
     -- Coin chime on the SFX channel. Final toast in a batch plays the ring-out.
     -- No-ops if the file is missing; off via the sound setting.
@@ -609,7 +607,7 @@ local function ShowOne(toast)
         PlaySoundFile(toast.isFinal and COIN_FINAL_SOUND or COIN_SOUND, "SFX")
     end
 
-    return f
+    return toastFrame
 end
 
 -- Reveal a batch: measure every name, set all to the widest (clamped), then
@@ -672,7 +670,7 @@ function Presenter.RevealBatch(batch)
         kept[#kept + 1] = {
             header       = "New Appearance",
             icon         = overflowIcon,
-            name         = ("Plus %d others..."):format(overflow),
+            name         = (RR.L["Plus %d others..."]):format(overflow),
             quality      = nil,
             glowColor    = GLOW_PINK,
             isAppearance = true,
@@ -694,8 +692,8 @@ function Presenter.RevealBatch(batch)
         -- Widest frame across the batch, so all toasts share a uniform width.
         frameW = 0
         for _, toast in ipairs(batch) do
-            local w = FrameWidthFor(toast.name, toast.header)
-            if w > frameW then frameW = w end
+            local frameWidth = FrameWidthFor(toast.name, toast.header)
+            if frameWidth > frameW then frameW = frameWidth end
         end
     end
 
@@ -775,12 +773,12 @@ end
 local function BuildUnlockOverlay()
     if UnlockOverlay then return UnlockOverlay end
 
-    local o = CreateFrame("Button", "RetroRunsToasterUnlock", UIParent)
-    o:SetFrameStrata("FULLSCREEN_DIALOG")
-    o:SetMovable(true)
-    o:EnableMouse(true)
-    o:RegisterForDrag("LeftButton")
-    o:SetClampedToScreen(true)
+    local overlay = CreateFrame("Button", "RetroRunsToasterUnlock", UIParent)
+    overlay:SetFrameStrata("FULLSCREEN_DIALOG")
+    overlay:SetMovable(true)
+    overlay:EnableMouse(true)
+    overlay:RegisterForDrag("LeftButton")
+    overlay:SetClampedToScreen(true)
     -- No backdrop/border on the overlay itself; it's the drag-catcher. The two
     -- sample toasts carry their own borders.
 
@@ -790,51 +788,51 @@ local function BuildUnlockOverlay()
         { icon = "Interface\\Icons\\INV_Sword_39",          name = 18832, header = "New Appearance", isAppearance = true },
         { icon = "Interface\\Icons\\Ability_Mount_Drake_Blue", name = 43953, header = "Special Loot", isSpecial = true },
     }
-    o.samples = {}
+    overlay.samples = {}
     for i, s in ipairs(SAMPLES) do
-        local t = ConstructToastFrame(o)
-        t:EnableMouse(false)
-        t:SetFrameStrata(o:GetFrameStrata())
-        t:SetFrameLevel(o:GetFrameLevel() + 1)
+        local toast = ConstructToastFrame(overlay)
+        toast:EnableMouse(false)
+        toast:SetFrameStrata(overlay:GetFrameStrata())
+        toast:SetFrameLevel(overlay:GetFrameLevel() + 1)
         local nm = (s.name and GetItemInfo and GetItemInfo(s.name)) or ""
-        ApplyContent(t, { icon = s.icon, name = nm, quality = 4,
+        ApplyContent(toast, { icon = s.icon, name = nm, quality = 4,
                           glowColor = (s.header == "New Appearance") and GLOW_PINK or nil,
                           isAppearance = s.isAppearance, isSpecial = s.isSpecial,
                           header = s.header })
-        t.header:SetText(s.header)
+        toast.header:SetText(s.header)
         -- Async name fill if the item wasn't cached.
         if nm == "" and s.name and GetItemInfo then
             local itemID = s.name
-            local frame = t
+            local frame = toast
             local waiter = CreateFrame("Frame")
             waiter:RegisterEvent("GET_ITEM_INFO_RECEIVED")
             waiter:SetScript("OnEvent", function(self)
-                local n = GetItemInfo(itemID)
-                if n then frame.itemNameText:SetText(n); self:UnregisterAllEvents() end
+                local itemName = GetItemInfo(itemID)
+                if itemName then frame.itemNameText:SetText(itemName); self:UnregisterAllEvents() end
             end)
             GetItemInfo(itemID)
         end
-        if t.glowOn and t.glow then
-            local c = t.glowColor or GLOW_PINK
-            t.glow:SetVertexColor(math.min(c[1]*1.35,1), math.min(c[2]*1.35,1), math.min(c[3]*1.35,1), 1)
+        if toast.glowOn and toast.glow then
+            local glow = toast.glowColor or GLOW_PINK
+            toast.glow:SetVertexColor(math.min(glow[1]*1.35,1), math.min(glow[2]*1.35,1), math.min(glow[3]*1.35,1), 1)
         end
-        o.samples[i] = t
+        overlay.samples[i] = toast
     end
 
     -- Hint caption above the frame.
-    local label = o:CreateFontString(nil, "OVERLAY")
+    local label = overlay:CreateFontString(nil, "OVERLAY")
     label:SetFont(TITLE_FONT, 12, "OUTLINE")
-    label:SetPoint("BOTTOMLEFT", o, "TOPLEFT", 0, 4)
-    label:SetText("Drag to move")
+    label:SetPoint("BOTTOMLEFT", overlay, "TOPLEFT", 0, 4)
+    label:SetText(RR.L["Drag to move"])
     label:SetJustifyH("LEFT")
     label:SetTextColor(1, 0.7, 0.9, 1)
-    o.label = label
+    overlay.label = label
 
-    o:SetScript("OnDragStart", function(self)
+    overlay:SetScript("OnDragStart", function(self)
         self:StartMoving()
         self.isMoving = true
     end)
-    o:SetScript("OnDragStop", function(self)
+    overlay:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         self.isMoving = nil
         -- Save a stable anchor from where the frame landed.
@@ -843,46 +841,46 @@ local function BuildUnlockOverlay()
         Restack()
     end)
 
-    o:Hide()
-    UnlockOverlay = o
-    return o
+    overlay:Hide()
+    UnlockOverlay = overlay
+    return overlay
 end
 
 -- Position + size the overlay to match a 2-toast sample stack at the current
 -- scale, at the toasts' current anchor.
 PositionUnlockOverlay = function()
-    local o = UnlockOverlay
-    if not o then return end
+    local overlay = UnlockOverlay
+    if not overlay then return end
     local eff = EffectiveToastScale()
-    local w = TOAST_W_FIXED * eff
-    local h = (TOAST_H * 2 + GAP) * eff
-    o:SetSize(w, h)
+    local overlayWidth = TOAST_W_FIXED * eff
+    local overlayHeight = (TOAST_H * 2 + GAP) * eff
+    overlay:SetSize(overlayWidth, overlayHeight)
 
     -- Lay the samples at the live scale, chained with GAP, mirroring Restack.
-    if o.samples then
-        for i, t in ipairs(o.samples) do
+    if overlay.samples then
+        for i, t in ipairs(overlay.samples) do
             t:SetScale(eff)
             if t.useBanner then t:SetWidth(TOAST_W_FIXED) end
             t:ClearAllPoints()
             if i == 1 then
-                t:SetPoint("TOPLEFT", o, "TOPLEFT", 0, 0)
+                t:SetPoint("TOPLEFT", overlay, "TOPLEFT", 0, 0)
             else
-                t:SetPoint("TOPLEFT", o.samples[i - 1], "BOTTOMLEFT", 0, -GAP)
+                t:SetPoint("TOPLEFT", overlay.samples[i - 1], "BOTTOMLEFT", 0, -GAP)
             end
             t:Show()
         end
     end
 
-    o:ClearAllPoints()
+    overlay:ClearAllPoints()
     local savedPoint, savedX, savedY = GetSavedAnchor()
     if savedPoint then
-        o:SetPoint(savedPoint, UIParent, savedPoint, savedX, savedY)
+        overlay:SetPoint(savedPoint, UIParent, savedPoint, savedX, savedY)
     else
         local panel = _G.RetroRunsMainFrame
         if panel then
-            o:SetPoint("TOPLEFT", panel, "TOPRIGHT", ANCHOR_GAP * eff, -3 * eff)
+            overlay:SetPoint("TOPLEFT", panel, "TOPRIGHT", ANCHOR_GAP * eff, -3 * eff)
         else
-            o:SetPoint("CENTER", UIParent, "CENTER", BASE_X, BASE_Y)
+            overlay:SetPoint("CENTER", UIParent, "CENTER", BASE_X, BASE_Y)
         end
     end
 end
@@ -907,13 +905,6 @@ end
 -- Source: capture the same drop events and route to the presenter.
 -------------------------------------------------------------------------------
 
-local function ResolveIcon(itemInfo)
-    if not itemInfo then return nil end
-    local ok, fileID = pcall(C_Item.GetItemIconByID, itemInfo)
-    if ok then return fileID end
-    return nil
-end
-
 -- Summary subsystem state. Drops accumulate into one batch that flushes once no
 -- new drop has arrived for QUIET_FLUSH seconds (not on LOOT_CLOSED).
 local Summary = {
@@ -930,8 +921,14 @@ local Summary = {
     nextID     = 1,      -- monotonic line id within a lockout
     clickHooked = false,
 }
--- Flush once no new drop has arrived for this long.
+-- Flush once no new drop has arrived for this long. Two windows: while the
+-- loot window is open (or drops are actively streaming), a short quiet
+-- period keeps the batch tight; after LOOT_CLOSED a longer grace covers the
+-- straggler wave, which can lag the close by roughly a second under realm
+-- latency (plain-item toasts in that wave do not re-arm the timer, so the
+-- grace, not re-arming, is what catches them).
 local QUIET_FLUSH = 0.5
+local POST_CLOSE_GRACE = 1.5
 
 local FlushBatch  -- forward declaration (defined below, after the formatters)
 local QualityColoredLink  -- forward declaration (FlushBatch needs it as an upvalue)
@@ -946,11 +943,13 @@ local function IsTierToken(itemID)
 end
 
 -- (Re)arm the quiet-period flush; re-arming cancels the prior pending flush.
-local function ArmFlush()
+-- delay defaults to QUIET_FLUSH; LOOT_CLOSED passes POST_CLOSE_GRACE to give
+-- the straggler wave more slack.
+local function ArmFlush(delay)
     if Summary.flushTimer then
         Summary.flushTimer:Cancel()
     end
-    Summary.flushTimer = C_Timer.NewTimer(QUIET_FLUSH, function()
+    Summary.flushTimer = C_Timer.NewTimer(delay or QUIET_FLUSH, function()
         Summary.flushTimer = nil
         -- Don't flush while the loot window is still open; re-arm instead.
         if Summary.windowOpen then
@@ -1024,9 +1023,9 @@ local function OnDropEvent(_, event, ...)
         -- isn't in scope here -- a Lua 5.1 forward-reference trap).
         local matched = "n/a"
         if not isSecret and type(rawmsg) == "string" then
-            local s = _G.ERR_LEARN_TRANSMOG_S
-            if type(s) == "string" then
-                local lit = s:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+            local learnTemplate = _G.ERR_LEARN_TRANSMOG_S
+            if type(learnTemplate) == "string" then
+                local lit = learnTemplate:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
                 local pat = lit:gsub("%%%%s", ".*")
                 matched = rawmsg:match(pat) and "MATCH" or "nomatch"
             end
@@ -1221,7 +1220,19 @@ local function OnDropEvent(_, event, ...)
 
         QueueToast(toast)
     end
-    -- kind == "item": intentionally no toast; counted as vendor-grade.
+    if kind == "item" then
+        -- kind == "item": intentionally no toast; counted as vendor-grade.
+        -- CONFIRM-REARM: plain item toasts currently do NOT arm the quiet
+        -- flush. If a straggler wave of only plain items arrives after
+        -- LOOT_CLOSED and after the flush has run, none of them re-arm and
+        -- they are dropped. This trace records each such fall-through with
+        -- the current capture/window state so the gap can be confirmed
+        -- against a real slow-loot corpse.
+        T(("PLAIN-ITEM fallthrough (no arm)  capturing=%s  windowOpen=%s  "
+           .. "flushTimer=%s"):format(
+            tostring(Summary.capturing), tostring(Summary.windowOpen),
+            tostring(Summary.flushTimer ~= nil)))
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -1260,10 +1271,10 @@ end
 -- built from the localized global. Nil (no filtering) if the global is missing.
 local TRANSMOG_COLLECTED_PATTERN
 do
-    local s = _G.ERR_LEARN_TRANSMOG_S  -- "%s has been added to your appearance collection."
-    if type(s) == "string" then
+    local learnTemplate = _G.ERR_LEARN_TRANSMOG_S  -- "%s has been added to your appearance collection."
+    if type(learnTemplate) == "string" then
         -- Escape Lua magic chars, then turn the %s into a wildcard.
-        local lit = s:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+        local lit = learnTemplate:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
         TRANSMOG_COLLECTED_PATTERN = lit:gsub("%%%%s", ".*")
     end
 end
@@ -1451,10 +1462,10 @@ FlushBatch = function()
             end
             -- Re-emit with the RR prefix, label tinted loot-green; the item
             -- link keeps its own quality color.
-            local c = ChatTypeInfo and ChatTypeInfo["LOOT"]
+            local lootChatInfo = ChatTypeInfo and ChatTypeInfo["LOOT"]
             local r, g, b = 0, 0.667, 0
-            if c and (c.r ~= 1 or c.g ~= 1 or c.b ~= 1) then
-                r, g, b = c.r, c.g, c.b
+            if lootChatInfo and (lootChatInfo.r ~= 1 or lootChatInfo.g ~= 1 or lootChatInfo.b ~= 1) then
+                r, g, b = lootChatInfo.r, lootChatInfo.g, lootChatInfo.b
             end
             DEFAULT_CHAT_FRAME:AddMessage(CHAT_PREFIX .. line, r, g, b)
         end
@@ -1511,26 +1522,26 @@ end
 function RR.FormatCollectionSummaryLine(specialCount, appCount, tokenCount, vendorCount, viewID)
     local parts = {}
     if specialCount and specialCount > 0 then
-        parts[#parts + 1] = ("|cff4DCCFFSpecial: %d|r"):format(specialCount)
+        parts[#parts + 1] = ("|cff4DCCFF" .. RR.L["Special: %d"] .. "|r"):format(specialCount)
     end
     if appCount and appCount > 0 then
-        parts[#parts + 1] = ("|cffF259C7Appearances: %d|r"):format(appCount)
+        parts[#parts + 1] = ("|cffF259C7" .. RR.L["Appearances: %d"] .. "|r"):format(appCount)
     end
     if tokenCount and tokenCount > 0 then
-        parts[#parts + 1] = ("|cffff8000Tier Token: %d|r"):format(tokenCount)
+        parts[#parts + 1] = ("|cffff8000" .. RR.L["Tier Token: %d"] .. "|r"):format(tokenCount)
     end
     if vendorCount and vendorCount > 0 then
-        parts[#parts + 1] = ("|cff999999Vendor-grade: %d|r"):format(vendorCount)
+        parts[#parts + 1] = ("|cff999999" .. RR.L["Vendor-grade: %d"] .. "|r"):format(vendorCount)
     end
     if #parts == 0 then return "" end
     return table.concat(parts, " |cff666666·|r ")
-        .. ("  |cffffd100|Haddon:%s:vg:%d|h[view]|h|r"):format(LINK_ADDON, viewID or 0)
+        .. ("  |cffffd100|Haddon:%s:vg:%d|h[" .. RR.L["view"] .. "]|h|r"):format(LINK_ADDON, viewID or 0)
 end
 
 -- Gray vendor-grade line with [view]. Retained for the settings preview's
 -- legacy two-line format.
 function RR.FormatVendorSummaryLine(count, viewID)
-    return ("|cff999999%d vendor-grade item%s collected|r  |cffffd100|Haddon:%s:vg:%d|h[view]|h|r")
+    return ("|cff999999" .. RR.L["%d vendor-grade item%s collected"] .. "|r  |cffffd100|Haddon:%s:vg:%d|h[" .. RR.L["view"] .. "]|h|r")
         :format(count, count == 1 and "" or "s", LINK_ADDON, viewID or 0)
 end
 
@@ -1561,14 +1572,14 @@ local NEW_TAG = "  |cffF259C7[New!]|r"
 local function ShowVendorList(id)
     local entry = Summary.store[id]
     if not entry then
-        RR:Print("|cff999999(That loot list is from an earlier lockout and is no longer available.)|r")
+        RR:Print(RR.L["|cff999999(That loot list is from an earlier lockout and is no longer available.)|r"])
         return
     end
     -- A list expands once.
     if entry.expanded then return end
     entry.expanded = true
 
-    RR:Print("|cff999999From that kill:|r")
+    RR:Print(RR.L["|cff999999From that kill:|r"])
     for _, it in ipairs(entry.items) do
         if it.kind == "appearance" then
             -- Prefer the source link (correct collection state); fall back to a
@@ -1594,7 +1605,7 @@ local function ShowVendorList(id)
             -- Tier token: quality-colored link, tagged, quantity if stacked.
             local qtyTag = (it.qty and it.qty > 1)
                 and (" |cff999999x" .. it.qty .. "|r") or ""
-            RR:Print("  " .. QualityColoredLink(it.link) .. " |cffff8000(Tier Token)|r" .. qtyTag)
+            RR:Print("  " .. QualityColoredLink(it.link) .. " |cffff8000(" .. RR.L["Tier Token"] .. ")|r" .. qtyTag)
         else
             local qtyTag = (it.qty and it.qty > 1)
                 and (" |cff999999x" .. it.qty .. "|r") or ""
@@ -1638,10 +1649,12 @@ local function OnLootBracket(_, event, ...)
 
     elseif event == "LOOT_CLOSED" then
         -- Don't close the gate here; capture stays open until the flush runs
-        -- so the post-close straggler wave is still captured.
+        -- so the post-close straggler wave is still captured. Arm the longer
+        -- post-close grace: the wave can lag the close by ~1s, and plain-item
+        -- toasts in it do not re-arm the timer themselves.
         Summary.windowOpen = false
         T("LOOT_CLOSED")
-        ArmFlush()
+        ArmFlush(POST_CLOSE_GRACE)
 
     elseif event == "CHAT_MSG_LOOT" then
         local raw = (...)
@@ -1652,8 +1665,8 @@ local function OnLootBracket(_, event, ...)
         -- Quantity from the trailing "x<digits>"; single drops default to 1.
         local qty = 1
         if raw then
-            local q = raw:match("|h|rx(%d+)") or raw:match("|hx(%d+)")
-            if q then qty = tonumber(q) or 1 end
+            local stackCount = raw:match("|h|rx(%d+)") or raw:match("|hx(%d+)")
+            if stackCount then qty = tonumber(stackCount) or 1 end
         end
         if Summary.capturing then
             if link then
@@ -1753,7 +1766,7 @@ end
 -- Dump the lifecycle trace and live gate state to the copy window.
 function RR:ToasterDebug()
     local lines = {}
-    local function add(s) lines[#lines + 1] = s end
+    local function add(line) lines[#lines + 1] = line end
     add("== Toaster state ==")
     add("enabled        = " .. tostring(M.enabled))
     add("currentRaid    = " .. tostring(RR.currentRaid and RR.currentRaid.name or "nil"))
@@ -1779,7 +1792,7 @@ end
 -- system messages that would otherwise fill the bounded ring.
 function RR:ToasterClearTrace()
     for i = #Trace, 1, -1 do Trace[i] = nil end
-    RR:Print("Toaster trace cleared.")
+    RR:Print(RR.L["Toaster trace cleared."])
 end
 
 function RR:BuildPreviewBatch(parent)
@@ -1800,52 +1813,52 @@ function RR:BuildPreviewBatch(parent)
     local frames = {}
 
     for i, s in ipairs(samples) do
-        local f = ConstructToastFrame(parent)
-        f:SetScale(PREVIEW_SCALE)
-        f:SetFrameStrata(parent and parent:GetFrameStrata() or "DIALOG")
+        local toastFrame = ConstructToastFrame(parent)
+        toastFrame:SetScale(PREVIEW_SCALE)
+        toastFrame:SetFrameStrata(parent and parent:GetFrameStrata() or "DIALOG")
 
         -- Glow bleed, scaled down from the live values for the cramped pane.
-        f.glow:ClearAllPoints()
-        f.glow:SetPoint("TOPLEFT", -90, 28)
-        f.glow:SetPoint("BOTTOMRIGHT", 90, -28)
+        toastFrame.glow:ClearAllPoints()
+        toastFrame.glow:SetPoint("TOPLEFT", -90, 28)
+        toastFrame.glow:SetPoint("BOTTOMRIGHT", 90, -28)
 
-        f.header:SetText(s.header:upper())
+        toastFrame.header:SetText(RR.L[s.header]:upper())
         local nm = (GetItemInfo and GetItemInfo(s.id)) or ""
-        ApplyContent(f, {
+        ApplyContent(toastFrame, {
             icon = s.icon, name = nm, quality = s.quality, glowColor = s.glowColor,
             isAppearance = s.appearance, isSpecial = (not s.appearance),
         })
         -- Banner toasts use the fixed art-ratio width.
-        if f.useBanner then f:SetWidth(TOAST_W_FIXED) end
+        if toastFrame.useBanner then toastFrame:SetWidth(TOAST_W_FIXED) end
 
         -- Not in the live pool, so tint the glow statically (boosted for the
         -- small preview scale).
-        if f.glowOn and f.glow then
-            local c = f.glowColor or GLOW_PINK
+        if toastFrame.glowOn and toastFrame.glow then
+            local glow = toastFrame.glowColor or GLOW_PINK
             local boost = 1.35
-            f.glow:SetVertexColor(
-                math.min(c[1] * boost, 1),
-                math.min(c[2] * boost, 1),
-                math.min(c[3] * boost, 1), 1.0)
+            toastFrame.glow:SetVertexColor(
+                math.min(glow[1] * boost, 1),
+                math.min(glow[2] * boost, 1),
+                math.min(glow[3] * boost, 1), 1.0)
         end
 
         -- Async fill (name + icon) if the item wasn't cached.
         if nm == "" and GetItemInfo then
             local waiter = CreateFrame("Frame")
             waiter:RegisterEvent("GET_ITEM_INFO_RECEIVED")
-            waiter:SetScript("OnEvent", function(self)
-                local n = GetItemInfo(s.id)
-                if n then
-                    f.itemNameText:SetText(n)
+            waiter:SetScript("OnEvent", function()
+                local itemName = GetItemInfo(s.id)
+                if itemName then
+                    toastFrame.itemNameText:SetText(itemName)
                     local ic = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(s.id)
-                    if ic then f.icon:SetTexture(ic) end
-                    self:UnregisterAllEvents()
+                    if ic then toastFrame.icon:SetTexture(ic) end
+                    waiter:UnregisterAllEvents()
                 end
             end)
             GetItemInfo(s.id)
         end
 
-        frames[i] = f
+        frames[i] = toastFrame
     end
 
     -- Stack them top-down inside the parent. Scaled height drives the spacing.
@@ -1861,25 +1874,25 @@ function RR:BuildPreviewBatch(parent)
     local group = { frames = frames }
     function group:PlayReveal()
         local soundOn = RR:GetSetting("toasterSound", true) ~= false
-        local n = #self.frames
+        local frameCount = #self.frames
         for i, f in ipairs(self.frames) do
             f:SetAlpha(0)
             f:Show()
             local delay = (i - 1) * 0.20
             C_Timer.After(delay, function()
                 f.born = GetTime()
-                f:SetScript("OnUpdate", function(self2)
-                    local t = GetTime() - self2.born
-                    if t < FADE_IN then
-                        self2:SetAlpha(t / FADE_IN)
+                f:SetScript("OnUpdate", function()
+                    local elapsed = GetTime() - f.born
+                    if elapsed < FADE_IN then
+                        f:SetAlpha(elapsed / FADE_IN)
                     else
-                        self2:SetAlpha(1)
-                        self2:SetScript("OnUpdate", nil)
+                        f:SetAlpha(1)
+                        f:SetScript("OnUpdate", nil)
                     end
                 end)
                 -- Coin per toast, ring-out on the last (SFX channel).
                 if soundOn then
-                    PlaySoundFile((i == n) and COIN_FINAL_SOUND or COIN_SOUND, "SFX")
+                    PlaySoundFile((i == frameCount) and COIN_FINAL_SOUND or COIN_SOUND, "SFX")
                 end
             end)
         end
@@ -1952,10 +1965,10 @@ function RR:BuildToasterMockup(parent, mockScale)
     pbg:SetAllPoints()
     pbg:SetColorTexture(0.04, 0.04, 0.06, 0.92)
 
-    local function boxEdge(p)
-        local t = p:CreateTexture(nil, "BORDER")
-        t:SetColorTexture(0.30, 0.80, 1.0, 0.5)   -- canonical RR cyan, dimmed
-        return t
+    local function boxEdge(box)
+        local tex = box:CreateTexture(nil, "BORDER")
+        tex:SetColorTexture(0.30, 0.80, 1.0, 0.5)   -- canonical RR cyan, dimmed
+        return tex
     end
     local eT = boxEdge(pBox); eT:SetPoint("TOPLEFT");    eT:SetPoint("TOPRIGHT");    eT:SetHeight(1)
     local eB = boxEdge(pBox); eB:SetPoint("BOTTOMLEFT"); eB:SetPoint("BOTTOMRIGHT"); eB:SetHeight(1)
@@ -1977,11 +1990,11 @@ function RR:BuildToasterMockup(parent, mockScale)
     -- A few list rows to suggest content.
     local rowY = -(18 * MOCK_SCALE + 8) - 6
     for _ = 1, 5 do
-        local r = pBox:CreateTexture(nil, "ARTWORK")
-        r:SetColorTexture(0.16, 0.16, 0.20, 0.8)
-        r:SetPoint("TOPLEFT", 6, rowY)
-        r:SetPoint("TOPRIGHT", -6, rowY)
-        r:SetHeight(10 * MOCK_SCALE + 3)
+        local rowTex = pBox:CreateTexture(nil, "ARTWORK")
+        rowTex:SetColorTexture(0.16, 0.16, 0.20, 0.8)
+        rowTex:SetPoint("TOPLEFT", 6, rowY)
+        rowTex:SetPoint("TOPRIGHT", -6, rowY)
+        rowTex:SetHeight(10 * MOCK_SCALE + 3)
         rowY = rowY - (10 * MOCK_SCALE + 3) - 5
     end
 
@@ -1995,18 +2008,18 @@ function RR:BuildToasterMockup(parent, mockScale)
     if toast.useBanner then toast:SetWidth(TOAST_W_FIXED) end
     -- ApplyContent doesn't set the header; set it here (no :upper(), matching
     -- the unlock-drag sample).
-    toast.header:SetText("New Appearance")
+    toast.header:SetText(RR.L["New Appearance"])
     -- Static glow tint (the live pulse ticker doesn't run here).
     if toast.glowOn and toast.glow then
-        local c = toast.glowColor or GLOW_PINK
-        toast.glow:SetVertexColor(math.min(c[1]*1.35,1), math.min(c[2]*1.35,1), math.min(c[3]*1.35,1), 1)
+        local glow = toast.glowColor or GLOW_PINK
+        toast.glow:SetVertexColor(math.min(glow[1]*1.35,1), math.min(glow[2]*1.35,1), math.min(glow[3]*1.35,1), 1)
     end
     if nm == "" and GetItemInfo then
         local waiter = CreateFrame("Frame")
         waiter:RegisterEvent("GET_ITEM_INFO_RECEIVED")
-        waiter:SetScript("OnEvent", function(self)
-            local n = GetItemInfo(18832)
-            if n then toast.itemNameText:SetText(n); self:UnregisterAllEvents() end
+        waiter:SetScript("OnEvent", function()
+            local itemName = GetItemInfo(18832)
+            if itemName then toast.itemNameText:SetText(itemName); waiter:UnregisterAllEvents() end
         end)
         GetItemInfo(18832)
     end

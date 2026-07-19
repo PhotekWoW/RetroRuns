@@ -320,6 +320,7 @@ RetroRuns_DataHorde[2070] = {
                     mapLabel    = "Otoye",
                     mapLabelPos = "above",
                     note        = "After zoning in, talk with ^Otoye^ to skip straight to ^Lady Jaina Proudmoore^.",
+                    minNote     = "Talk to Otoye",
                     points      = {
                         { 0.220, 0.210 },
                     },
@@ -357,6 +358,7 @@ RetroRuns_DataHorde[2070] = {
                             when    = { mapID = 1352 },
                             kind    = "path",
                             note    = "After zoning in, go downstairs and kill trash to begin the fight against ^High Tinker Mekkatorque^.",
+                            minNote = "Trash then Mekkatorque",
                             points  = {
                                 { 0.492, 0.200 },
                                 { 0.491, 0.285 },
@@ -377,6 +379,7 @@ RetroRuns_DataHorde[2070] = {
                             when    = { mapID = 1352 },
                             kind    = "path",
                             note    = "After defeating ^Mekkatorque^, make your way down the long path south, and kill the trash at the end of the bridge. Interact with a ^Pterrordax^ to start the encounter with ^Stormwall Blockade^.",
+                            minNote = "South to Pterrordax",
                             points  = {
                                 { 0.492, 0.354 },
                                 { 0.492, 0.889 },
@@ -398,6 +401,7 @@ RetroRuns_DataHorde[2070] = {
                             kind    = "poi",
                             poiSize = 35,
                             note    = "After defeating ^Stormwall Blockade^, walk onto the newly-arrived ship and speak with ^Captain Zadari^ to begin the ^Lady Jaina Proudmoore^ encounter.",
+                            minNote = "Talk to Captain Zadari",
                             points  = {
                                 { 0.484, 0.975 },
                             },
@@ -424,12 +428,14 @@ RetroRuns_DataHorde[2070] = {
                             when    = { mapID = 1357, subZone = "The Heart of the Empire" },
                             kind    = "path",
                             note    = "After zoning in, wait for the dialog to complete. You will be transported shortly.",
+                            minNote = "Wait for transport",
                             points  = {},
                         },
                         {
                             when    = { mapID = 1352 },
                             kind    = "path",
                             note    = "Follow the path up the stairs and around to the map exit labeled ^Halls of Opulence^. Jump in the hole at the end of the path.",
+                            minNote = "Path to Halls of Opulence",
                             points  = {
                                 { 0.491, 0.288 },
                                 { 0.491, 0.191 },
@@ -442,6 +448,7 @@ RetroRuns_DataHorde[2070] = {
                             when    = { mapID = 1353 },
                             kind    = "path",
                             note    = "Inside the boss room, head straight ahead to engage ^Opulence^.",
+                            minNote = "Ahead to Opulence",
                             points  = {
                                 { 0.421, 0.838 },
                                 { 0.420, 0.549 },
@@ -462,6 +469,7 @@ RetroRuns_DataHorde[2070] = {
                             when    = { mapID = 1353 },
                             kind    = "path",
                             note    = "After killing ^Opulence^, exit the room to the north, up some stairs to the map exit labeled ^Loa's Sanctum^.",
+                            minNote = "North to Loa's Sanctum",
                             points  = {
                                 { 0.420, 0.477 },
                                 { 0.420, 0.217 },
@@ -474,6 +482,7 @@ RetroRuns_DataHorde[2070] = {
                             when    = { mapID = 1354 },
                             kind    = "path",
                             note    = "Once inside ^Loa's Sanctum^, follow the path straight ahead to engage ^Conclave of the Chosen^.",
+                            minNote = "Ahead to Conclave",
                             points  = {
                                 { 0.474, 0.177 },
                                 { 0.475, 0.643 },
@@ -494,6 +503,7 @@ RetroRuns_DataHorde[2070] = {
                             when    = { mapID = 1354 },
                             kind    = "path",
                             note    = "After defeating ^Conclave of the Chosen^, exit the room to the east, and take the elevator up.",
+                            minNote = "East to Elevator",
                             points  = {
                                 { 0.500, 0.673 },
                                 { 0.641, 0.674 },
@@ -504,6 +514,7 @@ RetroRuns_DataHorde[2070] = {
                             when    = { mapID = 1356 },
                             kind    = "path",
                             note    = "After getting off the elevator, follow the path around to the map exit labeled ^The Heart of the Empire^.",
+                            minNote = "Path to Heart of Empire",
                             points  = {
                                 { 0.648, 0.680 },
                                 { 0.648, 0.385 },
@@ -515,6 +526,7 @@ RetroRuns_DataHorde[2070] = {
                             when    = { mapID = 1357 },
                             kind    = "path",
                             note    = "Continue ahead to clear the trash and engage ^King Rastakhan^.",
+                            minNote = "Trash then Rastakhan",
                             points  = {
                                 { 0.475, 0.408 },
                                 { 0.473, 0.539 },
@@ -547,6 +559,7 @@ RetroRuns_DataHorde[2070] = {
                             when    = { mapID = 1358 },
                             kind    = "path",
                             note    = "After zoning in, proceed straight ahead to ^Champion of the Light^.",
+                            minNote = "Ahead to Champion",
                             points  = {
                                 { 0.239, 0.193 },
                                 { 0.241, 0.303 },
@@ -568,6 +581,7 @@ RetroRuns_DataHorde[2070] = {
                             when    = { mapID = 1358 },
                             kind    = "path",
                             note    = "After defeating ^Champion of the Light^, continue down the path, clearing trash on the way to ^Grong^.",
+                            minNote = "Trash then Grong",
                             points  = {
                                 { 0.316, 0.413 },
                                 { 0.360, 0.480 },
@@ -592,6 +606,7 @@ RetroRuns_DataHorde[2070] = {
                             when    = { mapID = 1358 },
                             kind    = "path",
                             note    = "After defeating ^Grong^, follow the winding path around to ^Jadefire Masters^. Kill the trash to start the encounter.",
+                            minNote = "Trash then Jadefire",
                             points  = {
                                 { 0.438, 0.612 },
                                 { 0.462, 0.609 },
@@ -625,6 +640,7 @@ RetroRuns_DataHorde[2070] = {
                     when    = { mapID = 1358 },
                     kind    = "path",
                     note    = "After zoning in, proceed straight ahead to ^Champion of the Light^.",
+                    minNote = "Ahead to Champion",
                     points  = {
                         { 0.239, 0.193 },
                         { 0.241, 0.303 },
@@ -646,6 +662,7 @@ RetroRuns_DataHorde[2070] = {
                     when    = { mapID = 1358 },
                     kind    = "path",
                     note    = "After defeating ^Champion of the Light^, continue down the path, clearing trash on the way to ^Grong^.",
+                    minNote = "Trash then Grong",
                     points  = {
                         { 0.316, 0.413 },
                         { 0.360, 0.480 },
@@ -670,6 +687,7 @@ RetroRuns_DataHorde[2070] = {
                     when    = { mapID = 1358 },
                     kind    = "path",
                     note    = "After defeating ^Grong^, follow the winding path around to ^Jadefire Masters^. Kill the trash to start the encounter.",
+                    minNote = "Trash then Jadefire",
                     points  = {
                         { 0.438, 0.612 },
                         { 0.462, 0.609 },
@@ -710,6 +728,7 @@ RetroRuns_DataHorde[2070] = {
                     poiSize = 35,
                     mapLabel = "Door",
                     note    = "After defeating ^Jadefire Masters^, go up the stairs behind them toward the map exit labeled ^The Heart of the Empire^. Open the door to continue.",
+                    minNote = "Path to Heart of the Empire",
                     points  = {
                         { 0.488, 0.766 },
                     },
@@ -718,6 +737,7 @@ RetroRuns_DataHorde[2070] = {
                     when    = { mapID = 1357, subZone = "The Heart of the Empire" },
                     kind    = "path",
                     note    = "Inside ^The Heart of the Empire^, follow the path around to find some NPCs mourning over the corpse of ^King Rastakhan^. Talk to ^Otoye^ to be switched to Alliance temporarily.",
+                    minNote = "Talk to Otoye",
                     points  = {
                         { 0.472, 0.190 },
                         { 0.469, 0.306 },
@@ -731,6 +751,7 @@ RetroRuns_DataHorde[2070] = {
                     when    = { mapID = 1352 },
                     kind    = "path",
                     note    = "After switching to Alliance, follow the path up the stairs and around to the map exit labeled ^Halls of Opulence^. Jump in the hole at the end of the path.",
+                    minNote = "Path to Halls of Opulence",
                     points  = {
                         { 0.491, 0.288 },
                         { 0.491, 0.191 },
@@ -743,6 +764,7 @@ RetroRuns_DataHorde[2070] = {
                     when    = { mapID = 1353 },
                     kind    = "path",
                     note    = "Inside the boss room, head straight ahead to engage ^Opulence^.",
+                    minNote = "Ahead to Opulence",
                     points  = {
                         { 0.421, 0.838 },
                         { 0.420, 0.549 },
@@ -764,6 +786,7 @@ RetroRuns_DataHorde[2070] = {
                     when    = { mapID = 1353 },
                     kind    = "path",
                     note    = "After killing ^Opulence^, exit the room to the north, up some stairs to the map exit labeled ^Loa's Sanctum^.",
+                    minNote = "North to Loa's Sanctum",
                     points  = {
                         { 0.420, 0.477 },
                         { 0.420, 0.217 },
@@ -776,6 +799,7 @@ RetroRuns_DataHorde[2070] = {
                     when    = { mapID = 1354 },
                     kind    = "path",
                     note    = "Once inside ^Loa's Sanctum^, follow the path straight ahead to engage ^Conclave of the Chosen^.",
+                    minNote = "Ahead to Conclave",
                     points  = {
                         { 0.474, 0.177 },
                         { 0.475, 0.643 },
@@ -798,6 +822,7 @@ RetroRuns_DataHorde[2070] = {
                     when    = { mapID = 1354 },
                     kind    = "path",
                     note    = "After defeating ^Conclave of the Chosen^, exit the room to the east, and take the elevator up.",
+                    minNote = "East to Elevator",
                     points  = {
                         { 0.500, 0.673 },
                         { 0.641, 0.674 },
@@ -808,6 +833,7 @@ RetroRuns_DataHorde[2070] = {
                     when    = { mapID = 1356 },
                     kind    = "path",
                     note    = "After getting off the elevator, follow the path around to the map exit labeled ^The Heart of the Empire^.",
+                    minNote = "Path to Heart of King",
                     points  = {
                         { 0.648, 0.680 },
                         { 0.648, 0.385 },
@@ -819,6 +845,7 @@ RetroRuns_DataHorde[2070] = {
                     when    = { mapID = 1357 },
                     kind    = "path",
                     note    = "Continue ahead to clear the trash and engage ^King Rastakhan^.",
+                    minNote = "Trash then Rastakhan",
                     points  = {
                         { 0.475, 0.408 },
                         { 0.473, 0.539 },
@@ -848,6 +875,7 @@ RetroRuns_DataHorde[2070] = {
                     when    = { mapID = 1357 },
                     kind    = "path",
                     note    = "After defeating ^King Rastakhan^, take the western exit from the room and make your way towards the map exit labeled ^Port of Zandalar^. Interact with the ^Riding Pterrordax^ to be flown to the next area.",
+                    minNote = "Path to Pterrordax",
                     points  = {
                         { 0.473, 0.538 },
                         { 0.407, 0.464 },
@@ -861,6 +889,7 @@ RetroRuns_DataHorde[2070] = {
                     when    = { mapID = 1352 },
                     kind    = "path",
                     note    = "After landing, proceed down the steps to clear trash and begin the fight with ^High Tinker Mekkatorque^.",
+                    minNote = "Trash then Mekkatorque",
                     points  = {
                         { 0.491, 0.203 },
                         { 0.490, 0.283 },
@@ -886,6 +915,7 @@ RetroRuns_DataHorde[2070] = {
                     when    = { mapID = 1352 },
                     kind    = "path",
                     note    = "After defeating ^Mekkatorque^, make your way down the long path south, and kill the trash at the end of the bridge. Interact with a ^Pterrordax^ to start the encounter with ^Stormwall Blockade^.",
+                    minNote = "South to Pterrordax",
                     points  = {
                         { 0.493, 0.367 },
                         { 0.491, 0.906 },
@@ -912,6 +942,7 @@ RetroRuns_DataHorde[2070] = {
                     kind    = "poi",
                     poiSize = 35,
                     note    = "After defeating ^Stormwall Blockade^, walk onto the newly-arrived ship and speak with ^Captain Zadari^ to begin the ^Lady Jaina Proudmoore^ encounter.",
+                    minNote = "Talk to Captain Zadari",
                     points  = {
                         { 0.484, 0.975 },
                     },

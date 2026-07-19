@@ -275,6 +275,7 @@ RetroRuns_Data[669] = {
                     when    = { mapID = 285, subZone = "The Broken Hall" },
                     kind    = "path",
                     note    = "After zoning in, go up the stairs to the right to reach the ^Omnotron Defense System^.",
+                    minNote = "Right to Omnotron",
                     points  = {
                         { 0.495, 0.594 },
                         { 0.582, 0.594 },
@@ -296,6 +297,7 @@ RetroRuns_Data[669] = {
                     when    = { mapID = 285, subZone = "Stone Sentinel's Overlook" },
                     kind    = "path",
                     note    = "After defeating the ^Omnotron Defense System^, go back downstairs and proceed straight ahead to reach ^Magmaw^.",
+                    minNote = "Downstairs across to Magmaw",
                     points  = {
                         { 0.606, 0.572 },
                         { 0.583, 0.596 },
@@ -318,6 +320,7 @@ RetroRuns_Data[669] = {
                     when    = { mapID = 285, subZone = "The Broken Hall" },
                     kind    = "path",
                     note    = "After killing ^Magmaw^, go back down the stairs to the main lobby. Take a left and ride the elevator down.",
+                    minNote = "Left Elevator down",
                     points  = {
                         { 0.302, 0.574 },
                         { 0.338, 0.573 },
@@ -331,6 +334,7 @@ RetroRuns_Data[669] = {
                     when    = { mapID = 286, subZone = "Vault of the Shadowflame" },
                     kind    = "path",
                     note    = "After reaching the bottom of the elevator, take a right and follow the path to reach ^Maloriak^.",
+                    minNote = "Right to Maloriak",
                     points  = {
                         { 0.475, 0.834 },
                         { 0.541, 0.785 },
@@ -357,6 +361,7 @@ RetroRuns_Data[669] = {
                     when    = { mapID = 286, subZone = "Fleshrender's Workshop" },
                     kind    = "path",
                     note    = "After defeating ^Maloriak^, exit back to the main ring and head to the north exit. Kill trash, then hit the large bell at the back of the room to begin the encounter with ^Atramedes^.",
+                    minNote = "North, Trash then Bell",
                     points  = {
                         { 0.682, 0.697 },
                         { 0.563, 0.694 },
@@ -380,6 +385,7 @@ RetroRuns_Data[669] = {
                     when    = { mapID = 286, subZone = "The Athenaeum" },
                     kind    = "path",
                     note    = "After killing ^Atramedes^, go back out to the main ring and head to the western ring to fight ^Chimaeron^.",
+                    minNote = "West to Chimaeron",
                     points  = {
                         { 0.473, 0.392 },
                         { 0.474, 0.562 },
@@ -403,6 +409,7 @@ RetroRuns_Data[669] = {
                     when    = { mapID = 286, subZone = "Den of the Devourer" },
                     kind    = "path",
                     note    = "After defeating ^Chimaeron^, go back out to the main ring and follow the path to the ^Orb of Culmination^. Interact with it to begin the encounter with ^Nefarian^.",
+                    minNote = "Click Orb of Culmination",
                     points  = {
                         { 0.271, 0.696 },
                         { 0.385, 0.694 },

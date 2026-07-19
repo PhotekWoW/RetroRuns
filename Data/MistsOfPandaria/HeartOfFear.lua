@@ -304,6 +304,7 @@ RetroRuns_Data[1009] = {
                     when    = { mapID = 474, subZone = "Palace Antechamber" },
                     kind    = "path",
                     note    = "After zoning in, follow the linear path to reach ^Imperial Vizier Zor'lok^. Clear all trash in his room to start the fight.",
+                    minNote = "Path to Zor'lok",
                     points  = {
                         { 0.343, 0.814 },
                         { 0.342, 0.697 },
@@ -329,6 +330,7 @@ RetroRuns_Data[1009] = {
                     when    = { mapID = 474, subZone = "Oratorium of the Voice" },
                     kind    = "path",
                     note    = "After killing ^Zor'lok^, take the northwest stairwell and follow the path into the next room to find ^Blade Lord Ta'yak^. Kill trash in all 4 corners to begin the fight.",
+                    minNote = "Northwest to Ta'yak",
                     points  = {
                         { 0.595, 0.604 },
                         { 0.545, 0.535 },
@@ -352,6 +354,7 @@ RetroRuns_Data[1009] = {
                     when    = { mapID = 474, subZone = "Training Quarters" },
                     kind    = "path",
                     note    = "After killing ^Blade Lord Ta'yak^, take the long stairwell exit on the west side of the room.",
+                    minNote = "West stairwell",
                     points  = {
                         { 0.516, 0.322 },
                         { 0.318, 0.324 },
@@ -362,6 +365,7 @@ RetroRuns_Data[1009] = {
                     when    = { mapID = 475, subZone = "Staging Balcony" },
                     kind    = "path",
                     note    = "At the top of the stairs, clear the elite trash on the platform to spawn ^Garalon^.",
+                    minNote = "Clear elites for Garalon",
                     points  = {
                         { 0.664, 0.262 },
                         { 0.663, 0.203 },
@@ -382,6 +386,7 @@ RetroRuns_Data[1009] = {
                     when    = { mapID = 475, subZone = "Staging Balcony" },
                     kind    = "path",
                     note    = "After killing ^Garalon^, walk up the stairs behind you to find ^Wind Lord Mel'jarak^.",
+                    minNote = "Up to Wind Lord",
                     points  = {
                         { 0.661, 0.212 },
                         { 0.660, 0.256 },
@@ -409,6 +414,7 @@ RetroRuns_Data[1009] = {
                     when    = { mapID = 475, subZone = "Staging Balcony" },
                     kind    = "path",
                     note    = "After defeating ^Wind Lord Mel'jarak^, take the southern stairwell and follow the linear path all the way to ^Amber-Shaper Un'sok^.",
+                    minNote = "South to Un'sok",
                     points  = {
                         { 0.662, 0.379 },
                         { 0.663, 0.663 },
@@ -432,6 +438,7 @@ RetroRuns_Data[1009] = {
                     when    = { mapID = 475, subZone = "Amber Research Sanctum" },
                     kind    = "path",
                     note    = "After defeating ^Amber-Shaper Un'sok^, exit the room to the west and head straight for ^Grand Empress Shek'zeer^. Clear all the trash to spawn the boss.",
+                    minNote = "West to Shek'zeer",
                     points  = {
                         { 0.470, 0.736 },
                         { 0.408, 0.737 },
@@ -467,6 +474,7 @@ RetroRuns_Data[1009] = {
                             when    = { mapID = 474, subZone = "Palace Antechamber" },
                             kind    = "path",
                             note    = "After zoning in, follow the linear path to reach ^Imperial Vizier Zor'lok^. Clear all trash in his room to start the fight.",
+                            minNote = "Path to Zor'lok",
                             points  = {
                                 { 0.343, 0.814 },
                                 { 0.342, 0.697 },
@@ -492,6 +500,7 @@ RetroRuns_Data[1009] = {
                             when    = { mapID = 474, subZone = "Oratorium of the Voice" },
                             kind    = "path",
                             note    = "After killing ^Zor'lok^, take the northwest stairwell and follow the path into the next room to find ^Blade Lord Ta'yak^. Kill trash in all 4 corners to begin the fight.",
+                            minNote = "Northwest to Ta'yak",
                             points  = {
                                 { 0.595, 0.604 },
                                 { 0.545, 0.535 },
@@ -515,6 +524,7 @@ RetroRuns_Data[1009] = {
                             when    = { mapID = 474, subZone = "Training Quarters" },
                             kind    = "path",
                             note    = "After killing ^Blade Lord Ta'yak^, take the long stairwell exit on the west side of the room.",
+                            minNote = "West stairwell",
                             points  = {
                                 { 0.516, 0.322 },
                                 { 0.318, 0.324 },
@@ -525,6 +535,7 @@ RetroRuns_Data[1009] = {
                             when    = { mapID = 475, subZone = "Staging Balcony" },
                             kind    = "path",
                             note    = "At the top of the stairs, clear the elite trash on the platform to spawn ^Garalon^.",
+                            minNote = "Clear elites for Garalon",
                             points  = {
                                 { 0.664, 0.262 },
                                 { 0.663, 0.203 },
@@ -555,6 +566,7 @@ RetroRuns_Data[1009] = {
                             when    = { mapID = 475, subZone = "Staging Balcony" },
                             kind    = "path",
                             note    = "After zoning in, walk up the ramp in front of you to find ^Wind Lord Mel'jarak^.",
+                            minNote = "Up to Wind Lord",
                             points  = {
                                 { 0.661, 0.212 },
                                 { 0.660, 0.256 },
@@ -582,6 +594,7 @@ RetroRuns_Data[1009] = {
                             when    = { mapID = 475, subZone = "Staging Balcony" },
                             kind    = "path",
                             note    = "After defeating ^Wind Lord Mel'jarak^, take the southern stairwell and follow the linear path all the way to ^Amber-Shaper Un'sok^.",
+                            minNote = "South to Un'sok",
                             points  = {
                                 { 0.662, 0.379 },
                                 { 0.663, 0.663 },
@@ -605,6 +618,7 @@ RetroRuns_Data[1009] = {
                             when    = { mapID = 475, subZone = "Amber Research Sanctum" },
                             kind    = "path",
                             note    = "After defeating ^Amber-Shaper Un'sok^, exit the room to the west and head straight for ^Grand Empress Shek'zeer^. Clear all the trash to spawn the boss.",
+                            minNote = "West to Shek'zeer",
                             points  = {
                                 { 0.470, 0.736 },
                                 { 0.408, 0.737 },

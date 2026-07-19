@@ -32,7 +32,11 @@ local COLOR_PINK    = { 0.95, 0.35, 0.78 }
 local COLOR_CYAN    = { 0.30, 0.80, 1.00 }
 local COLOR_LABEL   = { 1.00, 1.00, 1.00 }
 local COLOR_DIM     = { 0.62, 0.62, 0.62 }
+-- The pixel face renders only the RETRO/RUNS wordmark (ASCII); all other
+-- canvas text uses the client's standard font so every locale's glyphs
+-- render, and settings prose stays readable at small sizes.
 local RETRO_FONT    = "Interface\\AddOns\\RetroRuns\\Media\\Fonts\\04B_03.TTF"
+local CANVAS_FONT   = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 local CONTROL_FONT_SIZE = 15   -- shared label size for all settings controls
 
 local ICON_BUG      = "Interface\\AddOns\\RetroRuns\\Media\\BugIcon"
@@ -79,9 +83,9 @@ titleRuns:SetShadowColor(0, 0, 0, 1)
 -- "by Photek" credit trailing the wordmark, smaller and dim so it reads
 -- as a subtitle rather than competing with the brand.
 local titleBy = panel:CreateFontString(nil, "ARTWORK")
-titleBy:SetFont(RETRO_FONT, 12, "OUTLINE")
+titleBy:SetFont(CANVAS_FONT, 12, "")
 titleBy:SetPoint("LEFT", titleRuns, "RIGHT", 6, -2)
-titleBy:SetText("by Photek")
+titleBy:SetText(RR.L["by Photek"])
 titleBy:SetTextColor(unpack(COLOR_DIM))
 titleBy:SetShadowOffset(1, -1)
 titleBy:SetShadowColor(0, 0, 0, 1)
@@ -100,13 +104,13 @@ local pages = {}
 local pageCursor = {}
 
 local function NewPage()
-    local p = CreateFrame("Frame", nil, panel)
-    p:SetPoint("TOPLEFT", CONTENT_X, NAV_TOP)
-    p:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -24, 48)
-    p:Hide()
-    pages[#pages + 1] = p
-    pageCursor[p] = SECTION_TOP
-    return p
+    local page = CreateFrame("Frame", nil, panel)
+    page:SetPoint("TOPLEFT", CONTENT_X, NAV_TOP)
+    page:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -24, 48)
+    page:Hide()
+    pages[#pages + 1] = page
+    pageCursor[page] = SECTION_TOP
+    return page
 end
 
 -- ---- Control builders (operate on a given page) --------------------------
@@ -117,7 +121,7 @@ local function AddCheckbox(page, label, tooltip, indent, getValue, setValue)
     cb.Text:SetText(label)
     -- Use the RetroRuns 04B_03 font so this matches the rest of the panel
     -- (the stock template font reads as generic Blizzard, out of place here).
-    cb.Text:SetFont(RETRO_FONT, CONTROL_FONT_SIZE, "OUTLINE")
+    cb.Text:SetFont(CANVAS_FONT, CONTROL_FONT_SIZE, "")
     cb.Text:SetTextColor(unpack(COLOR_LABEL))
     cb.Text:SetShadowOffset(1, -1)
     cb.Text:SetShadowColor(0, 0, 0, 1)
@@ -138,7 +142,7 @@ local function AddSlider(page, label, minV, maxV, step, getValue, setValue, form
     container:SetPoint("TOPLEFT", 0, pageCursor[page])
 
     local title = container:CreateFontString(nil, "ARTWORK")
-    title:SetFont(RETRO_FONT, CONTROL_FONT_SIZE, "OUTLINE")
+    title:SetFont(CANVAS_FONT, CONTROL_FONT_SIZE, "")
     title:SetPoint("TOPLEFT", 0, 0)
     title:SetTextColor(unpack(COLOR_LABEL))
     title:SetShadowOffset(1, -1)
@@ -154,16 +158,16 @@ local function AddSlider(page, label, minV, maxV, step, getValue, setValue, form
     if slider.High then slider.High:SetText("") end
     if slider.Text then slider.Text:SetText("") end
 
-    local function refreshTitle(v) title:SetText(label .. ": " .. formatValue(v)) end
+    local function refreshTitle(value) title:SetText(label .. ": " .. formatValue(value)) end
     slider:SetScript("OnValueChanged", function(_, value)
         value = math.floor((value / step) + 0.5) * step
         setValue(value)
         refreshTitle(value)
     end)
     container.RR_Refresh = function()
-        local v = getValue()
-        slider:SetValue(v)
-        refreshTitle(v)
+        local value = getValue()
+        slider:SetValue(value)
+        refreshTitle(value)
     end
     controls[#controls + 1] = container
     container.slider = slider   -- exposed so callers can enable/disable it
@@ -177,7 +181,7 @@ local function AddDropdown(page, label, options, getValue, setValue)
     container:SetPoint("TOPLEFT", 0, pageCursor[page])
 
     local title = container:CreateFontString(nil, "ARTWORK")
-    title:SetFont(RETRO_FONT, CONTROL_FONT_SIZE, "OUTLINE")
+    title:SetFont(CANVAS_FONT, CONTROL_FONT_SIZE, "")
     title:SetPoint("TOPLEFT", 4, 0)
     title:SetText(label)
     title:SetTextColor(unpack(COLOR_LABEL))
@@ -192,7 +196,16 @@ local function AddDropdown(page, label, options, getValue, setValue)
     local function SetSelected(value) setValue(value) end
     dd:SetupMenu(function(_, rootDescription)
         for _, opt in ipairs(options) do
-            rootDescription:CreateRadio(opt.text, IsSelected, SetSelected, opt.value)
+            local radio = rootDescription:CreateRadio(
+                opt.text, IsSelected, SetSelected, opt.value)
+            if opt.disabled and opt.disabled() then
+                radio:SetEnabled(false)
+                if opt.disabledTooltip then
+                    radio:SetTooltip(function(tooltip)
+                        GameTooltip_AddNormalLine(tooltip, opt.disabledTooltip)
+                    end)
+                end
+            end
         end
     end)
     container.RR_Refresh = function()
@@ -207,9 +220,12 @@ end
 
 local function MakeTextButton(label, x, y, width, onClick)
     local btn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    btn:SetSize(width or 160, 24)
     btn:SetPoint("BOTTOMLEFT", x, y)
     btn:SetText(label)
+    -- The width argument is a minimum: localized labels wider than the
+    -- design width grow the button instead of overflowing it.
+    local fit = (btn:GetTextWidth() or 0) + 24
+    btn:SetSize(math.max(width or 160, fit), 24)
     btn:SetScript("OnClick", onClick)
     return btn
 end
@@ -220,64 +236,68 @@ local pageGeneral, pageAppearance, pageToaster, pageCustomize, pageWhatsNew, pag
     NewPage(), NewPage(), NewPage(), NewPage(), NewPage(), NewPage()
 
 -- General (was "Behavior")
-AddDropdown(pageGeneral, "On Login Show RetroRuns", {
-        { value = "minimized", text = "Open minimized" },
-        { value = "full",      text = "Open full" },
-        { value = "hidden",    text = "Don't open" },
+AddDropdown(pageGeneral, RR.L["On Login Show RetroRuns"], {
+        { value = "minimized", text = RR.L["Open minimized"] },
+        { value = "full",      text = RR.L["Open full"] },
+        { value = "hidden",    text = RR.L["Don't open"] },
     },
     function() return RR:GetSetting("launchMode", "minimized") end,
-    function(v) RR:SetSetting("launchMode", v) end)
+    function(value) RR:SetSetting("launchMode", value) end)
 
-AddDropdown(pageGeneral, "Boss Progress Display", {
-        { value = "rr", text = "Kill Order (Default)" },
-        { value = "ej", text = "Blizzard Journal Order" },
+AddDropdown(pageGeneral, RR.L["Boss Progress Display"], {
+        { value = "rr", text = RR.L["Kill Order (Default)"] },
+        { value = "ej", text = RR.L["Blizzard Journal Order"] },
     },
     function() return RR:GetSetting("bossOrderMode", "rr") end,
-    function(v) RR:SetSetting("bossOrderMode", v); if UI.Update then UI.Update() end end)
+    function(value) RR:SetSetting("bossOrderMode", value); if UI.Update then UI.Update() end end)
 
-AddCheckbox(pageGeneral, "Minimap Button", "Show the RetroRuns button on the minimap.", 0,
+AddCheckbox(pageGeneral, RR.L["Minimap Button"], RR.L["Show the RetroRuns button on the minimap."], 0,
     function() return RR:GetSetting("showMinimap") ~= false end,
-    function(v)
-        RR:SetSetting("showMinimap", v)
+    function(value)
+        RR:SetSetting("showMinimap", value)
         if RR.minimapButton then
-            if v then RR.minimapButton:Show() else RR.minimapButton:Hide() end
+            if value then RR.minimapButton:Show() else RR.minimapButton:Hide() end
         end
     end)
 
 -- Appearance
 -- Font Size max is RR.FONT_SIZE_MAX (the size the fixed-width frame fits).
-AddSlider(pageAppearance, "Font Size", 10, RR.FONT_SIZE_MAX or 14, 1,
+AddSlider(pageAppearance, RR.L["Font Size"], 10, RR.FONT_SIZE_MAX or 14, 1,
     function() return RR:GetSetting("fontSize", 12) end,
-    function(v)
-        RR:SetSetting("fontSize", v)
+    function(value)
+        RR:SetSetting("fontSize", value)
         if UI.InvalidateIdleListCache then UI.InvalidateIdleListCache() end
         if UI.InvalidateAchievementsCache then UI.InvalidateAchievementsCache() end
         ApplyPanel()
     end,
-    function(v) return tostring(v) end)
+    function(value) return tostring(value) end)
 
-AddSlider(pageAppearance, "Window Scale", 80, 130, 5,
+AddSlider(pageAppearance, RR.L["Window Scale"], 80, 130, 5,
     function() return math.floor((RR:GetSetting("windowScale", 1.0) * 100) + 0.5) end,
-    function(v)
-        RR:SetSetting("windowScale", v / 100)
+    function(value)
+        RR:SetSetting("windowScale", value / 100)
         if UI.InvalidateIdleListCache then UI.InvalidateIdleListCache() end
         ApplyPanel()
     end,
-    function(v) return string.format("%.2fx", v / 100) end)
+    function(value) return string.format("%.2fx", value / 100) end)
 
-AddSlider(pageAppearance, "Panel Opacity", 20, 100, 5,
+AddSlider(pageAppearance, RR.L["Panel Opacity"], 20, 100, 5,
     function() return math.floor((RR:GetSetting("panelOpacity", 1.0) * 100) + 0.5) end,
-    function(v) RR:SetSetting("panelOpacity", v / 100); ApplyPanel() end,
-    function(v) return string.format("%d%%", v) end)
+    function(value) RR:SetSetting("panelOpacity", value / 100); ApplyPanel() end,
+    function(value) return string.format("%d%%", value) end)
 
-AddDropdown(pageAppearance, "Body Font", {
-        { value = "standard", text = "Friz Quadrata (Default)" },
-        { value = "retro",    text = "04B_03" },
-        { value = "vt323",    text = "VT323" },
+AddDropdown(pageAppearance, RR.L["Body Font"], {
+        { value = "standard", text = RR.L["Friz Quadrata (Default)"] },
+        { value = "retro",    text = "04B_03",
+          disabled = function() return not RR:FontStyleSupportsLocale("retro") end,
+          disabledTooltip = RR.L["This font does not include the characters your game language requires."] },
+        { value = "vt323",    text = "VT323",
+          disabled = function() return not RR:FontStyleSupportsLocale("vt323") end,
+          disabledTooltip = RR.L["This font does not include the characters your game language requires."] },
     },
     function() return RR:GetSetting("bodyFontStyle", "standard") end,
-    function(v)
-        RR:SetSetting("bodyFontStyle", v)
+    function(value)
+        RR:SetSetting("bodyFontStyle", value)
         -- Re-font the body surfaces; the Tmog window needs a forced refresh.
         if UI.InvalidateIdleListCache then UI.InvalidateIdleListCache() end
         if UI.InvalidateAchievementsCache then UI.InvalidateAchievementsCache() end
@@ -298,7 +318,7 @@ local COLOR_RED      = { 0.95, 0.35, 0.35 }   -- "manually disabled"
 local SEG_FONT_SIZE  = 15
 local SUB_INDENT     = 18
 local VALUE_X = 240   -- page-relative x for the value column. Sized to clear
-                      -- the widest label, "Hide Blizzard Boss Banner:" at 15pt
+                      -- the widest label, RR.L["Hide Blizzard Boss Banner:"] at 15pt
                       -- with its sub-indent. NOT offset by CONTENT_X since
                       -- controls anchor within the page, whose origin is
                       -- already at CONTENT_X)
@@ -306,17 +326,17 @@ local VALUE_X = 240   -- page-relative x for the value column. Sized to clear
 -- Tagline header for the Toaster tab.
 do
     local tagline = pageToaster:CreateFontString(nil, "ARTWORK")
-    tagline:SetFont(RETRO_FONT, 17, "OUTLINE")
+    tagline:SetFont(CANVAS_FONT, 17, "")
     tagline:SetPoint("TOPLEFT", 0, pageCursor[pageToaster])
-    tagline:SetText("Toast what matters. Silence everything else.")
+    tagline:SetText(RR.L["Toast what matters. Silence everything else."])
     tagline:SetTextColor(unpack(COLOR_CYAN))
     tagline:SetShadowOffset(1, -1); tagline:SetShadowColor(0, 0, 0, 1)
     pageCursor[pageToaster] = pageCursor[pageToaster] - (17 + 8)
 
     local subline = pageToaster:CreateFontString(nil, "ARTWORK")
-    subline:SetFont(RETRO_FONT, 12, "OUTLINE")
+    subline:SetFont(CANVAS_FONT, 12, "")
     subline:SetPoint("TOPLEFT", 0, pageCursor[pageToaster])
-    subline:SetText("Filter Blizzard Native Loot / Tmog Notifications")
+    subline:SetText(RR.L["Filter Blizzard Native Loot / Tmog Notifications"])
     subline:SetTextColor(unpack(COLOR_PINK))
     subline:SetShadowOffset(1, -1); subline:SetShadowColor(0, 0, 0, 1)
     pageCursor[pageToaster] = pageCursor[pageToaster] - (12 + 8)
@@ -350,9 +370,9 @@ local statusArrow, statusValue
 local ARROW_TEX = "Interface\\AddOns\\RetroRuns\\Media\\ArrowDown"
 do
     local lbl = pageToaster:CreateFontString(nil, "ARTWORK")
-    lbl:SetFont(RETRO_FONT, SEG_FONT_SIZE, "OUTLINE")
+    lbl:SetFont(CANVAS_FONT, SEG_FONT_SIZE, "")
     lbl:SetPoint("TOPLEFT", 0, pageCursor[pageToaster])
-    lbl:SetText("Active Status:")
+    lbl:SetText(RR.L["Active Status:"])
     lbl:SetTextColor(unpack(COLOR_LABEL))
     lbl:SetShadowOffset(1, -1); lbl:SetShadowColor(0, 0, 0, 1)
 
@@ -366,7 +386,7 @@ do
 
     -- Status text stays in the retro font to match the rest of the panel.
     statusValue = pageToaster:CreateFontString(nil, "ARTWORK")
-    statusValue:SetFont(RETRO_FONT, SEG_FONT_SIZE, "OUTLINE")
+    statusValue:SetFont(CANVAS_FONT, SEG_FONT_SIZE, "")
     statusValue:SetPoint("LEFT", statusArrow, "RIGHT", 5, 0)
     statusValue:SetShadowOffset(1, -1); statusValue:SetShadowColor(0, 0, 0, 1)
 
@@ -381,7 +401,7 @@ local function AddButtonPair(label, indent, trueLabel, falseLabel, getValue, set
     local rowY = pageCursor[pageToaster]
 
     local lbl = pageToaster:CreateFontString(nil, "ARTWORK")
-    lbl:SetFont(RETRO_FONT, SEG_FONT_SIZE, "OUTLINE")
+    lbl:SetFont(CANVAS_FONT, SEG_FONT_SIZE, "")
     lbl:SetPoint("TOPLEFT", indent or 0, rowY)
     lbl:SetText(label)
     lbl:SetTextColor(unpack(COLOR_LABEL))
@@ -390,7 +410,7 @@ local function AddButtonPair(label, indent, trueLabel, falseLabel, getValue, set
     local function MakeBtn(text, value)
         local btn = CreateFrame("Button", nil, pageToaster)
         local fs = btn:CreateFontString(nil, "ARTWORK")
-        fs:SetFont(RETRO_FONT, SEG_FONT_SIZE, "OUTLINE")
+        fs:SetFont(CANVAS_FONT, SEG_FONT_SIZE, "")
         fs:SetText(text)
         fs:SetShadowOffset(1, -1); fs:SetShadowColor(0, 0, 0, 1)
         btn.fs = fs
@@ -413,10 +433,13 @@ local function AddButtonPair(label, indent, trueLabel, falseLabel, getValue, set
     end
 
     local trueBtn = MakeBtn(trueLabel, true)
-    trueBtn:SetPoint("TOPLEFT", pageToaster, "TOPLEFT", VALUE_X, rowY)
+    -- The value column is a minimum: rows whose localized label runs past
+    -- it push their buttons right instead of being overdrawn.
+    local valueX = math.max(VALUE_X, (indent or 0) + lbl:GetStringWidth() + 12)
+    trueBtn:SetPoint("TOPLEFT", pageToaster, "TOPLEFT", valueX, rowY)
 
     local sep = pageToaster:CreateFontString(nil, "ARTWORK")
-    sep:SetFont(RETRO_FONT, SEG_FONT_SIZE, "OUTLINE")
+    sep:SetFont(CANVAS_FONT, SEG_FONT_SIZE, "")
     sep:SetText("|")
     sep:SetPoint("LEFT", trueBtn, "RIGHT", 6, 0)
     sep:SetTextColor(unpack(COLOR_DIM))
@@ -460,27 +483,27 @@ local function AddButtonPair(label, indent, trueLabel, falseLabel, getValue, set
     return row
 end
 
-local enableRow = AddButtonPair("Toaster:", 0, "Enable", "Disable",
+local enableRow = AddButtonPair(RR.L["Toaster:"], 0, RR.L["Enable"], RR.L["Disable"],
     function() return RR:GetSetting("toasterEnabled", false) ~= false end,
-    function(v) if RR.SetToaster then RR:SetToaster(v) end end)
+    function(value) if RR.SetToaster then RR:SetToaster(value) end end)
 
-local lootSummaryRow = AddButtonPair("Loot Summary:", SUB_INDENT, "On", "Off",
+local lootSummaryRow = AddButtonPair(RR.L["Loot Summary:"], SUB_INDENT, RR.L["On"], RR.L["Off"],
     function() return RR:GetSetting("toasterLootSummary", true) ~= false end,
-    function(v) RR:SetSetting("toasterLootSummary", v) end)
+    function(value) RR:SetSetting("toasterLootSummary", value) end)
 
 -- Stored value means "suppress Blizzard's banner": On = hidden. Default on
 -- (true) so the banner is hidden whenever the Toaster is active. Toggling it
 -- live re-reconciles the suppression immediately.
-local bannerRow = AddButtonPair("Hide Blizzard Boss Banner:", SUB_INDENT, "On", "Off",
+local bannerRow = AddButtonPair(RR.L["Hide Blizzard Boss Banner:"], SUB_INDENT, RR.L["On"], RR.L["Off"],
     function() return RR:GetSetting("toasterHideBossBanner", true) ~= false end,
-    function(v)
-        RR:SetSetting("toasterHideBossBanner", v)
+    function(value)
+        RR:SetSetting("toasterHideBossBanner", value)
         if RR._RefreshToasterBannerSuppression then RR._RefreshToasterBannerSuppression() end
     end)
 
-local soundRow = AddButtonPair("Coin SFX:", SUB_INDENT, "On", "Off",
+local soundRow = AddButtonPair(RR.L["Coin SFX:"], SUB_INDENT, RR.L["On"], RR.L["Off"],
     function() return RR:GetSetting("toasterSound", true) ~= false end,
-    function(v) RR:SetSetting("toasterSound", v) end)
+    function(value) RR:SetSetting("toasterSound", value) end)
 
 -- Spacing + divider separating the controls above from the preview below.
 do
@@ -528,9 +551,9 @@ do
     local cy = 0   -- container-local cursor (descends from the top)
 
     local lbl = container:CreateFontString(nil, "ARTWORK")
-    lbl:SetFont(RETRO_FONT, CONTROL_FONT_SIZE, "OUTLINE")
+    lbl:SetFont(CANVAS_FONT, CONTROL_FONT_SIZE, "")
     lbl:SetPoint("TOPLEFT", 0, cy)
-    lbl:SetText("Toaster Preview")
+    lbl:SetText(RR.L["Toaster Preview"])
     lbl:SetTextColor(unpack(COLOR_LABEL))
     lbl:SetShadowOffset(1, -1); lbl:SetShadowColor(0, 0, 0, 1)
 
@@ -546,7 +569,7 @@ do
         local play = CreateFrame("Button", nil, container, "UIPanelButtonTemplate")
         play:SetSize(60, 20)
         play:SetPoint("LEFT", lbl, "RIGHT", 10, 0)
-        play:SetText("Play")
+        play:SetText(RR.L["Play"])
 
         -- The right column holds three stacked text blocks at x=248: the
         -- "Toasts only pop" note, the "Everything else" note, and the loot
@@ -560,11 +583,11 @@ do
         -- to a few lines beside the toast stack.
         local noteTop = cy - 30
         local note = container:CreateFontString(nil, "ARTWORK")
-        note:SetFont(RETRO_FONT, 16, "OUTLINE")
+        note:SetFont(CANVAS_FONT, 16, "")
         note:SetPoint("TOPLEFT", RIGHT_X, noteTop)
         note:SetWidth(NOTE_W)
         note:SetJustifyH("LEFT")
-        note:SetText("Toasts only pop for new appearances or special loot.")
+        note:SetText(RR.L["Toasts only pop for new appearances or special loot."])
         note:SetTextColor(unpack(COLOR_PINK))
         note:SetShadowOffset(1, -1); note:SetShadowColor(0, 0, 0, 1)
 
@@ -573,27 +596,24 @@ do
         local toastTop = cy
         host:SetPoint("TOPLEFT", 8, cy)
 
-        -- Three toasts at 0.55 scale (96px tall each) need ~178px stacked.
-        cy = cy - 178
-
         local bottomTop = toastTop - 84
 
         -- "Everything else" note, below the first note in the right column.
         local note2 = container:CreateFontString(nil, "ARTWORK")
-        note2:SetFont(RETRO_FONT, 16, "OUTLINE")
+        note2:SetFont(CANVAS_FONT, 16, "")
         note2:SetPoint("TOPLEFT", NOTE2_X, bottomTop)
         note2:SetWidth(NOTE2_W)
         note2:SetJustifyH("LEFT")
-        note2:SetText("Everything else prints to chat in a summary.")
+        note2:SetText(RR.L["Everything else prints to chat in a summary."])
         note2:SetTextColor(unpack(COLOR_PINK))
         note2:SetShadowOffset(1, -1); note2:SetShadowColor(0, 0, 0, 1)
 
         -- Loot summary preview, below the second note.
         local summaryTop = bottomTop - 52
         local summaryHdr = container:CreateFontString(nil, "ARTWORK")
-        summaryHdr:SetFont(RETRO_FONT, CONTROL_FONT_SIZE, "OUTLINE")
+        summaryHdr:SetFont(CANVAS_FONT, CONTROL_FONT_SIZE, "")
         summaryHdr:SetPoint("TOPLEFT", SUMMARY_X, summaryTop)
-        summaryHdr:SetText("Loot Summary Preview (in Chat)")
+        summaryHdr:SetText(RR.L["Loot Summary Preview (in Chat)"])
         summaryHdr:SetTextColor(unpack(COLOR_LABEL))
         summaryHdr:SetShadowOffset(1, -1); summaryHdr:SetShadowColor(0, 0, 0, 1)
 
@@ -705,19 +725,19 @@ end
 -- caution rather than a dismissable notice.
 do
     local disclaimer = panel:CreateFontString(nil, "ARTWORK")
-    disclaimer:SetFont(RETRO_FONT, 12, "OUTLINE")
+    disclaimer:SetFont(CANVAS_FONT, 12, "")
     -- Confined to the right content pane, bottom-aligned to the footer icon
     -- baseline so long text wraps upward within the footer band.
     disclaimer:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", CONTENT_X + 16, 16)
     disclaimer:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -12, 16)
     disclaimer:SetJustifyH("LEFT")
-    disclaimer:SetText("Other addons with custom loot toast/chat notifications may produce duplicates. Examples: LS: Toasts, AllTheThings, etc.")
+    disclaimer:SetText(RR.L["Other addons with custom loot toast/chat notifications may produce duplicates. Examples: LS: Toasts, AllTheThings, etc."])
     disclaimer:SetTextColor(0.6, 0.6, 0.6)
     disclaimer:SetShadowOffset(1, -1); disclaimer:SetShadowColor(0, 0, 0, 1)
 
     -- [!] rides the top line of the disclaimer, in the gutter.
     local flash = panel:CreateFontString(nil, "ARTWORK")
-    flash:SetFont(RETRO_FONT, 14, "OUTLINE")
+    flash:SetFont(CANVAS_FONT, 14, "")
     flash:SetPoint("TOPRIGHT", disclaimer, "TOPLEFT", -4, 0)
     flash:SetText("[!]")
     flash:SetTextColor(1, 1, 0)
@@ -741,17 +761,17 @@ end
 -- put as more controls are added above it.
 do
     local tagline = pageCustomize:CreateFontString(nil, "ARTWORK")
-    tagline:SetFont(RETRO_FONT, 17, "OUTLINE")
+    tagline:SetFont(CANVAS_FONT, 17, "")
     tagline:SetPoint("TOPLEFT", 0, pageCursor[pageCustomize])
-    tagline:SetText("Customize Toaster")
+    tagline:SetText(RR.L["Customize Toaster"])
     tagline:SetTextColor(unpack(COLOR_CYAN))
     tagline:SetShadowOffset(1, -1); tagline:SetShadowColor(0, 0, 0, 1)
     pageCursor[pageCustomize] = pageCursor[pageCustomize] - (17 + 8)
 
     local subline = pageCustomize:CreateFontString(nil, "ARTWORK")
-    subline:SetFont(RETRO_FONT, 12, "OUTLINE")
+    subline:SetFont(CANVAS_FONT, 12, "")
     subline:SetPoint("TOPLEFT", 0, pageCursor[pageCustomize])
-    subline:SetText("Size, Position & Preview")
+    subline:SetText(RR.L["Size, Position & Preview"])
     subline:SetTextColor(unpack(COLOR_PINK))
     subline:SetShadowOffset(1, -1); subline:SetShadowColor(0, 0, 0, 1)
     pageCursor[pageCustomize] = pageCursor[pageCustomize] - (12 + 8)
@@ -764,21 +784,21 @@ do
     pageCursor[pageCustomize] = pageCursor[pageCustomize] - 14
 
     -- Toast scale (toasterScale, 0.5-1.5). Updates the mockup and live toasts.
-    AddSlider(pageCustomize, "Toast Scale", 50, 150, 5,
+    AddSlider(pageCustomize, RR.L["Toast Scale"], 50, 150, 5,
         function() return math.floor((RR:GetSetting("toasterScale", 1.0) * 100) + 0.5) end,
-        function(v)
-            RR:SetSetting("toasterScale", v / 100)
-            if RR._toasterMock then RR._toasterMock:SetToastScale(v / 100) end
+        function(value)
+            RR:SetSetting("toasterScale", value / 100)
+            if RR._toasterMock then RR._toasterMock:SetToastScale(value / 100) end
             if RR.ApplyToasterScale then RR:ApplyToasterScale() end
         end,
-        function(v) return v .. "%" end)
+        function(value) return value .. "%" end)
 
     -- Toast duration (seconds, 1.5..8.0). Grayed while "remain until clicked"
     -- is on.
-    local durationSlider = AddSlider(pageCustomize, "Toast Duration", 1.5, 8.0, 0.5,
+    local durationSlider = AddSlider(pageCustomize, RR.L["Toast Duration"], 1.5, 8.0, 0.5,
         function() return RR:GetSetting("toasterDuration", 3.0) end,
-        function(v) RR:SetSetting("toasterDuration", v) end,
-        function(v) return ("%.1fs"):format(v) end)
+        function(value) RR:SetSetting("toasterDuration", value) end,
+        function(value) return ("%.1fs"):format(value) end)
 
     -- Keep toasts up until clicked; grays the duration slider when on.
     local function ApplyDurationSliderState()
@@ -790,11 +810,11 @@ do
         end
     end
 
-    local stayCheck = AddCheckbox(pageCustomize, "Toasts remain visible until clicked",
-        "When enabled, toasts stay on screen until you click them to dismiss.", 0,
+    local stayCheck = AddCheckbox(pageCustomize, RR.L["Toasts remain visible until clicked"],
+        RR.L["When enabled, toasts stay on screen until you click them to dismiss."], 0,
         function() return RR:GetSetting("toasterStayUntilClick", false) end,
-        function(v)
-            RR:SetSetting("toasterStayUntilClick", v)
+        function(value)
+            RR:SetSetting("toasterStayUntilClick", value)
             ApplyDurationSliderState()
         end)
     -- Sync the slider's grayed state whenever the page refreshes (e.g. reopen
@@ -808,7 +828,7 @@ do
     -- clearing any custom dragged position. Anchored to the page via the
     -- cursor (MakeTextButton positions on the panel, so re-anchor it here).
     pageCursor[pageCustomize] = pageCursor[pageCustomize] - 6
-    local resetPosBtn = MakeTextButton("Reset Position", 0, 0, 140, function()
+    local resetPosBtn = MakeTextButton(RR.L["Reset Position"], 0, 0, 140, function()
         if RR.ResetToasterAnchor then RR:ResetToasterAnchor() end
     end)
     resetPosBtn:SetParent(pageCustomize)
@@ -817,19 +837,18 @@ do
     pageCursor[pageCustomize] = pageCursor[pageCustomize] - 28
 
     -- Live mockup pinned to the bottom of the page (stays put as settings grow
-    -- above it). Its "Live Preview:" label sits just above it.
+    -- above it). Its RR.L["Live Preview:"] label sits just above it.
     if RR.BuildToasterMockup then
         local MOCK_SCALE = 0.5
-        local mockH = 460 * MOCK_SCALE
 
         local mock = RR:BuildToasterMockup(pageCustomize, MOCK_SCALE)
         mock.frame:SetPoint("BOTTOMLEFT", pageCustomize, "BOTTOMLEFT", 8, 8)
         RR._toasterMock = mock   -- handle for live updates as controls change
 
         local lbl = pageCustomize:CreateFontString(nil, "ARTWORK")
-        lbl:SetFont(RETRO_FONT, CONTROL_FONT_SIZE, "OUTLINE")
+        lbl:SetFont(CANVAS_FONT, CONTROL_FONT_SIZE, "")
         lbl:SetPoint("BOTTOMLEFT", mock.frame, "TOPLEFT", -8, 6)
-        lbl:SetText("Live Preview:")
+        lbl:SetText(RR.L["Live Preview:"])
         lbl:SetTextColor(unpack(COLOR_LABEL))
         lbl:SetShadowOffset(1, -1); lbl:SetShadowColor(0, 0, 0, 1)
     end
@@ -841,9 +860,9 @@ end
 -- the full last-N release set fits regardless of length.
 do
     local tagline = pageWhatsNew:CreateFontString(nil, "ARTWORK")
-    tagline:SetFont(RETRO_FONT, 17, "OUTLINE")
+    tagline:SetFont(CANVAS_FONT, 17, "")
     tagline:SetPoint("TOPLEFT", 0, pageCursor[pageWhatsNew])
-    tagline:SetText("What's New")
+    tagline:SetText(RR.L["What's New"])
     tagline:SetTextColor(unpack(COLOR_CYAN))
     tagline:SetShadowOffset(1, -1); tagline:SetShadowColor(0, 0, 0, 1)
     pageCursor[pageWhatsNew] = pageCursor[pageWhatsNew] - (17 + 8)
@@ -879,8 +898,8 @@ do
     local function RefreshWhatsNew()
         if not (UI and UI.BuildWhatsNewBody) then return end
         body:SetText(UI.BuildWhatsNewBody())
-        local h = body:GetStringHeight() or 0
-        scrollChild:SetHeight(math.max(1, h))
+        local bodyHeight = body:GetStringHeight() or 0
+        scrollChild:SetHeight(math.max(1, bodyHeight))
     end
     pageWhatsNew:HookScript("OnShow", RefreshWhatsNew)
     -- Also build once now in case the page is the first shown before any
@@ -893,9 +912,9 @@ end
 -- the GitHub / CurseForge links (same copy-URL popups as the footer icons).
 do
     local tagline = pageHelp:CreateFontString(nil, "ARTWORK")
-    tagline:SetFont(RETRO_FONT, 17, "OUTLINE")
+    tagline:SetFont(CANVAS_FONT, 17, "")
     tagline:SetPoint("TOPLEFT", 0, pageCursor[pageHelp])
-    tagline:SetText("Help")
+    tagline:SetText(RR.L["Help"])
     tagline:SetTextColor(unpack(COLOR_CYAN))
     tagline:SetShadowOffset(1, -1); tagline:SetShadowColor(0, 0, 0, 1)
     pageCursor[pageHelp] = pageCursor[pageHelp] - (17 + 8)
@@ -909,23 +928,23 @@ do
 
     -- Author credit + Discord, at the top of the page.
     local credit = pageHelp:CreateFontString(nil, "ARTWORK")
-    credit:SetFont(RETRO_FONT, 12, "OUTLINE")
+    credit:SetFont(CANVAS_FONT, 12, "")
     credit:SetPoint("TOPLEFT", 0, pageCursor[pageHelp])
-    credit:SetText("|cffF259C7Author:|r |cffffffffPhotek|r")
+    credit:SetText(RR.L["|cffF259C7Author:|r |cffffffffPhotek|r"])
     credit:SetShadowOffset(1, -1); credit:SetShadowColor(0, 0, 0, 1)
     pageCursor[pageHelp] = pageCursor[pageHelp] - (12 + 6)
 
     local hangout = pageHelp:CreateFontString(nil, "ARTWORK")
-    hangout:SetFont(RETRO_FONT, 12, "OUTLINE")
+    hangout:SetFont(CANVAS_FONT, 12, "")
     hangout:SetPoint("TOPLEFT", 8, pageCursor[pageHelp])
-    hangout:SetText("Known Hangout:")
+    hangout:SetText(RR.L["Known Hangout:"])
     hangout:SetTextColor(unpack(COLOR_CYAN))
     hangout:SetShadowOffset(1, -1); hangout:SetShadowColor(0, 0, 0, 1)
 
     -- Clickable URL: white text with a Button overlay (FontStrings can't
     -- take clicks). Click opens the copy-URL popup, same as the link rows.
     local urlFS = pageHelp:CreateFontString(nil, "ARTWORK")
-    urlFS:SetFont(RETRO_FONT, 12, "OUTLINE")
+    urlFS:SetFont(CANVAS_FONT, 12, "")
     urlFS:SetPoint("LEFT", hangout, "RIGHT", 6, 0)
     urlFS:SetText(URL_DISCORD)
     urlFS:SetTextColor(1, 1, 1)
@@ -940,7 +959,7 @@ do
     urlBtn:SetScript("OnEnter", function(self)
         urlFS:SetTextColor(unpack(COLOR_CYAN))
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:SetText("Copy the Discord invite", 1, 1, 1)
+        GameTooltip:SetText(RR.L["Copy the Discord invite"], 1, 1, 1)
         GameTooltip:Show()
     end)
     urlBtn:SetScript("OnLeave", function()
@@ -951,9 +970,9 @@ do
 
     -- Section: Commands -----------------------------------------------------
     local cmdHeader = pageHelp:CreateFontString(nil, "ARTWORK")
-    cmdHeader:SetFont(RETRO_FONT, 13, "OUTLINE")
+    cmdHeader:SetFont(CANVAS_FONT, 13, "")
     cmdHeader:SetPoint("TOPLEFT", 0, pageCursor[pageHelp])
-    cmdHeader:SetText("Commands")
+    cmdHeader:SetText(RR.L["Commands"])
     cmdHeader:SetTextColor(unpack(COLOR_PINK))
     cmdHeader:SetShadowOffset(1, -1); cmdHeader:SetShadowColor(0, 0, 0, 1)
     pageCursor[pageHelp] = pageCursor[pageHelp] - (13 + 8)
@@ -965,22 +984,22 @@ do
     local CMD_COL  = 120  -- x-offset of the description column from the cmd
     local CMD_ROW_H = 12 + 6
     local commands = {
-        { "/rr",            "toggle main panel" },
-        { "/rr status",     "current raid, step, kill state" },
-        { "/rr tmog",       "open transmog browser" },
-        { "/rr skips",      "account-wide raid skip status" },
-        { "/rr settings",   "open settings window" },
+        { "/rr",            RR.L["toggle main panel"] },
+        { "/rr status",     RR.L["current raid, step, kill state"] },
+        { "/rr tmog",       RR.L["open transmog browser"] },
+        { "/rr skips",      RR.L["account-wide raid skip status"] },
+        { "/rr settings",   RR.L["open settings window"] },
     }
     for _, entry in ipairs(commands) do
         local cmd = pageHelp:CreateFontString(nil, "ARTWORK")
-        cmd:SetFont(RETRO_FONT, 12, "OUTLINE")
+        cmd:SetFont(CANVAS_FONT, 12, "")
         cmd:SetPoint("TOPLEFT", 8, pageCursor[pageHelp])
         cmd:SetText(entry[1])
         cmd:SetTextColor(unpack(COLOR_CYAN))
         cmd:SetShadowOffset(1, -1); cmd:SetShadowColor(0, 0, 0, 1)
 
         local desc = pageHelp:CreateFontString(nil, "ARTWORK")
-        desc:SetFont(RETRO_FONT, 12, "OUTLINE")
+        desc:SetFont(CANVAS_FONT, 12, "")
         desc:SetPoint("TOPLEFT", 8 + CMD_COL, pageCursor[pageHelp])
         desc:SetText(entry[2])
         desc:SetTextColor(unpack(COLOR_DIM))
@@ -993,9 +1012,9 @@ do
 
     -- Section: Links --------------------------------------------------------
     local linkHeader = pageHelp:CreateFontString(nil, "ARTWORK")
-    linkHeader:SetFont(RETRO_FONT, 13, "OUTLINE")
+    linkHeader:SetFont(CANVAS_FONT, 13, "")
     linkHeader:SetPoint("TOPLEFT", 0, pageCursor[pageHelp])
-    linkHeader:SetText("Links")
+    linkHeader:SetText(RR.L["Links"])
     linkHeader:SetTextColor(unpack(COLOR_PINK))
     linkHeader:SetShadowOffset(1, -1); linkHeader:SetShadowColor(0, 0, 0, 1)
     pageCursor[pageHelp] = pageCursor[pageHelp] - (13 + 12)
@@ -1004,7 +1023,6 @@ do
     -- label. Only the icon is clickable.
     local LINK_ICON   = 26
     local LINK_ROW_H  = LINK_ICON + 12
-    local LINK_LABEL_X = 8 + LINK_ICON + 12  -- icon left pad + icon + gap
 
     -- helper: build one icon+label link row at the current page cursor.
     local function MakeLinkRow(texture, color, label, popupKey, url, tooltip)
@@ -1021,7 +1039,7 @@ do
         if hl then hl:SetVertexColor(color[1], color[2], color[3]); hl:SetAlpha(0.4) end
 
         local fs = pageHelp:CreateFontString(nil, "ARTWORK")
-        fs:SetFont(RETRO_FONT, 13, "OUTLINE")
+        fs:SetFont(CANVAS_FONT, 13, "")
         -- Vertically center the label against the icon (icon spans rowY down
         -- to rowY-LINK_ICON; the label baseline sits at the icon's middle).
         fs:SetPoint("LEFT", icon, "RIGHT", 12, 0)
@@ -1049,10 +1067,10 @@ do
         pageCursor[pageHelp] = pageCursor[pageHelp] - LINK_ROW_H
     end
 
-    MakeLinkRow(ICON_CHAT, COLOR_CYAN, "Curseforge - Leave a comment",
-        "RETRORUNS_CHAT_URL", URL_CURSE, "Comments and feedback (CurseForge)")
-    MakeLinkRow(ICON_BUG, COLOR_PINK, "Github - Report a bug",
-        "RETRORUNS_BUG_URL", URL_GITHUB, "Report a bug (GitHub)")
+    MakeLinkRow(ICON_CHAT, COLOR_CYAN, RR.L["Curseforge - Leave a comment"],
+        "RETRORUNS_CHAT_URL", URL_CURSE, RR.L["Comments and feedback (CurseForge)"])
+    MakeLinkRow(ICON_BUG, COLOR_PINK, RR.L["Github - Report a bug"],
+        "RETRORUNS_BUG_URL", URL_GITHUB, RR.L["Report a bug (GitHub)"])
 end
 
 -- ---- Left nav tab rail ---------------------------------------------------
@@ -1088,7 +1106,7 @@ local function MakeTab(index, text, page, withStatusDot, indented, yOffset)
     tab:SetPoint("TOPLEFT", 16, NAV_TOP - (index - 1) * (TAB_H + TAB_GAP) + (yOffset or 0))
 
     local label = tab:CreateFontString(nil, "ARTWORK")
-    label:SetFont(RETRO_FONT, 13, "OUTLINE")
+    label:SetFont(CANVAS_FONT, 13, "")
     -- Submenu entries are indented so they read as a child of the tab above.
     label:SetPoint("LEFT", indented and 22 or 8, 0)
     label:SetText(text)
@@ -1125,15 +1143,15 @@ local function MakeTab(index, text, page, withStatusDot, indented, yOffset)
     return tab
 end
 
-MakeTab(1, "General",     pageGeneral)
-MakeTab(2, "Appearance",  pageAppearance)
-local toasterTab = MakeTab(3, "Toaster", pageToaster, true)
+MakeTab(1, RR.L["General"],     pageGeneral)
+MakeTab(2, RR.L["Appearance"],  pageAppearance)
+local toasterTab = MakeTab(3, RR.L["Toaster"], pageToaster, true)
 -- Customize is indented and pulled up tight under Toaster (smaller gap than
 -- the even slot). Help follows, shifted up by the same amount so the gap
 -- below Customize reads as a normal tab gap rather than a double gap.
-MakeTab(4, "Customize",   pageCustomize, false, true, 10)
-MakeTab(5, "What's New",  pageWhatsNew,  false, false, 10)
-MakeTab(6, "Help",        pageHelp,      false, false, 10)
+MakeTab(4, RR.L["Customize"],   pageCustomize, false, true, 10)
+MakeTab(5, RR.L["What's New"],  pageWhatsNew,  false, false, 10)
+MakeTab(6, RR.L["Help"],        pageHelp,      false, false, 10)
 
 -- ---- Footer: reset + feedback icons --------------------------------------
 local RESET_DEFAULTS = {
@@ -1156,11 +1174,11 @@ RefreshToasterControls = function()
     -- use the same color so they never disagree.
     local stateColor, arrowUp, labelText
     if not enabled then
-        stateColor, arrowUp, labelText = COLOR_RED,   false, "MANUALLY DISABLED"
+        stateColor, arrowUp, labelText = COLOR_RED,   false, RR.L["MANUALLY DISABLED"]
     elseif inRaid then
-        stateColor, arrowUp, labelText = COLOR_GREEN,  true, "ACTIVE"
+        stateColor, arrowUp, labelText = COLOR_GREEN,  true, RR.L["ACTIVE"]
     else
-        stateColor, arrowUp, labelText = COLOR_AMBER, false, "Travel to a Supported Raid"
+        stateColor, arrowUp, labelText = COLOR_AMBER, false, RR.L["Travel to a Supported Raid"]
     end
 
     if statusValue then
@@ -1211,26 +1229,26 @@ local function ResetRetroRuns()
     RefreshAllControls()
 end
 
-local resetButton = MakeTextButton("Reset to Defaults", 24, 16, 160, ResetRetroRuns)
+local resetButton = MakeTextButton(RR.L["Reset to Defaults"], 24, 16, 160, ResetRetroRuns)
 -- Move Reset up to the title row, right-aligned, so it shares the band with
 -- the RETRO RUNS wordmark instead of sitting in the footer.
 resetButton:ClearAllPoints()
 resetButton:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -24, -20)
 
--- "Lock toasts" checkbox on the Customize tab. Checked = locked (default);
+-- RR.L["Lock toasts"] checkbox on the Customize tab. Checked = locked (default);
 -- unchecking surfaces the drag overlay to reposition the toasts.
 local lockCheck = CreateFrame("CheckButton", nil, pageCustomize, "InterfaceOptionsCheckButtonTemplate")
 lockCheck:SetPoint("TOPRIGHT", pageCustomize, "TOPRIGHT", -8, -4)
-lockCheck.Text:SetText("Lock toasts")
-lockCheck.Text:SetFont(RETRO_FONT, CONTROL_FONT_SIZE, "OUTLINE")
+lockCheck.Text:SetText(RR.L["Lock toasts"])
+lockCheck.Text:SetFont(CANVAS_FONT, CONTROL_FONT_SIZE, "")
 lockCheck.Text:SetTextColor(unpack(COLOR_LABEL))
 lockCheck.Text:SetShadowOffset(1, -1)
 lockCheck.Text:SetShadowColor(0, 0, 0, 1)
 -- Label to the left of the box.
 lockCheck.Text:ClearAllPoints()
 lockCheck.Text:SetPoint("RIGHT", lockCheck, "LEFT", -4, 0)
-lockCheck.tooltipText = "Lock toasts"
-lockCheck.tooltipRequirement = "Uncheck to drag the toasts to a new spot, then re-check to lock."
+lockCheck.tooltipText = RR.L["Lock toasts"]
+lockCheck.tooltipRequirement = RR.L["Uncheck to drag the toasts to a new spot, then re-check to lock."]
 lockCheck:SetScript("OnClick", function(self)
     local locked = self:GetChecked() and true or false
     RR:SetSetting("toasterLocked", locked)

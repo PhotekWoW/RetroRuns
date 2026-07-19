@@ -273,6 +273,7 @@ RetroRuns_Data[1228] = {
                             mapLabel        = "Talk to Gharg",
                             mapLabelPos     = "below",
                             note            = "After zoning in, talk to ^Gharg^ and tell him you're ready. He will send you up an elevator into ^The Coliseum^.",
+                            minNote = "Talk to Gharg",
                             points          = {
                                 { 0.469, 0.474 },
                             },
@@ -281,6 +282,7 @@ RetroRuns_Data[1228] = {
                             when    = { mapID = 610 },
                             kind    = "path",
                             note    = "After some dialog, kill the trash wave that spawns, and ^Kargath Bladefist^ will enter the ring.",
+                            minNote = "Trash then Kargath",
                             points  = {},
                         },
                     },
@@ -303,6 +305,7 @@ RetroRuns_Data[1228] = {
                             when    = { mapID = 612 },
                             kind    = "path",
                             note    = "After killing ^Kargath^, exit the room to the northwest and follow the path around to ^The Butcher^.",
+                            minNote = "NW to Butcher",
                             points  = {
                                 { 0.454, 0.465 },
                                 { 0.268, 0.241 },
@@ -312,6 +315,7 @@ RetroRuns_Data[1228] = {
                             when    = { mapID = 610 },
                             kind    = "path",
                             note    = "After killing ^Kargath^, exit the room to the northwest and follow the path around to ^The Butcher^.",
+                            minNote = "NW to Butcher",
                             points  = {
                                 { 0.633, 0.838 },
                                 { 0.501, 0.672 },
@@ -337,6 +341,7 @@ RetroRuns_Data[1228] = {
                             when    = { mapID = 610 },
                             kind    = "path",
                             note    = "After defeating ^The Butcher^, take the western exit out of his area and follow the path north to ^Brackenspore^.",
+                            minNote = "Path to Brackenspore",
                             points  = {
                                 { 0.547, 0.526 },
                                 { 0.501, 0.487 },
@@ -371,6 +376,7 @@ RetroRuns_Data[1228] = {
                             when    = { mapID = 612 },
                             kind    = "path",
                             note    = "After zoning in, proceed forward out of ^The Coliseum^.",
+                            minNote = "Straight ahead",
                             points  = {
                                 { 0.368, 0.360 },
                                 { 0.267, 0.238 },
@@ -380,6 +386,7 @@ RetroRuns_Data[1228] = {
                             when    = { mapID = 610 },
                             kind    = "path",
                             note    = "Follow the path up and to the left to reach ^Tectus^. Kill the (3) rock golems to spawn the boss.",
+                            minNote = "Path left to Tectus",
                             points  = {
                                 { 0.537, 0.732 },
                                 { 0.501, 0.682 },
@@ -408,6 +415,7 @@ RetroRuns_Data[1228] = {
                             when    = { mapID = 610 },
                             kind    = "path",
                             note    = "After defeating ^Tectus^, leave his area and take a left to reach a portal.",
+                            minNote = "Take portal",
                             points  = {
                                 { 0.352, 0.671 },
                                 { 0.369, 0.607 },
@@ -419,6 +427,7 @@ RetroRuns_Data[1228] = {
                             when    = { mapID = 613 },
                             kind    = "path",
                             note    = "After taking the portal, follow the path around to find ^Twin Ogron^. Clear trash to start the encounter.",
+                            minNote = "Path to Twin Ogron",
                             points  = {
                                 { 0.827, 0.619 },
                                 { 0.675, 0.412 },
@@ -440,6 +449,7 @@ RetroRuns_Data[1228] = {
                             when    = { mapID = 613 },
                             kind    = "path",
                             note    = "After defeating ^Twin Ogron^, proceed up the stairwell behind them to reach ^Ko'ragh^. Clear trash to start the encounter.",
+                            minNote = "Upstairs to Ko'ragh",
                             points  = {
                                 { 0.512, 0.420 },
                                 { 0.449, 0.383 },
@@ -474,6 +484,7 @@ RetroRuns_Data[1228] = {
                             when    = { mapID = 615 },
                             kind    = "path",
                             note    = "After zoning in, move ahead to clear trash to open the door and reach the final boss, ^Imperator Mar'gok^.",
+                            minNote = "Trash then Imperator",
                             points  = {
                                 { 0.467, 0.313 },
                                 { 0.449, 0.717 },
@@ -503,6 +514,7 @@ RetroRuns_Data[1228] = {
                     mapLabel        = "Talk to Gharg",
                     mapLabelPos     = "below",
                     note            = "After zoning in, talk to ^Gharg^ and tell him you're ready. He will send you up an elevator into ^The Coliseum^.",
+                    minNote = "Talk to Gharg",
                     points          = {
                         { 0.469, 0.474 },
                     },
@@ -511,6 +523,7 @@ RetroRuns_Data[1228] = {
                     when    = { mapID = 610 },
                     kind    = "path",
                     note    = "After some dialog, kill the trash wave that spawns, and ^Kargath Bladefist^ will enter the ring.",
+                    minNote = "Trash then Kargath",
                     points  = {},
                 },
             },
@@ -532,6 +545,7 @@ RetroRuns_Data[1228] = {
                     when    = { mapID = 612 },
                     kind    = "path",
                     note    = "After killing ^Kargath^, exit the room to the northwest and follow the path around to ^The Butcher^.",
+                    minNote = "NW to Butcher",
                     points  = {
                         { 0.454, 0.465 },
                         { 0.268, 0.241 },
@@ -541,6 +555,7 @@ RetroRuns_Data[1228] = {
                     when    = { mapID = 610 },
                     kind    = "path",
                     note    = "After killing ^Kargath^, exit the room to the northwest and follow the path around to ^The Butcher^.",
+                    minNote = "NW to Butcher",
                     points  = {
                         { 0.633, 0.838 },
                         { 0.501, 0.672 },
@@ -564,6 +579,7 @@ RetroRuns_Data[1228] = {
                     when    = { mapID = 610 },
                     kind    = "path",
                     note    = "After killing ^The Butcher^, follow the path to the west to reach ^Tectus^. Kill the (3) rock golems to spawn the boss.",
+                    minNote = "West to Tectus",
                     points  = {
                         { 0.555, 0.532 },
                         { 0.479, 0.471 },
@@ -588,6 +604,7 @@ RetroRuns_Data[1228] = {
                     when    = { mapID = 610 },
                     kind    = "path",
                     note    = "After defeating ^Tectus^, follow the path northeast to reach ^Brackenspore^.",
+                    minNote = "NE to Brackenspore",
                     points  = {
                         { 0.346, 0.717 },
                         { 0.368, 0.608 },
@@ -612,6 +629,7 @@ RetroRuns_Data[1228] = {
                     when    = { mapID = 610 },
                     kind    = "path",
                     note    = "After defeating ^Brackenspore^, go back out the way you came and travel far west to reach a portal.",
+                    minNote = "West to Portal",
                     points  = {
                         { 0.513, 0.225 },
                         { 0.519, 0.349 },
@@ -625,6 +643,7 @@ RetroRuns_Data[1228] = {
                     when    = { mapID = 613 },
                     kind    = "path",
                     note    = "After taking the portal, follow the path around to find ^Twin Ogron^. Clear trash to start the encounter.",
+                    minNote = "Path to Twin Ogron",
                     points  = {
                         { 0.827, 0.619 },
                         { 0.675, 0.412 },
@@ -646,6 +665,7 @@ RetroRuns_Data[1228] = {
                     when    = { mapID = 613 },
                     kind    = "path",
                     note    = "After defeating ^Twin Ogron^, proceed up the stairwell behind them to reach ^Ko'ragh^. Clear trash to start the encounter.",
+                    minNote = "Upstairs to Ko'ragh",
                     points  = {
                         { 0.512, 0.420 },
                         { 0.449, 0.383 },
@@ -670,6 +690,7 @@ RetroRuns_Data[1228] = {
                     when    = { mapID = 613 },
                     kind    = "path",
                     note    = "After killing ^Ko'ragh^, take the northwest stairwell out of the room.",
+                    minNote = "NW Stairwell",
                     points  = {
                         { 0.356, 0.624 },
                         { 0.297, 0.546 },
@@ -679,6 +700,7 @@ RetroRuns_Data[1228] = {
                     when    = { mapID = 614 },
                     kind    = "path",
                     note    = "Work your way through the next area, and kill ^Warden Thul'tok^ to spawn a portal. Walk through the portal.",
+                    minNote = "Warden Thul'tok then Portal",
                     points  = {
                         { 0.345, 0.606 },
                         { 0.411, 0.545 },
@@ -692,6 +714,7 @@ RetroRuns_Data[1228] = {
                     when    = { mapID = 615 },
                     kind    = "path",
                     note    = "After taking the portal, move ahead to clear trash to open the door and reach the final boss, ^Imperator Mar'gok^.",
+                    minNote = "Trash then Imperator",
                     points  = {
                         { 0.467, 0.313 },
                         { 0.449, 0.717 },

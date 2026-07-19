@@ -409,6 +409,7 @@ RetroRuns_Data[2549] = {
                     when    = { mapID = 2232 },
                     kind    = "path",
                     note    = "After zoning in, follow the path to ^Gnarlroot^. Clear the trash around him to start the encounter.",
+                    minNote = "Trash then Gnarlroot",
                     points  = {
                         { 0.507, 0.904 },
                         { 0.448, 0.817 },
@@ -436,6 +437,7 @@ RetroRuns_Data[2549] = {
                     when    = { mapID = 2232 },
                     kind    = "path",
                     note    = "After killing ^Gnarlroot^, continue forward and clear the trash pack to start the encounter with ^Igira the Cruel^.",
+                    minNote = "Trash then Igira",
                     points  = {
                         { 0.507, 0.368 },
                         { 0.506, 0.288 },
@@ -462,6 +464,7 @@ RetroRuns_Data[2549] = {
                     noMarker        = true,
                     highlightCircle = true,
                     note            = "After killing ^Igira^, take the left exit to ^The Scorched Hall^.",
+                    minNote         = "Left to Scorched Hall",
                     points          = {
                         { 0.430, 0.197 },
                     },
@@ -470,6 +473,7 @@ RetroRuns_Data[2549] = {
                     when    = { mapID = 2244 },
                     kind    = "path",
                     note    = "Follow the path to the boss area, and clear the trash to spawn ^Volcoross^.",
+                    minNote = "Trash then Volcoross",
                     points  = {
                         { 0.768, 0.878 },
                         { 0.733, 0.803 },
@@ -496,6 +500,7 @@ RetroRuns_Data[2549] = {
                     when    = { mapID = 2244 },
                     kind    = "path",
                     note    = "After killing ^Volcoross^, continue down the path behind him. Clear trash to start the encounter with ^Larodar, Keeper of the Flame^.",
+                    minNote = "Trash then Larodar",
                     points  = {
                         { 0.528, 0.556 },
                         { 0.466, 0.470 },
@@ -523,6 +528,7 @@ RetroRuns_Data[2549] = {
                     when     = { mapID = 2244 },
                     kind     = "poi",
                     note     = "After killing ^Larodar^, interact with the ^Seed of Life^ to unlock a portal at the back of the room. Walk through the portal to arrive back at the ^Wellspring Atrium^.",
+                    minNote  = "Click Seed then Portal",
                     mapLabel = "Seed of Life",
                     mapLabelPos = "above",
                     completionCheck = true,
@@ -535,6 +541,7 @@ RetroRuns_Data[2549] = {
                     kind    = "path",
                     triggeredBy = { dialog = { npc = "Tyrande Whisperwind", match = "Amirdrassil will be defended" } },
                     note    = "After killing ^Larodar^, interact with the ^Seed of Life^ to unlock a portal at the back of the room. Walk through the portal to arrive back at the ^Wellspring Atrium^.",
+                    minNote = "Click Seed then Portal",
                     points  = {
                         { 0.345, 0.289 },
                         { 0.323, 0.331 },
@@ -548,6 +555,7 @@ RetroRuns_Data[2549] = {
                     noMarker        = true,
                     highlightCircle = true,
                     note            = "After taking the teleport, make your way for the right-most exit labeled ^Verdant Terrace^.",
+                    minNote         = "Right to Verdant Terrace",
                     points          = {
                         { 0.584, 0.197 },
                     },
@@ -556,6 +564,7 @@ RetroRuns_Data[2549] = {
                     when    = { mapID = 2240 },
                     kind    = "path",
                     note    = "Follow the path all the way back to meet the ^Council of Dreams^. Click each of the illusions to start the fight.",
+                    minNote = "Click Illusions to fight Council",
                     points  = {
                         { 0.187, 0.939 },
                         { 0.223, 0.857 },
@@ -582,6 +591,7 @@ RetroRuns_Data[2549] = {
                     when    = { mapID = 2240 },
                     kind    = "path",
                     note    = "After killing ^Council of Dreams^, follow the path behind them to reach ^Nymue, Weaver of the Cycle^.",
+                    minNote = "Path to Nymue",
                     points  = {
                         { 0.420, 0.579 },
                         { 0.420, 0.490 },
@@ -613,6 +623,7 @@ RetroRuns_Data[2549] = {
                     kind     = "poi",
                     poiSize  = 35,
                     note     = "After killing ^Nymue^, walk up the stairs behind her to interact with the ^Seed of Life^. This opens a portal at the back of the room. Walk through the portal to return back to ^Wellspring Atrium^.",
+                    minNote  = "Click Seed then Portal",
                     mapLabel = "Seed of Life",
                     mapLabelPos = "right",
                     completionCheck = true,
@@ -625,6 +636,7 @@ RetroRuns_Data[2549] = {
                     kind    = "path",
                     triggeredBy = { dialog = { npc = "Merithra", match = "Seed of Life, we are one step closer" } },
                     note    = "After killing ^Nymue^, walk up the stairs behind her to interact with the ^Seed of Life^. This opens a portal at the back of the room. Walk through the portal to return back to ^Wellspring Atrium^.",
+                    minNote = "Click Seed then Portal",
                     points  = {
                         { 0.643, 0.277 },
                         { 0.667, 0.238 },
@@ -636,6 +648,7 @@ RetroRuns_Data[2549] = {
                     noMarker        = true,
                     highlightCircle = true,
                     note            = "From ^Wellspring Atrium^, take the final remaining exit labeled ^Throne of the Firelord^. Click on the ^Formation Seed^ to construct a bridge to the next area.",
+                    minNote         = "Channel Seed to Create Bridge",
                     mapLabel        = "Formation Seed",
                     mapLabelPos     = "right",
                     mapLabelPulse   = true,
@@ -647,6 +660,7 @@ RetroRuns_Data[2549] = {
                     when    = { mapID = 2233 },
                     kind    = "path",
                     note    = "As you cross the bridge, dodge fire so you don't get thrown over the edge. At the end of the bridge, you will find ^Smolderon^.",
+                    minNote = "Path to Smolderon",
                     points  = {
                         { 0.501, 0.941 },
                         { 0.502, 0.370 },
@@ -674,6 +688,7 @@ RetroRuns_Data[2549] = {
                     noMarker        = true,
                     highlightCircle = true,
                     note            = "After killing ^Smolderon^, talk to the dragon to be flown to ^Tindral Sageswift, Seer of the Flame^.",
+                    minNote         = "Talk to Dragon",
                     mapLabel        = "Verdant Dreambreaker",
                     mapLabelPos     = "above",
                     mapLabelPulse   = true,
@@ -685,6 +700,7 @@ RetroRuns_Data[2549] = {
                     when    = { mapID = 2237 },
                     kind    = "path",
                     note    = "Approach ^Tindral^ to trigger the encounter.",
+                    minNote = "Approach Tindral",
                 },
             },
         },
@@ -709,6 +725,7 @@ RetroRuns_Data[2549] = {
                     kind    = "poi",
                     poiSize = 78,
                     note    = "After killing ^Tindral^, mount up and fly into the fire-colored portal in the sky (marked with a |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t). This will teleport you to ^Heart of Amirdrassil^.",
+                    minNote = "Fly into Sky Portal",
                     points  = {
                         { 0.565, 0.656 },
                     },
@@ -716,6 +733,7 @@ RetroRuns_Data[2549] = {
                 {
                     when    = { mapID = 2238 },
                     note    = "After the teleport, you should be standing across from ^Fyrakk^. Approach him to start the encounter.",
+                    minNote = "Kill Fyrakk",
                 },
             },
         },
@@ -746,6 +764,7 @@ RetroRuns_Data[2549] = {
                     when    = { mapID = 2232 },
                     kind    = "path",
                     note    = "After zoning in, follow the path to ^Gnarlroot^. Clear the trash around him to start the encounter.",
+                    minNote = "Trash then Gnarlroot",
                     points  = {
                         { 0.507, 0.904 },
                         { 0.448, 0.817 },
@@ -770,6 +789,7 @@ RetroRuns_Data[2549] = {
                     when    = { mapID = 2232 },
                     kind    = "path",
                     note    = "After killing ^Gnarlroot^, continue forward and clear the trash pack to start the encounter with ^Igira the Cruel^.",
+                    minNote = "Trash then Igira",
                     points  = {
                         { 0.507, 0.368 },
                         { 0.506, 0.288 },
@@ -794,6 +814,7 @@ RetroRuns_Data[2549] = {
                     noMarker        = true,
                     highlightCircle = true,
                     note            = "After killing ^Igira the Cruel^, go up the stairs behind him and channel the ^Formation Seed^ to form the bridge.",
+                    minNote         = "Channel Formation Seed",
                     mapLabel        = "Formation Seed",
                     mapLabelPos     = "right",
                     mapLabelPulse   = true,
@@ -805,6 +826,7 @@ RetroRuns_Data[2549] = {
                     when    = { mapID = 2233 },
                     kind    = "path",
                     note    = "As you cross the bridge, dodge fire so you don't get thrown over the edge. At the end of the bridge, you will find ^Smolderon^.",
+                    minNote = "Bridge to Smolderon",
                     points  = {
                         { 0.501, 0.941 },
                         { 0.502, 0.370 },
@@ -827,6 +849,7 @@ RetroRuns_Data[2549] = {
                     noMarker        = true,
                     highlightCircle = true,
                     note            = "After killing ^Smolderon^, talk to the dragon to be flown to ^Tindral Sageswift, Seer of the Flame^.",
+                    minNote         = "Talk to Dragon",
                     mapLabel        = "Verdant Dreambreaker",
                     mapLabelPos     = "above",
                     mapLabelPulse   = true,
@@ -838,6 +861,7 @@ RetroRuns_Data[2549] = {
                     when    = { mapID = 2237 },
                     kind    = "path",
                     note    = "Approach ^Tindral^ to trigger the encounter.",
+                    minNote = "Approach Tindral",
                 },
             },
         },
@@ -855,6 +879,7 @@ RetroRuns_Data[2549] = {
                     kind    = "poi",
                     poiSize = 78,
                     note    = "After killing ^Tindral^, mount up and fly into the fire-colored portal in the sky (marked with a |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t). This will teleport you to ^Heart of Amirdrassil^.",
+                    minNote = "Portal Marked On Map",
                     points  = {
                         { 0.565, 0.656 },
                     },
@@ -894,6 +919,7 @@ RetroRuns_Data[2549] = {
                             when    = { mapID = 2232 },
                             kind    = "path",
                             note    = "After zoning in, follow the path to ^Gnarlroot^. Clear the trash around him to start the encounter.",
+                            minNote = "Trash then Gnarlroot",
                             points  = {
                                 { 0.507, 0.904 },
                                 { 0.448, 0.817 },
@@ -916,6 +942,7 @@ RetroRuns_Data[2549] = {
                             when    = { mapID = 2232 },
                             kind    = "path",
                             note    = "After killing ^Gnarlroot^, continue forward and clear the trash pack to start the encounter with ^Igira the Cruel^.",
+                            minNote = "Trash then Igira",
                             points  = {
                                 { 0.507, 0.368 },
                                 { 0.506, 0.288 },
@@ -936,6 +963,7 @@ RetroRuns_Data[2549] = {
                             noMarker        = true,
                             highlightCircle = true,
                             note            = "After killing ^Igira the Cruel^, go up the stairs behind him and channel the ^Formation Seed^ to form the bridge.",
+                            minNote         = "Channel Seed to Create Bridge",
                             mapLabel        = "Formation Seed",
                             mapLabelPos     = "right",
                             mapLabelPulse   = true,
@@ -947,6 +975,7 @@ RetroRuns_Data[2549] = {
                             when    = { mapID = 2233 },
                             kind    = "path",
                             note    = "As you cross the bridge, dodge fire so you don't get thrown over the edge. At the end of the bridge, you will find ^Smolderon^.",
+                            minNote = "Path to Smolderon",
                             points  = {
                                 { 0.501, 0.941 },
                                 { 0.502, 0.370 },
@@ -982,6 +1011,7 @@ RetroRuns_Data[2549] = {
                             kind            = "poi",
                             highlightCircle = true,
                             note            = "After zoning in, head for the map exit labeled ^The Scorched Hall^.",
+                            minNote         = "Path to Scorched Hall",
                             points          = {
                                 { 0.430, 0.197 },
                             },
@@ -990,6 +1020,7 @@ RetroRuns_Data[2549] = {
                             when    = { mapID = 2244 },
                             kind    = "path",
                             note    = "Follow the path to the boss area, and clear the trash to spawn ^Volcoross^.",
+                            minNote = "Trash then Volcoross",
                             points  = {
                                 { 0.768, 0.878 },
                                 { 0.733, 0.803 },
@@ -1011,6 +1042,7 @@ RetroRuns_Data[2549] = {
                             when    = { mapID = 2244 },
                             kind    = "path",
                             note    = "After killing ^Volcoross^, continue down the path behind him. Clear trash to start the encounter with ^Larodar, Keeper of the Flame^.",
+                            minNote = "Trash then Larodar",
                             points  = {
                                 { 0.528, 0.556 },
                                 { 0.466, 0.470 },
@@ -1049,6 +1081,7 @@ RetroRuns_Data[2549] = {
                             kind            = "poi",
                             highlightCircle = true,
                             note            = "After zoning in, head for the map exit labeled ^Verdant Terrace^.",
+                            minNote         = "Path to Verdant Terrace",
                             points          = {
                                 { 0.584, 0.197 },
                             },
@@ -1057,6 +1090,7 @@ RetroRuns_Data[2549] = {
                             when    = { mapID = 2240 },
                             kind    = "path",
                             note    = "Follow the path all the way back to meet the ^Council of Dreams^. Click each of the illusions to start the fight.",
+                            minNote = "Click Illusions to fight Council",
                             points  = {
                                 { 0.187, 0.939 },
                                 { 0.223, 0.857 },
@@ -1078,6 +1112,7 @@ RetroRuns_Data[2549] = {
                             when    = { mapID = 2240 },
                             kind    = "path",
                             note    = "After killing ^Council of Dreams^, follow the path behind them to reach ^Nymue, Weaver of the Cycle^.",
+                            minNote = "Path to Nymue",
                             points  = {
                                 { 0.420, 0.579 },
                                 { 0.420, 0.490 },
@@ -1118,6 +1153,7 @@ RetroRuns_Data[2549] = {
                             noMarker        = true,
                             highlightCircle = true,
                             note            = "After zoning in, interact with the dragon to be flown to ^Tindral Sageswift, Seer of the Flame^.",
+                            minNote         = "Talk to dragon",
                             mapLabel        = "Verdant Dreambreaker",
                             mapLabelPos     = "above",
                             mapLabelPulse   = true,
@@ -1129,6 +1165,7 @@ RetroRuns_Data[2549] = {
                             when    = { mapID = 2237 },
                             kind    = "path",
                             note    = "Approach ^Tindral^ to trigger the encounter.",
+                            minNote = "Approach Tindral",
                         },
                     },
                 },
@@ -1144,6 +1181,7 @@ RetroRuns_Data[2549] = {
                             kind    = "poi",
                             poiSize = 78,
                             note    = "After killing ^Tindral^, mount up and fly into the fire-colored portal in the sky (marked with a |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t). This will teleport you to ^Heart of Amirdrassil^.",
+                            minNote = "Fly into Sky Portal",
                             points  = {
                                 { 0.565, 0.656 },
                             },
@@ -1151,6 +1189,7 @@ RetroRuns_Data[2549] = {
                         {
                             when    = { mapID = 2238 },
                             note    = "After the teleport, you should be standing across from ^Fyrakk^. Approach him to start the encounter.",
+                            minNote = "Kill Fyrakk",
                         },
                     },
                 },

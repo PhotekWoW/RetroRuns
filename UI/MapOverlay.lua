@@ -34,31 +34,31 @@ overlay.labels   = {}
 overlay.rings    = {}
 overlay.chevrons = {}
 
-local function MakeLine(p)
-    local ln = p:CreateLine(nil, "ARTWORK")
+local function MakeLine(parent)
+    local ln = parent:CreateLine(nil, "ARTWORK")
     ln:SetThickness(4)
     ln:SetColorTexture(1.0, 0.82, 0.0, 0.95)
     ln:Hide()
     return ln
 end
 
-local function MakeIcon(p)
-    local tx = p:CreateTexture(nil, "ARTWORK")
+local function MakeIcon(parent)
+    local tx = parent:CreateTexture(nil, "ARTWORK")
     tx:SetSize(18, 18)
     tx:Hide()
     return tx
 end
 
-local function MakeDot(p)
-    local tx = p:CreateTexture(nil, "ARTWORK")
+local function MakeDot(parent)
+    local tx = parent:CreateTexture(nil, "ARTWORK")
     tx:SetSize(10, 10)
     tx:SetTexture("Interface\\MINIMAP\\TempleofKotmogu_ball_cyan")
     tx:Hide()
     return tx
 end
 
-local function MakeLabel(p)
-    local fs = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+local function MakeLabel(parent)
+    local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     fs:SetTextColor(1.0, 1.0, 1.0, 1.0)
     fs:SetFont(fs:GetFont(), 17, "OUTLINE")
     fs:Hide()
@@ -77,8 +77,8 @@ end
 --
 -- Drawn at OVERLAY (above the ARTWORK lines) so chevrons sit on top of
 -- the polyline rather than being painted over by it.
-local function MakeChevron(p)
-    local tx = p:CreateTexture(nil, "OVERLAY")
+local function MakeChevron(parent)
+    local tx = parent:CreateTexture(nil, "OVERLAY")
     tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Chevron")
     tx:SetVertexColor(0.30, 0.80, 1.00, 1.0)  -- cyan (matches UI.lua C_BLUE)
     tx:SetSize(18, 18)
@@ -96,8 +96,8 @@ end
 -- (exit arrows, NPC dots) -- the whole point of the ring is to draw
 -- the eye to one of those native icons, so we want to surround it
 -- visually rather than be painted over.
-local function MakeRing(p)
-    local tx = p:CreateTexture(nil, "OVERLAY")
+local function MakeRing(parent)
+    local tx = parent:CreateTexture(nil, "OVERLAY")
     tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\RingCircle")
     tx:SetVertexColor(1.0, 0.0, 0.0, 1.0)
     tx:SetSize(42, 42)
@@ -262,9 +262,9 @@ local function PlaceChevronsAlongPath(self, pts, W, H, startChevronIdx)
     for i = 2, #screenPts do
         local p, c = screenPts[i-1], screenPts[i]
         local dx, dy = c[1] - p[1], c[2] - p[2]
-        local d = math.sqrt(dx * dx + dy * dy)
-        segLens[i-1] = d
-        total = total + d
+        local segLen = math.sqrt(dx * dx + dy * dy)
+        segLens[i-1] = segLen
+        total = total + segLen
     end
 
     -- Skip chevrons on short paths -- start dot + end triangle make the
@@ -492,16 +492,17 @@ function overlay:DrawSegmentsForMap(mapID)
                                 isComplete = segIndex < RR:GetProgress(stepIndex)
                             end
 
+                            local labelText = RR.L[seg.mapLabel]
                             if isComplete then
-                                label:SetText("|cff9d9d9d" .. seg.mapLabel
+                                label:SetText("|cff9d9d9d" .. labelText
                                     .. "|r |TInterface\\RaidFrame\\ReadyCheck-Ready:14|t")
                                 label.flashState = "completed"
                             else
                                 local color = (RR.GetLabelPulseColor and RR:GetLabelPulseColor())
                                     or "|cffffffff"
-                                label:SetText(color .. seg.mapLabel .. "|r")
+                                label:SetText(color .. labelText .. "|r")
                                 label.flashState = "pulsing"
-                                label.flashBase  = seg.mapLabel
+                                label.flashBase  = labelText
                             end
                         elseif seg.mapLabelPulse then
                             -- Always-pulse mode: no completion tracking, no
@@ -513,11 +514,11 @@ function overlay:DrawSegmentsForMap(mapID)
                             -- counter as completionCheck pulses.
                             local color = (RR.GetLabelPulseColor and RR:GetLabelPulseColor())
                                 or "|cffffffff"
-                            label:SetText(color .. seg.mapLabel .. "|r")
+                            label:SetText(color .. RR.L[seg.mapLabel] .. "|r")
                             label.flashState = "pulsing"
-                            label.flashBase  = seg.mapLabel
+                            label.flashBase  = RR.L[seg.mapLabel]
                         else
-                            label:SetText(seg.mapLabel)
+                            label:SetText(RR.L[seg.mapLabel])
                         end
 
                         label:Show()
@@ -728,10 +729,10 @@ end)
 C_Timer.NewTicker(0.1, function()
     if not WorldMapFrame or not WorldMapFrame:IsShown() then return end
     if not RR.GetRingPulseRed then return end
-    local r = RR:GetRingPulseRed()
+    local pulseRed = RR:GetRingPulseRed()
     for _, ring in ipairs(overlay.rings) do
         if ring:IsShown() then
-            ring:SetVertexColor(r, 0, 0, 1)
+            ring:SetVertexColor(pulseRed, 0, 0, 1)
         end
     end
 end)

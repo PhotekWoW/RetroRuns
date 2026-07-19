@@ -421,6 +421,7 @@ RetroRuns_Data[2522] = {
                     mapLabelPos     = "above",
                     completionCheck = true,
                     note            = "Upon zoning in, talk to all 5 dragons. Then talk to ^Khadgar^ to begin the assault. Choose any dragon; doesn't matter.",
+                    minNote         = "Talk to Dragons then Khadgar",
                     points          = {
                         { 0.620, 0.870 },
                     },
@@ -433,6 +434,7 @@ RetroRuns_Data[2522] = {
                     mapLabel        = "Kill Volcanius",
                     mapLabelPos     = "above",
                     note            = "After landing, follow the path to kill |cffF259C7(1)|r ^Volcanius^, then |cffF259C7(2)|r ^Eranog^.",
+                    minNote         = "Kill Volcanius then Eranog",
                     points          = {
                         { 0.561, 0.378 },
                     },
@@ -471,6 +473,7 @@ RetroRuns_Data[2522] = {
                     noMarker        = true,
                     highlightCircle = true,
                     note            = "After killing ^Eranog^, there are 3 paths available. Take the path on the right labeled ^The Vault Approach^.",
+                    minNote         = "Right to Vault Approach",
                     points          = {
                         { 0.600, 0.135 },
                     },
@@ -479,6 +482,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2122 },
                     kind   = "path",
                     note   = "Continue following the path ahead to reach ^Terros^.",
+                    minNote = "Ahead to Terros",
                     points = {
                         { 0.836, 0.871 },
                         { 0.835, 0.783 },
@@ -489,6 +493,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2124 },
                     kind   = "path",
                     note   = "When you arrive in ^The Primal Convergence^, take the first path on the left labeled ^Quarry of Infusion^.",
+                    minNote = "Left to Quarry of Infusion",
                     points = {
                         { 0.638, 0.822 },
                         { 0.512, 0.861 },
@@ -499,6 +504,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2122 },
                     kind   = "path",
                     note   = "Continue following the path ahead to reach ^Terros^.",
+                    minNote = "Ahead to Terros",
                     points = {
                         { 0.554, 0.571 },
                         { 0.534, 0.623 },
@@ -528,6 +534,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2122 },
                     kind   = "path",
                     note   = "Continue following the path ahead to reach ^Sennarth^.",
+                    minNote = "Ahead to Sennarth",
                     points = {
                         { 0.250, 0.763 },
                         { 0.474, 0.753 },
@@ -539,6 +546,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2124 },
                     kind   = "path",
                     note   = "From ^The Primal Convergence^, follow the path to the entrance labeled ^Iceskitter Hollow^.",
+                    minNote = "Path to Iceskitter Hollow",
                     points = {
                         { 0.376, 0.836 },
                         { 0.392, 0.806 },
@@ -550,6 +558,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2122 },
                     kind   = "path",
                     note   = "Continue following the path ahead to reach ^Sennarth^.",
+                    minNote = "Ahead to Sennarth",
                     points = {
                         { 0.486, 0.358 },
                         { 0.334, 0.353 },
@@ -559,6 +568,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2123 },
                     kind   = "path",
                     note   = "Continue following the path ahead to reach ^Sennarth^.",
+                    minNote = "Ahead to Sennarth",
                     points = {
                         { 0.572, 0.237 },
                         { 0.663, 0.526 },
@@ -588,6 +598,7 @@ RetroRuns_Data[2522] = {
                     kind     = "poi",
                     poiSize  = 35,
                     note     = "After killing ^Sennarth^, click the ^Gust of Wind^ behind him to return to the bottom of the room. If you killed him on the ground floor, proceed up the ramp to find his corpse and collect his loot!",
+                    minNote  = "Click Gust of Wind",
                     mapLabel = "Click Gust of Wind",
                     mapLabelPos = "above",
                     completionCheck = true,
@@ -599,6 +610,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2122 },
                     kind   = "path",
                     note   = "After landing from ^Gust of Wind^, follow the path back out to ^The Primal Convergence^.",
+                    minNote = "Backtrack to The Primal Convergence",
                     points = {
                         { 0.350, 0.348 },
                         { 0.489, 0.357 },
@@ -608,6 +620,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2124 },
                     kind   = "path",
                     note   = "Back in ^The Primal Convergence^, follow the newly-opened path to ^Kurog Grimtotem^.",
+                    minNote = "Path to Kurog Grimtotem",
                     points = {
                         { 0.260, 0.505 },
                         { 0.306, 0.335 },
@@ -636,6 +649,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2124 },
                     kind   = "path",
                     note   = "After killing ^Kurog Grimtotem^, follow the path back to ^The Vault Approach^.",
+                    minNote = "Backtrack to The Vault Approach",
                     points = {
                         { 0.527, 0.546 },
                         { 0.634, 0.825 },
@@ -645,6 +659,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2122 },
                     kind   = "path",
                     note   = "Continue following the path to arrive back at the ^The Primal Bulwark^.",
+                    minNote = "Path to The Primal Bulwark",
                     points = {
                         { 0.714, 0.559 },
                         { 0.837, 0.799 },
@@ -657,6 +672,7 @@ RetroRuns_Data[2522] = {
                     noMarker        = true,
                     highlightCircle = true,
                     note            = "This time, take the far-left exit to reach ^The Elemental Conclave^.",
+                    minNote         = "Left to The Elemental Conclave",
                     points          = {
                         { 0.544, 0.135 },
                     },
@@ -665,6 +681,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2120 },
                     kind   = "path",
                     note   = "Follow the path and kill ^Braekkas^ to open the wall. Continue on to find ^The Primal Council^.",
+                    minNote = "Path to The Primal Council",
                     points = {
                         { 0.849, 0.299 },
                         { 0.808, 0.226 },
@@ -695,6 +712,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2120 },
                     kind   = "path",
                     note   = "After killing ^The Primal Council^, follow the path towards the exit labeled ^Galewind Crag^. Kill ^Thondrozus^, and click on ^Upward Draft^ to be carried up to ^Galewind Crag^. Approach the Downward Draft.",
+                    minNote = "Galewind Crag then Upward Draft",
                     points = {
                         { 0.462, 0.676 },
                         { 0.550, 0.646 },
@@ -708,6 +726,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2121 },
                     kind   = "path",
                     note   = "Click the ^Downward Draft^ to be flown to the platform and engage ^Dathea, Ascended^.",
+                    minNote = "Click Downward Draft to Dathea",
                     points = {
                         { 0.316, 0.507 },
                         { 0.450, 0.541 },
@@ -736,6 +755,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2121 },
                     kind   = "path",
                     note   = "After killing ^Dathea, Ascended^, take one of the nearby ^Downward Draft^ to return below to ^The Primal Bulwark^.",
+                    minNote = "Click Downward Draft to below",
                     points = {
                         { 0.565, 0.476 },
                         { 0.590, 0.303 },
@@ -747,6 +767,7 @@ RetroRuns_Data[2522] = {
                     noMarker        = true,
                     highlightCircle = true,
                     note            = "Once you land, take the middle (and final) path labeled ^The Clutchwarren^.",
+                    minNote         = "Path to The Clutchwarren",
                     points          = {
                         { 0.572, 0.122 },
                     },
@@ -755,6 +776,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2122 },
                     kind   = "path",
                     note   = "Work your way upstairs through ^The Vault Approach^ and you will enter ^The Clutchwarren^.",
+                    minNote = "Upstairs to The Clutchwarren",
                     points = {
                         { 0.741, 0.931 },
                         { 0.743, 0.490 },
@@ -764,6 +786,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2126 },
                     kind   = "path",
                     note   = "Follow the path up to ^Broodkeeper Diurna^.",
+                    minNote = "Up to Broodkeeper Diurna",
                     points = {
                         { 0.734, 0.894 },
                         { 0.739, 0.835 },
@@ -789,6 +812,7 @@ RetroRuns_Data[2522] = {
                     when     = { mapID = 2126 },
                     kind     = "poi",
                     note     = "After killing ^Broodkeeper Diurna^, click any nearby dragon to fly to the ^Vault of the Incarnates^.",
+                    minNote  = "Click Nearby Dragon",
                     mapLabel = "Click Dragon",
                     mapLabelPos = "above",
                     completionCheck = true,
@@ -799,6 +823,7 @@ RetroRuns_Data[2522] = {
                 {
                     when    = { mapID = 2125 },
                     note    = "After a brief dialog, kill ^Raszageth the Storm-Eater^!",
+                    minNote = "Dialog then Raszageth",
                 },
             },
             soloTip = "The only mechanic that matters anymore is his knockback. Position yourself so it launches you to the left or right platform. Kill adds on both platforms and return to middle. For next knockback, let it knock you to the upper middle platform. Finish the boss there!",
@@ -837,6 +862,7 @@ RetroRuns_Data[2522] = {
                             mapLabelPos     = "above",
                             completionCheck = true,
                             note            = "Upon zoning in, talk to all 5 dragons. Then talk to ^Khadgar^ to begin the assault. Choose any dragon; doesn't matter.",
+                            minNote         = "Talk to Dragons then Khadgar",
                             points          = {
                                 { 0.620, 0.870 },
                             },
@@ -849,6 +875,7 @@ RetroRuns_Data[2522] = {
                             mapLabel        = "Kill Volcanius",
                             mapLabelPos     = "above",
                             note            = "After landing, follow the path to kill |cffF259C7(1)|r ^Volcanius^, then |cffF259C7(2)|r ^Eranog^.",
+                            minNote         = "Kill Volcanius then Eranog",
                             points          = {
                                 { 0.561, 0.378 },
                             },
@@ -878,6 +905,7 @@ RetroRuns_Data[2522] = {
                             noMarker        = true,
                             highlightCircle = true,
                             note            = "After killing ^Eranog^, take the left map exit labeled ^The Elemental Conclave^.",
+                            minNote         = "Left to The Elemental Conclave",
                             points          = {
                                 { 0.544, 0.135 },
                             },
@@ -886,6 +914,7 @@ RetroRuns_Data[2522] = {
                             when    = { mapID = 2120 },
                             kind   = "path",
                             note   = "Follow the path and kill ^Braekkas^ to open the wall. Continue on to find ^The Primal Council^.",
+                            minNote = "Path to The Primal Council",
                             points = {
                                 { 0.849, 0.299 },
                                 { 0.808, 0.226 },
@@ -909,6 +938,7 @@ RetroRuns_Data[2522] = {
                             when    = { mapID = 2120 },
                             kind   = "path",
                             note   = "After killing ^The Primal Council^, follow the path towards the exit labeled ^Galewind Crag^. Kill ^Thondrozus^, and click on ^Upward Draft^ to be carried up to ^Galewind Crag^. Approach the Downward Draft.",
+                            minNote = "Galewind Crag then Upward Draft",
                             points = {
                                 { 0.462, 0.676 },
                                 { 0.550, 0.646 },
@@ -922,6 +952,7 @@ RetroRuns_Data[2522] = {
                             when    = { mapID = 2121 },
                             kind   = "path",
                             note   = "Click the ^Downward Draft^ to be flown to the platform and engage ^Dathea, Ascended^.",
+                            minNote = "Click Downward Draft to Dathea",
                             points = {
                                 { 0.316, 0.507 },
                                 { 0.450, 0.541 },
@@ -955,6 +986,7 @@ RetroRuns_Data[2522] = {
                             noMarker        = true,
                             highlightCircle = true,
                             note            = "After zoning into ^The Primal Bulwark^, there are 3 paths available. Take the path on the right labeled ^The Vault Approach^.",
+                            minNote         = "Right to Vault Approach",
                             points          = {
                                 { 0.600, 0.135 },
                             },
@@ -963,6 +995,7 @@ RetroRuns_Data[2522] = {
                             when    = { mapID = 2122 },
                             kind   = "path",
                             note   = "Continue following the path ahead to reach ^Terros^.",
+                            minNote = "Ahead to Terros",
                             points = {
                                 { 0.836, 0.871 },
                                 { 0.835, 0.783 },
@@ -973,6 +1006,7 @@ RetroRuns_Data[2522] = {
                             when    = { mapID = 2124 },
                             kind   = "path",
                             note   = "When you arrive in ^The Primal Convergence^, take the first path on the left labeled ^Quarry of Infusion^.",
+                            minNote = "Left to Quarry of Infusion",
                             points = {
                                 { 0.638, 0.822 },
                                 { 0.512, 0.861 },
@@ -983,6 +1017,7 @@ RetroRuns_Data[2522] = {
                             when    = { mapID = 2122 },
                             kind   = "path",
                             note   = "Continue following the path ahead to reach ^Terros^.",
+                            minNote = "Ahead to Terros",
                             points = {
                                 { 0.554, 0.571 },
                                 { 0.534, 0.623 },
@@ -1004,6 +1039,7 @@ RetroRuns_Data[2522] = {
                             when    = { mapID = 2122 },
                             kind   = "path",
                             note   = "Continue following the path ahead to reach ^Sennarth^.",
+                            minNote = "Ahead to Sennarth",
                             points = {
                                 { 0.250, 0.763 },
                                 { 0.474, 0.753 },
@@ -1015,6 +1051,7 @@ RetroRuns_Data[2522] = {
                             when    = { mapID = 2124 },
                             kind   = "path",
                             note   = "From ^The Primal Convergence^, follow the path to the entrance labeled ^Iceskitter Hollow^.",
+                            minNote = "Path to Iceskitter Hollow",
                             points = {
                                 { 0.376, 0.836 },
                                 { 0.392, 0.806 },
@@ -1026,6 +1063,7 @@ RetroRuns_Data[2522] = {
                             when    = { mapID = 2122 },
                             kind   = "path",
                             note   = "Continue following the path ahead to reach ^Sennarth^.",
+                            minNote = "Ahead to Sennarth",
                             points = {
                                 { 0.486, 0.358 },
                                 { 0.334, 0.353 },
@@ -1035,6 +1073,7 @@ RetroRuns_Data[2522] = {
                             when    = { mapID = 2123 },
                             kind   = "path",
                             note   = "Continue following the path ahead to reach ^Sennarth^.",
+                            minNote = "Ahead to Sennarth",
                             points = {
                                 { 0.572, 0.237 },
                                 { 0.663, 0.526 },
@@ -1058,6 +1097,7 @@ RetroRuns_Data[2522] = {
                             kind     = "poi",
                             poiSize  = 35,
                             note     = "After killing ^Sennarth^, click the ^Gust of Wind^ behind him to return to the bottom of the room. If you killed him on the ground floor, proceed up the ramp to find his corpse and collect his loot!",
+                            minNote  = "Click Gust of Wind",
                             mapLabel = "Click Gust of Wind",
                             mapLabelPos = "above",
                             completionCheck = true,
@@ -1069,6 +1109,7 @@ RetroRuns_Data[2522] = {
                             when    = { mapID = 2122 },
                             kind   = "path",
                             note   = "After landing from ^Gust of Wind^, follow the path back out to ^The Primal Convergence^.",
+                            minNote = "Backtrack to The Primal Convergence",
                             points = {
                                 { 0.350, 0.348 },
                                 { 0.489, 0.357 },
@@ -1078,6 +1119,7 @@ RetroRuns_Data[2522] = {
                             when    = { mapID = 2124 },
                             kind   = "path",
                             note   = "Back in ^The Primal Convergence^, follow the newly-opened path to ^Kurog Grimtotem^.",
+                            minNote = "Path to Kurog Grimtotem",
                             points = {
                                 { 0.260, 0.505 },
                                 { 0.306, 0.335 },
@@ -1113,6 +1155,7 @@ RetroRuns_Data[2522] = {
                             noMarker        = true,
                             highlightCircle = true,
                             note            = "After zoning in, take the middle path labeled ^The Clutchwarren^.",
+                            minNote         = "Path to The Clutchwarren",
                             points          = {
                                 { 0.572, 0.122 },
                             },
@@ -1121,6 +1164,7 @@ RetroRuns_Data[2522] = {
                             when    = { mapID = 2122 },
                             kind   = "path",
                             note   = "Work your way upstairs through ^The Vault Approach^ and you will enter ^The Clutchwarren^.",
+                            minNote = "Upstairs to The Clutchwarren",
                             points = {
                                 { 0.741, 0.931 },
                                 { 0.743, 0.490 },
@@ -1130,6 +1174,7 @@ RetroRuns_Data[2522] = {
                             when    = { mapID = 2126 },
                             kind   = "path",
                             note   = "Follow the path up to ^Broodkeeper Diurna^.",
+                            minNote = "Up to Broodkeeper Diurna",
                             points = {
                                 { 0.734, 0.894 },
                                 { 0.739, 0.835 },
@@ -1150,6 +1195,7 @@ RetroRuns_Data[2522] = {
                             when     = { mapID = 2126 },
                             kind     = "poi",
                             note     = "After killing ^Broodkeeper Diurna^, click any nearby dragon to fly to the ^Vault of the Incarnates^.",
+                            minNote  = "Click Nearby Dragon",
                             mapLabel = "Click Dragon",
                             mapLabelPos = "above",
                             completionCheck = true,
@@ -1160,6 +1206,7 @@ RetroRuns_Data[2522] = {
                         {
                             when    = { mapID = 2125 },
                             note    = "After a brief dialog, kill ^Raszageth the Storm-Eater^!",
+                            minNote = "Dialog then Raszageth",
                         },
                     },
                     soloTip = "The only mechanic that matters anymore is his knockback. Position yourself so it launches you to the left or right platform. Kill adds on both platforms and return to middle. For next knockback, let it knock you to the upper middle platform. Finish the boss there!",
@@ -1193,6 +1240,7 @@ RetroRuns_Data[2522] = {
                     mapLabelPos     = "above",
                     completionCheck = true,
                     note            = "Upon zoning in, talk to all 5 dragons. Then talk to ^Khadgar^ to begin the assault. Choose any dragon; doesn't matter.",
+                    minNote         = "Dragons then Khadgar",
                     points          = {
                         { 0.620, 0.870 },
                     },
@@ -1205,11 +1253,13 @@ RetroRuns_Data[2522] = {
                     mapLabel        = "Kill Volcanius",
                     mapLabelPos     = "above",
                     note            = "After landing, follow the path to kill |cffF259C7(1)|r ^Volcanius^, then |cffF259C7(2)|r ^Eranog^.",
+                    minNote         = "Kill Volcanius then Eranog",
                     points          = {
                         { 0.561, 0.378 },
                     },
                 },
                 {
+                minNote = "Path to Eranog",
                     when    = { mapID = 2119, subZone = "The Primal Bulwark" },
                     kind    = "path",
                     points  = {
@@ -1241,11 +1291,13 @@ RetroRuns_Data[2522] = {
                     mapLabel    = "Click 2x Runes",
                     mapLabelPos = "above",
                     note        = "After killing ^Eranog^, click the ^Clutchwarren Runestone^ next to each staircase. After that, take the staircase towards ^The Clutchwarren^.",
+                    minNote     = "Click Clutchwarren Runestones",
                     points      = {
                         { 0.555, 0.115 },
                     },
                 },
                 {
+                minNote = "Ahead to Diurna",
                     when    = { mapID = 2119, subZone = "The Primal Bulwark" },
                     kind    = "poi",
                     points  = {
@@ -1256,6 +1308,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2122 },
                     kind   = "path",
                     note   = "Work your way upstairs through ^The Vault Approach^ and you will enter ^The Clutchwarren^.",
+                    minNote = "Path Upstairs",
                     points = {
                         { 0.741, 0.931 },
                         { 0.743, 0.490 },
@@ -1265,6 +1318,7 @@ RetroRuns_Data[2522] = {
                     when    = { mapID = 2126 },
                     kind   = "path",
                     note   = "Follow the path up to ^Broodkeeper Diurna^.",
+                    minNote = "Path to Broodkeeper",
                     points = {
                         { 0.734, 0.894 },
                         { 0.739, 0.835 },
@@ -1287,6 +1341,7 @@ RetroRuns_Data[2522] = {
                     when     = { mapID = 2126 },
                     kind     = "poi",
                     note     = "After killing ^Broodkeeper Diurna^, click any nearby dragon to fly to the ^Vault of the Incarnates^.",
+                    minNote  = "Click Dragon",
                     mapLabel = "Click Dragon",
                     mapLabelPos = "above",
                     completionCheck = true,

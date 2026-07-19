@@ -690,6 +690,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 557, subZone = "Pools of Power" },
                     kind    = "path",
                     note    = "After zoning in, head down the stairs and move straight ahead to engage ^Immerseus^.",
+                    minNote = "Ahead to Immerseus",
                     points  = {
                         { 0.849, 0.454 },
                         { 0.835, 0.521 },
@@ -715,6 +716,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 557, subZone = "Pools of Power" },
                     kind    = "path",
                     note    = "After defeating ^Immerseus^, take the tall western stairwell behind him.",
+                    minNote = "Western stairwell",
                     points  = {
                         { 0.325, 0.454 },
                         { 0.147, 0.451 },
@@ -726,6 +728,7 @@ RetroRuns_Data[1136] = {
                     mapLabel    = "Stand in Light, Click Button",
                     mapLabelPos = "above",
                     note        = "Walk into the ^beam of light^ and click the ^Extra Action Button^ to trigger a cutscene. After the cutscene, go up the stairs and jump off the ledge.",
+                    minNote = "Action Button in Beam",
                     points  = {
                         { 0.118, 0.453 },
                     },
@@ -743,6 +746,7 @@ RetroRuns_Data[1136] = {
                     kind     = "poi",
                     noMarker = true,
                     note     = "After jumping in the hole, engage ^The Fallen Protectors^.",
+                    minNote = "Path to Fallen Protectors",
                     points  = {
                         { 0.250, 0.148 },
                     },
@@ -762,6 +766,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 556, subZone = "Scarred Vale" },
                     kind    = "path",
                     note    = "After defeating ^The Fallen Protectors^, follow the path to the mineshaft. Kill ^Zeal^ to unlock the way.",
+                    minNote = "Kill Zeal then Mineshaft",
                     points  = {
                         { 0.330, 0.194 },
                         { 0.376, 0.361 },
@@ -774,6 +779,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 558, subZone = "Big Blossom Mine" },
                     kind    = "path",
                     note    = "Follow the mineshaft into the next room. After a lengthy dialog, speak to ^Norushen^ to start the encounter.",
+                    minNote = "Talk to Norushen",
                     points  = {
                         { 0.592, 0.168 },
                         { 0.571, 0.206 },
@@ -801,6 +807,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 558, subZone = "Chamber of Purification" },
                     kind    = "path",
                     note    = "After completing the ^Norushen^ encounter, move ahead into the next room and clear all trash to start the fight with ^Sha of Pride^.",
+                    minNote = "Trash then Pride",
                     points  = {
                         { 0.477, 0.611 },
                         { 0.319, 0.658 },
@@ -823,6 +830,7 @@ RetroRuns_Data[1136] = {
                     mapLabel    = "Click Portal",
                     mapLabelPos = "above",
                     note        = "After defeating ^Sha of Pride^, watch some dialog then click the portal in the southwest corner of the room.",
+                    minNote = "Southwest Portal",
                     points  = {
                         { 0.223, 0.834 },
                     },
@@ -831,6 +839,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = bladefistMapID, subZone = "Bladefist Bay" },
                     kind    = "path",
                     note    = galakrasGreetNote,
+                    minNote = "Jaina then Portal",
                     points  = {
                         { 0.862, 0.280 },
                         { 0.795, 0.290 },
@@ -843,6 +852,7 @@ RetroRuns_Data[1136] = {
                     mapLabelPos = "above",
                     completionCheck = true,
                     note    = "On the beach, your goal is to destroy (7) ^Kor'kron Cannons^. Click the ^Spike Mines^ next to each cannon to destroy them.",
+                    minNote = "Destroy Cannons",
                     points  = {
                         { 0.801, 0.351 },
                         { 0.833, 0.408 },
@@ -853,6 +863,7 @@ RetroRuns_Data[1136] = {
                     when        = { mapID = 559, subZone = "Dranosh'ar Landing" },
                     kind        = "path",
                     note        = galakrasReturnNote,
+                    minNote = "Talk to Jaina",
                     triggeredBy = { dialog = { npc = "Warlord Zaela", match = "Your blood will fill this bay" } },
                     points  = {},
                 },
@@ -871,6 +882,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 559, subZone = "Dranosh'ar Landing" },
                     kind    = "path",
                     note    = "After killing ^Galakras^, follow the long path to the west until you arrive at ^Iron Juggernaut^.",
+                    minNote = "West to Iron Juggernaut",
                     points  = {
                         { 0.689, 0.322 },
                         { 0.631, 0.370 },
@@ -899,6 +911,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 559, subZone = "Before the Gates" },
                     kind    = "path",
                     note    = "After killing ^Iron Juggernaut^, head into the ^Gates of Orgrimmar^.",
+                    minNote = "Enter Gates of Org",
                     points  = {
                         { 0.318, 0.442 },
                         { 0.298, 0.324 },
@@ -909,6 +922,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 560, subZone = "Valley of Strength" },
                     kind    = "path",
                     note    = "Inside ^Orgrimmar^, move ahead into the boss tower to fight ^Kor'kron Dark Shaman^.",
+                    minNote = "Ahead to Dark Shaman",
                     points  = {
                         { 0.512, 0.743 },
                         { 0.491, 0.652 },
@@ -929,6 +943,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 560, subZone = "Valley of Strength" },
                     kind    = "path",
                     note    = "After killing ^Kor'kron Dark Shaman^, follow the northeastern path towards ^The Drag^. Clear trash and enter the ^Cleft of Shadows^.",
+                    minNote = "Enter Cleft of Shadows",
                     points  = {
                         { 0.504, 0.666 },
                         { 0.508, 0.574 },
@@ -948,6 +963,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 561, subZone = "Cleft of Shadow" },
                     kind    = "path",
                     note    = "Inside the ^Cleft of Shadows^, jump off to the left and head into another tunnel.",
+                    minNote = "Jump down",
                     points  = {
                         { 0.728, 0.154 },
                         { 0.697, 0.202 },
@@ -963,6 +979,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 562, subZone = "Ragefire Chasm" },
                     kind    = "path",
                     note    = "Inside the next tunnel, follow the long path to reach ^General Nazgrim^.",
+                    minNote = "Path to Nazgrim",
                     points  = {
                         { 0.344, 0.174 },
                         { 0.399, 0.158 },
@@ -992,6 +1009,7 @@ RetroRuns_Data[1136] = {
                     mapLabel    = "Elevator",
                     mapLabelPos = "above",
                     note        = "After defeating ^General Nazgrim^, take the elevator down in the northeastern section of the room.",
+                    minNote = "Northeastern Elevator",
                     points  = {
                         { 0.761, 0.612 },
                     },
@@ -1000,6 +1018,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 563, subZone = "Rough-Hewn Passage" },
                     kind    = "path",
                     note    = "In the next area, follow the path around a few turns and up some stairs, killing trash on your way to ^Malkorok^.",
+                    minNote = "Up to Malkorok",
                     points  = {
                         { 0.239, 0.603 },
                         { 0.292, 0.556 },
@@ -1027,6 +1046,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 563, subZone = "Kor'kron Barracks" },
                     kind    = "path",
                     note    = "After killing ^Malkorok^, take the northwestern exit from the platform and follow it around to kill the scorpion and click ^Release Lever^.",
+                    minNote = "Click Release Lever",
                     points  = {
                         { 0.397, 0.381 },
                         { 0.307, 0.174 },
@@ -1048,6 +1068,7 @@ RetroRuns_Data[1136] = {
                     when        = { mapID = 563, subZone = "Kor'kron Barracks" },
                     kind        = "path",
                     note        = "After clicking the lever, travel through the opened door to the northeast and follow it around to a big clearing. Take the southwestern door.",
+                    minNote = "Follow path",
                     triggeredBy = spoilsDoorTrigger,
                     points  = {
                         { 0.541, 0.299 },
@@ -1068,6 +1089,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 564, subZone = "Artifact Storage" },
                     kind    = "path",
                     note    = "Once inside ^Artifact Storage^, continue forward and click on the ^Secured Stockpile of Pandaren Spoils^ to begin the ^Spoils of Pandaria^ encounter.",
+                    minNote = "Click Spoils",
                     points  = {
                         { 0.620, 0.197 },
                         { 0.552, 0.259 },
@@ -1088,6 +1110,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 564, subZone = "Artifact Storage" },
                     kind    = "path",
                     note    = "After completing the ^Spoils of Pandaria^ encounter, follow the path ahead to reach ^Thok the Bloodthirsty^.",
+                    minNote = "Ahead to Thok",
                     points  = {
                         { 0.499, 0.313 },
                         { 0.386, 0.423 },
@@ -1111,6 +1134,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 564, subZone = "The Menagerie" },
                     kind    = "path",
                     note    = "After defeating ^Thok^, backtrack all the way past ^Spoils of Pandaria^ to arrive back in ^Underhold Nexus^.",
+                    minNote = "Back to Underhold Nexus",
                     points  = {
                         { 0.471, 0.728 },
                         { 0.364, 0.503 },
@@ -1124,6 +1148,7 @@ RetroRuns_Data[1136] = {
                     mapLabel    = "Go Here",
                     mapLabelPos = "above",
                     note        = "Back in ^Underhold Nexus^, go straight ahead to another door marked on the map.",
+                    minNote = "Follow path",
                     points  = {
                         { 0.902, 0.621 },
                     },
@@ -1134,6 +1159,7 @@ RetroRuns_Data[1136] = {
                     mapLabel    = "Jump in tunnel",
                     mapLabelPos = "above",
                     note        = "In the next area, kill several waves of trash. After killing ^Shanna Sparkfizz^, jump in the pipe to reach ^Siegecrafter Blackfuse^.",
+                    minNote = "Trash then pipe",
                     points  = {
                         { 0.474, 0.584 },
                     },
@@ -1153,6 +1179,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 565, subZone = "The Siegeworks" },
                     kind    = "path",
                     note    = "After defeating ^Siegecrafter Blackfuse^, jump back in the pipe towards the room entrance. Continue southwest back the way you came.",
+                    minNote = "Back through pipe",
                     points  = {
                         { 0.508, 0.542 },
                         { 0.223, 0.831 },
@@ -1164,6 +1191,7 @@ RetroRuns_Data[1136] = {
                     mapLabel    = "Go Here",
                     mapLabelPos = "above",
                     note        = "Back in the ^Underhold Nexus^, take the southern (final) door marked on the map.",
+                    minNote = "Southern Door",
                     points  = {
                         { 0.884, 0.773 },
                     },
@@ -1172,6 +1200,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 566, subZone = "Rough-Hewn Passage" },
                     kind    = "path",
                     note    = "After walking through the door, follow the path to ^Paragons of the Klaxxi^. Clear trash and click ^Mantid Amber^ in the middle of the room to start the encounter.",
+                    minNote = "Click Mantid Amber",
                     points  = {
                         { 0.345, 0.196 },
                         { 0.389, 0.242 },
@@ -1198,6 +1227,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 566, subZone = "Chamber of the Paragons" },
                     kind    = "path",
                     note    = "After defeating the ^Paragons of the Klaxxi^, take the new exit on the south side of the room. As you approach ^Garrosh^, pull the hallway trash with you and most of the dialog will be skipped!",
+                    minNote = "South Exit to Garrosh",
                     points  = {
                         { 0.719, 0.433 },
                         { 0.805, 0.663 },
@@ -1209,6 +1239,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 567, subZone = "The Inner Sanctum" },
                     kind    = "path",
                     note    = "After opening the door, proceed ahead to witness a lengthy dialog before engaging ^Garrosh Hellscream^.",
+                    minNote = "Ahead to Garrosh",
                     points  = {
                         { 0.534, 0.139 },
                         { 0.490, 0.665 },
@@ -1239,6 +1270,7 @@ RetroRuns_Data[1136] = {
                     mapLabel = "Click Scroll",
                     mapLabelPos = "above",
                     note     = "After zoning in, click the ^Scroll of Past Deeds^ on the wall to skip ahead to ^Garrosh^. It's on the wall next to ^Lorewalker Cho^.",
+                    minNote  = "Click Scroll by Cho",
                     points   = {
                         { 0.881, 0.436 },
                     },
@@ -1247,6 +1279,7 @@ RetroRuns_Data[1136] = {
                     when    = { mapID = 567, subZone = "The Inner Sanctum" },
                     kind    = "path",
                     note    = "After teleporting, proceed ahead to witness a lengthy dialog before engaging ^Garrosh Hellscream^.",
+                    minNote = "Ahead to Garrosh",
                     points  = {
                         { 0.534, 0.139 },
                         { 0.490, 0.665 },
@@ -1278,6 +1311,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 557, subZone = "Pools of Power" },
                             kind    = "path",
                             note    = "After zoning in, head down the stairs and move straight ahead to engage ^Immerseus^.",
+                            minNote = "Ahead to Immerseus",
                             points  = {
                                 { 0.849, 0.454 },
                                 { 0.835, 0.521 },
@@ -1303,6 +1337,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 557, subZone = "Pools of Power" },
                             kind    = "path",
                             note    = "After defeating ^Immerseus^, take the tall western stairwell behind him.",
+                            minNote = "Western stairwell",
                             points  = {
                                 { 0.325, 0.454 },
                                 { 0.147, 0.451 },
@@ -1314,6 +1349,7 @@ RetroRuns_Data[1136] = {
                             mapLabel    = "Stand in Light, Click Button",
                             mapLabelPos = "above",
                             note        = "Walk into the ^beam of light^ and click the ^Extra Action Button^ to trigger a cutscene. After the cutscene, go up the stairs and jump off the ledge.",
+                            minNote = "Action Button in Beam",
                             points  = {
                                 { 0.118, 0.453 },
                             },
@@ -1331,6 +1367,7 @@ RetroRuns_Data[1136] = {
                             kind     = "poi",
                             noMarker = true,
                             note     = "After jumping in the hole, engage ^The Fallen Protectors^.",
+                            minNote = "Path to Fallen Protectors",
                             points  = {
                                 { 0.250, 0.148 },
                             },
@@ -1350,6 +1387,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 556, subZone = "Scarred Vale" },
                             kind    = "path",
                             note    = "After defeating ^The Fallen Protectors^, follow the path to the mineshaft. Kill ^Zeal^ to unlock the way.",
+                            minNote = "Kill Zeal then Mineshaft",
                             points  = {
                                 { 0.330, 0.194 },
                                 { 0.376, 0.361 },
@@ -1362,6 +1400,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 558, subZone = "Big Blossom Mine" },
                             kind    = "path",
                             note    = "Follow the mineshaft into the next room. After a lengthy dialog, speak to ^Norushen^ to start the encounter.",
+                            minNote = "Talk to Norushen",
                             points  = {
                                 { 0.592, 0.168 },
                                 { 0.571, 0.206 },
@@ -1389,6 +1428,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 558, subZone = "Chamber of Purification" },
                             kind    = "path",
                             note    = "After completing the ^Norushen^ encounter, move ahead into the next room and clear all trash to start the fight with ^Sha of Pride^.",
+                            minNote = "Trash then Pride",
                             points  = {
                                 { 0.477, 0.611 },
                                 { 0.319, 0.658 },
@@ -1422,6 +1462,7 @@ RetroRuns_Data[1136] = {
                             mapLabelPos = "above",
                             completionCheck = true,
                             note    = "After zoning in, proceed across the bridge. On the beach, your goal is to destroy (7) ^Kor'kron Cannons^. Click the ^Spike Mines^ next to each cannon to destroy them.",
+                            minNote = "Destroy Cannons",
                             triggeredBy = { dialog = { npc = "Warlord Zaela", match = "Your blood will fill this bay" } },
                             points  = {
                                 { 0.862, 0.280 },
@@ -1435,6 +1476,7 @@ RetroRuns_Data[1136] = {
                             when        = { mapID = 559, subZone = "Dranosh'ar Landing" },
                             kind        = "path",
                             note        = galakrasReturnNote,
+                            minNote = "Talk to Jaina",
                             triggeredBy = { dialog = { npc = "Warlord Zaela", match = "Your blood will fill this bay" } },
                             points  = {},
                         },
@@ -1453,6 +1495,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 559, subZone = "Dranosh'ar Landing" },
                             kind    = "path",
                             note    = "After killing ^Galakras^, follow the long path to the west until you arrive at ^Iron Juggernaut^.",
+                            minNote = "West to Iron Juggernaut",
                             points  = {
                                 { 0.689, 0.322 },
                                 { 0.631, 0.370 },
@@ -1481,6 +1524,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 559, subZone = "Before the Gates" },
                             kind    = "path",
                             note    = "After killing ^Iron Juggernaut^, head into the ^Gates of Orgrimmar^.",
+                            minNote = "Enter Gates of Org",
                             points  = {
                                 { 0.318, 0.442 },
                                 { 0.298, 0.324 },
@@ -1491,6 +1535,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 560, subZone = "Valley of Strength" },
                             kind    = "path",
                             note    = "Inside ^Orgrimmar^, move ahead into the boss tower to fight ^Kor'kron Dark Shaman^.",
+                            minNote = "Ahead to Dark Shaman",
                             points  = {
                                 { 0.512, 0.743 },
                                 { 0.491, 0.652 },
@@ -1511,6 +1556,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 560, subZone = "Valley of Strength" },
                             kind    = "path",
                             note    = "After killing ^Kor'kron Dark Shaman^, follow the northeastern path towards ^The Drag^. Clear trash and enter the ^Cleft of Shadows^.",
+                            minNote = "Enter Cleft of Shadows",
                             points  = {
                                 { 0.504, 0.666 },
                                 { 0.508, 0.574 },
@@ -1530,6 +1576,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 561, subZone = "Cleft of Shadow" },
                             kind    = "path",
                             note    = "Inside the ^Cleft of Shadows^, jump off to the left and head into another tunnel.",
+                            minNote = "Jump down",
                             points  = {
                                 { 0.728, 0.154 },
                                 { 0.697, 0.202 },
@@ -1545,6 +1592,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 562, subZone = "Ragefire Chasm" },
                             kind    = "path",
                             note    = "Inside the next tunnel, follow the long path to reach ^General Nazgrim^.",
+                            minNote = "Path to Nazgrim",
                             points  = {
                                 { 0.344, 0.174 },
                                 { 0.399, 0.158 },
@@ -1582,6 +1630,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 563, subZone = "Rough-Hewn Passage" },
                             kind    = "path",
                             note    = "After zoning in, follow the path around a few turns and up some stairs, killing trash on your way to ^Malkorok^.",
+                            minNote = "Up to Malkorok",
                             points  = {
                                 { 0.239, 0.603 },
                                 { 0.292, 0.556 },
@@ -1609,6 +1658,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 563, subZone = "Kor'kron Barracks" },
                             kind    = "path",
                             note    = "After killing ^Malkorok^, take the northwestern exit from the platform and follow it around to kill the scorpion and click ^Release Lever^.",
+                            minNote = "Click Release Lever",
                             points  = {
                                 { 0.397, 0.381 },
                                 { 0.307, 0.174 },
@@ -1630,6 +1680,7 @@ RetroRuns_Data[1136] = {
                             when        = { mapID = 563, subZone = "Kor'kron Barracks" },
                             kind        = "path",
                             note        = "After clicking the lever, travel through the opened door to the northeast and follow it around to a big clearing. Take the southwestern door.",
+                            minNote = "Follow path",
                             triggeredBy = spoilsDoorTrigger,
                             points  = {
                                 { 0.541, 0.299 },
@@ -1650,6 +1701,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 564, subZone = "Artifact Storage" },
                             kind    = "path",
                             note    = "Once inside ^Artifact Storage^, continue forward and click on the ^Secured Stockpile of Pandaren Spoils^ to begin the ^Spoils of Pandaria^ encounter.",
+                            minNote = "Click Spoils",
                             points  = {
                                 { 0.620, 0.197 },
                                 { 0.552, 0.259 },
@@ -1670,6 +1722,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 564, subZone = "Artifact Storage" },
                             kind    = "path",
                             note    = "After completing the ^Spoils of Pandaria^ encounter, follow the path ahead to reach ^Thok the Bloodthirsty^.",
+                            minNote = "Ahead to Thok",
                             points  = {
                                 { 0.499, 0.313 },
                                 { 0.386, 0.423 },
@@ -1703,6 +1756,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 563, subZone = "Rough-Hewn Passage" },
                             kind    = "path",
                             note    = "After zoning in, head through the door and proceed to the exit marked on the map.",
+                            minNote = "Follow path",
                             points  = {
                                 { 0.676, 0.316 },
                                 { 0.803, 0.603 },
@@ -1723,6 +1777,7 @@ RetroRuns_Data[1136] = {
                             mapLabel    = "Jump in tunnel",
                             mapLabelPos = "above",
                             note        = "In the next area, kill several waves of trash. After killing ^Shanna Sparkfizz^, jump in the pipe to reach ^Siegecrafter Blackfuse^.",
+                            minNote = "Trash then pipe",
                             points  = {
                                 { 0.474, 0.584 },
                             },
@@ -1742,6 +1797,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 565, subZone = "The Siegeworks" },
                             kind    = "path",
                             note    = "After defeating ^Siegecrafter Blackfuse^, jump back in the pipe towards the room entrance. Continue southwest back the way you came.",
+                            minNote = "Back through pipe",
                             points  = {
                                 { 0.508, 0.542 },
                                 { 0.223, 0.831 },
@@ -1753,6 +1809,7 @@ RetroRuns_Data[1136] = {
                             mapLabel    = "Go Here",
                             mapLabelPos = "above",
                             note        = "Back in the ^Underhold Nexus^, take the southern (final) door marked on the map.",
+                            minNote = "Southern Door",
                             points  = {
                                 { 0.884, 0.773 },
                             },
@@ -1761,6 +1818,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 566, subZone = "Rough-Hewn Passage" },
                             kind    = "path",
                             note    = "After walking through the door, follow the path to ^Paragons of the Klaxxi^. Clear trash and click ^Mantid Amber^ in the middle of the room to start the encounter.",
+                            minNote = "Click Mantid Amber",
                             points  = {
                                 { 0.345, 0.196 },
                                 { 0.389, 0.242 },
@@ -1787,6 +1845,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 566, subZone = "Chamber of the Paragons" },
                             kind    = "path",
                             note    = "After defeating the ^Paragons of the Klaxxi^, take the new exit on the south side of the room. As you approach ^Garrosh^, pull the hallway trash with you and most of the dialog will be skipped!",
+                            minNote = "South Exit to Garrosh",
                             points  = {
                                 { 0.719, 0.433 },
                                 { 0.805, 0.663 },
@@ -1798,6 +1857,7 @@ RetroRuns_Data[1136] = {
                             when    = { mapID = 567, subZone = "The Inner Sanctum" },
                             kind    = "path",
                             note    = "After opening the door, proceed ahead to witness a lengthy dialog before engaging ^Garrosh Hellscream^.",
+                            minNote = "Ahead to Garrosh",
                             points  = {
                                 { 0.534, 0.139 },
                                 { 0.490, 0.665 },

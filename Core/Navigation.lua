@@ -38,7 +38,54 @@ function RR:GetBossByNormalizedName(name)
 end
 
 function RR:ResolveBoss(name)
-    return self:GetBossByName(name) or self:GetBossByNormalizedName(name)
+    local boss = self:GetBossByName(name) or self:GetBossByNormalizedName(name)
+    if boss then return boss end
+    -- Locale fallback: on non-English clients, callers like the saved-instance
+    -- lockout sync hand us Blizzard-localized boss names, which never match the
+    -- English boss.name/aliases above. The Encounter Journal returns names in
+    -- the client's language, so translate localized name -> journalEncounterID
+    -- via the memoized EJ walk, then find the boss carrying that id. Costs
+    -- nothing on English clients (the direct paths above already matched).
+    if not (self.currentRaid and self.currentRaid.journalInstanceID) then return nil end
+    local nameMap = self:GetEJNameMapForJournalInstance(self.currentRaid.journalInstanceID)
+    local journalEncID = nameMap and nameMap[name]
+    if journalEncID then
+        for _, candidate in ipairs(self.currentRaid.bosses) do
+            if candidate.journalEncounterID == journalEncID then
+                return candidate
+            end
+        end
+    end
+    -- The saved-instance lockout names its encounters from a different
+    -- Blizzard table than the Encounter Journal, and the two tables can
+    -- disagree on a boss's localized name (Mogu'shan Vaults boss 3 in
+    -- Spanish: the lockout says "Gara'jal el Vinculador de Espíritus",
+    -- the journal just "Gara'jal"). When the journal lookup misses,
+    -- compare against the addon's own translation of each boss name and
+    -- alias, folded through NormalizeName so casing and accent
+    -- differences between the two Spanish locales cannot break the
+    -- match. On English clients every translation is the identity, so
+    -- the guard skips all comparisons.
+    local needle = self:NormalizeName(name)
+    if needle then
+        for _, candidate in ipairs(self.currentRaid.bosses) do
+            local translated = RR.L[candidate.name]
+            if translated ~= candidate.name
+                and self:NormalizeName(translated) == needle then
+                return candidate
+            end
+            if candidate.aliases then
+                for _, alias in ipairs(candidate.aliases) do
+                    local translatedAlias = RR.L[alias]
+                    if translatedAlias ~= alias
+                        and self:NormalizeName(translatedAlias) == needle then
+                        return candidate
+                    end
+                end
+            end
+        end
+    end
+    return nil
 end
 
 -- Locale-independent boss lookup. ENCOUNTER_END's encounterID is a
@@ -303,6 +350,129 @@ function RR:GetProgressText()
     return ("%d/%d"):format(killed, total)
 end
 
+-- Progress scoped to the ACTIVE route rather than the whole raid. In an LFR
+-- wing GetActiveRouting returns only that wing's steps, so the count reflects
+-- the wing's own bosses (3/4) instead of the full raid (which GetProgressText
+-- reports). On Normal/Heroic the active route is the full raid, so this
+-- matches GetProgressText there. Steps are deduped by bossIndex because a
+-- boss can span several routing steps (multi-segment approaches), which would
+-- otherwise inflate the total. Returns killed, total as numbers.
+function RR:GetActiveRouteProgress()
+    local routing = self:GetActiveRouting()
+    if not routing then return 0, 0 end
+    local seen = {}
+    local total, killed = 0, 0
+    for _, step in ipairs(routing) do
+        local bossIndex = step.bossIndex
+        if bossIndex and not seen[bossIndex] then
+            seen[bossIndex] = true
+            total = total + 1
+            if self:IsBossKilled(bossIndex) then killed = killed + 1 end
+        end
+    end
+    return killed, total
+end
+
+-- Name of the boss the player is currently routed toward -- the active step's
+-- boss. Mirrors the source GetActiveMinNote reads (state.activeStep), so the
+-- bar's next-target name and its minNote always describe the same boss.
+-- Returns nil when no step is active (run complete, or nothing loaded).
+function RR:GetActiveTargetName()
+    local step = self.state and self.state.activeStep
+    if not step then return nil end
+    local boss = self:GetBossByIndex(step.bossIndex)
+    return boss and self:GetLocalizedBossName(boss) or nil
+end
+
+-- Shortest label for a boss: an explicit barLabel override if the boss carries
+-- one, otherwise the shortest of its full name and any aliases. Aliases carry
+-- short forms ("Sylvanas" for "Sylvanas Windrunner"), which keeps the minimized
+-- bar's boss label compact.
+--
+-- Aliases exist first for name matching (ResolveBoss against Blizzard's
+-- saved-instance strings), so some are punctuation-stripped spellings of a
+-- form already present -- "NZoth" beside "N'Zoth", "Kelthuzad" beside
+-- "Kel'Thuzad". Those are never valid to display, and being one byte shorter
+-- they would otherwise always win, so they're skipped: an alias is ignored when
+-- it carries no punctuation and another candidate with the same letters does.
+--
+-- barLabel covers what's left -- where the shortest legitimate candidate is
+-- still the wrong label, such as a two-boss encounter whose shortest alias
+-- names only one of them. Ties keep the earlier candidate (name before aliases,
+-- then alias order). Returns nil for no boss.
+function RR:GetBossDisplayLabel(boss)
+    if not boss then return nil end
+    if boss.barLabel and boss.barLabel ~= "" then return RR.L[boss.barLabel] end
+    -- On a non-English client the journal name differs from the authored
+    -- English name; the English aliases below can't shorten a localized
+    -- name, so it renders as-is.
+    local localizedName = self:GetLocalizedBossName(boss)
+    if localizedName ~= boss.name then return localizedName end
+    local best = boss.name
+    if not boss.aliases then return best end
+
+    -- Letters and digits only, lowercased: two candidates that reduce to the
+    -- same key differ solely in punctuation and casing.
+    local function letters(text)
+        return (text:gsub("[^%w]", ""):lower())
+    end
+    local function punctuated(text)
+        return text:find("[^%w ]") ~= nil
+    end
+
+    for _, alias in ipairs(boss.aliases) do
+        if alias and #alias < #best then
+            -- Skip a punctuation-stripped twin of the name or another alias.
+            local strippedTwin = false
+            if not punctuated(alias) then
+                local key = letters(alias)
+                if letters(boss.name) == key and punctuated(boss.name) then
+                    strippedTwin = true
+                else
+                    for _, other in ipairs(boss.aliases) do
+                        if other ~= alias and letters(other) == key
+                            and punctuated(other) then
+                            strippedTwin = true
+                            break
+                        end
+                    end
+                end
+            end
+            if not strippedTwin then best = alias end
+        end
+    end
+    return best
+end
+
+-- Display label of the boss the player is currently routed toward. Same boss
+-- as GetActiveTargetName (reads state.activeStep), but returns the shortest
+-- label rather than the full name, for the space-constrained minimized bar.
+function RR:GetActiveTargetLabel()
+    local step = self.state and self.state.activeStep
+    if not step then return nil end
+    local boss = self:GetBossByIndex(step.bossIndex)
+    return self:GetBossDisplayLabel(boss)
+end
+
+-- Position of the current target in the route's kill order: returns (pos, total)
+-- where pos is the 1-based index of the active-step boss within GetRouteBossOrder
+-- and total is the route length. This answers "which boss am I on" (boss 2 of 4)
+-- rather than "how many are dead", so the position reflects route order even if
+-- bosses were killed out of sequence. Returns nil when no step is active.
+function RR:GetActiveTargetPosition()
+    local step = self.state and self.state.activeStep
+    if not step then return nil end
+    local order = self:GetRouteBossOrder()
+    local total = #order
+    if total == 0 then return nil end
+    for pos, boss in ipairs(order) do
+        if boss.index == step.bossIndex then
+            return pos, total
+        end
+    end
+    return nil
+end
+
 -- Returns the raid's bosses in the order the navigation picker directs
 -- the player to kill them. This is a pure simulation of the same
 -- selection rule ComputeNextStep uses (GetAvailableSteps -> take the
@@ -392,9 +562,10 @@ function RR:GetProgressLines()
     -- silently vanishing. nil bucket (difficulty not yet detected) disables
     -- the restriction so nothing is hidden on a transient unknown.
     local activeBucket = self:FoldDifficulty(self.currentRaid, self.state.currentDifficultyID)
-    local BUCKET_NAME  = { [14] = "Normal", [15] = "Heroic", [16] = "Mythic", [17] = "LFR" }
+    local BUCKET_NAME  = { [14] = RR.L["Normal"], [15] = RR.L["Heroic"], [16] = RR.L["Mythic"], [17] = RR.L["LFR"] }
 
     for _, boss in ipairs(order) do
+        local displayName = self:GetLocalizedBossName(boss)
         local restrictedHere = activeBucket
             and not self:BossAvailableInBucket(boss, activeBucket)
 
@@ -409,24 +580,24 @@ function RR:GetProgressLines()
             for _, b in ipairs(allowed) do
                 names[#names + 1] = BUCKET_NAME[b] or tostring(b)
             end
-            local tag = (#names > 0) and (" |cff808080(" .. table.concat(names, "/") .. " only)|r") or ""
+            local tag = (#names > 0) and (" |cff808080(" .. table.concat(names, "/") .. " " .. RR.L["only"] .. ")|r") or ""
             table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff808080%s|r%s"):format(
-                PENDING_GLYPH, boss.name, tag))
+                PENDING_GLYPH, displayName, tag))
         elseif self.state.bossesKilled[boss.index] then
             -- Killed: gray brackets framing the green check (native green,
             -- unaffected by color codes). Name green.
             table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff00ff00%s|r"):format(
-                KILLED_GLYPH, boss.name))
+                KILLED_GLYPH, displayName))
         elseif self.state.activeStep
             and self.state.activeStep.bossIndex == boss.index then
             -- Active: gray brackets framing the yellow arrow. Name yellow.
             table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cffffff00%s|r"):format(
-                ACTIVE_GLYPH, boss.name))
+                ACTIVE_GLYPH, displayName))
         else
             -- Pending: gray brackets framing the transparent spacer. Name
             -- gray.
             table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff9d9d9d%s|r"):format(
-                PENDING_GLYPH, boss.name))
+                PENDING_GLYPH, displayName))
         end
     end
     return lines
@@ -501,8 +672,9 @@ end
 -- voicelines that signal a navigation gate (e.g. an orb-click dialog
 -- that opens the next leg of the route). Matches against per-seg
 -- `triggeredBy = { dialog = { npc, match } }`. Outside-encounter
--- only -- mid-encounter chat carries secret-tainted payloads. English
--- substring matching, no localization.
+-- only -- mid-encounter chat carries secret-tainted payloads. Plain
+-- substring matching against the authored English, with the locale
+-- table consulted for the client-language forms of both npc and match.
 
 local dialogTriggerFrame = nil
 
@@ -551,11 +723,9 @@ local function DialogTriggerHandler(_, event, ...)
 end
 
 -- Drive the dialog path exactly as a real chat event would, including
--- the sender guard. Used by /rr firedialog so tests exercise the same
--- code a live emote hits (the prior direct-AdvanceProgress test bypassed
--- the handler entirely, which is why a speakerless-emote regression could
--- pass testing yet fail in a real raid). sender defaults to nil to mirror
--- the speakerless CHAT_MSG_RAID_BOSS_EMOTE case.
+-- the sender guard, so a simulated trigger exercises the same code a live
+-- emote hits. sender defaults to nil to mirror the speakerless
+-- CHAT_MSG_RAID_BOSS_EMOTE case.
 function RR:SimulateDialogEvent(text, sender, event)
     DialogTriggerHandler(dialogTriggerFrame, event or "CHAT_MSG_RAID_BOSS_EMOTE", text, sender)
 end

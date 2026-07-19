@@ -188,7 +188,7 @@ RetroRuns_Data[2481] = {
             index              = 5,
             name               = "Prototype Pantheon",
             journalEncounterID = 2460,
-            aliases            = { "Pantheon of Death" },
+            aliases            = { "Pantheon", "Pantheon of Death" },
             achievements = {
                 { id = 15400, name = "Where the Wild Corgis Are", meta = true, soloable = "yes" },
             },
@@ -392,6 +392,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2047 },
                     kind   = "path",
                     note   = "After zoning in, follow the main path to ^Vigilant Guardian^.",
+                    minNote = "Path To Vigilant Guardian",
                     points = {
                         { 0.100, 0.516 },
                         { 0.243, 0.518 },
@@ -414,8 +415,8 @@ RetroRuns_Data[2481] = {
                 {
                     when        = { mapID = 2047 },
                     kind        = "path",
-                    destination = "Ephemeral Plains Alpha",
                     note        = "Head down the long hallway to the teleporter. Select ^Ephemeral Plains Alpha^.",
+                    minNote     = "Teleport to Ephemeral Plains",
                     points      = {
                         { 0.503, 0.516 },
                         { 0.563, 0.516 },
@@ -426,6 +427,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2061 },
                     kind   = "path",
                     note   = "Follow the path down to ^Skolex^. Kill the trash to spawn the boss.",
+                    minNote = "Path down to Skolex",
                     points = {
                         { 0.163, 0.377 },
                         { 0.191, 0.412 },
@@ -449,6 +451,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2061 },
                     kind   = "path",
                     note   = "After defeating ^Skolex^, follow the ring path up and around to ^Artificer Xy'mox^.",
+                    minNote = "Up to Xy'mox",
                     points = {
                         { 0.163, 0.660 },
                         { 0.193, 0.584 },
@@ -475,6 +478,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2061 },
                     kind   = "path",
                     note   = "After killing both ^Skolex^ and ^Artificer Xy'mox^, follow the path south to ^Halondrus^.",
+                    minNote = "South to Halondrus",
                     points = {
                         { 0.362, 0.422 },
                         { 0.309, 0.420 },
@@ -496,8 +500,8 @@ RetroRuns_Data[2481] = {
                 {
                     when        = { mapID = 2061 },
                     kind        = "path",
-                    destination = "Genesis Cradle Alpha",
                     note        = "After killing ^Halondrus^, continue down the path behind him to reach his loot chest. Activate the nearby teleporter and select ^Genesis Cradle Alpha^.",
+                    minNote     = "Teleport to Genesis Cradle",
                     points      = {
                         { 0.477, 0.770 },
                         { 0.630, 0.596 },
@@ -509,6 +513,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2048 },
                     kind   = "path",
                     note   = "After landing in the ^Genesis Cradle^, follow the path to ^Dausegne^.",
+                    minNote = "Path to Dausegne",
                     points = {
                         { 0.254, 0.841 },
                         { 0.315, 0.757 },
@@ -537,6 +542,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2048 },
                     kind   = "path",
                     note   = "After killing ^Dausegne^, continue up the path toward ^The Endless Foundry^.",
+                    minNote = "Up to Endless Foundry",
                     points = {
                         { 0.543, 0.466 },
                         { 0.572, 0.510 },
@@ -549,6 +555,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2049 },
                     kind   = "path",
                     note   = "Follow the foundry floor to ^Prototype Pantheon^.",
+                    minNote = "Ahead To Pantheon",
                     points = {
                         { 0.257, 0.807 },
                         { 0.305, 0.738 },
@@ -569,6 +576,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2049 },
                     kind   = "path",
                     note   = "Follow the path through ^The Endless Foundry^, killing the trash on the way to ^Lihuvim^.",
+                    minNote = "Trash then Lihuvim",
                     points = {
                         { 0.349, 0.663 },
                         { 0.621, 0.259 },
@@ -588,8 +596,8 @@ RetroRuns_Data[2481] = {
                 {
                     when        = { mapID = 2049 },
                     kind        = "path",
-                    destination = "Domination's Grasp",
                     note        = "Find the teleporter behind ^Lihuvim^ and select ^Domination's Grasp^.",
+                    minNote     = "Teleport to Domination's Grasp",
                     points      = {
                         { 0.668, 0.187 },
                         { 0.682, 0.098 },
@@ -599,6 +607,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2050 },
                     kind   = "path",
                     note   = "After landing in ^Domination's Grasp^, proceed up the ramp. After some dialog, you can engage ^Anduin Wrynn^.",
+                    minNote = "Dialog then Anduin",
                     points = {
                         { 0.161, 0.518 },
                         { 0.377, 0.520 },
@@ -618,8 +627,8 @@ RetroRuns_Data[2481] = {
                 {
                     when        = { mapID = 2050 },
                     kind        = "path",
-                    destination = "The Grand Design",
                     note        = "Cross the bridge behind ^Anduin^ to the teleporter. Select ^Proceed^.",
+                    minNote     = "Bridge to Teleporter",
                     points      = {
                         { 0.435, 0.519 },
                         { 0.857, 0.517 },
@@ -629,6 +638,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2052 },
                     kind   = "path",
                     note   = "Follow the path through ^The Grand Design^, killing trash on the way to ^Lords of Dread^.",
+                    minNote = "Trash then Lords of Dread",
                     points = {
                         { 0.484, 0.202 },
                         { 0.607, 0.204 },
@@ -651,6 +661,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2052 },
                     kind   = "path",
                     note   = "After killing ^Lords of Dread^, you will find a teleporter behind them. Use it to take a shortcut back to the beginning of the room, and follow the path to ^Rygelon^.",
+                    minNote = "Teleport then path to Rygelon",
                     points = {
                         { 0.607, 0.440 },
                         { 0.641, 0.340 },
@@ -681,6 +692,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2052 },
                     kind   = "path",
                     note   = "After killing ^Rygelon^, follow the path straight behind him all the way to ^The Jailer^.",
+                    minNote = "Path to The Jailer",
                     points = {
                         { 0.395, 0.545 },
                         { 0.425, 0.621 },
@@ -700,6 +712,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2051 },
                     kind   = "path",
                     note   = "Continue forward to ^The Jailer^'s platform and end this.",
+                    minNote = "Ahead to The Jailer",
                     points = {
                         { 0.500, 0.500 },
                     },
@@ -730,6 +743,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2047 },
                     kind   = "path",
                     note   = "After zoning in, follow the main path to ^Vigilant Guardian^.",
+                    minNote = "Path to Vigilant Guardian",
                     points = {
                         { 0.100, 0.516 },
                         { 0.243, 0.518 },
@@ -755,6 +769,7 @@ RetroRuns_Data[2481] = {
                     mapLabel = "Talk to Bolvar",
                     mapLabelPos = "below",
                     note     = "After killing ^Vigilant Guardian^, proceed up the bridge and speak to ^Highlord Bolvar Fordragon^ and then take the portal to ^Domination's Grasp^.",
+                    minNote  = "Talk to Bolvar",
                     points   = {
                         { 0.877, 0.529 },
                     },
@@ -763,6 +778,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2050 },
                     kind   = "path",
                     note   = "After landing in ^Domination's Grasp^, proceed up the ramp. After some dialog, you can engage ^Anduin Wrynn^.",
+                    minNote = "Ahead to Anduin",
                     points = {
                         { 0.161, 0.518 },
                         { 0.377, 0.520 },
@@ -782,8 +798,8 @@ RetroRuns_Data[2481] = {
                 {
                     when        = { mapID = 2050 },
                     kind        = "path",
-                    destination = "The Grand Design",
                     note        = "Cross the bridge behind ^Anduin^ to the teleporter. Select ^Proceed^.",
+                    minNote     = "Use Teleporter",
                     points      = {
                         { 0.435, 0.519 },
                         { 0.857, 0.517 },
@@ -793,6 +809,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2052 },
                     kind   = "path",
                     note   = "Follow the path through ^The Grand Design^, killing trash on the way to ^Lords of Dread^.",
+                    minNote = "Trash then Lords of Dread",
                     points = {
                         { 0.484, 0.202 },
                         { 0.607, 0.204 },
@@ -815,6 +832,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2052 },
                     kind   = "path",
                     note   = "After killing ^Lords of Dread^, you will find a teleporter behind them. Use it to take a shortcut back to the beginning of the room, and follow the path to ^Rygelon^.",
+                    minNote = "Teleporter then Boss",
                     points = {
                         { 0.607, 0.440 },
                         { 0.641, 0.340 },
@@ -845,6 +863,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2052 },
                     kind   = "path",
                     note   = "After killing ^Rygelon^, follow the path straight behind him all the way to ^The Jailer^.",
+                    minNote = "Path to The Jailer",
                     points = {
                         { 0.395, 0.545 },
                         { 0.425, 0.621 },
@@ -856,6 +875,7 @@ RetroRuns_Data[2481] = {
                     when   = { mapID = 2051 },
                     kind   = "path",
                     note   = "Continue forward to ^The Jailer^'s platform and end this.",
+                    minNote = "Kill The Jailer",
                     points = {
                         { 0.500, 0.500 },
                     },
@@ -901,6 +921,7 @@ RetroRuns_Data[2481] = {
                             when   = { mapID = 2047 },
                             kind   = "path",
                             note   = "After zoning in, follow the main path to ^Vigilant Guardian^.",
+                            minNote = "Path To Vigilant Guardian",
                             points = {
                                 { 0.100, 0.516 },
                                 { 0.243, 0.518 },
@@ -921,8 +942,8 @@ RetroRuns_Data[2481] = {
                         {
                             when        = { mapID = 2047 },
                             kind        = "path",
-                            destination = "Ephemeral Plains Alpha",
                             note        = "Head down the long hallway to the teleporter. Select ^Ephemeral Plains Alpha^.",
+                            minNote     = "Teleport to Ephemeral Plains",
                             points      = {
                                 { 0.503, 0.516 },
                                 { 0.563, 0.516 },
@@ -933,6 +954,7 @@ RetroRuns_Data[2481] = {
                             when   = { mapID = 2061 },
                             kind   = "path",
                             note   = "Follow the path down to ^Skolex^. Kill the trash to spawn the boss.",
+                            minNote = "Path down to Skolex",
                             points = {
                                 { 0.163, 0.377 },
                                 { 0.191, 0.412 },
@@ -954,6 +976,7 @@ RetroRuns_Data[2481] = {
                             when   = { mapID = 2061 },
                             kind   = "path",
                             note   = "After defeating ^Skolex^, follow the ring path up and around to ^Artificer Xy'mox^.",
+                            minNote = "Up to Xy'mox",
                             points = {
                                 { 0.163, 0.660 },
                                 { 0.193, 0.584 },
@@ -978,6 +1001,7 @@ RetroRuns_Data[2481] = {
                             when   = { mapID = 2061 },
                             kind   = "path",
                             note   = "After killing both ^Skolex^ and ^Artificer Xy'mox^, follow the path south to ^Halondrus^.",
+                            minNote = "South to Halondrus",
                             points = {
                                 { 0.362, 0.422 },
                                 { 0.309, 0.420 },
@@ -1017,6 +1041,7 @@ RetroRuns_Data[2481] = {
                             when   = { mapID = 2048 },
                             kind   = "path",
                             note   = "After zoning into ^Genesis Cradle^, follow the path to ^Dausegne^.",
+                            minNote = "Path to Dausegne",
                             points = {
                                 { 0.254, 0.841 },
                                 { 0.315, 0.757 },
@@ -1043,6 +1068,7 @@ RetroRuns_Data[2481] = {
                             when   = { mapID = 2048 },
                             kind   = "path",
                             note   = "After killing ^Dausegne^, continue up the path toward ^The Endless Foundry^.",
+                            minNote = "Up to Endless Foundry",
                             points = {
                                 { 0.543, 0.466 },
                                 { 0.572, 0.510 },
@@ -1055,6 +1081,7 @@ RetroRuns_Data[2481] = {
                             when   = { mapID = 2049 },
                             kind   = "path",
                             note   = "Follow the foundry floor to ^Prototype Pantheon^.",
+                            minNote = "Ahead To Pantheon",
                             points = {
                                 { 0.257, 0.807 },
                                 { 0.305, 0.738 },
@@ -1073,6 +1100,7 @@ RetroRuns_Data[2481] = {
                             when   = { mapID = 2049 },
                             kind   = "path",
                             note   = "Follow the path through ^The Endless Foundry^, killing the trash on the way to ^Lihuvim^.",
+                            minNote = "Trash then Lihuvim",
                             points = {
                                 { 0.349, 0.663 },
                                 { 0.621, 0.259 },
@@ -1104,6 +1132,7 @@ RetroRuns_Data[2481] = {
                             when   = { mapID = 2050 },
                             kind   = "path",
                             note   = "After zoning into ^Domination's Grasp^, proceed up the ramp. After some dialog, you can engage ^Anduin Wrynn^.",
+                            minNote = "Dialog then Anduin",
                             points = {
                                 { 0.161, 0.518 },
                                 { 0.377, 0.520 },
@@ -1121,8 +1150,8 @@ RetroRuns_Data[2481] = {
                         {
                             when        = { mapID = 2050 },
                             kind        = "path",
-                            destination = "The Grand Design",
                             note        = "Cross the bridge behind ^Anduin^ to the teleporter. Select ^Proceed^.",
+                            minNote     = "Bridge to Teleporter",
                             points      = {
                                 { 0.435, 0.519 },
                                 { 0.857, 0.517 },
@@ -1132,6 +1161,7 @@ RetroRuns_Data[2481] = {
                             when   = { mapID = 2052 },
                             kind   = "path",
                             note   = "Follow the path through ^The Grand Design^, killing trash on the way to ^Lords of Dread^.",
+                            minNote = "Trash then Lords of Dread",
                             points = {
                                 { 0.484, 0.202 },
                                 { 0.607, 0.204 },
@@ -1152,6 +1182,7 @@ RetroRuns_Data[2481] = {
                             when   = { mapID = 2052 },
                             kind   = "path",
                             note   = "After killing ^Lords of Dread^, you will find a teleporter behind them. Use it to take a shortcut back to the beginning of the room, and follow the path to ^Rygelon^.",
+                            minNote = "Teleport then path to Rygelon",
                             points = {
                                 { 0.607, 0.440 },
                                 { 0.641, 0.340 },
@@ -1193,6 +1224,7 @@ RetroRuns_Data[2481] = {
                             when   = { mapID = 2051 },
                             kind   = "path",
                             note   = "After zoning into ^The Grand Design^, move straight ahead to ^The Jailer^'s platform and end this.",
+                            minNote = "Ahead to The Jailer",
                             -- No waypoint: the LFR zone-in drops the player on
                             -- the Jailer's platform already, so there's nothing
                             -- to navigate -- the note alone is the guidance.

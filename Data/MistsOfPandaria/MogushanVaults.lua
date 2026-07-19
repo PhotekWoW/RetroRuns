@@ -229,6 +229,7 @@ RetroRuns_Data[1008] = {
                     when    = { mapID = 471, subZone = "The Golden Hall" },
                     kind    = "path",
                     note    = "After zoning in, move ahead to find ^The Stone Guard^.",
+                    minNote = "Ahead to Stone Guard",
                     points  = {
                         { 0.749, 0.704 },
                         { 0.752, 0.643 },
@@ -250,6 +251,7 @@ RetroRuns_Data[1008] = {
                     when    = { mapID = 471, subZone = "The Golden Hall" },
                     kind    = "path",
                     note    = "After defeating ^The Stone Guard^, continue ahead to several trash packs with glowing orbs floating near them. Physically walk into the adds to spawn the trash. Once they're down, you can engage ^Feng the Accursed^.",
+                    minNote = "Trash then Feng",
                     points  = {
                         { 0.428, 0.641 },
                         { 0.320, 0.639 },
@@ -271,6 +273,7 @@ RetroRuns_Data[1008] = {
                     when    = { mapID = 471, subZone = "Dais of Conquerors" },
                     kind    = "path",
                     note    = "After killing ^Feng^, continue on to the next area.",
+                    minNote = "Follow path",
                     points  = {
                         { 0.322, 0.283 },
                         { 0.318, 0.118 },
@@ -280,6 +283,7 @@ RetroRuns_Data[1008] = {
                     when    = { mapID = 472, subZone = "Emperor's Reach" },
                     kind    = "path",
                     note    = "In the next area, clear the trash before, on, and after the platform to force ^Gara'jal the Spiritbinder^ into combat.",
+                    minNote = "Trash then Gara'jal",
                     points  = {
                         { 0.776, 0.755 },
                         { 0.776, 0.383 },
@@ -303,6 +307,7 @@ RetroRuns_Data[1008] = {
                     mapLabelPos     = "above",
                     completionCheck = true,
                     note    = "After killing ^Gara'jal^, follow the linear path to ^Lorewalker Cho^. Speak to him to trigger a series of trash encounters.",
+                    minNote = "Talk to Cho",
                     points  = {
                         { 0.328, 0.292 },
                     },
@@ -321,6 +326,7 @@ RetroRuns_Data[1008] = {
                     when    = { mapID = 472 },
                     kind    = "path",
                     note    = "After clearing the final trash wave, follow the path up to engage ^The Spirit Kings^.",
+                    minNote = "Trash then Boss",
                     points  = {
                         { 0.336, 0.686 },
                         { 0.238, 0.692 },
@@ -343,6 +349,7 @@ RetroRuns_Data[1008] = {
                     when    = { mapID = 472, subZone = "The Repository" },
                     kind    = "path",
                     note    = "After defeating ^The Spirit Kings^, go downstairs to the previous room and take the new path by ^Lorewalker Cho^.",
+                    minNote = "Down to Cho",
                     points  = {
                         { 0.238, 0.400 },
                         { 0.243, 0.292 },
@@ -355,6 +362,7 @@ RetroRuns_Data[1008] = {
                     when    = { mapID = 473, subZone = "The Repository" },
                     kind    = "path",
                     note    = "Follow the path. Once you reach the boss room, kill the final trash pack and talk to ^Lorewalker Cho^ to trigger the boss fight with ^Elegon^.",
+                    minNote = "Talk to Cho",
                     points  = {
                         { 0.610, 0.105 },
                         { 0.609, 0.211 },
@@ -380,6 +388,7 @@ RetroRuns_Data[1008] = {
                     when    = { mapID = 473, subZone = "Engine of Nalak'sha" },
                     kind    = "path",
                     note    = "After killing ^Elegon^, follow the path out of the room and head south to arrive at the next boss room. To start the fight with ^Will of the Emperor^, click the pipes below (^Heroic^) or click the console (^Normal/LFR^).",
+                    minNote = "Pipes (H) or Console (N)",
                     points  = {
                         { 0.406, 0.509 },
                         { 0.491, 0.505 },
@@ -414,6 +423,7 @@ RetroRuns_Data[1008] = {
                             when    = { mapID = 471, subZone = "The Golden Hall" },
                             kind    = "path",
                             note    = "After zoning in, move ahead to find ^The Stone Guard^.",
+                            minNote = "Ahead to Stone Guard",
                             points  = {
                                 { 0.749, 0.704 },
                                 { 0.752, 0.643 },
@@ -435,6 +445,7 @@ RetroRuns_Data[1008] = {
                             when    = { mapID = 471, subZone = "The Golden Hall" },
                             kind    = "path",
                             note    = "After defeating ^The Stone Guard^, continue ahead to several trash packs with glowing orbs floating near them. Physically walk into the adds to spawn the trash. Once they're down, you can engage ^Feng the Accursed^.",
+                            minNote = "Trash then Feng",
                             points  = {
                                 { 0.428, 0.641 },
                                 { 0.320, 0.639 },
@@ -456,6 +467,7 @@ RetroRuns_Data[1008] = {
                             when    = { mapID = 471, subZone = "Dais of Conquerors" },
                             kind    = "path",
                             note    = "After killing ^Feng^, continue on to the next area.",
+                            minNote = "Follow path",
                             points  = {
                                 { 0.322, 0.283 },
                                 { 0.318, 0.118 },
@@ -465,6 +477,7 @@ RetroRuns_Data[1008] = {
                             when    = { mapID = 472, subZone = "Emperor's Reach" },
                             kind    = "path",
                             note    = "In the next area, clear the trash before, on, and after the platform to force ^Gara'jal the Spiritbinder^ into combat.",
+                            minNote = "Trash then Gara'jal",
                             points  = {
                                 { 0.776, 0.755 },
                                 { 0.776, 0.383 },
@@ -495,6 +508,7 @@ RetroRuns_Data[1008] = {
                             when    = { mapID = 472, subZone = "Emperor's Reach" },
                             kind    = "path",
                             note    = "After zoning in, follow the linear path to ^Lorewalker Cho^. Speak to him to trigger a series of trash encounters.",
+                            minNote = "Talk to Cho",
                             points  = {
                                 { 0.488, 0.340 },
                                 { 0.443, 0.340 },
@@ -524,6 +538,7 @@ RetroRuns_Data[1008] = {
                             when    = { mapID = 472 },
                             kind    = "path",
                             note    = "After clearing the final trash wave, follow the path up to engage ^The Spirit Kings^.",
+                            minNote = "Trash then Boss",
                             points  = {
                                 { 0.336, 0.686 },
                                 { 0.238, 0.692 },
@@ -546,6 +561,7 @@ RetroRuns_Data[1008] = {
                             when    = { mapID = 472, subZone = "The Repository" },
                             kind    = "path",
                             note    = "After defeating ^The Spirit Kings^, go downstairs to the previous room and take the new path by ^Lorewalker Cho^.",
+                            minNote = "Down to Cho",
                             points  = {
                                 { 0.238, 0.400 },
                                 { 0.243, 0.292 },
@@ -558,6 +574,7 @@ RetroRuns_Data[1008] = {
                             when    = { mapID = 473, subZone = "The Repository" },
                             kind    = "path",
                             note    = "Follow the path. Once you reach the boss room, kill the final trash pack and talk to ^Lorewalker Cho^ to trigger the boss fight with ^Elegon^.",
+                            minNote = "Talk to Cho",
                             points  = {
                                 { 0.610, 0.105 },
                                 { 0.609, 0.211 },
@@ -583,6 +600,7 @@ RetroRuns_Data[1008] = {
                             when    = { mapID = 473, subZone = "Engine of Nalak'sha" },
                             kind    = "path",
                             note    = "After killing ^Elegon^, follow the path out of the room and head south to arrive at the next boss room. To start the fight with ^Will of the Emperor^, click the pipes below (^Heroic^) or click the console (^Normal/LFR^).",
+                            minNote = "Click Console",
                             points  = {
                                 { 0.406, 0.509 },
                                 { 0.491, 0.505 },

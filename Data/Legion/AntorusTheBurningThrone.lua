@@ -183,7 +183,7 @@ RetroRuns_Data[1712] = {
             -- the credit. ENCOUNTER_END's live path uses the encounter ID
             -- map and resolves correctly; only the post-/reload restoration
             -- path needs the alias.
-            aliases            = { "The Defense of Eonar" },
+            aliases            = { "Eonar", "The Defense of Eonar" },
             achievements       = {
                 { id = 12067, name = "Spheres of Influence", meta = true, soloable = "yes" },
             },
@@ -409,6 +409,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 909,
                             kind    = "path",
                             note    = "After zoning in, follow the linear path to find the first boss, ^Garothi Worldbreaker^.",
+                            minNote = "Path to Boss",
                             points  = {
                                 { 0.902, 0.633 },
                                 { 0.888, 0.560 },
@@ -431,6 +432,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 909,
                             kind    = "path",
                             note    = "After defeating ^Garothi Worldbreaker^, continue straight ahead on the path to ^Felhounds of Sargeras^.",
+                            minNote = "Ahead to Felhounds",
                             points  = {
                                 { 0.706, 0.636 },
                                 { 0.569, 0.566 },
@@ -460,6 +462,7 @@ RetroRuns_Data[1712] = {
                             mapLabel    = "Teleportation Pad",
                             mapLabelPos = "below",
                             note        = "After defeating the ^Felhounds of Sargeras^, click the ^Lightforged Teleportation Pad^ in their boss room to be teleported further up the path. After landing, proceed ahead to ride the elevator up.",
+                            minNote     = "Click Teleportation Pad",
                             points      = {
                                 { 0.431, 0.569 },
                             },
@@ -469,6 +472,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 909,
                             kind    = "path",
                             note    = "After defeating the ^Felhounds of Sargeras^, click the ^Lightforged Teleportation Pad^ in their boss room to be teleported further up the path. After landing, proceed ahead to ride the elevator up.",
+                            minNote = "Click Teleportation Pad",
                             points  = {
                                 { 0.351, 0.403 },
                                 { 0.190, 0.226 },
@@ -479,6 +483,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 910,
                             kind    = "path",
                             note    = "From the top of the elevator, proceed ahead up the ramp to find the ^Antoran High Command^.",
+                            minNote = "Ahead to AHC",
                             points  = {
                                 { 0.680, 0.759 },
                                 { 0.588, 0.787 },
@@ -515,6 +520,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 911,
                             kind    = "path",
                             note    = "After zoning in, enter the room on the left and enter the portal at the map exit labeled ^Elunaria^.",
+                            minNote = "Portal to Elunaria",
                             points  = {
                                 { 0.781, 0.514 },
                                 { 0.757, 0.558 },
@@ -527,6 +533,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 912,
                             kind    = "path",
                             note    = "After taking the portal, follow the long, linear path towards the next map exit labeled ^Elarian Sanctuary^.",
+                            minNote = "Follow Path Ahead",
                             points  = {
                                 { 0.603, 0.853 },
                                 { 0.644, 0.707 },
@@ -539,6 +546,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 913,
                             kind    = "path",
                             note    = "Once you enter the ^Elarian Sanctuary^, approach the ^Essence of Eonar^ (blue floating orb), and interact with it to begin the encounter for ^Eonar the Life-Binder^.",
+                            minNote = "Click Essence of Eonar",
                             points  = {
                                 { 0.731, 0.594 },
                                 { 0.596, 0.409 },
@@ -568,6 +576,7 @@ RetroRuns_Data[1712] = {
                             poiSize = 35,
                             mapLabel = "Essence of Eonar",
                             note    = "Talk to the ^Essence of Eonar^ to be sent back to Antorus.",
+                            minNote = "Talk to Essence",
                             points  = {
                                 { 0.376, 0.633 },
                             },
@@ -577,6 +586,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 911,
                             kind    = "path",
                             note    = "After arriving back in Antorus, follow the path to the left to reach ^Portal Keeper Hasabel^.",
+                            minNote = "Path to Hasabel",
                             points  = {
                                 { 0.673, 0.623 },
                                 { 0.672, 0.579 },
@@ -601,6 +611,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 911,
                             kind    = "path",
                             note    = "After killing ^Portal Keeper Hasabel^, return to the portal marked on the map as ^Light's Breach^.",
+                            minNote = "Light's Breach Portal",
                             points  = {
                                 { 0.494, 0.513 },
                                 { 0.603, 0.509 },
@@ -614,6 +625,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 909,
                             kind    = "path",
                             note    = "After teleporting, proceed forward and click on one of the ^Lightforged Warframes^ to be flown to the next area.",
+                            minNote = "Click Lightforged Warframe",
                             points  = {
                                 { 0.551, 0.438 },
                                 { 0.569, 0.515 },
@@ -624,6 +636,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 909,
                             kind    = "path",
                             note    = "After landing, move forward and click the ^Lightforged Beacon^ to be teleported to ^The Exhaust^.",
+                            minNote = "Beacon to The Exhaust",
                             points  = {
                                 { 0.564, 0.648 },
                                 { 0.549, 0.699 },
@@ -634,6 +647,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 914,
                             kind    = "path",
                             note    = "After landing in ^The Exhaust^, move forward to start the encounter with ^Imonar the Soulhunter^.",
+                            minNote = "Forward to Imonar",
                             points  = {},
                         },
                     },
@@ -663,6 +677,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 914,
                             kind    = "path",
                             note    = "After zoning in, make your way down the long path to find ^Kin'garoth^.",
+                            minNote = "Ahead to Kin'garoth",
                             points  = {
                                 { 0.200, 0.500 },
                                 { 0.778, 0.502 },
@@ -684,6 +699,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 914,
                             kind    = "path",
                             note    = "After killing ^Kin'garoth^, click the ^Lightforged Beacon^ behind you to be teleported to the next area. Select ^The Burning Throne^ from the dialog options.",
+                            minNote = "Beacon to Burning Throne",
                             points  = {
                                 { 0.778, 0.495 },
                                 { 0.687, 0.498 },
@@ -694,6 +710,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 915,
                             kind    = "path",
                             note    = "After arriving in ^The Burning Throne^, proceed down the path and kill ^Tarneth^ to open the door. Jump in the hole behind the next trash pack.",
+                            minNote = "Ahead to Hole",
                             points  = {
                                 { 0.857, 0.529 },
                                 { 0.638, 0.527 },
@@ -708,6 +725,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 916,
                             kind    = "path",
                             note    = "After jumping in the hole, you will be in ^Chamber of Anguish^. Proceed to the next room to find ^Varimathras^.",
+                            minNote = "Ahead to Varimathras",
                             points  = {
                                 { 0.692, 0.682 },
                                 { 0.605, 0.690 },
@@ -730,6 +748,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 916,
                             kind    = "path",
                             note    = "After defeating ^Varimathras^, take the ascending stairwell out of the room towards ^Temple of Anguish^.",
+                            minNote = "Exit via Stairwell",
                             points  = {
                                 { 0.516, 0.770 },
                                 { 0.515, 0.402 },
@@ -743,6 +762,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 915,
                             kind    = "path",
                             note    = "After reaching the top of the stairs and opening a door, you will encounter ^The Coven of Shivarra^.",
+                            minNote = "Ahead to Coven",
                             points  = {
                                 { 0.321, 0.452 },
                                 { 0.321, 0.495 },
@@ -775,6 +795,7 @@ RetroRuns_Data[1712] = {
                             mapID   = 917,
                             kind    = "path",
                             note    = "After zoning in, proceed ahead to engage ^Aggramar^.",
+                            minNote = "Ahead to Aggramar",
                             points  = {
                                 { 0.718, 0.539 },
                                 { 0.639, 0.541 },
@@ -801,6 +822,7 @@ RetroRuns_Data[1712] = {
                             kind    = "poi",
                             poiSize = 35,
                             note    = "After defeating ^Aggramar^, speak to ^Magni Bronzebeard^ and tell him you're ready.",
+                            minNote = "Talk to Magni",
                             points  = {
                                 { 0.302, 0.554 },
                             },
@@ -811,6 +833,7 @@ RetroRuns_Data[1712] = {
                             kind     = "poi",
                             noMarker = true,
                             note     = "You have reached the final boss, ^Argus the Unmaker^. Kill him!",
+                            minNote  = "Kill Argus",
                             points   = {
                                 { 0.501, 0.574 },
                             },
@@ -834,6 +857,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 909,
                     kind    = "path",
                     note    = "After zoning in, follow the linear path to find the first boss, ^Garothi Worldbreaker^.",
+                    minNote = "Path to Boss",
                     points  = {
                         { 0.902, 0.633 },
                         { 0.888, 0.560 },
@@ -854,6 +878,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 909,
                     kind    = "path",
                     note    = "After defeating ^Garothi Worldbreaker^, continue straight ahead on the path to ^Felhounds of Sargeras^.",
+                    minNote = "Ahead to Felhounds",
                     points  = {
                         { 0.706, 0.636 },
                         { 0.569, 0.566 },
@@ -875,6 +900,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 909,
                     kind    = "path",
                     note    = "After defeating ^Felhounds of Sargeras^, backtrack towards the closest intersection and keep to the left. Kill a trash pack to spawn a ^Lightforged Teleportation Pad^. Use it to cross the chasm, then proceed ahead to ride an elevator up.",
+                    minNote = "Path to Elevator",
                     points  = {
                         { 0.431, 0.569 },
                         { 0.459, 0.602 },
@@ -890,6 +916,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 910,
                     kind    = "path",
                     note    = "From the top of the elevator, proceed ahead up the ramp to find the ^Antoran High Command^.",
+                    minNote = "Ahead to AHC",
                     points  = {
                         { 0.680, 0.759 },
                         { 0.588, 0.787 },
@@ -912,6 +939,7 @@ RetroRuns_Data[1712] = {
                     kind         = "path",
                     endpointKind = "skull",
                     note    = "After killing ^Antoran High Command^, kill yourself by jumping down the elevator hole to save time getting to the next boss.",
+                    minNote = "Suicide in Elevator",
                     points  = {
                         { 0.436, 0.491 },
                         { 0.547, 0.608 },
@@ -925,6 +953,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 909,
                     kind    = "path",
                     note    = "After spawning, cross the chasm using the ^Lightforged Teleport Pod^. Stay to the left when you reach the intersection, and follow the path to interact with a ^Portal^.",
+                    minNote = "Path to Portal",
                     points  = {
                         { 0.362, 0.415 },
                         { 0.441, 0.496 },
@@ -938,6 +967,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 911,
                     kind    = "path",
                     note    = "After taking the teleport, follow the path to reach ^Portal Keeper Hasabel^.",
+                    minNote = "Path to Hasabel",
                     points  = {
                         { 0.763, 0.510 },
                         { 0.759, 0.557 },
@@ -960,6 +990,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 911,
                     kind    = "path",
                     note    = "After defeating ^Portal Keeper Hasabel^, leave the boss room and stay to the right to find the map exit labeled ^Elunaria^. Click the portal.",
+                    minNote = "Elunaria Portal",
                     points  = {
                         { 0.467, 0.511 },
                         { 0.614, 0.511 },
@@ -972,6 +1003,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 912,
                     kind    = "path",
                     note    = "After taking the portal, follow the long, linear path towards the next map exit labeled ^Elarian Sanctuary^.",
+                    minNote = "Follow Path Ahead",
                     points  = {
                         { 0.603, 0.853 },
                         { 0.644, 0.707 },
@@ -984,6 +1016,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 913,
                     kind    = "path",
                     note    = "Once you enter the ^Elarian Sanctuary^, approach the ^Essence of Eonar^ (blue floating orb), and interact with it to begin the encounter for ^Eonar the Life-Binder^.",
+                    minNote = "Click Essence of Eonar",
                     points  = {
                         { 0.731, 0.594 },
                         { 0.596, 0.409 },
@@ -1008,6 +1041,7 @@ RetroRuns_Data[1712] = {
                     poiSize = 35,
                     mapLabel = "Essence of Eonar",
                     note    = "Talk to the ^Essence of Eonar^ to be sent back to Antorus.",
+                    minNote = "Talk to Essence",
                     points  = {
                         { 0.376, 0.633 },
                     },
@@ -1017,6 +1051,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 909,
                     kind    = "path",
                     note    = "Back on Antorus, proceed forward and click on one of the ^Lightforged Warframes^ to be flown to the next area.",
+                    minNote = "Click Lightforged Warframe",
                     points  = {
                         { 0.551, 0.438 },
                         { 0.569, 0.515 },
@@ -1027,6 +1062,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 909,
                     kind    = "path",
                     note    = "After landing, move forward and click the ^Lightforged Beacon^ to be teleported to ^The Exhaust^.",
+                    minNote = "Click Lightforged Beacon",
                     points  = {
                         { 0.564, 0.648 },
                         { 0.549, 0.699 },
@@ -1037,6 +1073,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 914,
                     kind    = "path",
                     note    = "After landing in ^The Exhaust^, move forward to start the encounter with ^Imonar the Soulhunter^.",
+                    minNote = "Forward to Imonar",
                     points  = {},
                 },
             },
@@ -1053,6 +1090,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 914,
                     kind    = "path",
                     note    = "After killing ^Imonar^, make your way down the long path to find the next boss, ^Kin'garoth^.",
+                    minNote = "Ahead to Kin'garoth",
                     points  = {
                         { 0.200, 0.500 },
                         { 0.778, 0.502 },
@@ -1072,6 +1110,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 914,
                     kind    = "path",
                     note    = "After killing ^Kin'garoth^, click the ^Lightforged Beacon^ behind you to be teleported to the next area. Select ^The Burning Throne^ from the dialog options.",
+                    minNote = "Beacon to Burning Throne",
                     points  = {
                         { 0.778, 0.495 },
                         { 0.687, 0.498 },
@@ -1082,6 +1121,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 915,
                     kind    = "path",
                     note    = "After arriving in ^The Burning Throne^, proceed down the path and kill ^Tarneth^ to open the door. Jump in the hole behind the next trash pack.",
+                    minNote = "Ahead to Hole",
                     points  = {
                         { 0.857, 0.529 },
                         { 0.638, 0.527 },
@@ -1096,6 +1136,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 916,
                     kind    = "path",
                     note    = "After jumping in the hole, you will be in ^Chamber of Anguish^. Proceed to the next room to find ^Varimathras^.",
+                    minNote = "Ahead to Varimathras",
                     points  = {
                         { 0.692, 0.682 },
                         { 0.605, 0.690 },
@@ -1116,6 +1157,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 916,
                     kind    = "path",
                     note    = "After defeating ^Varimathras^, take the ascending stairwell out of the room towards ^Temple of Anguish^.",
+                    minNote = "Exit via Stairwell",
                     points  = {
                         { 0.516, 0.770 },
                         { 0.515, 0.402 },
@@ -1129,6 +1171,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 915,
                     kind    = "path",
                     note    = "After reaching the top of the stairs and opening a door, you will encounter ^The Coven of Shivarra^.",
+                    minNote = "Ahead to Coven",
                     points  = {
                         { 0.321, 0.452 },
                         { 0.321, 0.495 },
@@ -1148,6 +1191,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 915,
                     kind    = "path",
                     note    = "After defeating ^The Coven of Shivarra^, take some stairs out of the area and make your way west towards the map exit labeled ^The World Soul^.",
+                    minNote = "West Exit",
                     points  = {
                         { 0.322, 0.563 },
                         { 0.321, 0.646 },
@@ -1161,6 +1205,7 @@ RetroRuns_Data[1712] = {
                     mapID   = 917,
                     kind    = "path",
                     note    = "Proceed ahead to engage ^Aggramar^.",
+                    minNote = "Ahead to Aggramar",
                     points  = {
                         { 0.718, 0.539 },
                         { 0.639, 0.541 },
@@ -1185,6 +1230,7 @@ RetroRuns_Data[1712] = {
                     kind    = "poi",
                     poiSize = 35,
                     note    = "After defeating ^Aggramar^, speak to ^Magni Bronzebeard^ and tell him you're ready.",
+                    minNote = "Talk to Magni",
                     points  = {
                         { 0.302, 0.554 },
                     },
@@ -1195,6 +1241,7 @@ RetroRuns_Data[1712] = {
                     kind     = "poi",
                     noMarker = true,
                     note     = "You have reached the final boss, ^Argus the Unmaker^. Kill him!",
+                    minNote  = "Kill Argus",
                     points   = {
                         { 0.501, 0.574 },
                     },
@@ -1220,6 +1267,7 @@ RetroRuns_Data[1712] = {
                     when    = { mapID = 909 },
                     kind    = "path",
                     note    = "After zoning in, follow the linear path to find the first boss, ^Garothi Worldbreaker^.",
+                    minNote = "Ahead to Boss",
                     points  = {
                         { 0.902, 0.633 },
                         { 0.888, 0.560 },
@@ -1242,6 +1290,7 @@ RetroRuns_Data[1712] = {
                     when    = { mapID = 909, subZone = "Edge of Discord" },
                     kind    = "path",
                     note    = "After defeating ^Garothi Worldbreaker^, cross the bridge and take a left to locate a teleporter. Select ^The Burning Throne^ to skip ahead to ^Aggramar^.",
+                    minNote = "Path to Teleporter",
                     points  = {
                         { 0.706, 0.637 },
                         { 0.569, 0.565 },
@@ -1256,6 +1305,7 @@ RetroRuns_Data[1712] = {
                     when    = { mapID = 915, subZone = "The Burning Throne" },
                     kind    = "path",
                     note    = "After arriving in ^The Burning Throne^, proceed down the long path and kill ^Tarneth^ to open the door. Continue west to the map exit labeled ^The World Soul^.",
+                    minNote = "West to World Soul",
                     points  = {
                         { 0.848, 0.528 },
                         { 0.652, 0.526 },
@@ -1273,6 +1323,7 @@ RetroRuns_Data[1712] = {
                     when    = { mapID = 917 },
                     kind    = "path",
                     note    = "Proceed ahead to engage ^Aggramar^.",
+                    minNote = "Ahead to Aggramar",
                     points  = {
                         { 0.718, 0.539 },
                         { 0.639, 0.541 },
@@ -1297,6 +1348,7 @@ RetroRuns_Data[1712] = {
                     when    = { mapID = 917 },
                     kind    = "poi",
                     note    = "After defeating ^Aggramar^, speak to ^Magni Bronzebeard^ and tell him you're ready.",
+                    minNote = "Talk to Magni",
                     points  = {
                         { 0.302, 0.554 },
                     },
@@ -1305,6 +1357,7 @@ RetroRuns_Data[1712] = {
                     when     = { mapID = 918 },
                     kind     = "poi",
                     note     = "You have reached the final boss, ^Argus the Unmaker^. Kill him!",
+                    minNote  = "Kill Argus",
                     points   = {
                         { 0.501, 0.574 },
                     },

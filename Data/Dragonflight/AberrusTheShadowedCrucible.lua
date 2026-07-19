@@ -346,9 +346,8 @@ RetroRuns_Data[2569] = {
                 --   Mythic -> 186699  (shared with Heroic)
                 -- The shared H/M sourceID is intentional, not a data
                 -- error -- the EJ canonicalizes Heroic and Mythic on
-                -- the same source. This trips tmogverify's "partial
-                -- source duplication" WRN (3 unique / 4 buckets) but
-                -- is the correct encoding.
+                -- the same source. Three unique sources across four
+                -- buckets is the correct encoding here.
                 { id=204465, slot="Back",     name="Voice of the Silent Star",         sources={ [17]=186700, [14]=186698, [15]=186699, [16]=186699 } },
                 { id=202599, slot="Chest",    name="Sarkareth's Abyssal Embrace",      sources={ [17]=186685, [14]=184572, [15]=186683, [16]=186684 } },
                 { id=204424, slot="Feet",     name="Crechebound Soldier's Boots",      sources={ [17]=186558, [14]=185582, [15]=186556, [16]=186557 } },
@@ -405,6 +404,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2166 },
                     kind    = "path",
                     note    = "After zoning in, go straight ahead and clear all trash to spawn ^Kazzara^.",
+                    minNote = "Trash then Kazzara",
                     points  = {
                         { 0.512, 0.934 },
                         { 0.512, 0.757 },
@@ -430,6 +430,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2166 },
                     kind    = "path",
                     note    = "After killing ^Kazzara^, take the left path towards the exit labeled ^Onyx Laboratory^.",
+                    minNote = "Left to Onyx Lab",
                     points  = {
                         { 0.512, 0.686 },
                         { 0.512, 0.617 },
@@ -443,6 +444,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2167 },
                     kind    = "path",
                     note    = "Continue down the path and clear the trash to spawn ^The Amalgamation Chamber^.",
+                    minNote = "Trash then Amalgamation Chamber",
                     points  = {
                         { 0.557, 0.620 },
                         { 0.529, 0.637 },
@@ -469,6 +471,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2167 },
                     kind    = "path",
                     note    = "After killing ^The Amalgamation Chamber^, follow the path north to reach some stairs leading to the ^Molten Crucible^.",
+                    minNote = "North to Molten Crucible",
                     points  = {
                         { 0.468, 0.632 },
                         { 0.485, 0.536 },
@@ -482,6 +485,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2166 },
                     kind    = "path",
                     note    = "Kill the slimes to spawn ^The Forgotten Experiments^.",
+                    minNote = "Kill Slimes then Experiments",
                 },
             },
         },
@@ -504,6 +508,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2166 },
                     kind    = "path",
                     note    = "After defeating ^The Forgotten Experiments^, jump down behind them (under a chain) and take the path across the room to the exit labeled ^Defiant Ramparts^.",
+                    minNote = "Path to Defiant Ramparts",
                     points  = {
                         { 0.372, 0.259 },
                         { 0.408, 0.293 },
@@ -516,6 +521,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2168 },
                     kind    = "path",
                     note    = "Inside ^Defiant Ramparts^, follow the path to climb some stairs. Kill the last trash pack to spawn ^Assault of the Zaqali^.",
+                    minNote = "Stairs to Assault of the Zaqali",
                     points  = {
                         { 0.375, 0.685 },
                         { 0.560, 0.684 },
@@ -544,6 +550,7 @@ RetroRuns_Data[2569] = {
                     kind            = "poi",
                     highlightCircle = true,
                     note            = "After defeating the ^Assault of the Zaqali^, enter the nearby room labeled ^Molten Crucible^.",
+                    minNote         = "Enter Molten Crucible",
                     points          = {
                         { 0.409, 0.385 },
                     },
@@ -552,6 +559,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2166 },
                     kind    = "path",
                     note    = "Approach the boss, and kill the trash to engage ^Rashok^.",
+                    minNote = "Trash then Rashok",
                 },
             },
         },
@@ -571,6 +579,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2166 },
                     kind    = "path",
                     note    = "After defeating ^Rashok^, make your way up the chain behind him, and follow the path around to ^The Vigilant Steward, Zskarn^.",
+                    minNote = "Up chain to Zskarn",
                     points  = {
                         { 0.660, 0.256 },
                         { 0.643, 0.279 },
@@ -602,6 +611,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2166 },
                     kind    = "path",
                     note    = "After defeating ^Zskarn^, drop down into the hole behind ^Neltharion^. Leap down again (across some lava), and make your way to the boss platform. Clear the trash to spawn ^Magmorax^.",
+                    minNote = "Hole Behind Neltharion",
                     points  = {
                         { 0.489, 0.250 },
                         { 0.512, 0.310 },
@@ -628,6 +638,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2166 },
                     kind    = "path",
                     note    = "After defeating ^Magmorax^, swim across the lava to reach the southern exit labeled ^Neltharion's Sanctum^. Jump down into the hole.",
+                    minNote = "Cross Lava to Neltharion's Sanctum",
                     points  = {
                         { 0.514, 0.503 },
                         { 0.514, 0.574 },
@@ -637,6 +648,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2169 },
                     kind    = "path",
                     note    = "After you land, enter the room and clear the trash to spawn ^Echo of Neltharion^.",
+                    minNote = "Trash then Echo of Neltharion",
                 },
             },
         },
@@ -657,6 +669,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2169 },
                     kind    = "path",
                     note    = "After defeating ^Echo of Neltharion^, walk into the room behind him and jump into the purple circle to reach ^Edge of Oblivion^.",
+                    minNote = "Jump in purple circle",
                     points  = {
                         { 0.508, 0.318 },
                         { 0.507, 0.588 },
@@ -666,6 +679,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2170 },
                     kind    = "path",
                     note    = "After landing below, follow the path to reach ^Scalecommander Sarkareth^.",
+                    minNote = "Path to Sarkareth",
                     points  = {
                         { 0.490, 0.254 },
                         { 0.490, 0.678 },
@@ -696,6 +710,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2166 },
                     kind    = "path",
                     note    = "After zoning in, go straight ahead and clear all trash to spawn ^Kazzara^.",
+                    minNote = "Trash then Kazzara",
                     points  = {
                         { 0.512, 0.934 },
                         { 0.512, 0.757 },
@@ -719,6 +734,7 @@ RetroRuns_Data[2569] = {
                     noMarker        = true,
                     highlightCircle = true,
                     note            = "After defeating ^Kazzara^, click the vent behind ^Neltharion^ and you will be able to jump down and skip ahead to the ^Echo of Neltharion^ encounter.",
+                    minNote         = "Vent Behind Neltharion then Jump",
                     mapLabel        = "Vent",
                     mapLabelPos     = "right",
                     mapLabelPulse   = true,
@@ -730,6 +746,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2169 },
                     kind    = "path",
                     note    = "After you land, enter the room and clear the trash to spawn ^Echo of Neltharion^.",
+                    minNote = "Trash then Echo",
                 },
             },
         },
@@ -746,6 +763,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2169 },
                     kind    = "path",
                     note    = "After defeating ^Echo of Neltharion^, walk into the room behind him and jump into the purple circle to reach ^Edge of Oblivion^.",
+                    minNote = "Jump in Purple Circle",
                     points  = {
                         { 0.508, 0.318 },
                         { 0.507, 0.588 },
@@ -755,6 +773,7 @@ RetroRuns_Data[2569] = {
                     when    = { mapID = 2170 },
                     kind    = "path",
                     note    = "After landing below, follow the path to reach ^Scalecommander Sarkareth^.",
+                    minNote = "Ahead to Sarkareth",
                     points  = {
                         { 0.490, 0.254 },
                         { 0.490, 0.678 },
@@ -789,6 +808,7 @@ RetroRuns_Data[2569] = {
                             when    = { mapID = 2166 },
                             kind    = "path",
                             note    = "After zoning in, go straight ahead and clear all trash to spawn ^Kazzara^.",
+                            minNote = "Trash then Kazzara",
                             points  = {
                                 { 0.512, 0.934 },
                                 { 0.512, 0.757 },
@@ -807,6 +827,7 @@ RetroRuns_Data[2569] = {
                             when    = { mapID = 2166 },
                             kind    = "path",
                             note    = "After killing ^Kazzara^, take the left path towards the exit labeled ^Onyx Laboratory^.",
+                            minNote = "Left to Onyx Lab",
                             points  = {
                                 { 0.512, 0.686 },
                                 { 0.512, 0.617 },
@@ -820,6 +841,7 @@ RetroRuns_Data[2569] = {
                             when    = { mapID = 2167 },
                             kind    = "path",
                             note    = "Continue down the path and clear the trash to spawn ^The Amalgamation Chamber^.",
+                            minNote = "Trash then Amalgamation Chamber",
                             points  = {
                                 { 0.557, 0.620 },
                                 { 0.529, 0.637 },
@@ -839,6 +861,7 @@ RetroRuns_Data[2569] = {
                             when    = { mapID = 2167 },
                             kind    = "path",
                             note    = "After killing ^The Amalgamation Chamber^, follow the path north to reach some stairs leading to the ^Molten Crucible^.",
+                            minNote = "North to Molten Crucible",
                             points  = {
                                 { 0.468, 0.632 },
                                 { 0.485, 0.536 },
@@ -852,6 +875,7 @@ RetroRuns_Data[2569] = {
                             when    = { mapID = 2166 },
                             kind    = "path",
                             note    = "Kill the slimes to spawn ^The Forgotten Experiments^.",
+                            minNote = "Kill Slimes then Experiments",
                         },
                     },
                 },
@@ -883,6 +907,7 @@ RetroRuns_Data[2569] = {
                             when    = { mapID = 2166, subZone = "Molten Crucible" },
                             kind    = "path",
                             note    = "After zoning in, follow the path to the right, and make your way towards the map exit labeled ^Defiant Ramparts^.",
+                            minNote = "Right to Ramparts",
                             points  = {
                                 { 0.530, 0.612 },
                                 { 0.560, 0.600 },
@@ -898,6 +923,7 @@ RetroRuns_Data[2569] = {
                             when    = { mapID = 2168 },
                             kind    = "path",
                             note    = "Inside ^Defiant Ramparts^, follow the path to climb some stairs. Kill the last trash pack to spawn ^Assault of the Zaqali^.",
+                            minNote = "Stairs to Assault of the Zaqali",
                             points  = {
                                 { 0.375, 0.685 },
                                 { 0.560, 0.684 },
@@ -919,6 +945,7 @@ RetroRuns_Data[2569] = {
                             kind            = "poi",
                             highlightCircle = true,
                             note            = "After defeating the ^Assault of the Zaqali^, enter the nearby room labeled ^Molten Crucible^.",
+                            minNote         = "Enter Molten Crucible",
                             points          = {
                                 { 0.409, 0.385 },
                             },
@@ -927,6 +954,7 @@ RetroRuns_Data[2569] = {
                             when    = { mapID = 2166 },
                             kind    = "path",
                             note    = "Approach the boss, and kill the trash to engage ^Rashok^.",
+                            minNote = "Trash then Rashok",
                         },
                     },
                 },
@@ -941,6 +969,7 @@ RetroRuns_Data[2569] = {
                             when    = { mapID = 2166 },
                             kind    = "path",
                             note    = "After defeating ^Rashok^, make your way up the chain behind him, and follow the path around to ^The Vigilant Steward, Zskarn^.",
+                            minNote = "Up chain to Zskarn",
                             points  = {
                                 { 0.660, 0.256 },
                                 { 0.643, 0.279 },
@@ -982,6 +1011,7 @@ RetroRuns_Data[2569] = {
                             when    = { mapID = 2166, subZone = "Molten Crucible" },
                             kind    = "path",
                             note    = "After zoning in, proceed straight ahead to engage ^Magmorax^. Kill trash to start the encounter.",
+                            minNote = "Trash then Magmorax",
                             points  = {
                                 { 0.514, 0.381 },
                                 { 0.514, 0.433 },
@@ -1000,6 +1030,7 @@ RetroRuns_Data[2569] = {
                             when    = { mapID = 2166 },
                             kind    = "path",
                             note    = "After defeating ^Magmorax^, swim across the lava to reach the southern exit labeled ^Neltharion's Sanctum^. Jump down into the hole.",
+                            minNote = "Cross Lava to Neltharion's Sanctum",
                             points  = {
                                 { 0.514, 0.503 },
                                 { 0.514, 0.574 },
@@ -1009,6 +1040,7 @@ RetroRuns_Data[2569] = {
                             when    = { mapID = 2169 },
                             kind    = "path",
                             note    = "After you land, enter the room and clear the trash to spawn ^Echo of Neltharion^.",
+                            minNote = "Trash then Echo of Neltharion",
                         },
                     },
                 },
@@ -1037,6 +1069,7 @@ RetroRuns_Data[2569] = {
                             kind            = "poi",
                             highlightCircle = true,
                             note            = "After zoning in, jump in the purple portal in front of you.",
+                            minNote         = "Jump in purple Portal",
                             points          = {
                                 { 0.508, 0.607 },
                             },
@@ -1045,6 +1078,7 @@ RetroRuns_Data[2569] = {
                             when    = { mapID = 2170 },
                             kind    = "path",
                             note    = "After landing below, follow the path to reach ^Scalecommander Sarkareth^.",
+                            minNote = "Path to Sarkareth",
                             points  = {
                                 { 0.490, 0.254 },
                                 { 0.490, 0.678 },

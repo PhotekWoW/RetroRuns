@@ -299,6 +299,7 @@ RetroRuns_Data[2070] = {
                     mapLabel    = "Ensign Roberts",
                     mapLabelPos = "above",
                     note        = "After zoning in, talk with ^Ensign Roberts^ to skip straight to ^Lady Jaina Proudmoore^.",
+                    minNote     = "Talk to Ensign Roberts",
                     points      = {
                         { 0.487, 0.874 },
                     },
@@ -330,12 +331,14 @@ RetroRuns_Data[2070] = {
                             when    = { mapID = 1367 },
                             kind    = "path",
                             note    = "After zoning in, wait for the dialog to complete on the boat. You will be transported shortly.",
+                            minNote = "Wait for transport",
                             points  = {},
                         },
                         {
                             when    = { mapID = 1352 },
                             kind    = "path",
                             note    = "After you reach the next area, go downstairs and kill trash to begin the fight against ^High Tinker Mekkatorque^.",
+                            minNote = "Trash then Mekkatorque",
                             points  = {
                                 { 0.492, 0.200 },
                                 { 0.491, 0.285 },
@@ -356,6 +359,7 @@ RetroRuns_Data[2070] = {
                             when    = { mapID = 1352 },
                             kind    = "path",
                             note    = "After defeating ^Mekkatorque^, make your way down the long path south, and kill the trash at the end of the bridge. Interact with a ^Pterrordax^ to start the encounter with ^Stormwall Blockade^.",
+                            minNote = "South to Pterrordax",
                             points  = {
                                 { 0.492, 0.354 },
                                 { 0.492, 0.889 },
@@ -377,6 +381,7 @@ RetroRuns_Data[2070] = {
                             kind    = "poi",
                             poiSize = 35,
                             note    = "After defeating ^Stormwall Blockade^, walk onto the newly-arrived ship and speak with ^Captain Zadari^ to begin the ^Lady Jaina Proudmoore^ encounter.",
+                            minNote = "Talk to Captain Zadari",
                             points  = {
                                 { 0.484, 0.975 },
                             },
@@ -403,6 +408,7 @@ RetroRuns_Data[2070] = {
                             when    = { mapID = 1352 },
                             kind    = "path",
                             note    = "After zoning in, continue up the stairwell towards the map exit labeled ^Halls of Opulence^. Jump in the hole when you reach the end of the path.",
+                            minNote = "Path to Halls of Opulence",
                             points  = {
                                 { 0.490, 0.280 },
                                 { 0.492, 0.194 },
@@ -415,6 +421,7 @@ RetroRuns_Data[2070] = {
                             when    = { mapID = 1353 },
                             kind    = "path",
                             note    = "Inside the ^Halls of Opulence^, proceed straight ahead to the middle area to engage ^Opulence^.",
+                            minNote = "Ahead to Opulence",
                             points  = {
                                 { 0.421, 0.846 },
                                 { 0.422, 0.548 },
@@ -435,6 +442,7 @@ RetroRuns_Data[2070] = {
                             when    = { mapID = 1353 },
                             kind    = "path",
                             note    = "After killing ^Opulence^, follow the path straight ahead and make your way to the map exit labeled ^Loa's Sanctum^.",
+                            minNote = "Path to Loa's Sanctum",
                             points  = {
                                 { 0.421, 0.480 },
                                 { 0.421, 0.215 },
@@ -447,6 +455,7 @@ RetroRuns_Data[2070] = {
                             when    = { mapID = 1354 },
                             kind    = "path",
                             note    = "Continue straight ahead to engage ^Conclave of the Chosen^.",
+                            minNote = "Ahead to Conclave",
                             points  = {
                                 { 0.474, 0.189 },
                                 { 0.471, 0.633 },
@@ -467,6 +476,7 @@ RetroRuns_Data[2070] = {
                             when    = { mapID = 1354 },
                             kind    = "path",
                             note    = "After defeating ^Conclave^, exit the room to the east and ride the elevator up to the ^Walk of Kings^.",
+                            minNote = "East to Elevator",
                             points  = {
                                 { 0.499, 0.677 },
                                 { 0.643, 0.680 },
@@ -477,6 +487,7 @@ RetroRuns_Data[2070] = {
                             when    = { mapID = 1356 },
                             kind    = "path",
                             note    = "After getting off the elevator in ^Walk of Kings^, follow the linear path around to ^The Heart of the Empire^.",
+                            minNote = "Path to Heart of the Empire",
                             points  = {
                                 { 0.650, 0.684 },
                                 { 0.650, 0.389 },
@@ -489,6 +500,7 @@ RetroRuns_Data[2070] = {
                             kind     = "poi",
                             noMarker = true,
                             note     = "Kill trash in the boss room to trigger some dialog and start the encounter with ^King Rastakhan^.",
+                            minNote  = "Trash then Rastakhan",
                             points   = {
                                 { 0.5, 0.5 },
                             },
@@ -519,6 +531,7 @@ RetroRuns_Data[2070] = {
                             when    = { mapID = 1352 },
                             kind    = "path",
                             note    = "After zoning in, proceed straight ahead to the first boss room. Kill trash to start the encounter with ^Champion of the Light^.",
+                            minNote = "Trash then Champion",
                             points  = {
                                 { 0.493, 0.883 },
                                 { 0.492, 0.735 },
@@ -539,6 +552,7 @@ RetroRuns_Data[2070] = {
                             when    = { mapID = 1352 },
                             kind    = "path",
                             note    = "After defeating the ^Champion of the Light^, follow the linear path to the right and work your way towards the next boss, ^Jadefire Masters^. Kill the final trash pack before running up the stairs.",
+                            minNote = "Trash then Jadefire",
                             points  = {
                                 { 0.518, 0.695 },
                                 { 0.602, 0.679 },
@@ -562,6 +576,7 @@ RetroRuns_Data[2070] = {
                             when    = { mapID = 1352 },
                             kind    = "path",
                             note    = "After defeating ^Jadefire Masters^, proceed up the long staircase behind them to reach ^Grong, the Revenant^. Kill trash at the top of the stairs to start the encounter.",
+                            minNote = "Upstairs to Grong",
                             points  = {
                                 { 0.492, 0.555 },
                                 { 0.493, 0.345 },
@@ -597,6 +612,7 @@ RetroRuns_Data[2070] = {
                     when    = { mapID = 1352 },
                     kind    = "path",
                     note    = "After zoning in, proceed straight ahead to the first boss room. Kill trash to start the encounter with ^Champion of the Light^.",
+                    minNote = "Ahead to first boss",
                     points  = {
                         { 0.493, 0.883 },
                         { 0.492, 0.735 },
@@ -617,6 +633,7 @@ RetroRuns_Data[2070] = {
                     when    = { mapID = 1352 },
                     kind    = "path",
                     note    = "After defeating the ^Champion of the Light^, follow the linear path to the right and work your way towards the next boss, ^Jadefire Masters^. Kill the final trash pack before running up the stairs.",
+                    minNote = "Trash then Jadefire",
                     points  = {
                         { 0.518, 0.695 },
                         { 0.602, 0.679 },
@@ -640,6 +657,7 @@ RetroRuns_Data[2070] = {
                     when    = { mapID = 1352 },
                     kind    = "path",
                     note    = "After defeating ^Jadefire Masters^, proceed up the long staircase behind them to reach ^Grong, the Revenant^. Kill trash at the top of the stairs to start the encounter.",
+                    minNote = "Upstairs to Grong",
                     points  = {
                         { 0.492, 0.555 },
                         { 0.493, 0.345 },
@@ -660,6 +678,7 @@ RetroRuns_Data[2070] = {
                     when    = { mapID = 1352 },
                     kind    = "path",
                     note    = "After killing ^Grong^, continue up the stairwell behind him towards the map exit labeled ^Halls of Opulence^. Jump in the hole when you reach the end of the path.",
+                    minNote = "Path to Halls of Opulence",
                     points  = {
                         { 0.490, 0.280 },
                         { 0.492, 0.194 },
@@ -672,6 +691,7 @@ RetroRuns_Data[2070] = {
                     when    = { mapID = 1353 },
                     kind    = "path",
                     note    = "Inside the ^Halls of Opulence^, proceed straight ahead to the middle area to engage ^Opulence^.",
+                    minNote = "Ahead to Opulence",
                     points  = {
                         { 0.421, 0.846 },
                         { 0.422, 0.548 },
@@ -692,6 +712,7 @@ RetroRuns_Data[2070] = {
                     when    = { mapID = 1353 },
                     kind    = "path",
                     note    = "After killing ^Opulence^, follow the path straight ahead and make your way to the map exit labeled ^Loa's Sanctum^.",
+                    minNote = "Path to Loa's Sanctum",
                     points  = {
                         { 0.421, 0.480 },
                         { 0.421, 0.215 },
@@ -704,6 +725,7 @@ RetroRuns_Data[2070] = {
                     when    = { mapID = 1354 },
                     kind    = "path",
                     note    = "Continue straight ahead to engage ^Conclave of the Chosen^.",
+                    minNote = "Ahead to Conclave",
                     points  = {
                         { 0.474, 0.189 },
                         { 0.471, 0.633 },
@@ -724,6 +746,7 @@ RetroRuns_Data[2070] = {
                     when    = { mapID = 1354 },
                     kind    = "path",
                     note    = "After defeating ^Conclave^, exit the room to the east and ride the elevator up to the ^Walk of Kings^.",
+                    minNote = "East to Elevator",
                     points  = {
                         { 0.499, 0.677 },
                         { 0.643, 0.680 },
@@ -734,6 +757,7 @@ RetroRuns_Data[2070] = {
                     when    = { mapID = 1356 },
                     kind    = "path",
                     note    = "After getting off the elevator in ^Walk of Kings^, follow the linear path around to ^The Heart of the Empire^.",
+                    minNote = "Path to Heart of the Empire",
                     points  = {
                         { 0.650, 0.684 },
                         { 0.650, 0.389 },
@@ -746,6 +770,7 @@ RetroRuns_Data[2070] = {
                     kind     = "poi",
                     noMarker = true,
                     note     = "Kill trash in the boss room to trigger some dialog and start the encounter with ^King Rastakhan^.",
+                    minNote  = "Trash then Rastakhan",
                     points   = {
                         { 0.5, 0.5 },
                     },
@@ -772,6 +797,7 @@ RetroRuns_Data[2070] = {
                     when    = { mapID = 1357 },
                     kind    = "path",
                     note    = "After defeating ^King Rastakhan^, take the western exit from the room and make your way towards the map exit labeled ^Port of Zandalar^. Interact with the ^7th Legion Gryphon^ to be flown to the next area.",
+                    minNote = "Path to Gryphon",
                     points  = {
                         { 0.473, 0.538 },
                         { 0.407, 0.464 },
@@ -786,6 +812,7 @@ RetroRuns_Data[2070] = {
                     kind     = "poi",
                     noMarker = true,
                     note     = "After landing on the ship, make your way to the top of the ship and talk to ^Tandred Proudmoore^ to proceed.",
+                    minNote  = "Talk to Tandred",
                     points   = {
                         { 0.558, 0.699 },
                     },
@@ -794,12 +821,14 @@ RetroRuns_Data[2070] = {
                     when    = { mapID = 1367 },
                     kind    = "path",
                     note    = "When the ship stops, talk to ^Ensign Roberts^ to continue.",
+                    minNote = "Talk to Ensign Roberts",
                     points  = {},
                 },
                 {
                     when    = { mapID = 1352 },
                     kind    = "path",
                     note    = "After you reach the next area, go downstairs and kill trash to begin the fight against ^High Tinker Mekkatorque^.",
+                    minNote = "Trash then Mekkatorque",
                     points  = {
                         { 0.492, 0.200 },
                         { 0.491, 0.285 },
@@ -820,6 +849,7 @@ RetroRuns_Data[2070] = {
                     when    = { mapID = 1352 },
                     kind    = "path",
                     note    = "After defeating ^Mekkatorque^, make your way down the long path south, and kill the trash at the end of the bridge. Interact with a ^Pterrordax^ to start the encounter with ^Stormwall Blockade^.",
+                    minNote = "South to Pterrordax",
                     points  = {
                         { 0.492, 0.354 },
                         { 0.492, 0.889 },
@@ -841,6 +871,7 @@ RetroRuns_Data[2070] = {
                     kind    = "poi",
                     poiSize = 35,
                     note    = "After defeating ^Stormwall Blockade^, walk onto the newly-arrived ship and speak with ^Captain Zadari^ to begin the ^Lady Jaina Proudmoore^ encounter.",
+                    minNote = "Talk to Captain Zadari",
                     points  = {
                         { 0.484, 0.975 },
                     },

@@ -99,6 +99,7 @@ RetroRuns_Data[2096] = {
                             when   = { mapID = 1345 },
                             kind   = "path",
                             note   = "After zoning in, follow the path straight ahead to find and kill ^The Restless Cabal^.",
+                            minNote = "Ahead to Restless Cabal",
                             points = {
                                 { 0.656, 0.799 },
                                 { 0.520, 0.408 },
@@ -119,6 +120,7 @@ RetroRuns_Data[2096] = {
                             when   = { mapID = 1346 },
                             kind   = "path",
                             note   = "After defeating ^The Restless Cabal^, there will be a cutscene where you will fall into a deep hole, landing in ^Tendril of Corruption^. Follow the path all the way back to reach ^Uu'nat^.",
+                            minNote = "Fall then path to Uu'nat",
                             points = {
                                 { 0.822, 0.332 },
                                 { 0.776, 0.312 },
@@ -152,6 +154,7 @@ RetroRuns_Data[2096] = {
                     when   = { mapID = 1345 },
                     kind   = "path",
                     note   = "After zoning in, follow the path straight ahead to find and kill ^The Restless Cabal^.",
+                    minNote = "Ahead to Restless Cabal",
                     points = {
                         { 0.656, 0.799 },
                         { 0.520, 0.408 },
@@ -172,6 +175,7 @@ RetroRuns_Data[2096] = {
                     when   = { mapID = 1346 },
                     kind   = "path",
                     note   = "After defeating ^The Restless Cabal^, there will be a cutscene where you will fall into a deep hole, landing in ^Tendril of Corruption^. Follow the path all the way back to reach ^Uu'nat^.",
+                    minNote = "Fall then path to Uu'nat",
                     points = {
                         { 0.822, 0.332 },
                         { 0.776, 0.312 },

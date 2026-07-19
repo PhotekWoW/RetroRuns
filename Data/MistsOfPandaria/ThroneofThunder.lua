@@ -614,6 +614,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 508, subZone = "Ruined Approach" },
                     kind    = "path",
                     note    = "After zoning in, make your way to the other end of the room. Open the door to find ^Jin'rokh the Breaker^.",
+                    minNote = "Follow path",
                     points  = {
                         { 0.332, 0.256 },
                         { 0.356, 0.234 },
@@ -639,6 +640,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 508, subZone = "Overgrown Statuary" },
                     kind    = "path",
                     note    = "After killing ^Jin'rokh^, take the long path south and cross two bridges before arriving in the next area. Avoid blue circles; they will throw you off the edge.",
+                    minNote = "Avoid blue circles",
                     points  = {
                         { 0.595, 0.315 },
                         { 0.593, 0.452 },
@@ -653,6 +655,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 509, subZone = "Ruined Approach" },
                     kind    = "path",
                     note    = "Open the door in front of you to land in ^Horridon^'s room. After a brief dialog, kill the boss.",
+                    minNote = "Ahead to Horridon",
                     points  = {
                         { 0.190, 0.786 },
                         { 0.245, 0.786 },
@@ -673,6 +676,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 509, subZone = "Royal Amphitheater" },
                     kind    = "path",
                     note    = "After killing ^Horridon^, go through the north exit and follow the path all the way to ^Council of Elders^. Kill trash to unlock doors along the way.",
+                    minNote = "North to Council",
                     points  = {
                         { 0.270, 0.681 },
                         { 0.267, 0.199 },
@@ -697,6 +701,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 509, subZone = "Lightning Promenade" },
                     kind    = "path",
                     note    = "After defeating ^Council of Elders^, go through the door behind them. As you cross the bridge, there will be a cutscene and you will fall below.",
+                    minNote = "Follow path",
                     points  = {
                         { 0.531, 0.193 },
                         { 0.758, 0.193 },
@@ -706,6 +711,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 510, subZone = "Lair of Tortos" },
                     kind    = "path",
                     note    = "In the next area, move ahead into the cave to engage ^Tortos^.",
+                    minNote = "Ahead to Tortos",
                     points  = {
                         { 0.177, 0.810 },
                         { 0.289, 0.823 },
@@ -729,6 +735,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 510, subZone = "Forgotten Depths" },
                     kind    = "path",
                     note    = "After defeating ^Tortos^, walk through him to reach the next area. To spawn ^Megaera^, you must destroy the (3) bells marked on the map, which are protected by ^Eternal Guardians^.",
+                    minNote = "Destroy Bells",
                     points  = {},
                 },
                 {
@@ -778,6 +785,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 510, subZone = "Forgotten Depths" },
                     kind    = "path",
                     note    = "After defeating ^Megaera^, take the new exit on the east side of the room.",
+                    minNote = "East Exit",
                     points  = {
                         { 0.676, 0.308 },
                         { 0.656, 0.457 },
@@ -789,6 +797,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 511, subZone = "Roost of Ji-Kun" },
                     kind    = "path",
                     note    = "Inside the ^Roost of Ji-Kun^, make your way up and around the long series of paths and stairwells until you reach the platform of ^Ji-Kun^. Avoid the snails; they will still 1-shot you.",
+                    minNote = "Up to Ji-Kun",
                     points  = {
                         { 0.218, 0.218 },
                         { 0.219, 0.307 },
@@ -832,6 +841,7 @@ RetroRuns_Data[1098] = {
                     mapLabel    = "Click Feather",
                     mapLabelPos = "above",
                     note    = "After killing ^Ji-Kun^, click a feather followed by your Extra Action Button to fly to the southwest exit of the room.",
+                    minNote = "Southwest Exit",
                     points  = {
                         { 0.429, 0.474 },
                     },
@@ -849,6 +859,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 512, subZone = "Refuse Disposal" },
                     kind    = "path",
                     note    = "After landing, continue ahead to find ^Durumu the Forgotten^. Clear all trash in the room to spawn the boss.",
+                    minNote = "Trash then Durumu",
                     points  = {
                         { 0.752, 0.091 },
                         { 0.711, 0.099 },
@@ -874,6 +885,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 512, subZone = "Watcher's Sanctum" },
                     kind    = "path",
                     note    = "After defeating ^Durumu^, follow the linear path through several sets of stairs and make your way to ^Primordius^.",
+                    minNote = "Follow path",
                     points  = {
                         { 0.711, 0.377 },
                         { 0.711, 0.516 },
@@ -904,6 +916,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 512, subZone = "Saurok Creation Pit" },
                     kind    = "path",
                     note    = "After killing ^Primordius^, take the western stairwell out of the room and follow it to ^Dark Animus^. Kill the ritualists to start the fight.",
+                    minNote = "Western Stairwell",
                     points  = {
                         { 0.548, 0.783 },
                         { 0.391, 0.779 },
@@ -933,6 +946,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 512, subZone = "Halls of Flesh-Shaping" },
                     kind    = "path",
                     note    = "After defeating ^Dark Animus^, take the northern stairwell out of the room and follow the path to open a masked gate.",
+                    minNote = "Northern Stairwell",
                     points  = {
                         { 0.384, 0.485 },
                         { 0.383, 0.429 },
@@ -946,6 +960,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 513, subZone = "Grand Courtyard" },
                     kind    = "path",
                     note    = "On the other side of the gate, proceed ahead to engage ^Iron Qon^.",
+                    minNote = "Ahead to Iron Qon",
                     points  = {
                         { 0.204, 0.659 },
                         { 0.247, 0.596 },
@@ -967,6 +982,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 513, subZone = "Grand Courtyard" },
                     kind    = "path",
                     note    = "After defeating ^Iron Qon^, proceed through the new door behind them and follow the linear path to the ^Twin Empyreans^.",
+                    minNote = "Path to Twins",
                     points  = {
                         { 0.402, 0.588 },
                         { 0.614, 0.590 },
@@ -995,6 +1011,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 513, subZone = "Celestial Enclave" },
                     kind    = "path",
                     note    = "After killing the ^Twin Empyreans^, take the southeastern exit from the room.",
+                    minNote = "Southeastern Exit",
                     points  = {
                         { 0.804, 0.415 },
                         { 0.892, 0.545 },
@@ -1008,6 +1025,7 @@ RetroRuns_Data[1098] = {
                     kind     = "poi",
                     mapLabel = "Click Displacement Pad",
                     note     = "At the top of the stairs, walk through a door and click on the ^Displacement Pad^. After landing, engage ^Lei Shen^.",
+                    minNote = "Click Displacement Pad (1)",
                     points   = {
                         { 0.501, 0.157 },
                     },
@@ -1036,6 +1054,7 @@ RetroRuns_Data[1098] = {
                     mapLabel    = "Displacement Pad",
                     mapLabelPos = "below",
                     note        = "After killing ^Lei Shen^, click the ^Displacement Pad^ in the middle of the room to be teleported back to ^Primordius^' room.",
+                    minNote = "Click Displacement Pad (2)",
                     points  = {
                         { 0.507, 0.542 },
                     },
@@ -1047,6 +1066,7 @@ RetroRuns_Data[1098] = {
                     mapLabel    = "Stairwell",
                     mapLabelPos = "below",
                     note        = "After teleporting, take the spiral stairwell down in the middle of the room.",
+                    minNote = "Down stairwell",
                     points  = {
                         { 0.572, 0.815 },
                     },
@@ -1055,6 +1075,7 @@ RetroRuns_Data[1098] = {
                     when    = { mapID = 515, subZone = "Hidden Cell" },
                     kind    = "path",
                     note    = "After reaching the bottom of the stairs, proceed forward to trigger a lengthy dialog, then engage ^Ra-den^.",
+                    minNote = "Ahead to Ra-den",
                     points  = {
                         { 0.521, 0.509 },
                         { 0.523, 0.772 },
@@ -1086,6 +1107,7 @@ RetroRuns_Data[1098] = {
                             when    = { mapID = 508, subZone = "Ruined Approach" },
                             kind    = "path",
                             note    = "After zoning in, make your way to the other end of the room. Open the door to find ^Jin'rokh the Breaker^.",
+                            minNote = "Follow path",
                             points  = {
                                 { 0.332, 0.256 },
                                 { 0.356, 0.234 },
@@ -1111,6 +1133,7 @@ RetroRuns_Data[1098] = {
                             when    = { mapID = 508, subZone = "Overgrown Statuary" },
                             kind    = "path",
                             note    = "After killing ^Jin'rokh^, take the long path south and cross two bridges before arriving in the next area. Avoid blue circles; they will throw you off the edge.",
+                            minNote = "Avoid blue circles",
                             points  = {
                                 { 0.595, 0.315 },
                                 { 0.593, 0.452 },
@@ -1125,6 +1148,7 @@ RetroRuns_Data[1098] = {
                             when    = { mapID = 509, subZone = "Ruined Approach" },
                             kind    = "path",
                             note    = "Open the door in front of you to land in ^Horridon^'s room. After a brief dialog, kill the boss.",
+                            minNote = "Ahead to Horridon",
                             points  = {
                                 { 0.190, 0.786 },
                                 { 0.245, 0.786 },
@@ -1145,6 +1169,7 @@ RetroRuns_Data[1098] = {
                             when    = { mapID = 509, subZone = "Royal Amphitheater" },
                             kind    = "path",
                             note    = "After killing ^Horridon^, go through the north exit and follow the path all the way to ^Council of Elders^. Kill trash to unlock doors along the way.",
+                            minNote = "North to Council",
                             points  = {
                                 { 0.270, 0.681 },
                                 { 0.267, 0.199 },
@@ -1179,6 +1204,7 @@ RetroRuns_Data[1098] = {
                             when    = { mapID = 510, subZone = "Lair of Tortos" },
                             kind    = "path",
                             note    = "After zoning in, proceed straight ahead to engage ^Tortos^.",
+                            minNote = "Ahead to Tortos",
                             points  = {
                                 { 0.177, 0.810 },
                                 { 0.289, 0.823 },
@@ -1199,6 +1225,7 @@ RetroRuns_Data[1098] = {
                             when    = { mapID = 510, subZone = "Forgotten Depths" },
                             kind    = "path",
                             note    = "After defeating ^Tortos^, walk through him to reach the next area. To spawn ^Megaera^, you must destroy the (3) bells marked on the map, which are protected by ^Eternal Guardians^.",
+                            minNote = "Destroy Bells",
                             points  = {},
                         },
                         {
@@ -1248,6 +1275,7 @@ RetroRuns_Data[1098] = {
                             when    = { mapID = 510, subZone = "Forgotten Depths" },
                             kind    = "path",
                             note    = "After defeating ^Megaera^, take the new exit on the east side of the room.",
+                            minNote = "East Exit",
                             points  = {
                                 { 0.676, 0.308 },
                                 { 0.656, 0.457 },
@@ -1259,6 +1287,7 @@ RetroRuns_Data[1098] = {
                             when    = { mapID = 511, subZone = "Roost of Ji-Kun" },
                             kind    = "path",
                             note    = "Inside the ^Roost of Ji-Kun^, make your way up and around the long series of paths and stairwells until you reach the platform of ^Ji-Kun^. Avoid the snails; they will still 1-shot you.",
+                            minNote = "Up to Ji-Kun",
                             points  = {
                                 { 0.218, 0.218 },
                                 { 0.219, 0.307 },
@@ -1307,6 +1336,7 @@ RetroRuns_Data[1098] = {
                             when    = { mapID = 512, subZone = "Refuse Disposal" },
                             kind    = "path",
                             note    = "After zoning in, continue ahead to find ^Durumu the Forgotten^. Clear all trash in the room to spawn the boss.",
+                            minNote = "Trash then Durumu",
                             points  = {
                                 { 0.752, 0.091 },
                                 { 0.711, 0.099 },
@@ -1332,6 +1362,7 @@ RetroRuns_Data[1098] = {
                             when    = { mapID = 512, subZone = "Watcher's Sanctum" },
                             kind    = "path",
                             note    = "After defeating ^Durumu^, follow the linear path through several sets of stairs and make your way to ^Primordius^.",
+                            minNote = "Follow path",
                             points  = {
                                 { 0.711, 0.377 },
                                 { 0.711, 0.516 },
@@ -1362,6 +1393,7 @@ RetroRuns_Data[1098] = {
                             when    = { mapID = 512, subZone = "Saurok Creation Pit" },
                             kind    = "path",
                             note    = "After killing ^Primordius^, take the western stairwell out of the room and follow it to ^Dark Animus^. Kill the ritualists to start the fight.",
+                            minNote = "Western Stairwell",
                             points  = {
                                 { 0.548, 0.783 },
                                 { 0.391, 0.779 },
@@ -1396,6 +1428,7 @@ RetroRuns_Data[1098] = {
                             when    = { mapID = 512, subZone = "Sewer Access Point" },
                             kind    = "path",
                             note    = "After zoning in, move up the stairwell and follow the path to open a masked gate.",
+                            minNote = "Open Masked Gate",
                             points  = {
                                 { 0.383, 0.429 },
                                 { 0.333, 0.428 },
@@ -1408,6 +1441,7 @@ RetroRuns_Data[1098] = {
                             when    = { mapID = 513, subZone = "Grand Courtyard" },
                             kind    = "path",
                             note    = "On the other side of the gate, proceed ahead to engage ^Iron Qon^.",
+                            minNote = "Ahead to Iron Qon",
                             points  = {
                                 { 0.204, 0.659 },
                                 { 0.247, 0.596 },
@@ -1429,6 +1463,7 @@ RetroRuns_Data[1098] = {
                             when    = { mapID = 513, subZone = "Grand Courtyard" },
                             kind    = "path",
                             note    = "After defeating ^Iron Qon^, proceed through the new door behind them and follow the linear path to the ^Twin Empyreans^.",
+                            minNote = "Path to Twins",
                             points  = {
                                 { 0.402, 0.588 },
                                 { 0.614, 0.590 },
@@ -1452,6 +1487,7 @@ RetroRuns_Data[1098] = {
                             when    = { mapID = 513, subZone = "Celestial Enclave" },
                             kind    = "path",
                             note    = "After killing the ^Twin Empyreans^, take the southeastern exit from the room.",
+                            minNote = "Southeastern Exit",
                             points  = {
                                 { 0.804, 0.415 },
                                 { 0.892, 0.545 },
@@ -1465,6 +1501,7 @@ RetroRuns_Data[1098] = {
                             kind     = "poi",
                             mapLabel = "Click Displacement Pad",
                             note     = "At the top of the stairs, walk through a door and click on the ^Displacement Pad^. After landing, engage ^Lei Shen^.",
+                            minNote = "Click Displacement Pad (1)",
                             points   = {
                                 { 0.501, 0.157 },
                             },

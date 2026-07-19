@@ -840,6 +840,7 @@ RetroRuns_Data[967] = {
                     when    = { mapID = 409, subZone = "Path of the Titans" },
                     kind    = "path",
                     note    = "After zoning in, proceed straight ahead to engage ^Morchok^.",
+                    minNote = "Ahead to Morchok",
                     points  = {
                         { 0.505, 0.814 },
                         { 0.504, 0.770 },
@@ -861,6 +862,7 @@ RetroRuns_Data[967] = {
                     when     = { mapID = 409, subZone = "Wyrmrest Temple" },
                     kind     = "poi",
                     note     = "After defeating ^Morchok^, continue ahead into ^Wyrmrest Temple^. Interact with ^Valeera^, the dragon on the left.",
+                    minNote  = "Valeera on Left",
                     mapLabel = "Click Valeera",
                     mapLabelPos = "above",
                     points   = {
@@ -871,6 +873,7 @@ RetroRuns_Data[967] = {
                     when    = { mapID = 410, subZone = "Maw of Go'rath" },
                     kind    = "path",
                     note    = "After landing, kill ^Warlord Zon'ozz^ right in front of you.",
+                    minNote = "Kill Warlord Zon'ozz",
                     points  = {
                         { 0.372, 0.475 },
                         { 0.479, 0.520 },
@@ -891,6 +894,7 @@ RetroRuns_Data[967] = {
                     when        = { mapID = 410, subZone = "Maw of Go'rath" },
                     kind        = "poi",
                     note        = "After defeating ^Warlord Zon'ozz^, return to ^Wyrmrest Temple^ by clicking the ^Portal^.",
+                    minNote     = "Portal to Wyrmrest",
                     mapLabel    = "Return Portal",
                     mapLabelPos = "above",
                     points      = {
@@ -901,6 +905,7 @@ RetroRuns_Data[967] = {
                     when     = { mapID = 409, subZone = "Wyrmrest Temple" },
                     kind     = "poi",
                     note     = "After returning to ^Wyrmrest Temple^, click on ^Eiendormi^, the dragon on the right.",
+                    minNote  = "Eiendormi on Right",
                     mapLabel = "Click Eiendormi",
                     mapLabelPos = "above",
                     points   = {
@@ -911,6 +916,7 @@ RetroRuns_Data[967] = {
                     when    = { mapID = 411, subZone = "Maw of Shu'ma" },
                     kind    = "path",
                     note    = "After landing, kill ^Yor'sahj^ in the middle of the room.",
+                    minNote = "Kill Yor'sahj",
                     points  = {
                         { 0.537, 0.758 },
                         { 0.478, 0.544 },
@@ -931,6 +937,7 @@ RetroRuns_Data[967] = {
                     when        = { mapID = 411, subZone = "Maw of Shu'ma" },
                     kind        = "poi",
                     note        = "After defeating ^Yor'sahj^, return to ^Wyrmrest Temple^ by clicking the ^Portal^.",
+                    minNote     = "Portal to Wyrmrest",
                     mapLabel    = "Return Portal",
                     points      = {
                         { 0.585, 0.915 },
@@ -940,6 +947,7 @@ RetroRuns_Data[967] = {
                     when        = { mapID = 409, subZone = "Wyrmrest Temple" },
                     kind        = "poi",
                     note        = "After returning to ^Wyrmrest Temple^, click ^Nethestrasz^, the dragon in front of you. Once you reach the top, wait on a lengthy dialog and click the portal to ^Travel to the Eye of Eternity^.",
+                    minNote     = "Nethestrasz then Portal",
                     mapLabel    = "Click Nethestrasz",
                     mapLabelPos = "above",
                     points      = {
@@ -951,6 +959,7 @@ RetroRuns_Data[967] = {
                     kind     = "poi",
                     noMarker = true,
                     note     = "Once you arrive in the ^Eye of Eternity^, click ^The Focusing Iris^ to start the encounter with ^Hagara the Stormbinder^.",
+                    minNote  = "Click Focusing Iris",
                     points   = {
                         { 0.525, 0.478 },
                     },
@@ -970,6 +979,7 @@ RetroRuns_Data[967] = {
                     when        = { mapID = 412, subZone = "Eye of Eternity" },
                     kind        = "poi",
                     note        = "After defeating ^Hagara^, click the ^portal^ to return to ^Wyrmrest Summit^.",
+                    minNote     = "Portal to Summit",
                     mapLabel    = "Return Portal",
                     mapLabelPos = "above",
                     points      = {
@@ -980,6 +990,7 @@ RetroRuns_Data[967] = {
                     when     = { mapID = 409, subZone = "Wyrmrest Summit" },
                     kind     = "poi",
                     note     = "After arriving back on the ^Wyrmrest Summit^, talk to ^Kalecgos^ to advance.",
+                    minNote  = "Talk to Kalecgos",
                     mapLabel = "Kalecgos",
                     points   = {
                         { 0.514, 0.595 },
@@ -989,7 +1000,7 @@ RetroRuns_Data[967] = {
                     when        = { mapID = 409, subZone = "Wyrmrest Summit" },
                     kind        = "poi",
                     note        = "Talk to ^Thrall^ to begin the fight with ^Ultraxion^.",
-                    triggeredBy = { dialog = { npc = "Thrall", match = "ready to begin" } },
+                    minNote     = "Talk to Thrall",
                     points      = {},
                 },
             },
@@ -1007,6 +1018,7 @@ RetroRuns_Data[967] = {
                     when        = { mapID = 409, subZone = "Wyrmrest Temple" },
                     kind        = "poi",
                     note        = "After defeating ^Ultraxion^, wait for the cutscene, then board the ship and talk to ^Sky Captain Swayze^ to advance.",
+                    minNote     = "Talk to Sky Captain on Ship",
                     mapLabel    = "Sky Captain Swayze",
                     mapLabelPos = "above",
                     points      = {
@@ -1017,6 +1029,7 @@ RetroRuns_Data[967] = {
                     when    = { mapID = 413, subZone = "Above the Frozen Sea" },
                     kind    = "poi",
                     note    = "Once you're in mid-flight, talk to ^Sky Captain Swayze^ again to begin the encounter with ^Warmaster Blackhorn^.",
+                    minNote = "Sky Captain Starts Blackhorn",
                     points  = {},
                 },
             },
@@ -1034,6 +1047,7 @@ RetroRuns_Data[967] = {
                     when    = { mapID = 413, subZone = "Above the Frozen Sea" },
                     kind    = "poi",
                     note    = "After killing ^Warmaster Blackhorn^, talk to ^Sky Captain Swayze^ to begin the encounter with ^Spine of Deathwing^.",
+                    minNote = "Sky Captain Starts Spine",
                     points  = {},
                 },
             },
@@ -1051,6 +1065,7 @@ RetroRuns_Data[967] = {
                     when        = { mapID = 415, subZone = "The Maelstrom" },
                     kind        = "poi",
                     note        = "After defeating the ^Spine of Deathwing^, talk to ^Thrall^ (twice) to begin the final battle with ^Madness of Deathwing^.",
+                    minNote     = "Talk to Thrall twice",
                     mapLabel    = "Thrall",
                     mapLabelPos = "above",
                     points      = {
@@ -1083,6 +1098,7 @@ RetroRuns_Data[967] = {
                             when    = { mapID = 409, subZone = "Path of the Titans" },
                             kind    = "path",
                             note    = "After zoning in, proceed straight ahead to engage ^Morchok^.",
+                            minNote = "Ahead to Morchok",
                             points  = {
                                 { 0.505, 0.814 },
                                 { 0.504, 0.770 },
@@ -1104,6 +1120,7 @@ RetroRuns_Data[967] = {
                             when        = { mapID = 409, subZone = "Wyrmrest Temple" },
                             kind        = "poi",
                             note        = "After defeating ^Morchok^, continue ahead into ^Wyrmrest Temple^. Interact with ^Valeera^, the dragon on the left.",
+                            minNote     = "Valeera on Left",
                             mapLabel    = "Click Valeera",
                             mapLabelPos = "above",
                             points      = {
@@ -1114,6 +1131,7 @@ RetroRuns_Data[967] = {
                             when    = { mapID = 410, subZone = "Maw of Go'rath" },
                             kind    = "path",
                             note    = "After landing, kill ^Warlord Zon'ozz^ right in front of you.",
+                            minNote = "Kill Zon'ozz",
                             points  = {
                                 { 0.372, 0.475 },
                                 { 0.479, 0.520 },
@@ -1134,6 +1152,7 @@ RetroRuns_Data[967] = {
                             when        = { mapID = 410, subZone = "Maw of Go'rath" },
                             kind        = "poi",
                             note        = "After defeating ^Warlord Zon'ozz^, return to ^Wyrmrest Temple^ by clicking the ^Portal^.",
+                            minNote     = "Portal to Wyrmrest",
                             mapLabel    = "Return Portal",
                             mapLabelPos = "above",
                             points      = {
@@ -1144,6 +1163,7 @@ RetroRuns_Data[967] = {
                             when     = { mapID = 409, subZone = "Wyrmrest Temple" },
                             kind     = "poi",
                             note     = "After returning to ^Wyrmrest Temple^, click on ^Eiendormi^, the dragon on the right.",
+                            minNote  = "Eiendormi on Right",
                             mapLabel = "Click Eiendormi",
                             mapLabelPos = "above",
                             points   = {
@@ -1154,6 +1174,7 @@ RetroRuns_Data[967] = {
                             when    = { mapID = 411, subZone = "Maw of Shu'ma" },
                             kind    = "path",
                             note    = "After landing, kill ^Yor'sahj^ in the middle of the room.",
+                            minNote = "Kill Yor'sahj",
                             points  = {
                                 { 0.537, 0.758 },
                                 { 0.478, 0.544 },
@@ -1174,6 +1195,7 @@ RetroRuns_Data[967] = {
                             when        = { mapID = 411, subZone = "Maw of Shu'ma" },
                             kind        = "poi",
                             note        = "After defeating ^Yor'sahj^, return to ^Wyrmrest Temple^ by clicking the ^Portal^.",
+                            minNote     = "Portal to Wyrmrest",
                             mapLabel    = "Return Portal",
                             points      = {
                                 { 0.585, 0.915 },
@@ -1183,6 +1205,7 @@ RetroRuns_Data[967] = {
                             when        = { mapID = 409, subZone = "Wyrmrest Temple" },
                             kind        = "poi",
                             note        = "After returning to ^Wyrmrest Temple^, click ^Nethestrasz^, the dragon in front of you. Once you reach the top, click the portal to ^Travel to the Eye of Eternity^.",
+                            minNote     = "Nethestrasz then Portal",
                             mapLabel    = "Click Nethestrasz",
                             mapLabelPos = "above",
                             points      = {
@@ -1194,6 +1217,7 @@ RetroRuns_Data[967] = {
                             kind     = "poi",
                             noMarker = true,
                             note     = "Once you arrive in the ^Eye of Eternity^, click ^The Focusing Iris^ to start the encounter with ^Hagara the Stormbinder^.",
+                            minNote  = "Click Focusing Iris",
                             points   = {
                                 { 0.525, 0.478 },
                             },
@@ -1223,6 +1247,7 @@ RetroRuns_Data[967] = {
                             when        = { mapID = 409, subZone = "Path of the Titans" },
                             kind        = "poi",
                             note        = "After zoning in, click the portal to ^Wyrmrest Summit^ right in front of you.",
+                            minNote     = "Portal to Summit",
                             mapLabel    = "Click Portal",
                             mapLabelPos = "above",
                             points      = {
@@ -1233,6 +1258,7 @@ RetroRuns_Data[967] = {
                             when     = { mapID = 409, subZone = "Wyrmrest Summit" },
                             kind     = "poi",
                             note     = "After arriving on ^Wyrmrest Summit^, talk to ^Kalecgos^ to advance.",
+                            minNote  = "Talk to Kalecgos",
                             mapLabel = "Kalecgos",
                             points   = {
                                 { 0.514, 0.595 },
@@ -1242,7 +1268,7 @@ RetroRuns_Data[967] = {
                             when        = { mapID = 409, subZone = "Wyrmrest Summit" },
                             kind        = "poi",
                             note        = "Talk to ^Thrall^ to begin the fight with ^Ultraxion^.",
-                            triggeredBy = { dialog = { npc = "Thrall", match = "ready to begin" } },
+                            minNote     = "Talk to Thrall",
                             points      = {},
                         },
                     },
@@ -1260,6 +1286,7 @@ RetroRuns_Data[967] = {
                             when        = { mapID = 409, subZone = "Wyrmrest Temple" },
                             kind        = "poi",
                             note        = "After defeating ^Ultraxion^, wait for the cutscene, then board the ship and talk to ^Sky Captain Swayze^ to advance.",
+                            minNote     = "Talk to Sky Captain on Ship",
                             mapLabel    = "Sky Captain Swayze",
                             mapLabelPos = "above",
                             points      = {
@@ -1270,6 +1297,7 @@ RetroRuns_Data[967] = {
                             when    = { mapID = 413, subZone = "Above the Frozen Sea" },
                             kind    = "poi",
                             note    = "Once you're in mid-flight, talk to ^Sky Captain Swayze^ again to begin the encounter with ^Warmaster Blackhorn^.",
+                            minNote = "Sky Captain Starts Blackhorn",
                             points  = {},
                         },
                     },
@@ -1287,6 +1315,7 @@ RetroRuns_Data[967] = {
                             when    = { mapID = 413, subZone = "Above the Frozen Sea" },
                             kind    = "poi",
                             note    = "After killing ^Warmaster Blackhorn^, talk to ^Sky Captain Swayze^ to begin the encounter with ^Spine of Deathwing^.",
+                            minNote = "Sky Captain Starts Spine",
                             points  = {},
                         },
                     },
@@ -1304,6 +1333,7 @@ RetroRuns_Data[967] = {
                             when        = { mapID = 415, subZone = "The Maelstrom" },
                             kind        = "poi",
                             note        = "After defeating the ^Spine of Deathwing^, talk to ^Thrall^ (twice) to begin the final battle with ^Madness of Deathwing^.",
+                            minNote     = "Talk to Thrall twice",
                             mapLabel    = "Thrall",
                             mapLabelPos = "above",
                             points      = {

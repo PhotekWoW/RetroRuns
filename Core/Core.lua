@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "2.1.0"
+local VERSION    = "2.2.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -14,6 +14,19 @@ local VERSION    = "2.1.0"
 RetroRuns = {
     VERSION = VERSION,
     frame   = CreateFrame("Frame"),
+
+    -- Localized-string lookup, live from the first line of the addon so
+    -- file-scope constructors in ANY later file (StaticPopup text, label
+    -- tables) can use it. RR.L["Some English text"] returns the active
+    -- locale's translation, or the English key itself when none exists.
+    -- Populated by ApplyLocale (Locales/enUS.lua): once at the end of the
+    -- Locales block for the client locale, again at ADDON_LOADED for the
+    -- devLocale override.
+    L = setmetatable({}, { __index = function(_, key) return key end }),
+
+    -- Per-locale translation tables, keyed by locale code. Each locale
+    -- file registers its table here.
+    LocaleTables = {},
 
     currentRaid = nil,
 
@@ -106,8 +119,8 @@ local function MergeDefaults(dst, src)
 end
 
 --- Strip leading/trailing whitespace.
-function RR.Trim(s)
-    return (s or ""):match("^%s*(.-)%s*$")
+function RR.Trim(str)
+    return (str or ""):match("^%s*(.-)%s*$")
 end
 
 --- Prefixed chat output.
@@ -132,7 +145,7 @@ end
 -- Print the login banner, then flush anything queued behind it. Called
 -- from the PLAYER_LOGIN handler's timer.
 function RR:ShowLoginBanner()
-    self:Print(("|cffaaaaaav%s loaded. Type |r|cffffffff/rr help|r|cffaaaaaa for commands.|r"):format(VERSION))
+    self:Print((RR.L["|cffaaaaaav%s loaded. Type |r|cffffffff/rr help|r|cffaaaaaa for commands.|r"]):format(VERSION))
     self._bannerShown = true
     for _, msg in ipairs(self._bannerQueue) do
         self:Print(msg)
@@ -307,7 +320,7 @@ end
 --- carried its own copy of this ~120-line block.
 function RR:NavigateToDestination(mapID, x, y, title, routeContext)
     if not mapID or not x or not y then
-        self:Print("Destination data is incomplete.")
+        self:Print(RR.L["Destination data is incomplete."])
         return nil
     end
 
@@ -410,7 +423,7 @@ function RR:NavigateToDestination(mapID, x, y, title, routeContext)
     end
 
     if not result.planner and not result.arrow and #result.overlays == 0 then
-        self:Print("No supported waypoint API available.")
+        self:Print(RR.L["No supported waypoint API available."])
         return nil
     end
     return result
@@ -423,35 +436,36 @@ end
 --- "waypoint set" toast for silent-at-click providers). Returns nil
 --- entirely on failure (no entrance data, no providers available).
 function RR:NavigateToEntrance(raid)
-    local e = self:GetRaidEntrance(raid)
-    if not raid or not e then
-        self:Print("No entrance data for that raid.")
+    local entrance = self:GetRaidEntrance(raid)
+    if not raid or not entrance then
+        self:Print(RR.L["No entrance data for that raid."])
         return nil
     end
-    if not e.mapID or not e.x or not e.y then
-        self:Print("Entrance data is incomplete.")
+    if not entrance.mapID or not entrance.x or not entrance.y then
+        self:Print(RR.L["Entrance data is incomplete."])
         return nil
     end
 
-    local title = ("RetroRuns: %s entrance"):format(raid.name or "raid")
-    return self:NavigateToDestination(e.mapID, e.x, e.y, title, raid)
+    local title = (RR.L["RetroRuns: %s entrance"]):format(self:GetLocalizedRaidName(raid) or "raid")
+    return self:NavigateToDestination(entrance.mapID, entrance.x, entrance.y, title, raid)
 end
 
 --- Drop a waypoint at a Covenant Sanctum weapon vendor (Castle
 --- Nathria). Routes through the shared NavigateToDestination dispatch.
 function RR:NavigateToSanctum(raid, covID)
     if not raid or not raid.weaponVendors or not covID then
-        self:Print("No sanctum vendor data available.")
+        self:Print(RR.L["No sanctum vendor data available."])
         return nil
     end
     local vendor = raid.weaponVendors[covID]
     if not vendor or not vendor.vendorMapID or not vendor.x or not vendor.y then
-        self:Print("Sanctum vendor data is incomplete.")
+        self:Print(RR.L["Sanctum vendor data is incomplete."])
         return nil
     end
 
-    local title = ("RetroRuns: %s (%s vendor)"):format(
-        vendor.vendorName or "Sanctum", vendor.covenantName or "covenant")
+    local title = (RR.L["RetroRuns: %s (%s vendor)"]):format(
+        (vendor.vendorName and RR.L[vendor.vendorName]) or RR.L["Sanctum"],
+        (vendor.covenantName and RR.L[vendor.covenantName]) or RR.L["covenant"])
     return self:NavigateToDestination(vendor.vendorMapID, vendor.x, vendor.y, title, raid)
 end
 
@@ -554,23 +568,23 @@ end
 function RR:NavigateToLFRNPC(expansion)
     local npc = self:GetLFRQueueNPC(expansion)
     if not npc then
-        self:Print("No LFR queue NPC known for that expansion.")
+        self:Print(RR.L["No LFR queue NPC known for that expansion."])
         return nil
     end
     if not npc.mapID or npc.mapID == 0 or not npc.x or not npc.y then
         -- A zero mapID means the destination isn't routable yet (e.g.
         -- the Garrison, whose mapID varies by faction/building tier and
         -- isn't captured). Tell the player where to go in text instead.
-        self:Print(("LFR queue: talk to %s (%s)."):format(
-            npc.npcName or "the queue NPC", npc.zone or "see guide"))
+        self:Print((RR.L["LFR queue: talk to %s (%s)."]):format(
+            npc.npcName or RR.L["the queue NPC"], RR.L[npc.zone or "see guide"]))
         return nil
     end
 
-    local title = ("RetroRuns: %s (LFR queue)"):format(npc.npcName or "queue NPC")
+    local title = (RR.L["RetroRuns: %s (LFR queue)"]):format(npc.npcName or "queue NPC")
     local result = self:NavigateToDestination(npc.mapID, npc.x, npc.y, title, nil)
     if result and npc.unverified then
-        self:Print(("Note: %s's location is approximate -- look nearby (%s)."):format(
-            npc.npcName or "the NPC", npc.zone or ""))
+        self:Print((RR.L["Note: %s's location is approximate -- look nearby (%s)."]):format(
+            npc.npcName or RR.L["the NPC"], npc.zone and RR.L[npc.zone] or ""))
     end
     return result
 end
@@ -604,6 +618,7 @@ function RR:NormalizeName(name)
     name = name:gsub("[^%w%s%-]", "")
     name = name:gsub("%s+", " ")
     name = name:match("^%s*(.-)%s*$")
+    if name == "" then return nil end
     return name
 end
 
@@ -628,12 +643,12 @@ RR.FONT_SIZE_MAX = 14
 
 function RR:GetSetting(key, default)
     if not RetroRunsDB then return default end
-    local v = RetroRunsDB[key]
-    if v == nil then return default end
-    if key == "fontSize" and type(v) == "number" and v > RR.FONT_SIZE_MAX then
+    local value = RetroRunsDB[key]
+    if value == nil then return default end
+    if key == "fontSize" and type(value) == "number" and value > RR.FONT_SIZE_MAX then
         return RR.FONT_SIZE_MAX
     end
-    return v
+    return value
 end
 
 --- Write a single key to RetroRunsDB.
@@ -668,9 +683,9 @@ local function CollectRaidDataIssues(scopeFilter)
     -- in-game-verified." Linted as warnings so they don't block a run
     -- but are easy to find for follow-up verification.
     local UNVERIFIED_MAP_MARKERS = { "??", "unverified", "inferred" }
-    local function looksUnverified(s)
-        if type(s) ~= "string" then return false end
-        local lower = s:lower()
+    local function looksUnverified(text)
+        if type(text) ~= "string" then return false end
+        local lower = text:lower()
         for _, marker in ipairs(UNVERIFIED_MAP_MARKERS) do
             if lower:find(marker, 1, true) then return true end
         end
@@ -972,7 +987,7 @@ function RR:LintRoute(scopeFilter)
     end
 
     local out = {}
-    local function add(s) table.insert(out, s) end
+    local function add(line) table.insert(out, line) end
 
     add("RetroRuns -- Route Lint Report")
     if scopeFilter and scopeFilter ~= "" then
@@ -1117,13 +1132,61 @@ function RR:GetRaidContextKey(raid, info)
            .. ":" .. tostring(info.difficultyID or 0)
 end
 
+-- Raid name for display. The Encounter Journal returns instance names in
+-- the client's language, so prefer it when the raid carries a
+-- journalInstanceID; fall back to the data file's name when the lookup
+-- fails. On English clients the two are identical. Memoized per journal
+-- instance for the session; display-only -- comparisons and keys elsewhere
+-- stay on the data name.
+local localizedRaidNameCache = {}
+function RR:GetLocalizedRaidName(raid)
+    raid = raid or self.currentRaid
+    if not raid then return nil end
+    local journalInstanceID = raid.journalInstanceID
+    if not journalInstanceID or not EJ_GetInstanceInfo then
+        return raid.name
+    end
+    local cached = localizedRaidNameCache[journalInstanceID]
+    if cached == nil then
+        local localizedName = EJ_GetInstanceInfo(journalInstanceID)
+        cached = (localizedName and localizedName ~= "") and localizedName or false
+        localizedRaidNameCache[journalInstanceID] = cached
+    end
+    if cached == false then return raid.name end
+    return cached
+end
+
+-- Client-localized boss name from the Encounter Journal, keyed by the boss's
+-- journalEncounterID. Same shape as GetLocalizedRaidName: the journal returns
+-- the name in the client's own language, so non-English clients see their
+-- language for free; the authored data name is the fallback. Only successful
+-- lookups are cached -- the journal can return nil before its data loads, and
+-- caching that miss would pin the English fallback for the whole session.
+local localizedBossNameCache = {}
+function RR:GetLocalizedBossName(boss)
+    if not boss then return nil end
+    local journalEncounterID = boss.journalEncounterID
+    if not journalEncounterID or not EJ_GetEncounterInfo then
+        return boss.name
+    end
+    local cached = localizedBossNameCache[journalEncounterID]
+    if cached then return cached end
+    local localizedName = EJ_GetEncounterInfo(journalEncounterID)
+    if localizedName and localizedName ~= "" then
+        localizedBossNameCache[journalEncounterID] = localizedName
+        return localizedName
+    end
+    return boss.name
+end
+
 function RR:GetRaidDisplayName()
     if not self.currentRaid then return nil end
+    local raidName = self:GetLocalizedRaidName(self.currentRaid)
     local diff = self.state.currentDifficultyName
     if diff and diff ~= "" then
-        return ("%s (%s)"):format(self.currentRaid.name, diff)
+        return ("%s (%s)"):format(raidName, diff)
     end
-    return self.currentRaid.name
+    return raidName
 end
 
 -- Per-difficulty kill counts for a raid:
@@ -1138,39 +1201,78 @@ end
 -- Stable for the session; cleared on /reload.
 local ejMapCache = {}
 
+-- Sibling cache: localized encounter name -> journalEncounterID, per journal
+-- instance. Built in the same EJ walk as ejMapCache. EJ_GetEncounterInfoByIndex
+-- returns names in the CLIENT's language, so this map lets name-based lookups
+-- (saved-instance lockout sync in particular, whose API also returns localized
+-- names) resolve on any locale without per-locale data.
+local ejNameMapCache = {}
+
 local function GetEJMapForJournalInstance(journalInstanceID)
     if not journalInstanceID or journalInstanceID == 0 then return nil end
     local cached = ejMapCache[journalInstanceID]
     if cached then return cached end
 
     -- Save the currently-selected EJ instance and difficulty so we can
-    -- restore both. The difficulty must be forced to a value the instance
-    -- actually exposes before walking encounters: EJ_GetEncounterInfoByIndex
-    -- returns nothing when the journal's difficulty filter is left on one the
-    -- instance doesn't offer (legacy raids predate Mythic, so a stale Mythic
-    -- filter yields zero rows). Normal (14) exists for every raid, and the
-    -- journalEncounterID -> dungeonEncounterID map is identical across
-    -- difficulties, so forcing it here is safe and difficulty-independent.
+    -- restore both. Selecting the instance is required before the walk
+    -- (EJ_GetEncounterInfoByIndex needs EJ_SelectInstance called for the
+    -- session).
     local prevInst = EJ_GetSelectedInstance and EJ_GetSelectedInstance() or nil
     local prevDiff = EJ_GetDifficulty and EJ_GetDifficulty() or nil
-    if EJ_SetDifficulty then
-        EJ_SetDifficulty(14)
-    end
     if EJ_SelectInstance then
-        EJ_SelectInstance(journalInstanceID)
+        -- EJ_SelectInstance RAISES (not returns nil) on an id the client
+        -- rejects -- e.g. an instance not in the player's available
+        -- JournalTierXInstance set. Guard it so a bad id yields an empty
+        -- map (callers already handle empty) instead of erroring out of
+        -- this function and taking the caller down with it.
+        local selectOk = pcall(EJ_SelectInstance, journalInstanceID)
+        if not selectOk then
+            return {}
+        end
     end
 
     local journalToDungeonEnc = {}
-    local count  = 0
-    local i = 1
-    while true do
-        local _, _, journalEncID, _, _, _, dungeonEncID = EJ_GetEncounterInfoByIndex(i, journalInstanceID)
-        if not journalEncID then break end
-        if dungeonEncID then
-            journalToDungeonEnc[journalEncID] = dungeonEncID
-            count = count + 1
+    local localizedNameToJournalEnc = {}
+
+    -- One walk of the encounter list at a given EJ difficulty. Fills the
+    -- id and name maps and returns how many encounters it saw. A walk
+    -- returns nothing if the active difficulty is one the instance does
+    -- not expose (the walk breaks on the first nil row).
+    local function walkAtDifficulty(difficultyID)
+        if EJ_SetDifficulty then
+            EJ_SetDifficulty(difficultyID)
         end
-        i = i + 1
+        local walked = 0
+        local encIndex = 1
+        while true do
+            local encName, _, journalEncID, _, _, _, dungeonEncID =
+                EJ_GetEncounterInfoByIndex(encIndex, journalInstanceID)
+            if not journalEncID then break end
+            if dungeonEncID then
+                journalToDungeonEnc[journalEncID] = dungeonEncID
+            end
+            if encName and encName ~= "" then
+                localizedNameToJournalEnc[encName] = journalEncID
+            end
+            walked = walked + 1
+            encIndex = encIndex + 1
+        end
+        return walked
+    end
+
+    -- Walk at difficulty 14 (Normal), which every modern raid exposes.
+    -- MoP raids do not expose 14 (their difficulties are the legacy sizes
+    -- 3/4/5/6/7), so the walk sees zero rows there; in that case fall
+    -- through the legacy ids until one yields encounters. The
+    -- journalEncounterID -> dungeonEncounterID and name maps are the same
+    -- at any difficulty, so whichever difficulty returns rows builds the
+    -- same map.
+    local count = walkAtDifficulty(14)
+    if count == 0 then
+        for _, legacyDifficulty in ipairs({ 15, 5, 6, 3, 4, 17, 7 }) do
+            count = walkAtDifficulty(legacyDifficulty)
+            if count > 0 then break end
+        end
     end
 
     -- Restore the prior selection and difficulty so an open EJ window
@@ -1189,6 +1291,7 @@ local function GetEJMapForJournalInstance(journalInstanceID)
     -- the rest of the session.
     if count > 0 then
         ejMapCache[journalInstanceID] = journalToDungeonEnc
+        ejNameMapCache[journalInstanceID] = localizedNameToJournalEnc
     end
     return journalToDungeonEnc
 end
@@ -1199,6 +1302,15 @@ end
 -- duplicating the EJ_SelectInstance dance.
 function RR:GetEJMapForJournalInstance(journalInstanceID)
     return GetEJMapForJournalInstance(journalInstanceID)
+end
+
+-- Localized encounter name -> journalEncounterID for a journal instance, in
+-- the client's language. Piggybacks on the same memoized EJ walk; calling the
+-- id-map builder first guarantees the name cache is populated when available.
+function RR:GetEJNameMapForJournalInstance(journalInstanceID)
+    if not journalInstanceID or journalInstanceID == 0 then return nil end
+    GetEJMapForJournalInstance(journalInstanceID)
+    return ejNameMapCache[journalInstanceID]
 end
 
 -- Difficulty models.
@@ -1502,8 +1614,8 @@ end
 -- raid has no LFR wing data. Unlike the Normal/Heroic/Mythic buckets (which
 -- read C_RaidLocks.IsEncounterComplete), LFR completion is not exposed by that
 -- API for legacy raids -- the reliable source is the per-boss bitfield encoded
--- in the LFR lockout hyperlink. We read it the same way /rr lfrwing does:
--- RequestRaidInfo, find this raid's difficulty-17 saved instance, pull the
+-- in the LFR lockout hyperlink. It is read by calling
+-- RequestRaidInfo, finding this raid's difficulty-17 saved instance, pulling the
 -- bitfield from GetSavedInstanceChatLink, and count set bits (each = one boss
 -- looted this lockout). The denominator N is the number of distinct bosses
 -- across all of the raid's LFR wings.
@@ -1552,7 +1664,7 @@ function RR:GetLFRLockoutCounts()
                 pos = pos + 1
             end
             local key = self:NormalizeName(sName)
-            if key then
+            if key and key ~= "" then
                 byName[key] = killed
                 posByName[key] = setPos
             end
@@ -1620,13 +1732,23 @@ function RR:GetWingProgressForRaid(raid)
     if not raid or not raid.lfrWings then return nil end
 
     local _, posByName = self:GetLFRLockoutCounts()
+    -- Saved-instance names arrive in the client's language, so the English
+    -- data name misses on non-English clients. Try it first (free on
+    -- English clients), then the client-localized name from the EJ, which
+    -- is the same string the saved-instance list reports.
     local key = self:NormalizeName(raid.name)
-    local setPos = (key and posByName and posByName[key]) or {}
+    local setPos = (key and key ~= "" and posByName and posByName[key])
+    if not setPos then
+        local localizedKey = self:NormalizeName(self:GetLocalizedRaidName(raid))
+        setPos = localizedKey and localizedKey ~= "" and posByName
+            and posByName[localizedKey]
+    end
+    setPos = setPos or {}
 
     -- Resolve a boss index to its display name via the raid's bosses[] table.
     local function bossName(index)
-        local b = raid.bosses and raid.bosses[index]
-        return (b and b.name) or ("Boss " .. tostring(index))
+        local boss = raid.bosses and raid.bosses[index]
+        return (boss and self:GetLocalizedBossName(boss)) or ("Boss " .. tostring(index))
     end
 
     -- Collect wings into a stable order. lfrWings is keyed by lfgDungeonID
@@ -1639,9 +1761,18 @@ function RR:GetWingProgressForRaid(raid)
     for _, wkey in ipairs(wingKeys) do
         local wing = raid.lfrWings[wkey]
         local bosses = wing.bosses or {}
+        -- Wing keys are lfgDungeonIDs, so the client can resolve the wing's
+        -- name in its own language; the authored name is the fallback.
+        local wingDisplayName
+        if GetLFGDungeonInfo then
+            wingDisplayName = GetLFGDungeonInfo(wkey)
+        end
+        if not wingDisplayName or wingDisplayName == "" then
+            wingDisplayName = wing.name or "Wing"
+        end
         local entry = {
             key   = wkey,
-            name  = wing.name or "Wing",
+            name  = wingDisplayName,
             total = #bosses,
             bosses = {},
         }
@@ -1717,7 +1848,7 @@ end
 -- encounter-API order), so the only way to learn boss->bit is to watch which
 -- bit appears per kill. This records that automatically on each LFR kill so the
 -- mapping can be gathered during normal farming without manual probing, and
--- survives /reload (stored in RetroRunsDebug). Dump with `/rr lfrbits`.
+-- survives /reload (stored in RetroRunsDebug).
 --
 -- The lockout API lags the kill by a second or two, so the read is deferred.
 -- Each entry: { raid, boss, bit, t }. Diffing is against the prior reading we
@@ -1843,19 +1974,19 @@ function RR:LockProbe()
     if RequestRaidInfo then RequestRaidInfo() end
 
     local lines = {}
-    local function add(s) lines[#lines + 1] = s end
+    local function add(line) lines[#lines + 1] = line end
 
-    local n = GetNumSavedInstances and GetNumSavedInstances() or 0
-    add(("GetNumSavedInstances() = %d"):format(n))
+    local savedCount = GetNumSavedInstances and GetNumSavedInstances() or 0
+    add(("GetNumSavedInstances() = %d"):format(savedCount))
     add("")
 
-    if n == 0 then
+    if savedCount == 0 then
         add("(no saved instances; nothing to dump)")
         self:ShowCopyWindow("LockProbe", table.concat(lines, "\n"))
         return
     end
 
-    for i = 1, n do
+    for i = 1, savedCount do
         local name, id, reset, difficultyId, locked, extended,
               instanceIDMostSig, isRaid, maxPlayers, difficultyName,
               numEncounters, encounterProgress, extendDisabled,
@@ -1910,11 +2041,11 @@ function RR:LockProbe()
                 for _, b in ipairs(raid.bosses or {}) do
                     local dungeonEncID = journalToDungeonEnc[b.journalEncounterID]
                     if dungeonEncID then
-                        local r = C_RaidLocks.IsEncounterComplete(
+                        local encounterComplete = C_RaidLocks.IsEncounterComplete(
                             instanceID, dungeonEncID, difficultyId)
                         add(("      %s (dungeonEncID=%s): %s")
                             :format(tostring(b.name), tostring(dungeonEncID),
-                                    tostring(r)))
+                                    tostring(encounterComplete)))
                     end
                 end
             end
@@ -2149,8 +2280,8 @@ local function GarroshSkipStates(cfg)
             -- reading. The in-game "--" (no kills) is a non-numeric
             -- string -> tonumber nil -> 0.
             local raw = GetStatistic(statID)
-            local t = type(raw)
-            if (t == "number" or t == "string") and (tonumber(raw) or 0) > 0 then
+            local rawType = type(raw)
+            if (rawType == "number" or rawType == "string") and (tonumber(raw) or 0) > 0 then
                 return false, false, true
             end
         end
@@ -2582,8 +2713,8 @@ function RR:HandleLocationChange()
     local mapName = function(id)
         if not id then return "(none)" end
         local raidMaps = self.currentRaid and self.currentRaid.maps
-        local n = raidMaps and raidMaps[id]
-        if n then return ("%s (%d)"):format(n, id) end
+        local mapName = raidMaps and raidMaps[id]
+        if mapName then return ("%s (%d)"):format(mapName, id) end
         return ("mapID %d"):format(id)
     end
     local zoneText    = (GetZoneText and GetZoneText())       or ""
@@ -2686,12 +2817,13 @@ function RR:HandleLocationChange()
                 self:LoadCurrentRaid()
                 -- Confirm the resumed route in chat (no dialog showed it).
                 local saved = self:GetPersistedRouteVariant()
-                local routeWord = (saved == "skip") and "SKIP" or "FULL"
+                local routeWord = (saved == "skip") and RR.L["SKIP"] or RR.L["FULL"]
                 local killed, total = self:GetCurrentLockoutKillCount()
-                self:PrintAfterBanner(("%s Lockout in Progress (%d/%d).")
-                    :format(self:GetRaidDisplayName() or supported.name,
+                self:PrintAfterBanner((RR.L["%s Lockout in Progress (%d/%d)."])
+                    :format(self:GetRaidDisplayName()
+                                or self:GetLocalizedRaidName(supported),
                             killed, total))
-                self:PrintAfterBanner(("Resuming %s route."):format(routeWord))
+                self:PrintAfterBanner((RR.L["Resuming %s route."]):format(routeWord))
             elseif self:IsInLFR() then
                 -- LFR has no supported route -- neither variant applies, since
                 -- the routing data is authored for the full N/H/M layout and
@@ -2707,7 +2839,8 @@ function RR:HandleLocationChange()
                 self:SetSetting("showPanel", false)
                 if RetroRunsUI then RetroRunsUI:Hide() end
                 if RR.UI and RR.UI.ShowLoadDialog then
-                    RR.UI.ShowLoadDialog(self:GetRaidDisplayName() or supported.name)
+                    RR.UI.ShowLoadDialog(self:GetRaidDisplayName()
+                        or self:GetLocalizedRaidName(supported))
                 end
             end
         elseif self.state.loadedRaidKey == key then
@@ -2727,7 +2860,7 @@ function RR:HandleLocationChange()
         self.state.currentDifficultyName = nil
         if info.name and self.state.lastUnsupportedRaid ~= info.name then
             self.state.lastUnsupportedRaid = info.name
-            self:Print(info.name .. " is not supported yet.")
+            self:Print(info.name .. RR.L[" is not supported yet."])
         end
     end
 
@@ -2791,7 +2924,7 @@ end
 
 function RR:SimulateKillNext()
     if not self.currentRaid then
-        self:Print("No supported raid detected.")
+        self:Print(RR.L["No supported raid detected."])
         return
     end
     if not self.state.testMode then
@@ -2800,11 +2933,11 @@ function RR:SimulateKillNext()
         self:ComputeNextStep()
     end
     local step = self.state.activeStep or self:ComputeNextStep()
-    if not step then self:Print("No available next step.") ; return end
+    if not step then self:Print(RR.L["No available next step."]) ; return end
     local boss = self:GetBossByIndex(step.bossIndex)
     self:MarkBossKilled(boss)
     self:ComputeNextStep()
-    self:Print("Simulated kill: " .. (boss and boss.name or "Unknown"))
+    self:Print(RR.L["Simulated kill: "] .. (boss and boss.name or "Unknown"))
     RR.UI.Update()
     if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
 end
@@ -2815,7 +2948,7 @@ end
 
 function RR:ManualKill(input)
     if not self.currentRaid then
-        self:Print("No raid loaded.")
+        self:Print(RR.L["No raid loaded."])
         return
     end
     local boss = self:ResolveBoss(input)
@@ -2832,7 +2965,7 @@ end
 
 function RR:ManualUnkill(input)
     if not self.currentRaid then
-        self:Print("No raid loaded.")
+        self:Print(RR.L["No raid loaded."])
         return
     end
     local boss = self:ResolveBoss(input)
@@ -2853,7 +2986,7 @@ end
 -- UI. Pasteable for sharing during debugging.
 function RR:PrintStatus()
     local lines = {}
-    local function add(s) table.insert(lines, s) end
+    local function add(line) table.insert(lines, line) end
 
     -- Live location block. Useful both inside a raid (cross-check
     -- player coords against routing seg points) and outside one
@@ -2898,7 +3031,7 @@ function RR:PrintStatus()
         RR:ShowCopyWindow(
             "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaastatus|r",
             table.concat(lines, "\n"))
-        self:Print("Status window opened.  (no raid loaded)")
+        self:Print(RR.L["Status window opened.  (no raid loaded)"])
         return
     end
 
@@ -2916,11 +3049,11 @@ function RR:PrintStatus()
     -- in raid.entrance; displayed here as percentages to match the
     -- live coords line above for direct comparison.
     if raid.entrance then
-        local e = raid.entrance
+        local entrance = raid.entrance
         add(("Entrance (data): mapID=%s  coords=%.1f, %.1f  subZone=%q"):format(
-            tostring(e.mapID or "?"),
-            (e.x or 0) * 100, (e.y or 0) * 100,
-            e.subZone or ""))
+            tostring(entrance.mapID or "?"),
+            (entrance.x or 0) * 100, (entrance.y or 0) * 100,
+            entrance.subZone or ""))
     end
 
     -- Instance IDs. Helpful when verifying that a new raid's skeleton
@@ -2962,7 +3095,7 @@ function RR:PrintStatus()
     if playerMapID then
         add(FormatMapLine("Player", playerMapID))
     end
-    local worldMapID = WorldMapFrame and WorldMapFrame:GetMapID()
+    worldMapID = WorldMapFrame and WorldMapFrame:GetMapID()
     if worldMapID and worldMapID ~= playerMapID then
         add(FormatMapLine("WorldMap", worldMapID))
     end
@@ -3052,7 +3185,7 @@ local function FormatDialogCapture(event, ...)
     table.insert(lines, ("[%s] %s"):format(date("%H:%M:%S"), tostring(event)))
     local args = { ... }
     for i = 1, select("#", ...) do
-        local v = args[i]
+        local arg = args[i]
         -- Secret-tainted values cannot be compared or boolean-tested
         -- by tainted code (Patch 12.0.0). Check with issecretvalue()
         -- BEFORE any comparison; if secret, render as a placeholder
@@ -3061,10 +3194,10 @@ local function FormatDialogCapture(event, ...)
         -- nil check for back-compat with older client versions
         -- (which don't have secret values, so the v ~= "" path is
         -- still safe there).
-        if issecretvalue and issecretvalue(v) then
+        if issecretvalue and issecretvalue(arg) then
             table.insert(lines, "  arg" .. i .. " = (secret -- protected by encounter-script taint)")
-        elseif v ~= nil and v ~= "" then
-            table.insert(lines, "  arg" .. i .. " = " .. tostring(v))
+        elseif arg ~= nil and arg ~= "" then
+            table.insert(lines, "  arg" .. i .. " = " .. tostring(arg))
         end
     end
     return table.concat(lines, "\n")
@@ -3090,7 +3223,7 @@ local function PrintDialogConfirmation(event, text, speaker)
     local ev = tostring(event):gsub("^CHAT_MSG_", "")
     local speakerStr = (issecretvalue and issecretvalue(speaker)) and "(secret)" or tostring(speaker or "?")
     local textStr    = (issecretvalue and issecretvalue(text))    and "(secret)" or tostring(text    or "?")
-    RR:Print("|cff00ff88[DialogDebug]|r " .. ev
+    RR:Print(RR.L["|cff00ff88[DialogDebug]|r "] .. ev
         .. " from |cffffff00" .. speakerStr .. "|r: "
         .. textStr)
 end
@@ -3123,7 +3256,7 @@ end
 
 function RR:DialogDebugStart()
     if dialogDebug.active then
-        self:Print("|cff00ff88[DialogDebug]|r already armed. /rr dialogdebug stop to disarm.")
+        self:Print(RR.L["|cff00ff88[DialogDebug]|r already armed. /rr dialogdebug stop to disarm."])
         return
     end
     if not dialogDebug.frame then
@@ -3135,13 +3268,13 @@ function RR:DialogDebugStart()
     dialogDebug.frame:RegisterEvent("CHAT_MSG_MONSTER_SAY")
     dialogDebug.frame:RegisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
     dialogDebug.active = true
-    self:Print("|cff00ff88[DialogDebug]|r ARMED. Capturing MONSTER_YELL, MONSTER_SAY, RAID_BOSS_EMOTE.")
-    self:Print("|cff00ff88[DialogDebug]|r Each capture will print a confirmation line below. /rr dialogdebug stop to dump.")
+    self:Print(RR.L["|cff00ff88[DialogDebug]|r ARMED. Capturing MONSTER_YELL, MONSTER_SAY, RAID_BOSS_EMOTE."])
+    self:Print(RR.L["|cff00ff88[DialogDebug]|r Each capture will print a confirmation line below. /rr dialogdebug stop to dump."])
 end
 
 function RR:DialogDebugStop()
     if not dialogDebug.active then
-        self:Print("|cff00ff88[DialogDebug]|r not armed. /rr dialogdebug start to begin capture.")
+        self:Print(RR.L["|cff00ff88[DialogDebug]|r not armed. /rr dialogdebug start to begin capture."])
         return
     end
     dialogDebug.frame:UnregisterEvent("CHAT_MSG_MONSTER_YELL")
@@ -3200,14 +3333,14 @@ local LOOTPROBE_EVENTS = {
 }
 
 local function FormatLootCapture(event, ...)
-    local n = select("#", ...)
+    local argCount = select("#", ...)
     local parts = {}
-    for i = 1, n do
-        local v = select(i, ...)
-        parts[i] = ("arg%d=%s"):format(i, tostring(v))
+    for i = 1, argCount do
+        local arg = select(i, ...)
+        parts[i] = ("arg%d=%s"):format(i, tostring(arg))
     end
     local stamp = date("%H:%M:%S")
-    if n == 0 then
+    if argCount == 0 then
         return ("[%s] %s  (no args)"):format(stamp, event)
     end
     return ("[%s] %s\n    %s"):format(stamp, event, table.concat(parts, "\n    "))
@@ -3223,7 +3356,7 @@ end
 
 function RR:LootProbeStart()
     if lootProbe.active then
-        self:Print("|cff00ff88[LootProbe]|r already armed. /rr lootprobe stop to disarm.")
+        self:Print(RR.L["|cff00ff88[LootProbe]|r already armed. /rr lootprobe stop to disarm."])
         return
     end
     if not lootProbe.frame then
@@ -3238,12 +3371,12 @@ function RR:LootProbeStart()
     end
     lootProbe.active = true
     self:Print(("|cff00ff88[LootProbe]|r ARMED. Listening for %d loot/toast events."):format(#LOOTPROBE_EVENTS))
-    self:Print("|cff00ff88[LootProbe]|r Loot a mix of drops (gear, mount, pet, transmog), then /rr lootprobe stop.")
+    self:Print(RR.L["|cff00ff88[LootProbe]|r Loot a mix of drops (gear, mount, pet, transmog), then /rr lootprobe stop."])
 end
 
 function RR:LootProbeStop()
     if not lootProbe.active then
-        self:Print("|cff00ff88[LootProbe]|r not armed. /rr lootprobe start to begin capture.")
+        self:Print(RR.L["|cff00ff88[LootProbe]|r not armed. /rr lootprobe start to begin capture."])
         return
     end
     for _, ev in ipairs(LOOTPROBE_EVENTS) do
@@ -3267,9 +3400,9 @@ function RR:IsLootProbeActive()
 end
 
 -------------------------------------------------------------------------------
--- VerifyOneRaid: run the tmogverify pipeline (E1-E7 + special-loot checks +
--- async EJ-driven coverage pass) on a single raid table. Async because the
--- coverage pass requires driving the EJ at each difficulty per boss.
+-- VerifyOneRaid: run the loot-verification pipeline (E1-E7 + special-loot
+-- checks + async EJ-driven coverage pass) on a single raid table. Async because
+-- the coverage pass requires driving the EJ at each difficulty per boss.
 --
 -- Parameters:
 --   raid    : a raid entry from RetroRuns_Data (must have .bosses, .journalInstanceID)
@@ -3277,14 +3410,13 @@ end
 --       verbose = bool,  -- emit per-boss + per-item [OK]/[ERR] rows (default true)
 --       banner  = bool,  -- emit "warming..." / "starting coverage..." Print() lines
 --                          to chat (default true; turn off in batch mode to keep
---                          chat quiet during /rr tmogverifyall)
+--                          chat quiet across a multi-raid run)
 --   }
 --   onDone  : function(lines, T) callback. lines is the accumulated output
 --             text (array of strings ready for table.concat). T is the counter
 --             table tallying findings.
 --
--- Shared by /rr tmogverify and /rr tmogverifyall. See the tmogverify docblock
--- above the dispatcher for the per-check semantics.
+-- See the docblock above the dispatcher for the per-check semantics.
 -------------------------------------------------------------------------------
 function RR:VerifyOneRaid(raid, opts, onDone)
     opts = opts or {}
@@ -3311,11 +3443,11 @@ function RR:VerifyOneRaid(raid, opts, onDone)
         end
     end
 
-    if opts and opts.banner then RR:Print("tmogverify: warming item cache, please wait 1s...") end
+    if opts and opts.banner then RR:Print(RR.L["tmogverify: warming item cache, please wait 1s..."]) end
 
     C_Timer.After(1.0, function()
         local lines = {}
-        local function add(s) table.insert(lines, s) end
+        local function add(line) table.insert(lines, line) end
 
         -- Aggregate counters reported at the end. Each finding
         -- bumps one bucket; a clean item bumps `ok`.
@@ -3433,10 +3565,10 @@ function RR:VerifyOneRaid(raid, opts, onDone)
 
                     -- [E1] Fatal-nil per bucket.
                     for _, diffID in ipairs(DIFFS) do
-                        local b = perBucket[diffID]
-                        if b and b.apiNil then
+                        local bucket = perBucket[diffID]
+                        if bucket and bucket.apiNil then
                             table.insert(findings, ("[ERR] %s src=%d: API returned nil (invalid sourceID?)"):format(
-                                DIFF_NAME[diffID], b.src))
+                                DIFF_NAME[diffID], bucket.src))
                             T.fatal_nil = T.fatal_nil + 1
                         end
                     end
@@ -3460,8 +3592,8 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                     -- sources interchangeable. Only flag when the
                     -- itemID AND the visualID both diverge.
                     for _, diffID in ipairs(DIFFS) do
-                        local b = perBucket[diffID]
-                        if b and b.apiItemID and b.apiItemID ~= item.id then
+                        local bucket = perBucket[diffID]
+                        if bucket and bucket.apiItemID and bucket.apiItemID ~= item.id then
                             -- Mists model: a piece exists as three
                             -- separate itemIDs (Normal / Heroic / LFR),
                             -- and the row deliberately carries only the
@@ -3476,11 +3608,11 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                             -- runs above. So skip the equality assertion
                             -- for sharedLfr raids.
                             local sharedAppearance =
-                                rowAppearanceID and b.visualID
-                                and b.visualID == rowAppearanceID
+                                rowAppearanceID and bucket.visualID
+                                and bucket.visualID == rowAppearanceID
                             if not sharedAppearance and not isSharedLfr then
                                 table.insert(findings, ("[ERR] %s src=%d: API itemID=%d, expected %d"):format(
-                                    DIFF_NAME[diffID], b.src, b.apiItemID, item.id))
+                                    DIFF_NAME[diffID], bucket.src, bucket.apiItemID, item.id))
                                 T.item_mismatch = T.item_mismatch + 1
                             end
                         end
@@ -3510,16 +3642,16 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                     local uniqueVisualCount = 0
                     local totalBuckets = 0
                     for _, diffID in ipairs(DIFFS) do
-                        local b = perBucket[diffID]
-                        if b then
+                        local bucket = perBucket[diffID]
+                        if bucket then
                             totalBuckets = totalBuckets + 1
-                            if not srcCounts[b.src] then
-                                srcCounts[b.src] = 0
+                            if not srcCounts[bucket.src] then
+                                srcCounts[bucket.src] = 0
                                 uniqueCount = uniqueCount + 1
                             end
-                            srcCounts[b.src] = srcCounts[b.src] + 1
-                            if b.visualID and not visualSet[b.visualID] then
-                                visualSet[b.visualID] = true
+                            srcCounts[bucket.src] = srcCounts[bucket.src] + 1
+                            if bucket.visualID and not visualSet[bucket.visualID] then
+                                visualSet[bucket.visualID] = true
                                 uniqueVisualCount = uniqueVisualCount + 1
                             end
                         end
@@ -3589,10 +3721,10 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                         -- buckets share which source.
                         local clusters = {}  -- src -> list of diff names
                         for _, diffID in ipairs(DIFFS) do
-                            local b = perBucket[diffID]
-                            if b then
-                                clusters[b.src] = clusters[b.src] or {}
-                                table.insert(clusters[b.src], DIFF_NAME[diffID])
+                            local bucket = perBucket[diffID]
+                            if bucket then
+                                clusters[bucket.src] = clusters[bucket.src] or {}
+                                table.insert(clusters[bucket.src], DIFF_NAME[diffID])
                             end
                         end
                         local parts = {}
@@ -3614,14 +3746,14 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                     local vTotal = 0         -- number of buckets with a visualID
                     local vMissing = 0       -- buckets with src but no resolvable visual
                     for _, diffID in ipairs(DIFFS) do
-                        local b = perBucket[diffID]
-                        if b then
-                            if b.visualID then
-                                if not vCounts[b.visualID] then
+                        local bucket = perBucket[diffID]
+                        if bucket then
+                            if bucket.visualID then
+                                if not vCounts[bucket.visualID] then
                                     vDistinct = vDistinct + 1
-                                    vCounts[b.visualID] = 0
+                                    vCounts[bucket.visualID] = 0
                                 end
-                                vCounts[b.visualID] = vCounts[b.visualID] + 1
+                                vCounts[bucket.visualID] = vCounts[bucket.visualID] + 1
                                 vTotal = vTotal + 1
                             else
                                 vMissing = vMissing + 1
@@ -3655,8 +3787,8 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                                 -- Find the outlier bucket.
                                 local outlier
                                 for _, diffID in ipairs(DIFFS) do
-                                    local b = perBucket[diffID]
-                                    if b and b.visualID and b.visualID ~= maxVisual then
+                                    local bucket = perBucket[diffID]
+                                    if bucket and bucket.visualID and bucket.visualID ~= maxVisual then
                                         outlier = diffID
                                         break
                                     end
@@ -3909,17 +4041,17 @@ function RR:VerifyOneRaid(raid, opts, onDone)
             RetroRunsDebug = RetroRunsDebug or {}
             RetroRunsDebug.tmogverify = table.concat(lines, "\n")
 
-            -- Driver mode: caller passed an onDone callback (e.g.
-            -- tmogverifyall). Hand results off via callback and let
-            -- the caller own presentation. Otherwise (single-raid
-            -- /rr tmogverify), open the copy window ourselves.
+            -- Driver mode: caller passed an onDone callback (the
+            -- cross-raid batch run). Hand results off via callback and
+            -- let the caller own presentation. Otherwise, for a
+            -- single-raid run, open the copy window here.
             if onDone then
                 onDone(lines, T)
             else
                 RR:ShowCopyWindow(
                     ("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug: tmogverify|r"),
                     table.concat(lines, "\n"))
-                RR:Print("tmogverify complete. Copy window opened.")
+                RR:Print(RR.L["tmogverify complete. Copy window opened."])
             end
         end
 
@@ -4209,11 +4341,11 @@ SlashCmdList["RETRORUNS"] = function(input)
         if args[2] == "clear" then
             RetroRunsDebug = RetroRunsDebug or {}
             RetroRunsDebug.lfrBitLog = {}
-            RR:Print("LFR bit capture log cleared.")
+            RR:Print(RR.L["LFR bit capture log cleared."])
         else
             local log = (RetroRunsDebug and RetroRunsDebug.lfrBitLog) or {}
             local lines = {}
-            local function add(s) lines[#lines + 1] = s end
+            local function add(line) lines[#lines + 1] = line end
             add("LFR per-boss lockout-bit capture log")
             add("(each entry = one LFR kill; 'bit' is the lockout bit that kill set)")
             add("")
@@ -4221,9 +4353,9 @@ SlashCmdList["RETRORUNS"] = function(input)
                 add("(empty -- kill LFR bosses to populate; `/rr lfrbits clear` to reset)")
             else
                 for i = 1, #log do
-                    local e = log[i]
+                    local entry = log[i]
                     add(("%s  %s  ->  bit %s   [%s]"):format(
-                        tostring(e.t), tostring(e.boss), tostring(e.bit), tostring(e.raid)))
+                        tostring(entry.t), tostring(entry.boss), tostring(entry.bit), tostring(entry.raid)))
                 end
             end
             RR:ShowCopyWindow("LFR Bit Capture", table.concat(lines, "\n"))
@@ -4264,7 +4396,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         RR.UI.ApplySettings()
         RR.UI.SyncSettingsControls()
         RR:RefreshAll()
-        RR:Print("Settings reset to defaults.")
+        RR:Print(RR.L["Settings reset to defaults."])
 
     elseif cmd == "refresh" then
         RR.state.testMode = false
@@ -4276,20 +4408,20 @@ SlashCmdList["RETRORUNS"] = function(input)
     elseif cmd == "debug" then
         local newDebug = not RR:GetSetting("debug")
         RR:SetSetting("debug", newDebug)
-        RR:Print("Debug " .. (newDebug and "ON" or "OFF"))
+        RR:Print(RR.L["Debug "] .. (newDebug and "ON" or "OFF"))
 
     elseif cmd == "test" then
         RR:ResetTestState()
         RR.UI.Update()
         if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
-        RR:Print("Test mode ON -- /rr next to advance, /rr real to exit.")
+        RR:Print(RR.L["Test mode ON -- /rr next to advance, /rr real to exit."])
 
     elseif cmd == "next" then
         RR:SimulateKillNext()
 
     elseif cmd == "real" then
         RR:DisableTestMode()
-        RR:Print("Returned to live raid state.")
+        RR:Print(RR.L["Returned to live raid state."])
 
     elseif cmd == "resetsegments" then
         -- Clear persisted routing-progress state for the CURRENT raid.
@@ -4306,7 +4438,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- reset. Wiping the zonelog here removes the manual mental
         -- timestamp-filtering step.
         if not RR.currentRaid then
-            RR:Print("No raid loaded. Zone into a supported raid first.")
+            RR:Print(RR.L["No raid loaded. Zone into a supported raid first."])
         else
             RR.state.progress      = {}
             RR.state.triggersFired = {}
@@ -4324,14 +4456,14 @@ SlashCmdList["RETRORUNS"] = function(input)
 
     elseif cmd == "kill" then
         if rest == "" then
-            RR:Print("Usage: /rr kill <boss name>")
+            RR:Print(RR.L["Usage: /rr kill <boss name>"])
         else
             RR:ManualKill(rest)
         end
 
     elseif cmd == "unkill" then
         if rest == "" then
-            RR:Print("Usage: /rr unkill <boss name>")
+            RR:Print(RR.L["Usage: /rr unkill <boss name>"])
         else
             RR:ManualUnkill(rest)
         end
@@ -4355,6 +4487,15 @@ SlashCmdList["RETRORUNS"] = function(input)
 
     elseif cmd == "raidcapture" then
         RR:RaidCapture()
+
+    elseif cmd == "localeharvest" then
+        if args[2] == "misses" then
+            RR:LocaleHarvestMisses(false)
+        elseif args[2] == "clearmisses" then
+            RR:LocaleHarvestMisses(true)
+        else
+            RR:LocaleHarvest()
+        end
 
     elseif cmd == "weaponharvest" then
         RR:HarvestWeaponPools()
@@ -4394,9 +4535,9 @@ SlashCmdList["RETRORUNS"] = function(input)
         --   Usage: /rr firedialog Megaera rises from the mists!
         local rawRest = RR.Trim(input:sub(#cmd + 1))
         if rawRest == "" then
-            RR:Print("Usage: /rr firedialog <dialog text>  (simulates a speakerless raid emote through the real dialog handler)")
+            RR:Print(RR.L["Usage: /rr firedialog <dialog text>  (simulates a speakerless raid emote through the real dialog handler)"])
         else
-            RR:Print("|cff00ff88[firedialog]|r simulating speakerless emote: " .. rawRest)
+            RR:Print(RR.L["|cff00ff88[firedialog]|r simulating speakerless emote: "] .. rawRest)
             -- Route through the real handler (no sender), so this exercises
             -- the same guard + dispatch a live CHAT_MSG_RAID_BOSS_EMOTE hits
             -- -- not a direct AdvanceProgress call that skips the handler.
@@ -4411,9 +4552,9 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- transmog popup. Requires /rr debug to be ON before opening the
         -- popup. Output goes to the copyable window.
         if not RR:GetSetting("debug") then
-            RR:Print("Enable debug first: /rr debug, then open the transmog popup, then try again.")
+            RR:Print(RR.L["Enable debug first: /rr debug, then open the transmog popup, then try again."])
         elseif not RR._dotTrace or next(RR._dotTrace) == nil then
-            RR:Print("No dot-row trace captured. Open the transmog popup (mouseover) with debug on, then try again.")
+            RR:Print(RR.L["No dot-row trace captured. Open the transmog popup (mouseover) with debug on, then try again."])
         else
             local lines = {}
             for _, trace in pairs(RR._dotTrace) do
@@ -4423,7 +4564,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:ShowCopyWindow(
                 "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug: dot-row trace|r",
                 table.concat(lines, "\n"))
-            RR:Print("Trace window opened.")
+            RR:Print(RR.L["Trace window opened."])
         end
 
     elseif cmd == "tmogtest" then
@@ -4432,11 +4573,11 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- stashed at RetroRunsDebug.tmogtest. Chat gets only a one-liner.
         local id = tonumber(rest)
         if not id then
-            RR:Print("Usage: /rr tmogtest <itemID>  (e.g. 189776 for Girdle)")
+            RR:Print(RR.L["Usage: /rr tmogtest <itemID>  (e.g. 189776 for Girdle)"])
         else
             RetroRunsDebug = RetroRunsDebug or {}
             local lines = {}
-            local function add(s) table.insert(lines, s) end
+            local function add(line) table.insert(lines, line) end
 
             add(("tmogtest itemID=%d"):format(id))
 
@@ -4547,10 +4688,10 @@ SlashCmdList["RETRORUNS"] = function(input)
         --       candidate for uncollected variants)
         local src = tonumber(rest)
         if not src then
-            RR:Print("Usage: /rr srctest <sourceID>  (e.g. 166189 for Amice of the Empyrean Normal)")
+            RR:Print(RR.L["Usage: /rr srctest <sourceID>  (e.g. 166189 for Amice of the Empyrean Normal)"])
         else
             local lines = {}
-            local function add(s) table.insert(lines, s) end
+            local function add(line) table.insert(lines, line) end
             add(("srctest sourceID=%d"):format(src))
 
             local info = C_TransmogCollection.GetSourceInfo(src)
@@ -4649,10 +4790,10 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- /rr specialtest 190768 to see which APIs respond on this client.
         local id = tonumber(args[2])
         if not id then
-            RR:Print("Usage: /rr specialtest <itemID>  (e.g. 190768 for Zereth Overseer Cypher)")
+            RR:Print(RR.L["Usage: /rr specialtest <itemID>  (e.g. 190768 for Zereth Overseer Cypher)"])
         else
             local lines = {}
-            local function add(s) table.insert(lines, s) end
+            local function add(line) table.insert(lines, line) end
 
             add(("specialtest itemID=%d"):format(id))
 
@@ -4758,7 +4899,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- Usage: /rr dottest <itemID>
         local id = tonumber(rest)
         if not id then
-            RR:Print("Usage: /rr dottest <itemID>  (e.g. /rr dottest 186340 for Conjunction-Forged Chainmail)")
+            RR:Print(RR.L["Usage: /rr dottest <itemID>  (e.g. /rr dottest 186340 for Conjunction-Forged Chainmail)"])
         else
             -- Look up the item in the currently-loaded raid data file
             -- so we can use our real sourceID mapping (not a fresh API
@@ -4778,7 +4919,7 @@ SlashCmdList["RETRORUNS"] = function(input)
                 end
             end
             local lines = {}
-            local function add(s) table.insert(lines, s) end
+            local function add(line) table.insert(lines, line) end
             add(("dottest itemID=%d"):format(id))
             if not itemRow then
                 add("  (item not found in currently-loaded raid data)")
@@ -4901,7 +5042,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             end
             if #matches == 0 then
                 RR:Print(("No supported raid matches %q. Try part of the name."):format(nameQuery))
-                RR:Print("Supported raids:")
+                RR:Print(RR.L["Supported raids:"])
                 if RetroRuns_Data then
                     for _, r in pairs(RetroRuns_Data) do
                         if r and r.name then
@@ -4916,7 +5057,7 @@ SlashCmdList["RETRORUNS"] = function(input)
                 for _, r in ipairs(matches) do
                     RR:Print(("  %s"):format(r.name))
                 end
-                RR:Print("Narrow the query and retry.")
+                RR:Print(RR.L["Narrow the query and retry."])
                 raid = nil
             else
                 raid = matches[1]
@@ -4927,11 +5068,11 @@ SlashCmdList["RETRORUNS"] = function(input)
 
         if not raid or not raid.bosses then
             if not nameQuery then
-                RR:Print("No raid loaded. Zone into a supported raid, or use:")
-                RR:Print("  /rr tmogaudit <raid name substring>")
+                RR:Print(RR.L["No raid loaded. Zone into a supported raid, or use:"])
+                RR:Print(RR.L["  /rr tmogaudit <raid name substring>"])
             end
         elseif not RR.CollectionStateForSource then
-            RR:Print("UI state helpers not available (UI.lua not loaded?)")
+            RR:Print(RR.L["UI state helpers not available (UI.lua not loaded?)"])
         else
             -- CACHE-WARM PASS.
             --
@@ -4963,11 +5104,11 @@ SlashCmdList["RETRORUNS"] = function(input)
                 end
             end
 
-            RR:Print("tmogaudit: warming item cache, please wait 1s...")
+            RR:Print(RR.L["tmogaudit: warming item cache, please wait 1s..."])
 
             C_Timer.After(1.0, function()
             local lines = {}
-            local function add(s) table.insert(lines, s) end
+            local function add(line) table.insert(lines, line) end
 
             add(("tmogaudit: raid=%s"):format(tostring(raid.name or "?")))
             add("Key:")
@@ -5081,7 +5222,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:ShowCopyWindow(
                 ("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug: tmogaudit|r"),
                 table.concat(lines, "\n"))
-            RR:Print("tmogaudit complete. Copy window opened.")
+            RR:Print(RR.L["tmogaudit complete. Copy window opened."])
             end) -- C_Timer.After callback closer
         end
 
@@ -5186,7 +5327,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             if #matches == 0 then
                 RR:Print(("No supported raid matches %q."):format(nameQuery))
                 if RetroRuns_Data then
-                    RR:Print("Supported raids:")
+                    RR:Print(RR.L["Supported raids:"])
                     for _, r in pairs(RetroRuns_Data) do
                         if r and r.name then RR:Print(("  %s"):format(r.name)) end
                     end
@@ -5205,8 +5346,8 @@ SlashCmdList["RETRORUNS"] = function(input)
 
         if not raid or not raid.bosses then
             if not nameQuery then
-                RR:Print("No raid loaded. Zone into a supported raid, or use:")
-                RR:Print("  /rr tmogverify <raid name substring>")
+                RR:Print(RR.L["No raid loaded. Zone into a supported raid, or use:"])
+                RR:Print(RR.L["  /rr tmogverify <raid name substring>"])
             end
         else
             -- The verification body has been extracted into RR:VerifyOneRaid
@@ -5219,7 +5360,7 @@ SlashCmdList["RETRORUNS"] = function(input)
                 RR:ShowCopyWindow(
                     ("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug: tmogverify|r"),
                     table.concat(lines, "\n"))
-                RR:Print("tmogverify complete. Copy window opened.")
+                RR:Print(RR.L["tmogverify complete. Copy window opened."])
             end)
         end
     elseif cmd == "tmogverifyall" then
@@ -5243,7 +5384,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- EJ_SelectInstance(journalInstanceID) which does not require the
         -- player to physically be in the raid.
         if not RetroRuns_Data then
-            RR:Print("tmogverifyall: RetroRuns_Data is not loaded.")
+            RR:Print(RR.L["tmogverifyall: RetroRuns_Data is not loaded."])
         else
             -- Collect the list of supported raids in a stable order.
             local raids = {}
@@ -5255,7 +5396,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             table.sort(raids, function(a, b) return a.name < b.name end)
 
             if #raids == 0 then
-                RR:Print("tmogverifyall: no supported raids found in RetroRuns_Data.")
+                RR:Print(RR.L["tmogverifyall: no supported raids found in RetroRuns_Data."])
             else
                 -- Wall-time estimate: per boss the coverage pass walks 4
                 -- difficulties, each gated on WaitForEJLootSettled (up to
@@ -5270,11 +5411,11 @@ SlashCmdList["RETRORUNS"] = function(input)
                     #raids, totalBosses,
                     math.ceil(estSeconds / 60),
                     math.ceil(totalBosses * 40 / 60)))
-                RR:Print("Progress prints per boss; results land in a copy window at the end.")
+                RR:Print(RR.L["Progress prints per boss; results land in a copy window at the end."])
 
                 -- Accumulator for the final report.
                 local report = {}
-                local function reportAdd(s) table.insert(report, s) end
+                local function reportAdd(line) table.insert(report, line) end
                 reportAdd(("tmogverifyall: %d raid(s)"):format(#raids))
                 reportAdd("Cross-raid audit. Per-raid summary follows; STATUS=clean")
                 reportAdd("means no findings. STATUS=needs-review means at least one")
@@ -5292,7 +5433,7 @@ SlashCmdList["RETRORUNS"] = function(input)
                         RR:ShowCopyWindow(
                             ("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug: tmogverifyall|r"),
                             table.concat(report, "\n"))
-                        RR:Print("tmogverifyall complete. Copy window opened.")
+                        RR:Print(RR.L["tmogverifyall complete. Copy window opened."])
                         return
                     end
 
@@ -5356,11 +5497,11 @@ SlashCmdList["RETRORUNS"] = function(input)
         local listMode = args[3] == "list"
         local probeID = not listMode and tonumber(args[3]) or nil
         if not encID then
-            RR:Print("Usage: /rr ejdiff <journalEncounterID> [probeItemID | list]")
-            RR:Print("  (The Jailer's encounterID is 2464; mount probe ID is 190768)")
+            RR:Print(RR.L["Usage: /rr ejdiff <journalEncounterID> [probeItemID | list]"])
+            RR:Print(RR.L["  (The Jailer's encounterID is 2464; mount probe ID is 190768)"])
         else
             local lines = {}
-            local function add(s) table.insert(lines, s) end
+            local function add(line) table.insert(lines, line) end
 
             local instName, instID
             do
@@ -5392,7 +5533,7 @@ SlashCmdList["RETRORUNS"] = function(input)
                     RR:ShowCopyWindow(
                         ("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug: ejdiff %d|r"):format(encID),
                         table.concat(lines, "\n"))
-                    RR:Print("ejdiff complete. Copy window opened.")
+                    RR:Print(RR.L["ejdiff complete. Copy window opened."])
                     return
                 end
                 local diffID, diffName = DIFFS[idx][1], DIFFS[idx][2]
@@ -5403,10 +5544,10 @@ SlashCmdList["RETRORUNS"] = function(input)
                     pcall(EJ_SelectEncounter, encID)
                     EJ_SetDifficulty(diffID)
                     C_Timer.After(1.5, function()
-                        local n = EJ_GetNumLoot() or 0
+                        local lootCount = EJ_GetNumLoot() or 0
                         if listMode then
-                            add(("  %-6s (%d): %d items"):format(diffName, diffID, n))
-                            for i = 1, n do
+                            add(("  %-6s (%d): %d items"):format(diffName, diffID, lootCount))
+                            for i = 1, lootCount do
                                 local info = C_EncounterJournal.GetLootInfoByIndex(i)
                                 if info then
                                     add(("    itemID=%-7s name=%s"):format(
@@ -5418,7 +5559,7 @@ SlashCmdList["RETRORUNS"] = function(input)
                         end
                         local probeFound = false
                         local probeHasEquipLoc
-                        for i = 1, n do
+                        for i = 1, lootCount do
                             local info = C_EncounterJournal.GetLootInfoByIndex(i)
                             if info and info.itemID == probeID then
                                 probeFound = true
@@ -5430,11 +5571,11 @@ SlashCmdList["RETRORUNS"] = function(input)
                         end
                         if probeID then
                             add(("  %-6s (%d): %d items; probe %d found=%s equipLoc=%q"):format(
-                                diffName, diffID, n, probeID,
+                                diffName, diffID, lootCount, probeID,
                                 tostring(probeFound),
                                 tostring(probeHasEquipLoc or "")))
                         else
-                            add(("  %-6s (%d): %d items"):format(diffName, diffID, n))
+                            add(("  %-6s (%d): %d items"):format(diffName, diffID, lootCount))
                         end
                         Next()
                     end)
@@ -5454,19 +5595,19 @@ SlashCmdList["RETRORUNS"] = function(input)
         elseif sub == "tp"     then
             local dest = RR.Trim(rest:sub(3))   -- strip "tp"
             if dest == "" then
-                RR:Print("Usage: /rr record tp <destination name>")
+                RR:Print(RR.L["Usage: /rr record tp <destination name>"])
             else
                 RR:RecordTeleport(dest)
             end
         elseif sub == "note" then
             local note = RR.Trim(rest:sub(5))   -- strip "note"
             if note == "" then
-                RR:Print("Usage: /rr record note <text>")
+                RR:Print(RR.L["Usage: /rr record note <text>"])
             else
                 RR:RecordSetNote(note)
             end
         else
-            RR:Print("Record: /rr record [start|stop|dump|reset|status|break|tp <dest>|note <text>]")
+            RR:Print(RR.L["Record: /rr record [start|stop|dump|reset|status|break|tp <dest>|note <text>]"])
         end
 
     elseif cmd == "dialogdebug" then
@@ -5474,7 +5615,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         if     sub == "start" then RR:DialogDebugStart()
         elseif sub == "stop"  then RR:DialogDebugStop()
         else
-            RR:Print("DialogDebug: /rr dialogdebug [start|stop]  (capture chat-channel NPC dialog for diagnosis)")
+            RR:Print(RR.L["DialogDebug: /rr dialogdebug [start|stop]  (capture chat-channel NPC dialog for diagnosis)"])
         end
 
     elseif cmd == "lootprobe" then
@@ -5482,7 +5623,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         if     sub == "start" then RR:LootProbeStart()
         elseif sub == "stop"  then RR:LootProbeStop()
         else
-            RR:Print("LootProbe: /rr lootprobe [start|stop]  (capture loot/toast events to build the suppress list)")
+            RR:Print(RR.L["LootProbe: /rr lootprobe [start|stop]  (capture loot/toast events to build the suppress list)"])
         end
 
     elseif cmd == "toaster" then
@@ -5497,9 +5638,9 @@ SlashCmdList["RETRORUNS"] = function(input)
     elseif cmd == "cancelnav" then
         if RR.state.activeRoute then
             RR:CancelNavRoute()
-            RR:Print("Navigation cancelled.")
+            RR:Print(RR.L["Navigation cancelled."])
         else
-            RR:Print("No active navigation route.")
+            RR:Print(RR.L["No active navigation route."])
         end
 
     elseif cmd == "status" then
@@ -5511,42 +5652,42 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- help stays focused on what players actually use.
         local subcmd = args[2] or ""
         if subcmd == "dev" then
-            RR:Print("RetroRuns dev commands:")
-            RR:Print("  /rr  debug                       (toggle verbose logging)")
-            RR:Print("  /rr  test | next | real          (test-mode stepping)")
-            RR:Print("  /rr  resetsegments               (clear persisted segment state)")
-            RR:Print("  /rr  kill <name> | unkill <name> (manual kill-state override)")
-            RR:Print("  /rr  record [start|stop|dump|reset|status|break|tp <dest>|note <text>]")
-            RR:Print("  /rr  sessionlog [all]            (recorder session log; omit `all` for current-raid only)")
-            RR:Print("  /rr  lintroute [raid name]       (structural lint of raid routing data)")
-            RR:Print("  /rr  diag                        (consolidated engine + zonelog + sessionlog)")
-            RR:Print("  /rr  mapicons                    (dump exact coords of every Blizzard icon on the visible map)")
-            RR:Print("  /rr  raidcapture                 (full new-raid tier + loot harvest)")
-            RR:Print("  /rr  weaponharvest               (harvest CN weapon-token pools)")
-            RR:Print("  /rr  vendorscan                  (scan open merchant frame for items+costs)")
-            RR:Print("  /rr  tmogtest <itemID>           (transmog diagnostic)")
-            RR:Print("  /rr  ejprobe [itemID]            (dump EJ loot for selected encounter)")
-            RR:Print("  /rr  tierprobe <itemID>          (dump C_TransmogSets sources for a tier itemID)")
-            RR:Print("  /rr  srctest <sourceID>          (transmog source diagnostic)")
-            RR:Print("  /rr  specialtest <itemID>        (special-loot API probe)")
-            RR:Print("  /rr  dottest <itemID>            (per-diff dot state probe)")
-            RR:Print("  /rr  tmogaudit [raid name]       (full-raid tmog audit dump)")
-            RR:Print("  /rr  tmogverify [raid name]      (full-raid data-integrity audit)")
-            RR:Print("  /rr  tmogverifyall               (run tmogverify across every shipped raid)")
-            RR:Print("  /rr  ejdiff <encID> [itemID]     (EJ per-difficulty probe)")
-            RR:Print("  /rr  tmogsrc | tmogtrace         (transmog internals)")
-            RR:Print("  /rr  ej                          (EJ + instance-info dump for bring-up)")
-            RR:Print("  /rr  dialogdebug [start|stop]    (capture chat-channel NPC dialog for diagnosis)")
-            RR:Print("  /rr  devtools (or dt)             (toggle the DevTools panel)")
-            RR:Print("  /rr  cancelnav                   (cancel an active entrance-navigation route)")
-            RR:Print("  /rr  reset | refresh             (reset settings to defaults | re-render the main panel)")
+            RR:Print(RR.L["RetroRuns dev commands:"])
+            RR:Print(RR.L["  /rr  debug                       (toggle verbose logging)"])
+            RR:Print(RR.L["  /rr  test | next | real          (test-mode stepping)"])
+            RR:Print(RR.L["  /rr  resetsegments               (clear persisted segment state)"])
+            RR:Print(RR.L["  /rr  kill <name> | unkill <name> (manual kill-state override)"])
+            RR:Print(RR.L["  /rr  record [start|stop|dump|reset|status|break|tp <dest>|note <text>]"])
+            RR:Print(RR.L["  /rr  sessionlog [all]            (recorder session log; omit `all` for current-raid only)"])
+            RR:Print(RR.L["  /rr  lintroute [raid name]       (structural lint of raid routing data)"])
+            RR:Print(RR.L["  /rr  diag                        (consolidated engine + zonelog + sessionlog)"])
+            RR:Print(RR.L["  /rr  mapicons                    (dump exact coords of every Blizzard icon on the visible map)"])
+            RR:Print(RR.L["  /rr  raidcapture                 (full new-raid tier + loot harvest)"])
+            RR:Print(RR.L["  /rr  weaponharvest               (harvest CN weapon-token pools)"])
+            RR:Print(RR.L["  /rr  vendorscan                  (scan open merchant frame for items+costs)"])
+            RR:Print(RR.L["  /rr  tmogtest <itemID>           (transmog diagnostic)"])
+            RR:Print(RR.L["  /rr  ejprobe [itemID]            (dump EJ loot for selected encounter)"])
+            RR:Print(RR.L["  /rr  tierprobe <itemID>          (dump C_TransmogSets sources for a tier itemID)"])
+            RR:Print(RR.L["  /rr  srctest <sourceID>          (transmog source diagnostic)"])
+            RR:Print(RR.L["  /rr  specialtest <itemID>        (special-loot API probe)"])
+            RR:Print(RR.L["  /rr  dottest <itemID>            (per-diff dot state probe)"])
+            RR:Print(RR.L["  /rr  tmogaudit [raid name]       (full-raid tmog audit dump)"])
+            RR:Print(RR.L["  /rr  tmogverify [raid name]      (full-raid data-integrity audit)"])
+            RR:Print(RR.L["  /rr  tmogverifyall               (run tmogverify across every shipped raid)"])
+            RR:Print(RR.L["  /rr  ejdiff <encID> [itemID]     (EJ per-difficulty probe)"])
+            RR:Print(RR.L["  /rr  tmogsrc | tmogtrace         (transmog internals)"])
+            RR:Print(RR.L["  /rr  ej                          (EJ + instance-info dump for bring-up)"])
+            RR:Print(RR.L["  /rr  dialogdebug [start|stop]    (capture chat-channel NPC dialog for diagnosis)"])
+            RR:Print(RR.L["  /rr  devtools (or dt)             (toggle the DevTools panel)"])
+            RR:Print(RR.L["  /rr  cancelnav                   (cancel an active entrance-navigation route)"])
+            RR:Print(RR.L["  /rr  reset | refresh             (reset settings to defaults | re-render the main panel)"])
         else
-            RR:Print("RetroRuns commands:")
-            RR:Print("  /rr                  (toggle main panel)")
-            RR:Print("  /rr  status          (current raid, step, kill state)")
-            RR:Print("  /rr  tmog            (open transmog browser)")
-            RR:Print("  /rr  skips           (account-wide raid skip status)")
-            RR:Print("  /rr  settings        (open settings window)")
+            RR:Print(RR.L["RetroRuns commands:"])
+            RR:Print(RR.L["  /rr                  (toggle main panel)"])
+            RR:Print(RR.L["  /rr  status          (current raid, step, kill state)"])
+            RR:Print(RR.L["  /rr  tmog            (open transmog browser)"])
+            RR:Print(RR.L["  /rr  skips           (account-wide raid skip status)"])
+            RR:Print(RR.L["  /rr  settings        (open settings window)"])
         end
     end
 end
@@ -5633,6 +5774,13 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         RR.state.isReloadingUi = isReloadingUi and true or false
         RR:ZoneLog(("PEW: isInitialLogin=%s isReloadingUi=%s"):format(
             tostring(isInitialLogin), tostring(isReloadingUi)))
+
+        -- Re-assert the saved panel position. The client applies its own
+        -- cached frame layout between ADDON_LOADED and here, which can
+        -- override the position applied at load time on installs where a
+        -- character still carries an old per-character entry. Running the
+        -- restore again after that pass makes the shared position final.
+        RR:RestorePanelPosition()
 
         -- On initial login (not /reload), wipe the persisted zone log
         -- so stale entries from prior sessions don't carry forward.

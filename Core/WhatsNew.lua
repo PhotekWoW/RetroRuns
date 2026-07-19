@@ -25,6 +25,30 @@
 local RR = RetroRuns
 RR.WhatsNew = {
     {
+        version  = "2.2.0",
+        date     = "2026-07-18",
+        sections = {
+            {
+                heading = "Added",
+                bullets = {
+                    "**Localization support, starting with Spanish.** The groundwork is in place for RetroRuns to run in languages other than English: player-facing text now goes through a translation layer, and raid, wing, boss, and place names follow your game client's language. Spanish is the first language built on it, covering the interface and all route content on esES and esMX clients. More languages can now be added without further engine work. English clients are unchanged.",
+                    "**Minimized mode comes to life.** Collapse the main panel to enable minimized mode. The main panel is replaced with a much smaller bar that shows an abbreviated version of every step-by-step travel note, along with a quick snapshot of current boss progress. Supported on all raids, all routes; Full, Skip, and LFR.",
+                },
+            },
+            {
+                heading = "Fixed",
+                bullets = {
+                    "**The panel now keeps one position across all characters.** The window's position has always been saved account-wide, but the game's own per-character frame memory was re-applying each character's last position over it, so every character ended up with the panel somewhere different. The saved position now wins everywhere: move it once and it stays there for the whole account.",
+                    "**The loot summary no longer misses drops when loot arrives a moment after the loot window closes.** On higher-latency pulls the summary could appear empty; it now waits briefly for the last items.",
+                    "**The transmog window no longer shows a scrollbar when a boss's loot list fits.** A scrollbar, and a clipped travel button, appeared on bosses with a weapon-token footnote even when the list fit.",
+                    "**The vendor travel button in the transmog window uses the correct plane icon and no longer sits under the scrollbar.**",
+                    "**The Dragon Soul routing hint before Ultraxion now appears.** The step telling you to talk to Thrall to begin the encounter could never display.",
+                },
+            },
+        },
+    },
+
+    {
         version  = "2.1.0",
         date     = "2026-07-06",
         sections = {
@@ -119,38 +143,6 @@ RR.WhatsNew = {
                 heading = "Fixed",
                 bullets = {
                     "**Clicking on the world map no longer causes an error.** A hotfix for a problem where opening the world map to your location could trigger a Lua error in some situations.",
-                },
-            },
-        },
-    },
-
-    {
-        version  = "1.14.0",
-        date     = "2026-06-13",
-        sections = {
-            {
-                heading = "Added",
-                bullets = {
-                    "**Skip routes for every raid that has a skip shortcut.** All sixteen raids with an in-raid skip now have a full route, guiding you from the entry boss through the shortcut straight to the end bosses, with map markers and circles for the NPCs, portals, and runestones that open each one. Where a raid has more than one skip destination, the route covers the furthest, and the Skips window notes which one is built. When you open a raid with a skip available, the load dialog's SKIP option names the destination boss; raids with no skip read \"N/A,\" and skips that exist only on Mythic read \"Mythic only.\"",
-                    "**An exit note now appears after the final boss** for raids that have one, with an exit icon, telling you how to get back out: a teleport NPC, a portal, or a jump that sends you to the exit.",
-                },
-            },
-            {
-                heading = "Changed",
-                bullets = {
-                    "**The action buttons are now neon icons** (Map, Tmog, Achieves, Skips, Settings) instead of text, brightening on hover with the button's name shown above it.",
-                    "**The window's title bar and control buttons were restyled** with the neon theme, and the close and minimize buttons are now matched in size. The minimized bar's spacing was tightened.",
-                    "**The Map button now works anywhere**, opening the world map to your current location when you're not on an active route step, instead of being greyed out.",
-                    "**Smaller completion stars on the idle panel.**",
-                    "**Mounts, pets, toys, and housing decor now show as Special** in the loot summary line when you loot them, alongside appearances and vendor-grade, instead of being miscounted as vendor-grade.",
-                },
-            },
-            {
-                heading = "Fixed",
-                bullets = {
-                    "**Loot toasts cascade consistently** from top to bottom when several appear at once, instead of occasionally stacking out of order.",
-                    "**A duplicate pet or mount you already own no longer pops a \"new collection\" toast** when you learn it.",
-                    "**The \"Run complete!\" screen now opens with all expansions collapsed**, instead of leaving an expansion open from earlier.",
                 },
             },
         },

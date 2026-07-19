@@ -241,7 +241,7 @@ RetroRuns_Data[2450] = {
             index              = 9,
             name               = "Kel'Thuzad",
             journalEncounterID = 2440,
-            aliases            = { "KT", "Kelthuzad" },
+            aliases            = { "Kelthuzad" },
             soloTip            = "Bring boss health to 0 and it will trigger a new phase. Run to the boss, and an extra action button will appear. Use this button to enter the phylactery. Inside, kill the 1 enemy and you will appear back outside to kill the boss one more time.",
             achievements       = {
                 { id = 15108, name = "Together Forever", meta = true, soloable = "yes" },
@@ -317,6 +317,7 @@ RetroRuns_Data[2450] = {
                     when   = { mapID = 1998 },
                     kind   = "path",
                     note   = "Follow the map from the entrance to ^the Tarragrue^.",
+                    minNote = "Path to Tarragrue",
                     points = {
                         { 0.346, 0.785 },
                         { 0.382, 0.739 },
@@ -342,12 +343,14 @@ RetroRuns_Data[2450] = {
                     when   = { mapID = 1998 },
                     kind   = "path",
                     note   = "After killing ^Tarragrue^, wait for dialog to complete, then walk through the portal marked as a map exit ^Shadowsteel Foundry^.",
+                    minNote = "Dialog then Portal",
                     points = {},
                 },
                 {
                     when   = { mapID = 1999 },
                     kind   = "path",
                     note   = "After teleporting, follow the path to ^Eye of the Jailer^ and clear all trash on his platform. To reach the far side, walk to the pile of chains and use the extra action button",
+                    minNote = "Clear Eye's Platform",
                     points = {
                         { 0.723, 0.757 },
                         { 0.595, 0.607 },
@@ -373,6 +376,7 @@ RetroRuns_Data[2450] = {
                     when   = { mapID = 1999 },
                     kind   = "path",
                     note   = "After killing ^The Eye of the Jailer^, follow the path all the way north to find ^The Nine^.",
+                    minNote = "North to The Nine",
                     points = {
                         { 0.468, 0.888 },
                         { 0.410, 0.847 },
@@ -399,6 +403,7 @@ RetroRuns_Data[2450] = {
                     when   = { mapID = 1999 },
                     kind   = "path",
                     note   = "After killing ^The Nine^, take the elevator to the left. You will arrive at ^The Torment Chambers^.",
+                    minNote = "Left to Elevator",
                     points = {
                         { 0.400, 0.162 },
                         { 0.368, 0.111 },
@@ -408,6 +413,7 @@ RetroRuns_Data[2450] = {
                     when   = { mapID = 2000 },
                     kind   = "path",
                     note   = "After arriving at ^The Torment Chambers^, follow the path to ^Soulrender Dormazain^.",
+                    minNote = "Path to Soulrender",
                     points = {
                         { 0.226, 0.498 },
                         { 0.211, 0.543 },
@@ -437,6 +443,7 @@ RetroRuns_Data[2450] = {
                     when   = { mapID = 2000 },
                     kind   = "path",
                     note   = "After killing ^Soulrender Dormazain^, follow the path to ^Remnant of Ner'zhul^. Kill the trash to engage the boss.",
+                    minNote = "Trash then Ner'zhul",
                     points = {
                         { 0.566, 0.736 },
                         { 0.673, 0.798 },
@@ -468,6 +475,7 @@ RetroRuns_Data[2450] = {
                     when   = { mapID = 2000 },
                     kind   = "path",
                     note   = "After killing ^Remnant of Ner'zhul^, follow the path to loop back around to ^Painsmith Raznal^.",
+                    minNote = "Loop around to Painsmith",
                     points = {
                         { 0.848, 0.389 },
                         { 0.754, 0.445 },
@@ -497,6 +505,7 @@ RetroRuns_Data[2450] = {
                     when   = { mapID = 2000 },
                     kind   = "path",
                     note   = "After killing ^Painsmith Raznal^, walk out the new exit to the West and walk through the portal.",
+                    minNote = "West to Portal",
                     points = {
                         { 0.638, 0.310 },
                         { 0.537, 0.368 },
@@ -506,6 +515,7 @@ RetroRuns_Data[2450] = {
                     when   = { mapID = 2001 },
                     kind   = "path",
                     note   = "After arriving in ^Crown of Gorgoa^, follow the path North to ^Guardian of the First Ones^.",
+                    minNote = "North to Guardian",
                     points = {
                         { 0.614, 0.519 },
                         { 0.579, 0.519 },
@@ -529,6 +539,7 @@ RetroRuns_Data[2450] = {
                     when   = { mapID = 2001 },
                     kind   = "path",
                     note   = "After killing ^Guardian of the First Ones^, go back the way you came and follow the path to ^Fatescribe Roh-Kalo^. For a shortcut, you can jump off the ledge to respawn halfway there.",
+                    minNote = "Jump off and die",
                     points = {
                         { 0.615, 0.226 },
                         { 0.542, 0.420 },
@@ -561,6 +572,7 @@ RetroRuns_Data[2450] = {
                     when   = { mapID = 2001 },
                     kind   = "path",
                     note   = "After killing ^Fatescribe Roh-Kalo^, go back out the way you came and follow the path to ^Kel'Thuzad^.",
+                    minNote = "Backtrack towards Kel'Thuzad",
                     points = {
                         { 0.546, 0.704 },
                         { 0.490, 0.704 },
@@ -588,6 +600,7 @@ RetroRuns_Data[2450] = {
                     mapLabel = "Take Portal",
                     mapLabelPos = "above",
                     note     = "After killing ^Kel'Thuzad^, take the purple portal that appeared right behind him.",
+                    minNote  = "Take Purple Portal",
                     points   = {
                         { 0.269, 0.519 },
                     },
@@ -596,6 +609,7 @@ RetroRuns_Data[2450] = {
                     when   = { mapID = 2002 },
                     kind   = "path",
                     note   = "You arrive at ^Pinnacle of Domination^ right in front of ^Sylvanas Windrunner^. Walk towards the boss to trigger dialog and start the encounter.",
+                    minNote = "Dialog then Sylvanas",
                     points = {},
                 },
             },
@@ -628,6 +642,7 @@ RetroRuns_Data[2450] = {
                             when   = { mapID = 1998 },
                             kind   = "path",
                             note   = "Follow the map from the entrance to ^the Tarragrue^.",
+                            minNote = "Path To Tarragrue",
                             points = {
                                 { 0.346, 0.785 },
                                 { 0.382, 0.739 },
@@ -651,12 +666,14 @@ RetroRuns_Data[2450] = {
                             when   = { mapID = 1998 },
                             kind   = "path",
                             note   = "After killing ^Tarragrue^, wait for dialog to complete, then walk through the portal marked as a map exit ^Shadowsteel Foundry^.",
+                            minNote = "Portal to Foundry",
                             points = {},
                         },
                         {
                             when   = { mapID = 1999 },
                             kind   = "path",
                             note   = "After teleporting, follow the path to ^Eye of the Jailer^ and clear all trash on his platform. To reach the far side, walk to the pile of chains and use the extra action button",
+                            minNote = "Clear Eye's platform",
                             points = {
                                 { 0.723, 0.757 },
                                 { 0.595, 0.607 },
@@ -680,6 +697,7 @@ RetroRuns_Data[2450] = {
                             when   = { mapID = 1999 },
                             kind   = "path",
                             note   = "After killing ^The Eye of the Jailer^, follow the path all the way north to find ^The Nine^.",
+                            minNote = "North to The Nine",
                             points = {
                                 { 0.468, 0.888 },
                                 { 0.410, 0.847 },
@@ -722,6 +740,7 @@ RetroRuns_Data[2450] = {
                             when   = { mapID = 2000 },
                             kind   = "path",
                             note   = "After zoning into ^The Torment Chambers^, follow the path to ^Soulrender Dormazain^.",
+                            minNote = "Path to Soulrender",
                             points = {
                                 { 0.332, 0.543 },
                                 { 0.657, 0.547 },
@@ -748,6 +767,7 @@ RetroRuns_Data[2450] = {
                             when   = { mapID = 2000 },
                             kind   = "path",
                             note   = "After killing ^Soulrender Dormazain^, follow the path to ^Remnant of Ner'zhul^. Kill the trash to engage the boss.",
+                            minNote = "Trash then Ner'zhul",
                             points = {
                                 { 0.566, 0.736 },
                                 { 0.673, 0.798 },
@@ -777,6 +797,7 @@ RetroRuns_Data[2450] = {
                             when   = { mapID = 2000 },
                             kind   = "path",
                             note   = "After killing ^Remnant of Ner'zhul^, follow the path to loop back around to ^Painsmith Raznal^.",
+                            minNote = "Loop around to Painsmith",
                             points = {
                                 { 0.848, 0.389 },
                                 { 0.754, 0.445 },
@@ -818,6 +839,7 @@ RetroRuns_Data[2450] = {
                             when   = { mapID = 2001 },
                             kind   = "path",
                             note   = "After zoning into ^Crown of Gorgoa^, follow the path North to ^Guardian of the First Ones^.",
+                            minNote = "North to Guardian",
                             points = {
                                 { 0.614, 0.519 },
                                 { 0.579, 0.519 },
@@ -839,6 +861,7 @@ RetroRuns_Data[2450] = {
                             when   = { mapID = 2001 },
                             kind   = "path",
                             note   = "After killing ^Guardian of the First Ones^, go back the way you came and follow the path to ^Fatescribe Roh-Kalo^. For a shortcut, you can jump off the ledge to respawn halfway there.",
+                            minNote = "Jump off and die",
                             points = {
                                 { 0.615, 0.226 },
                                 { 0.542, 0.420 },
@@ -869,6 +892,7 @@ RetroRuns_Data[2450] = {
                             when   = { mapID = 2001 },
                             kind   = "path",
                             note   = "After killing ^Fatescribe Roh-Kalo^, go back out the way you came and follow the path to ^Kel'Thuzad^.",
+                            minNote = "Backtrack towards Kel'Thuzad",
                             points = {
                                 { 0.546, 0.704 },
                                 { 0.490, 0.704 },
@@ -905,6 +929,7 @@ RetroRuns_Data[2450] = {
                             when   = { mapID = 2002 },
                             kind   = "path",
                             note   = "You arrive at ^Pinnacle of Domination^ right in front of ^Sylvanas Windrunner^. Walk towards the boss to trigger dialog and start the encounter.",
+                            minNote = "Dialog then Sylvanas",
                             points = {},
                         },
                     },
@@ -932,6 +957,7 @@ RetroRuns_Data[2450] = {
                     when   = { mapID = 1998 },
                     kind   = "path",
                     note   = "Follow the map from the entrance to ^the Tarragrue^.",
+                    minNote = "Path to Tarragrue",
                     points = {
                         { 0.346, 0.785 },
                         { 0.382, 0.739 },
@@ -959,6 +985,7 @@ RetroRuns_Data[2450] = {
                     mapLabel = "Ebon Blade Acolyte",
                     mapLabelPos = "above",
                     note     = "After killing ^The Tarragrue^, speak to the ^Ebon Blade Acolyte^ NPC located inside the boss room. He will conjure a portal that will send you straight to ^Kel'Thuzad^.",
+                    minNote  = "Talk to Ebon Blade Acolyte",
                     points   = {
                         { 0.483, 0.496 },
                     },
@@ -967,6 +994,7 @@ RetroRuns_Data[2450] = {
                     when   = { mapID = 2001, subZone = "Crown of Gorgoa" },
                     kind   = "path",
                     note   = "After taking the portal, follow the path around to reach ^Kel'Thuzad^.",
+                    minNote = "Path to Kel'Thuzad",
                     points = {
                         { 0.582, 0.520 },
                         { 0.577, 0.564 },
@@ -996,6 +1024,7 @@ RetroRuns_Data[2450] = {
                     mapLabel = "Take Portal",
                     mapLabelPos = "above",
                     note     = "After killing ^Kel'Thuzad^, take the purple portal that appeared right behind him.",
+                    minNote  = "Take Purple Portal",
                     points   = {
                         { 0.269, 0.519 },
                     },
@@ -1004,6 +1033,7 @@ RetroRuns_Data[2450] = {
                     when   = { mapID = 2002 },
                     kind   = "path",
                     note   = "You arrive at ^Pinnacle of Domination^ right in front of ^Sylvanas Windrunner^. Walk towards the boss to trigger dialog and start the encounter.",
+                    minNote = "Kill Sylvanas",
                     points = {},
                 },
             },

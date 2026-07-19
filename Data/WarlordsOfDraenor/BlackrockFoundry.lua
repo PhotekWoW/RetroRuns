@@ -94,7 +94,8 @@ RetroRuns_Data[1205] = {
             index              = 2,
             name               = "Hans'gar and Franzok",
             journalEncounterID = 1155,
-            aliases            = { "Hans'gar & Franzok" },
+            barLabel           = "Hans & Franz",
+            aliases            = { "Hans'gar", "Hans'gar & Franzok" },
             achievements       = {
                 { id = 8980, name = "Stamp Stamp Revolution", meta = true, soloable = "yes" },
             },
@@ -466,6 +467,7 @@ RetroRuns_Data[1205] = {
                             when    = { mapID = 598 },
                             kind    = "path",
                             note    = "After zoning in, follow the path to the right and make your way down a spiral ramp.",
+                            minNote = "Right to ramp",
                             points  = {
                                 { 0.410, 0.895 },
                                 { 0.409, 0.635 },
@@ -482,6 +484,7 @@ RetroRuns_Data[1205] = {
                             when    = { mapID = 597 },
                             kind    = "path",
                             note    = "Approach the bridge and take a left. Follow the path to ^Oregorger^. Clear trash to spawn the boss.",
+                            minNote = "Path to Oregorger",
                             points  = {
                                 { 0.624, 0.533 },
                                 { 0.550, 0.533 },
@@ -505,6 +508,7 @@ RetroRuns_Data[1205] = {
                             when    = { mapID = 597 },
                             kind    = "path",
                             note    = "After killing ^Oregorger^, leave his area the way you came and follow the path all the way north to find ^Gruul^.",
+                            minNote = "North to Gruul",
                             points  = {
                                 { 0.469, 0.839 },
                                 { 0.533, 0.835 },
@@ -532,6 +536,7 @@ RetroRuns_Data[1205] = {
                             when    = { mapID = 597 },
                             kind    = "path",
                             note    = "After killing ^Gruul^, backtrack to the bridge and go east. Follow the spiral down, then at the bottom go straight ahead to locate ^The Blast Furnace^.",
+                            minNote = "Path to Blast Furnace",
                             points  = {
                                 { 0.457, 0.244 },
                                 { 0.557, 0.257 },
@@ -578,6 +583,7 @@ RetroRuns_Data[1205] = {
                             when    = { mapID = 598 },
                             kind    = "path",
                             note    = "After zoning in, take a left and head towards ^The Black Forge^. Take the elevator down.",
+                            minNote = "Left to Elevator",
                             points  = {
                                 { 0.408, 0.795 },
                                 { 0.408, 0.625 },
@@ -589,6 +595,7 @@ RetroRuns_Data[1205] = {
                             when    = { mapID = 596 },
                             kind    = "path",
                             note    = "Once you reach the bottom of the elevator, take the southern path to reach ^Hans'gar and Franzok^. After a brief dialog, kill the trash to start the encounter.",
+                            minNote = "South to Hans & Franz",
                             points  = {
                                 { 0.472, 0.623 },
                                 { 0.475, 0.660 },
@@ -610,6 +617,7 @@ RetroRuns_Data[1205] = {
                             when    = { mapID = 596 },
                             kind    = "path",
                             note    = "After killing ^Hans'gar and Franzok^, take the southern exit out of the room. Follow the path across the next room to reach ^Flamebender Ka'graz^.",
+                            minNote = "Path to Ka'graz",
                             points  = {
                                 { 0.474, 0.865 },
                                 { 0.474, 0.914 },
@@ -634,6 +642,7 @@ RetroRuns_Data[1205] = {
                             when    = { mapID = 596 },
                             kind    = "path",
                             note    = "After defeating ^Flamebender Ka'graz^, head slightly east and then follow the path north to reach ^Kromog^.",
+                            minNote = "Path to Kromog",
                             points  = {
                                 { 0.239, 0.764 },
                                 { 0.309, 0.762 },
@@ -670,6 +679,7 @@ RetroRuns_Data[1205] = {
                             when    = { mapID = 598 },
                             kind    = "path",
                             note    = "After zoning in, take the northeastern path towards the ^Iron Assembly^.",
+                            minNote = "Northeast to Iron Assembly",
                             points  = {
                                 { 0.409, 0.813 },
                                 { 0.409, 0.635 },
@@ -683,6 +693,7 @@ RetroRuns_Data[1205] = {
                             when    = { mapID = 599 },
                             kind    = "path",
                             note    = "Inside ^Iron Assembly^, follow the path around to ^Beastlord Darmac^.",
+                            minNote = "Path to Beastlord",
                             points  = {
                                 { 0.453, 0.836 },
                                 { 0.453, 0.716 },
@@ -704,6 +715,7 @@ RetroRuns_Data[1205] = {
                             when    = { mapID = 599 },
                             kind    = "path",
                             note    = "After killing ^Beastlord Darmac^, leave the room and take a right. Follow the path north to reach ^Operator Thogar^. To open the gate and start the fight, kill trash on both platforms, then kill the gunners on the train that pulls up.",
+                            minNote = "Path to Thogar",
                             points  = {
                                 { 0.530, 0.712 },
                                 { 0.453, 0.714 },
@@ -728,6 +740,7 @@ RetroRuns_Data[1205] = {
                             mapLabel        = "Jump!",
                             mapLabelPos     = "above",
                             note            = "After defeating ^Operator Thogar^, jump down the hole marked on the east side of the room.",
+                            minNote = "Hole to East",
                             points          = {
                                 { 0.549, 0.489 },
                             },
@@ -736,6 +749,7 @@ RetroRuns_Data[1205] = {
                             when    = { mapID = 596 },
                             kind    = "path",
                             note    = "After landing, clear trash in the water, then move up the short ramp and clear the remaining trash to engage ^Iron Maidens^.",
+                            minNote = "Trash then Maidens",
                             points  = {
                                 { 0.776, 0.246 },
                                 { 0.790, 0.246 },
@@ -770,6 +784,7 @@ RetroRuns_Data[1205] = {
                             when    = { mapID = 598 },
                             kind    = "path",
                             note    = "After zoning in, head straight ahead and follow the route across the bridge.",
+                            minNote = "Cross Bridge Ahead",
                             points  = {
                                 { 0.407, 0.741 },
                                 { 0.413, 0.154 },
@@ -780,6 +795,7 @@ RetroRuns_Data[1205] = {
                             when    = { mapID = 600 },
                             kind    = "path",
                             note    = "Take the elevator up and continue forward to reach ^Blackhand^.",
+                            minNote = "Elevator to Blackhand",
                             points  = {
                                 { 0.519, 0.922 },
                                 { 0.484, 0.920 },
@@ -806,6 +822,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 598 },
                     kind    = "path",
                     note    = "After zoning in, follow the path to the right and make your way down a spiral ramp.",
+                    minNote = "Right to ramp",
                     points  = {
                         { 0.410, 0.895 },
                         { 0.409, 0.635 },
@@ -822,6 +839,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 597 },
                     kind    = "path",
                     note    = "Approach the bridge and take a left. Follow the path to ^Oregorger^. Clear trash to spawn the boss.",
+                    minNote = "Path to Oregorger",
                     points  = {
                         { 0.624, 0.533 },
                         { 0.550, 0.533 },
@@ -845,6 +863,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 597 },
                     kind    = "path",
                     note    = "After killing ^Oregorger^, leave his area the way you came and follow the path all the way north to find ^Gruul^.",
+                    minNote = "North to Gruul",
                     points  = {
                         { 0.469, 0.839 },
                         { 0.533, 0.835 },
@@ -872,6 +891,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 597 },
                     kind    = "path",
                     note    = "After killing ^Gruul^, backtrack to the bridge and go east. Follow the spiral down, then at the bottom go straight ahead to locate ^The Blast Furnace^.",
+                    minNote = "Path to Blast Furnace",
                     points  = {
                         { 0.457, 0.244 },
                         { 0.557, 0.257 },
@@ -903,6 +923,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 597 },
                     kind    = "path",
                     note    = "After defeating ^The Blast Furnace^, go straight ahead back up the spiral ramp. When you reach the bridge area, take a right and go up another ramp towards the main lobby.",
+                    minNote = "Return to Lobby",
                     points  = {
                         { 0.518, 0.543 },
                         { 0.625, 0.540 },
@@ -930,6 +951,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 598 },
                     kind    = "path",
                     note    = "Back in the main lobby, take the northeast exit towards ^Iron Assembly^.",
+                    minNote = "Northeast to Iron Assembly",
                     points  = {
                         { 0.496, 0.684 },
                         { 0.546, 0.680 },
@@ -946,6 +968,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 599 },
                     kind    = "path",
                     note    = "Inside ^Iron Assembly^, follow the path around to ^Beastlord Darmac^.",
+                    minNote = "Path to Beastlord",
                     points  = {
                         { 0.453, 0.836 },
                         { 0.453, 0.716 },
@@ -967,6 +990,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 599 },
                     kind    = "path",
                     note    = "After killing ^Beastlord Darmac^, leave the room and take a right. Follow the path north to reach ^Operator Thogar^. To open the gate and start the fight, kill trash on both platforms, then kill the gunners on the train that pulls up.",
+                    minNote = "Path to Thogar",
                     points  = {
                         { 0.530, 0.712 },
                         { 0.453, 0.714 },
@@ -991,6 +1015,7 @@ RetroRuns_Data[1205] = {
                     mapLabel        = "Jump!",
                     mapLabelPos     = "above",
                     note            = "After defeating ^Operator Thogar^, jump down the hole marked on the east side of the room.",
+                    minNote = "Hole to East",
                     points          = {
                         { 0.549, 0.489 },
                     },
@@ -999,6 +1024,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 596 },
                     kind    = "path",
                     note    = "After landing, clear trash in the water, then move up the short ramp and clear the remaining trash to engage ^Iron Maidens^.",
+                    minNote = "Trash then Maidens",
                     points  = {
                         { 0.776, 0.246 },
                         { 0.790, 0.246 },
@@ -1020,6 +1046,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 596 },
                     kind    = "path",
                     note    = "After defeating ^Iron Maidens^, take the southern path and keep to the left until you reach ^Hans'gar and Franzok^. After a brief dialog, kill the trash to start the encounter.",
+                    minNote = "South to Hans & Franz",
                     points  = {
                         { 0.822, 0.338 },
                         { 0.787, 0.375 },
@@ -1049,6 +1076,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 596 },
                     kind    = "path",
                     note    = "After killing ^Hans'gar and Franzok^, take the southern exit out of the room. Follow the path across the next room to reach ^Flamebender Ka'graz^.",
+                    minNote = "Path to Ka'graz",
                     points  = {
                         { 0.474, 0.865 },
                         { 0.474, 0.914 },
@@ -1073,6 +1101,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 596 },
                     kind    = "path",
                     note    = "After defeating ^Flamebender Ka'graz^, head slightly east and then follow the path north to reach ^Kromog^.",
+                    minNote = "Path to Kromog",
                     points  = {
                         { 0.239, 0.764 },
                         { 0.309, 0.762 },
@@ -1099,6 +1128,7 @@ RetroRuns_Data[1205] = {
                     mapLabel        = "Elevator",
                     mapLabelPos     = "above",
                     note            = "After killing ^Kromog^, exit the room to the east and follow the path to the elevator.",
+                    minNote = "East then Elevator",
                     points          = {
                         { 0.406, 0.438 },
                         { 0.479, 0.440 },
@@ -1119,6 +1149,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 598 },
                     kind    = "path",
                     note    = "Once you reach the top of the elevator, follow the path to the north to reach ^The Crucible^.",
+                    minNote = "North to The Crucible",
                     points  = {
                         { 0.332, 0.537 },
                         { 0.408, 0.482 },
@@ -1130,6 +1161,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 600 },
                     kind    = "path",
                     note    = "Take the elevator up and continue forward to reach ^Blackhand^.",
+                    minNote = "Continue to Blackhand",
                     points  = {
                         { 0.519, 0.922 },
                         { 0.484, 0.920 },
@@ -1157,6 +1189,7 @@ RetroRuns_Data[1205] = {
                 {
                     when     = { mapID = 598, subZone = "The Workshop" },
                     kind     = "poi",
+                    minNote  = "Click Artifact by Bridge",
                     mapLabel = "Click Artifact",
                     mapLabelPos = "below",
                     points   = {
@@ -1167,6 +1200,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 598, subZone = "The Workshop" },
                     kind    = "path",
                     note    = "After zoning in, click ^Blackrock Artifact^ on either side of the bridge, and it will open the gate leading across the bridge. Go forward and follow the route across the bridge.",
+                    minNote = "Click Artifact by Bridge",
                     points  = {
                         { 0.408, 0.482 },
                         { 0.411, 0.155 },
@@ -1177,6 +1211,7 @@ RetroRuns_Data[1205] = {
                     when    = { mapID = 600 },
                     kind    = "path",
                     note    = "Take the elevator up and continue forward to reach ^Blackhand^.",
+                    minNote = "Elevator to Blackhand",
                     points  = {
                         { 0.519, 0.922 },
                         { 0.484, 0.920 },

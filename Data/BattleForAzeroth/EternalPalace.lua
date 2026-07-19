@@ -283,6 +283,7 @@ RetroRuns_Data[2164] = {
                             when    = { mapID = 1519, subZone = "The Eternal Palace" },
                             kind    = "path",
                             note    = "After zoning in, follow the path ahead to reach ^Za'qul^.",
+                            minNote = "Path to Za'qul",
                             points  = {
                                 { 0.521, 0.511 },
                                 { 0.363, 0.504 },
@@ -312,6 +313,7 @@ RetroRuns_Data[2164] = {
                             mapLabel = "Click Portal",
                             mapLabelPos = "above",
                             note    = "After killing ^Za'qul^, watch a brief dialog while waiting on a portal to spawn behind the boss. Take the portal, marked on the map as an exit labeled ^The Last Prison^.",
+                            minNote = "Dialog then Portal",
                             points   = {
                                 { 0.112, 0.456 },
                             },
@@ -320,6 +322,7 @@ RetroRuns_Data[2164] = {
                             when     = { mapID = 1520 },
                             kind     = "poi",
                             note     = "After taking the portal into ^The Last Prison^, you will watch some lengthy dialog then click the ^Titan Console^ in front of you to engage ^Queen Azshara^.",
+                            minNote  = "Dialog then Titan Console",
                             poiSize  = 35,
                             mapLabel = "Click Titan Console",
                             completionCheck = true,
@@ -349,6 +352,7 @@ RetroRuns_Data[2164] = {
                             when    = { mapID = 1513, subZone = "Halls of the Chosen" },
                             kind    = "path",
                             note    = "After zoning in, proceed straight ahead to ^Lady Ashvane^.",
+                            minNote = "Ahead to Ashvane",
                             points  = {
                                 { 0.395, 0.686 },
                                 { 0.454, 0.681 },
@@ -369,6 +373,7 @@ RetroRuns_Data[2164] = {
                             when    = { mapID = 1513 },
                             kind    = "path",
                             note    = "After killing ^Lady Ashvane^, jump through the hole in the middle of her boss room to land in ^The Traverse^.",
+                            minNote = "Jump in hole",
                             points  = {},
                         },
                         {
@@ -377,6 +382,7 @@ RetroRuns_Data[2164] = {
                             poiSize  = 35,
                             mapLabel = "1",
                             note     = "After landing in ^The Traverse^, make your way to the bottom of the room by walking over a sequence of teleporting panels on the floor.",
+                            minNote  = "Walk into (3) Floor Teleporters",
                             points   = {
                                 { 0.542, 0.459 },
                             },
@@ -403,6 +409,7 @@ RetroRuns_Data[2164] = {
                             when    = { mapID = 1517 },
                             kind    = "path",
                             note    = "When you reach the bottom, simply follow the path to ^Orgozoa^ and kill him.",
+                            minNote = "Path to Orgozoa",
                             points  = {
                                 { 0.825, 0.367 },
                                 { 0.795, 0.398 },
@@ -425,6 +432,7 @@ RetroRuns_Data[2164] = {
                             when    = { mapID = 1517 },
                             kind    = "path",
                             note    = "After killing ^Orgozoa^, travel to the far west to reach the map exit labeled ^The Queen's Court^. You will be swimming for a good portion of this journey.",
+                            minNote = "West to The Queen's Court",
                             points  = {
                                 { 0.728, 0.468 },
                                 { 0.699, 0.458 },
@@ -444,6 +452,7 @@ RetroRuns_Data[2164] = {
                             when    = { mapID = 1518 },
                             kind    = "path",
                             note    = "After surfacing from the water, follow the path around to reach ^The Queen's Court^.",
+                            minNote = "Path to The Queen's Court",
                             points  = {
                                 { 0.667, 0.482 },
                                 { 0.474, 0.479 },
@@ -476,6 +485,7 @@ RetroRuns_Data[2164] = {
                             when    = { mapID = 1512 },
                             kind    = "path",
                             note    = "After zoning in, follow the path straight ahead to engage ^Sivara^.",
+                            minNote = "Ahead to Sivara",
                             points  = {
                                 { 0.914, 0.487 },
                                 { 0.523, 0.487 },
@@ -496,6 +506,7 @@ RetroRuns_Data[2164] = {
                             when    = { mapID = 1512 },
                             kind    = "path",
                             note    = "After defeating ^Sivara^, continue past her towards the map exit labeled ^Halls of the Chosen^. Take the underwater tunnel to reach the next area.",
+                            minNote = "Path to underwater tunnel",
                             points  = {
                                 { 0.473, 0.487 },
                                 { 0.463, 0.390 },
@@ -511,6 +522,7 @@ RetroRuns_Data[2164] = {
                             when    = { mapID = 1513 },
                             kind    = "path",
                             note    = "After coming out of the water, take the path south towards the map exit labeled ^Darkest Depths^.",
+                            minNote = "South to Darkest Depths",
                             points  = {
                                 { 0.648, 0.708 },
                                 { 0.626, 0.695 },
@@ -526,6 +538,7 @@ RetroRuns_Data[2164] = {
                             when    = { mapID = 1514 },
                             kind    = "path",
                             note    = "Enter the water and click the ^Oxygen-Rich Membrane^ for swim speed and water breathing. You must kill the last trash pack in the tunnel to spawn ^Blackwater Behemoth^.",
+                            minNote = "Click Membrane then Trash",
                             points  = {
                                 { 0.564, 0.176 },
                                 { 0.561, 0.282 },
@@ -548,6 +561,7 @@ RetroRuns_Data[2164] = {
                             when    = { mapID = 1514 },
                             kind    = "path",
                             note    = "After killing ^Behemoth^, swim back out the way you came to the map exit labeled ^Halls of the Chosen^.",
+                            minNote = "Backtrack to Halls of Chosen",
                             points  = {
                                 { 0.373, 0.237 },
                                 { 0.445, 0.289 },
@@ -559,6 +573,7 @@ RetroRuns_Data[2164] = {
                             when    = { mapID = 1513 },
                             kind    = "path",
                             note    = "After returning to the ^Halls of the Chosen^, follow the path all the way north to kill ^Radiance of Azshara^. Clear all the trash to start the encounter.",
+                            minNote = "North to Radiance",
                             points  = {
                                 { 0.437, 0.795 },
                                 { 0.398, 0.750 },
@@ -602,6 +617,7 @@ RetroRuns_Data[2164] = {
                     when    = { mapID = 1512 },
                     kind    = "path",
                     note    = "After zoning in, follow the path straight ahead to engage ^Sivara^.",
+                    minNote = "Ahead to Sivara",
                     points  = {
                         { 0.914, 0.487 },
                         { 0.523, 0.487 },
@@ -622,6 +638,7 @@ RetroRuns_Data[2164] = {
                     when    = { mapID = 1512 },
                     kind    = "path",
                     note    = "After defeating ^Sivara^, continue past her towards the map exit labeled ^Halls of the Chosen^. Take the underwater tunnel to reach the next area.",
+                    minNote = "Path to underwater tunnel",
                     points  = {
                         { 0.473, 0.487 },
                         { 0.463, 0.390 },
@@ -637,6 +654,7 @@ RetroRuns_Data[2164] = {
                     when    = { mapID = 1513 },
                     kind    = "path",
                     note    = "After coming out of the water, take the path south towards the map exit labeled ^Darkest Depths^.",
+                    minNote = "South to Darkest Depths",
                     points  = {
                         { 0.648, 0.708 },
                         { 0.626, 0.695 },
@@ -652,6 +670,7 @@ RetroRuns_Data[2164] = {
                     when    = { mapID = 1514 },
                     kind    = "path",
                     note    = "Enter the water and click the ^Oxygen-Rich Membrane^ for swim speed and water breathing. You must kill the last trash pack in the tunnel to spawn ^Blackwater Behemoth^.",
+                    minNote = "Click Membrane then Trash",
                     points  = {
                         { 0.564, 0.176 },
                         { 0.561, 0.282 },
@@ -674,6 +693,7 @@ RetroRuns_Data[2164] = {
                     when    = { mapID = 1514 },
                     kind    = "path",
                     note    = "After killing ^Behemoth^, swim back out the way you came to the map exit labeled ^Halls of the Chosen^.",
+                    minNote = "Backtrack to Halls of Chosen",
                     points  = {
                         { 0.373, 0.237 },
                         { 0.445, 0.289 },
@@ -695,6 +715,7 @@ RetroRuns_Data[2164] = {
                     -- sub-zone. This seg waits until the actual surface
                     -- arrival.
                     note     = "After returning to the ^Halls of the Chosen^, walk straight ahead to kill a couple ^Azsh'ari Channelers^ and click the ^Font of Power^.",
+                    minNote  = "Click Font of Power #1",
                     points   = {
                         { 0.473, 0.760 },
                     },
@@ -708,6 +729,7 @@ RetroRuns_Data[2164] = {
                     when    = { mapID = 1513 },
                     kind    = "path",
                     note    = "After clicking the first orb, follow the path all the way north to kill ^Radiance of Azshara^. Clear all the trash to start the encounter.",
+                    minNote = "North to Radiance",
                     triggeredBy = { dialog = { npc = "First Arcanist Thalyssra", match = "find the last font" } },
                     points  = {
                         { 0.474, 0.761 },
@@ -744,6 +766,7 @@ RetroRuns_Data[2164] = {
                     mapLabelPos = "right",
                     completionCheck = true,
                     note     = "After defeating ^Radiance of Azshara^, leave the room the way you came and find 2 more ^Azsh'ari Channelers^ guarding an orb. Kill them and click ^Font of Power^.",
+                    minNote  = "Click Font of Power #2",
                     points   = {
                         { 0.473, 0.600 },
                     },
@@ -756,6 +779,7 @@ RetroRuns_Data[2164] = {
                     when    = { mapID = 1513 },
                     kind    = "path",
                     note    = "After clicking the orb, the path opens to fight ^Lady Ashvane^.",
+                    minNote = "Path to Lady Ashvane",
                     triggeredBy = { dialog = { npc = "First Arcanist Thalyssra", match = "barrier has fallen" } },
                     points  = {
                         { 0.469, 0.226 },
@@ -796,6 +820,7 @@ RetroRuns_Data[2164] = {
                     when    = { mapID = 1513 },
                     kind    = "path",
                     note    = "After killing ^Lady Ashvane^, jump through the hole in the middle of her boss room to land in ^The Traverse^.",
+                    minNote = "Jump in hole",
                     points  = {},
                 },
                 {
@@ -804,6 +829,7 @@ RetroRuns_Data[2164] = {
                     poiSize  = 35,
                     mapLabel = "1",
                     note     = "After landing in ^The Traverse^, make your way to the bottom of the room by walking over a sequence of teleporting panels on the floor.",
+                    minNote  = "Walk into (3) Floor Teleporters",
                     points   = {
                         { 0.542, 0.459 },
                     },
@@ -830,6 +856,7 @@ RetroRuns_Data[2164] = {
                     when    = { mapID = 1517 },
                     kind    = "path",
                     note    = "When you reach the bottom, simply follow the path to ^Orgozoa^ and kill him.",
+                    minNote = "Path to Orgozoa",
                     points  = {
                         { 0.825, 0.367 },
                         { 0.795, 0.398 },
@@ -852,6 +879,7 @@ RetroRuns_Data[2164] = {
                     when    = { mapID = 1517 },
                     kind    = "path",
                     note    = "After killing ^Orgozoa^, travel to the far west to reach the map exit labeled ^The Queen's Court^. You will be swimming for a good portion of this journey.",
+                    minNote = "West to The Queen's Court",
                     points  = {
                         { 0.728, 0.468 },
                         { 0.699, 0.458 },
@@ -871,6 +899,7 @@ RetroRuns_Data[2164] = {
                     when    = { mapID = 1518 },
                     kind    = "path",
                     note    = "After surfacing from the water, follow the path around to reach ^The Queen's Court^.",
+                    minNote = "Path to The Queen's Court",
                     points  = {
                         { 0.667, 0.482 },
                         { 0.474, 0.479 },
@@ -896,6 +925,7 @@ RetroRuns_Data[2164] = {
                     when    = { mapID = 1518 },
                     kind    = "path",
                     note    = "After defeating ^The Queen's Court^, head up some stairs towards the map exit labeled ^Precipice of Dreams^.",
+                    minNote = "Upstairs to Precipice of Dreams",
                     points  = {
                         { 0.312, 0.483 },
                         { 0.247, 0.420 },
@@ -907,6 +937,7 @@ RetroRuns_Data[2164] = {
                     when    = { mapID = 1519 },
                     kind    = "path",
                     note    = "Inside the ^Precipice of Dreams^, follow the path all the way west to kill ^Za'qul, Harbinger of Ny'alotha^.",
+                    minNote = "West to Za'qul",
                     points  = {
                         { 0.869, 0.512 },
                         { 0.696, 0.510 },
@@ -939,6 +970,7 @@ RetroRuns_Data[2164] = {
                     mapLabel = "Click Portal",
                     mapLabelPos = "above",
                     note    = "After killing ^Za'qul^, watch a brief dialog while waiting on a portal to spawn behind the boss. Take the portal, marked on the map as an exit labeled ^The Last Prison^.",
+                    minNote = "Dialog then Portal",
                     points   = {
                         { 0.112, 0.456 },
                     },
@@ -950,6 +982,7 @@ RetroRuns_Data[2164] = {
                     when     = { mapID = 1520 },
                     kind     = "poi",
                     note     = "After taking the portal into ^The Last Prison^, you will watch some lengthy dialog then click the ^Titan Console^ in front of you to engage ^Queen Azshara^.",
+                    minNote  = "Dialog then Titan Console",
                     poiSize  = 35,
                     mapLabel = "Click Titan Console",
                     completionCheck = true,

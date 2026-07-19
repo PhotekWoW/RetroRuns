@@ -329,6 +329,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1580 },
                     kind    = "path",
                     note    = "Upon zoning in, you will find ^Wrathion^ directly in front of you.",
+                    minNote = "Kill Wrathion",
                     points  = {
                         { 0.529, 0.652 },
                         { 0.527, 0.272 },
@@ -349,6 +350,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1581, subZone = "Annex of Prophecy" },
                     kind    = "path",
                     note    = "After defeating ^Wrathion^, proceed through the long northern path to the map exit labeled ^Ny'alotha^. Take the elevator up, and continue through the door ahead.",
+                    minNote = "Long Path North",
                     points  = {
                         { 0.538, 0.770 },
                         { 0.593, 0.723 },
@@ -361,6 +363,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1582, subZone = "Ny'alotha" },
                     kind    = "path",
                     note    = "Follow the path to the final map exit labeled ^N'Zoth^. Kill adds on the bridge to spawn a portal at the end.",
+                    minNote = "Trash on Bridge",
                     points  = {
                         { 0.524, 0.761 },
                         { 0.558, 0.708 },
@@ -376,6 +379,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1597 },
                     kind    = "path",
                     note    = "In the next area, talk to ^Wrathion^ to trigger a cutscene, then kill some adds to start the fight with ^Carapace of N'Zoth^.",
+                    minNote = "Wrathion then Trash",
                     points  = {
                         { 0.487, 0.784 },
                         { 0.486, 0.715 },
@@ -397,6 +401,7 @@ RetroRuns_Data[2217] = {
                     kind     = "poi",
                     noMarker = true,
                     note     = "After killing ^Carapace^, you will find yourself standing in front of ^N'Zoth^. Attack the boss to start the encounter.",
+                    minNote  = "Kill N'Zoth",
                     points   = {
                         { 0.483, 0.294 },
                     },
@@ -437,6 +442,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1580 },
                     kind    = "path",
                     note    = "Upon zoning in, you will find ^Wrathion^ directly in front of you.",
+                    minNote = "Kill Wrathion",
                     points  = {
                         { 0.529, 0.652 },
                         { 0.527, 0.272 },
@@ -457,6 +463,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1581 },
                     kind    = "path",
                     note    = "After killing ^Wrathion^, take the path all the way to the left. Clear the room to spawn ^Maut^, and kill him.",
+                    minNote = "Left to Maut",
                     points  = {
                         { 0.485, 0.768 },
                         { 0.464, 0.750 },
@@ -481,6 +488,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1581 },
                     kind    = "path",
                     note    = "After killing ^Maut^, take the long path all the way to the right to reach ^The Prophet Skitra^. Jump off the ledge and die for a shortcut.",
+                    minNote = "Jump off and die",
                     points  = {
                         { 0.214, 0.587 },
                         { 0.244, 0.546 },
@@ -506,6 +514,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1581 },
                     kind    = "path",
                     note    = "After killing ^Skitra^, backtrack a bit and go north to the map exit labeled ^Ny'alotha^. Ride an elevator up, and kill the trash to open the path to the next area.",
+                    minNote = "North to Elevator",
                     points  = {
                         { 0.813, 0.611 },
                         { 0.733, 0.601 },
@@ -519,6 +528,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1582 },
                     kind    = "path",
                     note    = "Make your way up the path and stay to the right and find the map exit labeled ^The Ritual Chamber^.",
+                    minNote = "Up and right to Ritual Chamber",
                     points  = {
                         { 0.524, 0.772 },
                         { 0.564, 0.688 },
@@ -530,6 +540,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1592 },
                     kind    = "path",
                     note    = "Loop your way around the path and you will see ^Queen Azshara^ trapped. Clear the trash to engage ^Dark Inquisitor Xanesh^.",
+                    minNote = "Trash then Xanesh",
                     points  = {
                         { 0.141, 0.516 },
                         { 0.141, 0.564 },
@@ -553,6 +564,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1592 },
                     kind    = "path",
                     note    = "After killing ^Xanesh^, leave the room to the east and towards the map exit for ^Twilight Landing^. Ride the elevator up.",
+                    minNote = "East to Elevator",
                     points  = {
                         { 0.558, 0.460 },
                         { 0.740, 0.439 },
@@ -562,6 +574,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1593 },
                     kind    = "path",
                     note    = "After reaching the top of the elevator, make your way down the path and clear the trash to engage ^Vexiona^.",
+                    minNote = "Trash then Vexiona",
                     points  = {
                         { 0.733, 0.462 },
                         { 0.678, 0.474 },
@@ -590,6 +603,7 @@ RetroRuns_Data[2217] = {
                     mapLabelPos = "above",
                     completionCheck = true,
                     note    = "After killing ^Vexiona^, interact with the ^Re-origination Anchor^ behind the boss to be teleported. After you land, continue ahead.",
+                    minNote = "Click Re-origination Anchor",
                     points  = {
                         { 0.295, 0.513 },
                     },
@@ -598,6 +612,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1582 },
                     kind    = "path",
                     note    = "After landing, follow the path down to the map exit labeled ^Maw of Gor'ma^.",
+                    minNote = "Path down to Maw of Gor'ma",
                     points  = {
                         { 0.570, 0.539 },
                         { 0.575, 0.622 },
@@ -610,6 +625,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1594 },
                     kind    = "path",
                     note    = "Make your way down the spiral, following the path to reach ^Shad'har the Insatiable^.",
+                    minNote = "Down spiral to Shad'har",
                     points  = {
                         { 0.599, 0.284 },
                         { 0.585, 0.231 },
@@ -635,6 +651,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1594 },
                     kind    = "path",
                     note    = "After defeating ^Shad'har^, leave his room and continue down the spiral.",
+                    minNote = "Continue down spiral",
                     points  = {
                         { 0.528, 0.696 },
                         { 0.532, 0.407 },
@@ -645,6 +662,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1595 },
                     kind    = "path",
                     note    = "Enter the next room and kill ^Drest'agath^.",
+                    minNote = "Kill Drest'agath",
                     points  = {
                         { 0.774, 0.452 },
                         { 0.698, 0.418 },
@@ -667,6 +685,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1595 },
                     kind    = "path",
                     note    = "After killing ^Drest'agath^, leave the room and continue down the spiral toward the map exit ^Chamber of Rebirth^.",
+                    minNote = "Continue down spiral",
                     points  = {
                         { 0.360, 0.572 },
                         { 0.614, 0.576 },
@@ -677,6 +696,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1596 },
                     kind    = "path",
                     note    = "Follow the path all the way back to find ^Il'gynoth, Corruption Reborn^.",
+                    minNote = "Path to Il'gynoth",
                     points  = {
                         { 0.520, 0.845 },
                         { 0.579, 0.812 },
@@ -704,6 +724,7 @@ RetroRuns_Data[2217] = {
                     mapLabel = "Re-origination Anchor",
                     completionCheck = true,
                     note    = "After defeating ^Il'gynoth^, interact with the nearby ^Re-origination Anchor^ to be flown back to the top.",
+                    minNote = "Click Re-origination Anchor",
                     points  = {
                         { 0.449, 0.375 },
                     },
@@ -712,6 +733,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1582 },
                     kind    = "path",
                     note    = "After landing up top, follow the path around to the map exit labeled ^The Hive^.",
+                    minNote = "Path to Hive",
                     points  = {
                         { 0.521, 0.538 },
                         { 0.542, 0.567 },
@@ -727,6 +749,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1590 },
                     kind    = "path",
                     note    = "Enter the room to engage with ^The Hivemind^.",
+                    minNote = "Ahead to Hivemind",
                     points  = {
                         { 0.733, 0.825 },
                         { 0.712, 0.850 },
@@ -750,6 +773,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1590 },
                     kind    = "path",
                     note    = "After killing ^The Hivemind^, continue past them to the next room, and take the elevator up to the ^Terrace of Desolation^.",
+                    minNote = "Elevator to Terrace",
                     points  = {
                         { 0.487, 0.497 },
                         { 0.472, 0.450 },
@@ -760,6 +784,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1591 },
                     kind    = "path",
                     note    = "After reaching the top of the elevator, follow the path back to find ^Ra-den the Despoiled^.",
+                    minNote = "Path to Ra-den",
                     points  = {
                         { 0.389, 0.336 },
                         { 0.419, 0.372 },
@@ -787,6 +812,7 @@ RetroRuns_Data[2217] = {
                     mapLabel = "Re-origination Anchor",
                     completionCheck = true,
                     note    = "After defeating ^Ra-den^, interact with the ^Re-origination Anchor^ right behind him to be flown back below.",
+                    minNote = "Click Re-origination Anchor",
                     points  = {
                         { 0.679, 0.710 },
                     },
@@ -795,6 +821,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1582 },
                     kind    = "path",
                     note    = "After landing, follow the path to the final map exit labeled ^N'Zoth^. Kill adds on the bridge to spawn a portal at the end.",
+                    minNote = "Trash on Bridge then Portal",
                     points  = {
                         { 0.455, 0.436 },
                         { 0.493, 0.483 },
@@ -806,6 +833,7 @@ RetroRuns_Data[2217] = {
                     when    = { mapID = 1597 },
                     kind    = "path",
                     note    = "In the next area, talk to ^Wrathion^ to trigger a cutscene, then kill some adds to start the fight with ^Carapace of N'Zoth^.",
+                    minNote = "Talk to Wrathion",
                     points  = {
                         { 0.487, 0.784 },
                         { 0.486, 0.715 },
@@ -827,6 +855,7 @@ RetroRuns_Data[2217] = {
                     kind     = "poi",
                     noMarker = true,
                     note     = "After killing ^Carapace^, you will find yourself standing in front of ^N'Zoth^. Attack the boss to start the encounter.",
+                    minNote  = "Kill N'Zoth",
                     points   = {
                         { 0.483, 0.294 },
                     },
@@ -861,6 +890,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1580 },
                             kind    = "path",
                             note    = "Upon zoning in, you will find ^Wrathion^ directly in front of you.",
+                            minNote = "Kill Wrathion",
                             points  = {
                                 { 0.529, 0.652 },
                                 { 0.527, 0.272 },
@@ -879,6 +909,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1581 },
                             kind    = "path",
                             note    = "After killing ^Wrathion^, take the path all the way to the left. Clear the room to spawn ^Maut^, and kill him.",
+                            minNote = "Left to Maut",
                             points  = {
                                 { 0.485, 0.768 },
                                 { 0.464, 0.750 },
@@ -901,6 +932,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1581 },
                             kind    = "path",
                             note    = "After killing ^Maut^, take the long path all the way to the right to reach ^The Prophet Skitra^. Jump off the ledge and die for a shortcut.",
+                            minNote = "Jump off and die",
                             points  = {
                                 { 0.214, 0.587 },
                                 { 0.244, 0.546 },
@@ -944,6 +976,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1582 },
                             kind    = "path",
                             note    = "After zoning in, make your way up the path and stay to the right and find the map exit labeled ^The Ritual Chamber^.",
+                            minNote = "Up and right to Ritual Chamber",
                             points  = {
                                 { 0.524, 0.772 },
                                 { 0.564, 0.688 },
@@ -955,6 +988,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1592 },
                             kind    = "path",
                             note    = "Loop your way around the path and you will see ^Queen Azshara^ trapped. Clear the trash to engage ^Dark Inquisitor Xanesh^.",
+                            minNote = "Trash then Xanesh",
                             points  = {
                                 { 0.141, 0.516 },
                                 { 0.141, 0.564 },
@@ -976,6 +1010,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1592 },
                             kind    = "path",
                             note    = "After killing ^Xanesh^, leave the room to the east and towards the map exit for ^Twilight Landing^. Ride the elevator up.",
+                            minNote = "East to Elevator",
                             points  = {
                                 { 0.558, 0.460 },
                                 { 0.740, 0.439 },
@@ -985,6 +1020,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1593 },
                             kind    = "path",
                             note    = "After reaching the top of the elevator, make your way down the path and clear the trash to engage ^Vexiona^.",
+                            minNote = "Trash then Vexiona",
                             points  = {
                                 { 0.733, 0.462 },
                                 { 0.678, 0.474 },
@@ -1011,6 +1047,7 @@ RetroRuns_Data[2217] = {
                             mapLabelPos     = "above",
                             completionCheck = true,
                             note            = "After killing ^Vexiona^, interact with the ^Re-origination Anchor^ behind the boss to be teleported. After you land, continue ahead.",
+                            minNote         = "Click Re-origination Anchor",
                             points          = {
                                 { 0.295, 0.513 },
                             },
@@ -1019,6 +1056,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1582, subZone = "Ny'alotha" },
                             kind    = "path",
                             note    = "Follow the path to the map exit labeled ^The Hive^.",
+                            minNote = "Path to Hive",
                             points  = {
                                 { 0.572, 0.535 },
                                 { 0.570, 0.518 },
@@ -1031,6 +1069,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1590 },
                             kind    = "path",
                             note    = "Enter the room to engage with ^The Hivemind^.",
+                            minNote = "Ahead to Hivemind",
                             points  = {
                                 { 0.733, 0.825 },
                                 { 0.712, 0.850 },
@@ -1052,6 +1091,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1590 },
                             kind    = "path",
                             note    = "After killing ^The Hivemind^, continue past them to the next room, and take the elevator up to the ^Terrace of Desolation^.",
+                            minNote = "Elevator to Terrace",
                             points  = {
                                 { 0.487, 0.497 },
                                 { 0.472, 0.450 },
@@ -1062,6 +1102,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1591 },
                             kind    = "path",
                             note    = "After reaching the top of the elevator, follow the path back to find ^Ra-den the Despoiled^.",
+                            minNote = "Path to Ra-den",
                             points  = {
                                 { 0.389, 0.336 },
                                 { 0.419, 0.372 },
@@ -1101,6 +1142,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1582, subZone = "Ny'alotha" },
                             kind    = "path",
                             note    = "After zoning in, follow the path to ^Maw of Gor'ma^.",
+                            minNote = "Path down to Maw of Gor'ma",
                             points  = {
                                 { 0.563, 0.628 },
                                 { 0.541, 0.561 },
@@ -1111,6 +1153,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1594 },
                             kind    = "path",
                             note    = "Make your way down the spiral, following the path to reach ^Shad'har the Insatiable^.",
+                            minNote = "Down spiral to Shad'har",
                             points  = {
                                 { 0.599, 0.284 },
                                 { 0.585, 0.231 },
@@ -1134,6 +1177,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1594 },
                             kind    = "path",
                             note    = "After defeating ^Shad'har^, leave his room and continue down the spiral.",
+                            minNote = "Continue down spiral",
                             points  = {
                                 { 0.528, 0.696 },
                                 { 0.532, 0.407 },
@@ -1144,6 +1188,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1595 },
                             kind    = "path",
                             note    = "Enter the next room and kill ^Drest'agath^.",
+                            minNote = "Kill Drest'agath",
                             points  = {
                                 { 0.774, 0.452 },
                                 { 0.698, 0.418 },
@@ -1164,6 +1209,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1595 },
                             kind    = "path",
                             note    = "After killing ^Drest'agath^, leave the room and continue down the spiral toward the map exit ^Chamber of Rebirth^.",
+                            minNote = "Continue down spiral",
                             points  = {
                                 { 0.360, 0.572 },
                                 { 0.614, 0.576 },
@@ -1174,6 +1220,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1596 },
                             kind    = "path",
                             note    = "Follow the path all the way back to find ^Il'gynoth, Corruption Reborn^.",
+                            minNote = "Path to Il'gynoth",
                             points  = {
                                 { 0.520, 0.845 },
                                 { 0.579, 0.812 },
@@ -1215,6 +1262,7 @@ RetroRuns_Data[2217] = {
                             when    = { mapID = 1597 },
                             kind    = "path",
                             note    = "After zoning in, talk to ^Wrathion^ to trigger a cutscene, then kill some adds to start the fight with ^Carapace of N'Zoth^.",
+                            minNote = "Talk to Wrathion",
                             points  = {
                                 { 0.487, 0.784 },
                                 { 0.486, 0.715 },
@@ -1234,6 +1282,7 @@ RetroRuns_Data[2217] = {
                             kind     = "poi",
                             noMarker = true,
                             note     = "After killing ^Carapace^, you will find yourself standing in front of ^N'Zoth^. Attack the boss to start the encounter.",
+                            minNote  = "Kill N'Zoth",
                             points   = {
                                 { 0.483, 0.294 },
                             },

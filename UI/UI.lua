@@ -29,19 +29,50 @@ local PAD_LEFT   = 16 + FRAME_INSET_X
 local PAD_RIGHT  = 12 + FRAME_INSET_X
 local BODY_WIDTH = PANEL_W - PAD_LEFT - PAD_RIGHT - 10
 
+-- Title font. The 04B_03 pixel face covers ASCII only, so localized
+-- strings rendered in it must stay accent-free; locale files word their
+-- title-context entries accordingly.
 local TITLE_FONT = "Interface\\AddOns\\RetroRuns\\Media\\Fonts\\04B_03.TTF"
 -- VT323: monospaced terminal-style body font.
 local VT323_FONT = "Interface\\AddOns\\RetroRuns\\Media\\Fonts\\VT323.ttf"
 local BODY_FONT  = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
-local TITLE_SIZE = 20
+local TITLE_SIZE = 24
 
 -- Body font metadata. sizeFactor scales each font to match FRIZQT's
--- visual density at the same nominal size.
+-- visual density at the same nominal size. charset declares the font's
+-- glyph coverage (from its actual cmap): "ascii" = ASCII only, "latin" =
+-- full Latin incl. accents/eszett/cedilla but no Cyrillic or CJK. The
+-- client's standard font (nil charset) always covers its own language.
 local BODY_FONT_INFO = {
     standard = { path = BODY_FONT,  sizeFactor = 1.00 },
-    retro    = { path = TITLE_FONT, sizeFactor = 1.00 },
-    vt323    = { path = VT323_FONT, sizeFactor = 1.30 },
+    retro    = { path = TITLE_FONT, sizeFactor = 1.00, charset = "ascii" },
+    vt323    = { path = VT323_FONT, sizeFactor = 1.30, charset = "latin" },
 }
+
+-- Locale -> minimum charset the body font must cover. Anything not
+-- listed (Cyrillic, CJK, future locales) requires the client's own
+-- standard font.
+local ASCII_LOCALES = { enUS = true, enGB = true }
+local LATIN_LOCALES = {
+    enUS = true, enGB = true, esES = true, esMX = true, deDE = true,
+    frFR = true, itIT = true, ptBR = true, ptPT = true,
+}
+
+-- True when the given bodyFontStyle can render every character the
+-- client's language uses.
+local function FontStyleSupportsLocale(style)
+    local charset = BODY_FONT_INFO[style] and BODY_FONT_INFO[style].charset
+    if not charset then return true end   -- standard font: always
+    local locale = GetLocale()
+    if charset == "ascii" then return ASCII_LOCALES[locale] == true end
+    if charset == "latin" then return LATIN_LOCALES[locale] == true end
+    return false
+end
+
+-- Exposed for the settings canvas (graying out incompatible choices).
+function RetroRuns:FontStyleSupportsLocale(style)
+    return FontStyleSupportsLocale(style)
+end
 
 local C_PINK   = { 0.95, 0.35, 0.78 }
 local C_BLUE   = { 0.30, 0.80, 1.00 }
@@ -72,11 +103,17 @@ end
 
 -- Resolve the user's bodyFontStyle setting to a {path, sizeFactor}
 -- entry from BODY_FONT_INFO. Defaults to "standard" (FRIZQT) if unset
--- or invalid -- matches the bodyFontStyle default in Core.lua.
+-- or invalid -- matches the bodyFontStyle default in Core.lua. A saved
+-- style whose charset cannot render the client's language also resolves
+-- to standard; the saved preference is kept so it applies again on a
+-- client whose language the font covers.
 local function GetBodyFontInfo()
     local style = (RetroRuns and RetroRuns.GetSetting)
         and RetroRuns:GetSetting("bodyFontStyle", "standard")
         or "standard"
+    if not FontStyleSupportsLocale(style) then
+        style = "standard"
+    end
     return BODY_FONT_INFO[style] or BODY_FONT_INFO.standard
 end
 
@@ -84,6 +121,22 @@ end
 -- uses 04B_03 directly via TITLE_FONT.
 local function GetBodyFont()
     return GetBodyFontInfo().path
+end
+
+-- Font for "chrome" text that may contain localized content (window titles,
+-- the load dialog, difficulty sublabels). The pixel title font (04B_03)
+-- covers ASCII only, so on a non-English client -- where these strings are
+-- translated and may carry accented or non-Latin glyphs -- this returns the
+-- client's default font instead. English clients keep the pixel font. Pure
+-- brand marks that are ASCII by definition (a bare "RETRORUNS" wordmark with
+-- no localized word) can use TITLE_FONT directly; anything showing a
+-- translated string should route through here. Defined on the RR table
+-- (not a file-level local) to stay under UI.lua's Lua 5.1 200-local ceiling.
+function RetroRuns:GetChromeFont()
+    if ASCII_LOCALES[GetLocale()] == true then
+        return TITLE_FONT
+    end
+    return BODY_FONT
 end
 
 -- Returns the render size for a given baseSize after applying the
@@ -123,6 +176,13 @@ panel:SetClampedToScreen(true)
 panel:SetScript("OnDragStart", panel.StartMoving)
 panel:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
+    -- Named movable frames get flagged user-placed the moment a drag
+    -- starts, and the client then stores their position per character
+    -- and re-applies it after our own restore, so every character ends
+    -- up with its own panel position. Clearing the flag keeps position
+    -- persistence entirely in our saved settings, which are shared
+    -- across the account.
+    self:SetUserPlaced(false)
     -- Normalize the anchor back to CENTER/CENTER so saved offsets
     -- restore correctly on reload.
     local cx, cy   = self:GetCenter()
@@ -181,12 +241,104 @@ panel:SetBackdropBorderColor(1, 1, 1, 1)
 -- smaller edgeSize while minimized and the full size when expanded. There is
 -- no edgeSize-only setter on this client, so the whole backdrop is re-set;
 -- that clears the border/background color, which is restored right after.
+--
+-- Purpose-built minimized bar art. Rather than the shared ornate edgeFile,
+-- the minimized bar can draw a bespoke frame assembled from three textures:
+-- a fixed left cap (which carries a gap in its top line where the "RetroRuns"
+-- wordmark is drawn, so the wordmark reads as set into the border), a
+-- horizontally tiled/stretched center, and a fixed right cap. The source art
+-- is 104px tall padded to 128 (power-of-two), so V runs 0..0.8125. These are
+-- shown only while minimized and hidden when the expanded panel's own frame
+-- is in use. Cap width on screen matches the art's aspect at the bar height.
+panel.minbarLeft   = panel:CreateTexture(nil, "BORDER")
+panel.minbarCenter = panel:CreateTexture(nil, "BORDER")
+panel.minbarRight  = panel:CreateTexture(nil, "BORDER")
+for _, key in ipairs({ "minbarLeft", "minbarCenter", "minbarRight" }) do
+    local suffix = key == "minbarLeft" and "left"
+                or key == "minbarCenter" and "center" or "right"
+    panel[key]:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\minbar-" .. suffix)
+    -- Source art is 104px tall in a 128px (power-of-two) texture, so V runs
+    -- 0..0.8125; trim the padding here.
+    panel[key]:SetTexCoord(0, 1, 0, 104 / 128)
+    panel[key]:Hide()
+end
+
+-- Notch: a short strip of plain bar backing that floats one border sublevel
+-- above the slices, covering the top border line behind the raid-name label.
+-- It breaks the line there so the label reads as set into the border -- the
+-- same look the left cap bakes in for the "RR" tab, but movable, since raid
+-- names vary in width. The art is 9 rows of backing in a 16px texture at 2x
+-- resolution, so it draws at 4.5 screen px tall with V trimmed to 0..9/16.
+panel.minbarNotch = panel:CreateTexture(nil, "BORDER", nil, 1)
+panel.minbarNotch:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\minbar-notch")
+panel.minbarNotch:SetTexCoord(0, 1, 0, 9 / 16)
+panel.minbarNotch:Hide()
+
+-- Lay the three slices across the panel: caps pinned to each end at fixed
+-- width, center filling the gap between them. Called when the minimized bar
+-- art is active; the pieces track the panel's current width/height. On the UI
+-- table (not a file local) to stay under Lua's 200-local-per-chunk ceiling.
+-- On-screen width of each minimized-bar end cap.
+UI.MINBAR_CAP_W = 40
+
+function UI.LayoutMinbarArt()
+    local capW = UI.MINBAR_CAP_W
+    panel.minbarLeft:ClearAllPoints()
+    panel.minbarLeft:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
+    panel.minbarLeft:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 0, 0)
+    panel.minbarLeft:SetWidth(capW)
+
+    panel.minbarRight:ClearAllPoints()
+    panel.minbarRight:SetPoint("TOPRIGHT", panel, "TOPRIGHT", 0, 0)
+    panel.minbarRight:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", 0, 0)
+    panel.minbarRight:SetWidth(capW)
+
+    panel.minbarCenter:ClearAllPoints()
+    panel.minbarCenter:SetPoint("TOPLEFT", panel.minbarLeft, "TOPRIGHT", 0, 0)
+    panel.minbarCenter:SetPoint("BOTTOMRIGHT", panel.minbarRight, "BOTTOMLEFT", 0, 0)
+
+    -- Notch under the top-line target string (boss label + count): track its
+    -- current width with a little open line on each side. Hidden when there's
+    -- no string to mount.
+    local topLineStr = panel.titleRaidName
+    if topLineStr and topLineStr:IsShown() and (topLineStr:GetStringWidth() or 0) > 0 then
+        local notchPad = 4   -- open line past the string, screen px each side
+        panel.minbarNotch:ClearAllPoints()
+        panel.minbarNotch:SetPoint("TOP", panel, "TOP", 0, 0)
+        panel.minbarNotch:SetPoint("LEFT", topLineStr, "LEFT", -notchPad, 0)
+        panel.minbarNotch:SetPoint("RIGHT", topLineStr, "RIGHT", notchPad, 0)
+        panel.minbarNotch:SetHeight(4.5)
+        panel.minbarNotch:Show()
+    else
+        panel.minbarNotch:Hide()
+    end
+end
+
 local function ApplyBorderArtForState(minimized)
-    local edgeSize = minimized and PANEL_EDGE_SIZE_MINIMIZED
-                                or PANEL_EDGE_SIZE_FULL
-    panel:SetBackdrop(PanelBackdrop(edgeSize))
-    panel:SetBackdropColor(1, 1, 1, RR:GetSetting("panelOpacity", 1.0))
-    panel:SetBackdropBorderColor(1, 1, 1, 1)
+    -- The bespoke minimized art is used only for the two-row (route active)
+    -- bar; the plain single-row minimized bar and the expanded panel both use
+    -- the shared edgeFile frame. Decide which is active here.
+    local useMinbarArt = minimized and UI.MinimizedBarRouteActive()
+    if useMinbarArt then
+        -- Hide the edgeFile frame (transparent border/bg) and show the slices.
+        panel:SetBackdrop(PanelBackdrop(PANEL_EDGE_SIZE_MINIMIZED))
+        panel:SetBackdropColor(0, 0, 0, 0)
+        panel:SetBackdropBorderColor(0, 0, 0, 0)
+        UI.LayoutMinbarArt()
+        panel.minbarLeft:Show()
+        panel.minbarCenter:Show()
+        panel.minbarRight:Show()
+    else
+        panel.minbarLeft:Hide()
+        panel.minbarCenter:Hide()
+        panel.minbarRight:Hide()
+        panel.minbarNotch:Hide()
+        local edgeSize = minimized and PANEL_EDGE_SIZE_MINIMIZED
+                                    or PANEL_EDGE_SIZE_FULL
+        panel:SetBackdrop(PanelBackdrop(edgeSize))
+        panel:SetBackdropColor(1, 1, 1, RR:GetSetting("panelOpacity", 1.0))
+        panel:SetBackdropBorderColor(1, 1, 1, 1)
+    end
 end
 
 -- Enable hyperlink clicks on the panel so achievement links in the
@@ -249,15 +401,28 @@ panel.titleRuns:SetTextColor(unpack(C_BLUE))
 panel.titleRuns:SetShadowOffset(1, -1)
 panel.titleRuns:SetShadowColor(0, 0, 0, 1)
 
--- Minimized-bar next-step note. Sits to the right of the wordmark and shows
--- the active segment's short instruction while minimized. White so it reads
--- as content distinct from the pink/blue brand letters. Hidden by default;
+-- Minimized-bar top-line target string. Rides the top frame line at the bar's
+-- right end (same straddling placement and tab scale as the "RR" tab at the
+-- left end), showing the current boss label plus the route's kill count. The
+-- notch texture breaks the border line behind it so it reads as set into the
+-- frame. Boss label white, count dimmed at render time. Hidden by default;
+-- ApplyTitleLayoutForState shows it only when a route is active.
+panel.titleRaidName = panel:CreateFontString(nil, "OVERLAY")
+panel.titleRaidName:SetFont(BODY_FONT, 12, "OUTLINE")
+panel.titleRaidName:SetText("")
+panel.titleRaidName:SetTextColor(1, 1, 1)
+panel.titleRaidName:SetShadowOffset(1, -1)
+panel.titleRaidName:SetShadowColor(0, 0, 0, 1)
+panel.titleRaidName:Hide()
+
+-- Minimized-bar next-step note: the single body row while a route is active,
+-- showing the active segment's short instruction. White so it reads as content
+-- distinct from the pink/blue brand letters. Hidden by default;
 -- ApplyTitleLayoutForState shows it (and collapses the wordmark to "RR") only
--- when minimized with an active route note to display. A small left pad
--- separates it from the brand letters.
+-- when minimized with an active route note to display.
 panel.titleMinNote = panel:CreateFontString(nil, "OVERLAY")
 panel.titleMinNote:SetPoint("LEFT", panel.titleRuns, "RIGHT", 6, 0)
-panel.titleMinNote:SetFont(BODY_FONT, 12, "OUTLINE")
+panel.titleMinNote:SetFont(BODY_FONT, 14, "OUTLINE")
 panel.titleMinNote:SetText("")
 panel.titleMinNote:SetTextColor(1, 1, 1)
 panel.titleMinNote:SetShadowOffset(1, -1)
@@ -368,20 +533,20 @@ panel.pills = AddField(panel.wingLine, "TOPLEFT", "BOTTOMLEFT", -2, BODY_WIDTH, 
 -- Lives on RR (not a file local) to stay under UI.lua's 200-local limit.
 RR.LockoutTipByModel = {
     single = {
-        label = "Single difficulty",
-        gloss = "One difficulty, one weekly lockout",
+        label = RR.L["Single difficulty"],
+        gloss = RR.L["One difficulty, one weekly lockout"],
     },
     shared = {
-        label = "Shared lockout",
-        gloss = "One difficulty per week",
+        label = RR.L["Shared lockout"],
+        gloss = RR.L["One difficulty per week"],
     },
     sharedLfr = {
-        label = "Shared lockout (LFR separate)",
-        gloss = "LFR + one difficulty per week",
+        label = RR.L["Shared lockout (LFR separate)"],
+        gloss = RR.L["LFR + one difficulty per week"],
     },
     independent = {
-        label = "Independent lockouts",
-        gloss = "Each difficulty has its own weekly lockout",
+        label = RR.L["Independent lockouts"],
+        gloss = RR.L["Each difficulty has its own weekly lockout"],
     },
 }
 function RR:GetLockoutTooltipInfo(model)
@@ -525,12 +690,12 @@ local function ScheduleTmogHide()
         -- Re-check at fire time: user may have pinned the popup during
         -- the grace window (e.g. by clicking the summary line).
         if browserState.active then return end
-        local w = tmogWindow
-        if not w or not w:IsShown() then return end
+        local window = tmogWindow
+        if not window or not window:IsShown() then return end
         -- Don't hide if the cursor ended up over the popup or summary.
-        if w:IsMouseOver() then return end
+        if window:IsMouseOver() then return end
         if panel.transmog:IsMouseOver() then return end
-        w:Hide()
+        window:Hide()
     end)
 end
 
@@ -820,43 +985,43 @@ do
         if raid.lfrWings == nil then
             local result = RR:NavigateToEntrance(raid)
             if result and not result.planner then
-                ShowWaypointToast(anchorFrame, "Waypoint set")
+                ShowWaypointToast(anchorFrame, RR.L["Waypoint set"])
             end
             return
         end
 
         -- Lazy construction of the singleton frame + its two option buttons.
         if not navChooser then
-            local f = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-            f:SetFrameStrata("DIALOG")
-            f:EnableMouse(true)  -- swallow clicks on the chooser body
+            local chooserFrame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+            chooserFrame:SetFrameStrata("DIALOG")
+            chooserFrame:EnableMouse(true)  -- swallow clicks on the chooser body
             -- Thin tooltip-style border (not the heavy ornamented panel
             -- edge, which overwhelms a small popup). Tinted to a flat
             -- pink/blue midpoint so the border reads as a blend of the two
             -- option colors. Backdrop border takes ONE color (no gradient),
             -- so the midpoint blend is the "gradient" within engine limits.
-            f:SetBackdrop({
+            chooserFrame:SetBackdrop({
                 bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
                 edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
                 tile = true, tileSize = 16, edgeSize = 12,
                 insets = { left = 2, right = 2, top = 2, bottom = 2 },
             })
-            f:SetBackdropColor(0.02, 0.03, 0.05, 0.96)
+            chooserFrame:SetBackdropColor(0.02, 0.03, 0.05, 0.96)
             local BR = (C_PINK[1] + C_BLUE[1]) / 2
             local BG = (C_PINK[2] + C_BLUE[2]) / 2
             local BB = (C_PINK[3] + C_BLUE[3]) / 2
-            f:SetBackdropBorderColor(BR, BG, BB, 1)
-            f:Hide()
+            chooserFrame:SetBackdropBorderColor(BR, BG, BB, 1)
+            chooserFrame:Hide()
 
             -- "Navigate to:" header row inside the frame (not floating above
             -- it), so the popup is self-contained and clears the list text in
             -- any open direction.
-            local title = f:CreateFontString(nil, "OVERLAY")
+            local title = chooserFrame:CreateFontString(nil, "OVERLAY")
             SetBodyFont(title, math.max(9, RR:GetSetting("fontSize", 12) - 2), "")
-            title:SetText("Navigate to:")
+            title:SetText(RR.L["Navigate to:"])
             title:SetTextColor(0.54, 0.58, 0.64, 1)  -- muted gray
-            title:SetPoint("TOPLEFT", f, "TOPLEFT", 5, -4)
-            f.title = title
+            title:SetPoint("TOPLEFT", chooserFrame, "TOPLEFT", 5, -4)
+            chooserFrame.title = title
             local titleH = (title:GetStringHeight() or 10) + 4  -- header band height
 
             local PAD_X, PAD_Y = 14, 7
@@ -865,92 +1030,92 @@ do
             -- cell auto-sizes to its label plus horizontal padding; onClick
             -- is wired per-show (closes over the current raid).
             local function makeOption(labelText, color)
-                local b = CreateFrame("Button", nil, f)
-                b:RegisterForClicks("LeftButtonUp")
-                local fs = b:CreateFontString(nil, "OVERLAY")
+                local optionButton = CreateFrame("Button", nil, chooserFrame)
+                optionButton:RegisterForClicks("LeftButtonUp")
+                local fs = optionButton:CreateFontString(nil, "OVERLAY")
                 SetBodyFont(fs, RR:GetSetting("fontSize", 12), "")
                 fs:SetText(labelText)
                 fs:SetTextColor(color[1], color[2], color[3], 1)
-                fs:SetPoint("CENTER", b, "CENTER", 0, 0)
-                b.label = fs
+                fs:SetPoint("CENTER", optionButton, "CENTER", 0, 0)
+                optionButton.label = fs
                 -- Cell width = label width + side padding; height = label
                 -- height + vertical padding. Measured after SetText.
-                local w = (fs:GetStringWidth() or 20) + PAD_X * 2
-                local h = (fs:GetStringHeight() or 12) + PAD_Y * 2
-                b:SetSize(w, h)
+                local buttonWidth = (fs:GetStringWidth() or 20) + PAD_X * 2
+                local buttonHeight = (fs:GetStringHeight() or 12) + PAD_Y * 2
+                optionButton:SetSize(buttonWidth, buttonHeight)
                 -- Hover highlight tinted to the option color.
-                local hl = b:CreateTexture(nil, "HIGHLIGHT")
-                hl:SetAllPoints(b)
+                local hl = optionButton:CreateTexture(nil, "HIGHLIGHT")
+                hl:SetAllPoints(optionButton)
                 hl:SetColorTexture(color[1], color[2], color[3], 0.18)
-                return b
+                return optionButton
             end
 
             -- Horizontal layout: [ LFR | STD ], LFR left (matches the pill
             -- order where LFR is leftmost).
-            f.lfrButton = makeOption("LFR", C_PINK)
-            f.stdButton = makeOption("STD", C_BLUE)
+            chooserFrame.lfrButton = makeOption("LFR", C_PINK)
+            chooserFrame.stdButton = makeOption("STD", C_BLUE)
 
             -- 1px vertical divider between the two cells.
-            local divider = f:CreateTexture(nil, "OVERLAY")
+            local divider = chooserFrame:CreateTexture(nil, "OVERLAY")
             divider:SetColorTexture(BR, BG, BB, 0.8)
-            f.divider = divider
+            chooserFrame.divider = divider
 
             -- Anchor cells side by side, BELOW the title header band.
-            f.lfrButton:SetPoint("TOPLEFT", f, "TOPLEFT", 3, -(3 + titleH))
-            divider:SetPoint("TOPLEFT", f.lfrButton, "TOPRIGHT", 0, 0)
+            chooserFrame.lfrButton:SetPoint("TOPLEFT", chooserFrame, "TOPLEFT", 3, -(3 + titleH))
+            divider:SetPoint("TOPLEFT", chooserFrame.lfrButton, "TOPRIGHT", 0, 0)
             divider:SetWidth(1)
-            divider:SetPoint("BOTTOMLEFT", f.lfrButton, "BOTTOMRIGHT", 0, 0)
-            f.stdButton:SetPoint("TOPLEFT", divider, "TOPRIGHT", 0, 0)
+            divider:SetPoint("BOTTOMLEFT", chooserFrame.lfrButton, "BOTTOMRIGHT", 0, 0)
+            chooserFrame.stdButton:SetPoint("TOPLEFT", divider, "TOPRIGHT", 0, 0)
 
             -- Frame sizes to the title band + the two cells + the 1px divider
             -- + 3px inset on each side. Heights match (same font), so use
             -- lfr's height.
-            local cellH = select(2, f.lfrButton:GetSize())
-            local totalW = select(1, f.lfrButton:GetSize())
+            local cellH = select(2, chooserFrame.lfrButton:GetSize())
+            local totalW = select(1, chooserFrame.lfrButton:GetSize())
                          + 1
-                         + select(1, f.stdButton:GetSize())
+                         + select(1, chooserFrame.stdButton:GetSize())
                          + 6  -- 3px inset each side
-            f:SetSize(totalW, cellH + 6 + titleH)
+            chooserFrame:SetSize(totalW, cellH + 6 + titleH)
 
             -- Global mouse-catcher: a full-screen transparent button BEHIND
             -- the chooser that closes it when the player clicks elsewhere.
             local catcher = CreateFrame("Button", nil, UIParent)
             catcher:SetFrameStrata("DIALOG")
-            catcher:SetFrameLevel(math.max(0, (f:GetFrameLevel() or 1) - 1))
+            catcher:SetFrameLevel(math.max(0, (chooserFrame:GetFrameLevel() or 1) - 1))
             catcher:SetAllPoints(UIParent)
             catcher:RegisterForClicks("AnyUp")
             catcher:Hide()
             catcher:SetScript("OnClick", function()
-                f:Hide()
+                chooserFrame:Hide()
             end)
-            f.catcher = catcher
-            f:SetScript("OnHide", function() catcher:Hide() end)
+            chooserFrame.catcher = catcher
+            chooserFrame:SetScript("OnHide", function() catcher:Hide() end)
 
-            navChooser = f
+            navChooser = chooserFrame
         end
 
-        local f = navChooser
+        local chooser = navChooser
 
         -- Per-show wiring: each option closes over THIS raid. The nav calls
         -- mirror the prior inline behavior (toast on no-planner branch).
-        f.stdButton:SetScript("OnClick", function(self)
-            f:Hide()
+        chooser.stdButton:SetScript("OnClick", function(self)
+            chooser:Hide()
             local result = RR:NavigateToEntrance(raid)
             if result and not result.planner then
-                ShowWaypointToast(self, "Waypoint set")
+                ShowWaypointToast(self, RR.L["Waypoint set"])
             end
         end)
-        f.lfrButton:SetScript("OnClick", function(self)
-            f:Hide()
+        chooser.lfrButton:SetScript("OnClick", function(self)
+            chooser:Hide()
             local result = RR:NavigateToLFRNPC(raid.expansion)
             if result and not result.planner then
-                ShowWaypointToast(self, "Waypoint set")
+                ShowWaypointToast(self, RR.L["Waypoint set"])
             end
         end)
 
         -- Open the chooser vertically off the clicked plane: upward by
         -- default, downward for raids near the top of the panel.
-        f:ClearAllPoints()
+        chooser:ClearAllPoints()
         local anchorTop = anchorFrame:GetTop()
         local panelTop  = panel:GetTop()
         -- Flip downward within ~80px of the panel top (the reference is the
@@ -958,19 +1123,19 @@ do
         local openDown = anchorTop and panelTop
             and (panelTop - anchorTop) < 80
         if openDown then
-            f:SetPoint("TOPLEFT", anchorFrame, "BOTTOMLEFT", -2, -4)
+            chooser:SetPoint("TOPLEFT", anchorFrame, "BOTTOMLEFT", -2, -4)
         else
-            f:SetPoint("BOTTOMLEFT", anchorFrame, "TOPLEFT", -2, 4)
+            chooser:SetPoint("BOTTOMLEFT", anchorFrame, "TOPLEFT", -2, 4)
         end
-        f.catcher:Show()
-        f:Show()
-        f:Raise()
+        chooser.catcher:Show()
+        chooser:Show()
+        chooser:Raise()
         -- Level the catcher exactly one below the chooser AFTER the raise,
         -- so the catcher always sits behind the chooser body (and the
         -- chooser's option buttons receive their clicks first). Setting
         -- this at construction is insufficient because Raise() changes the
         -- chooser's level at show time without moving the catcher.
-        f.catcher:SetFrameLevel(math.max(0, (f:GetFrameLevel() or 1) - 1))
+        chooser.catcher:SetFrameLevel(math.max(0, (chooser:GetFrameLevel() or 1) - 1))
     end
 end
 
@@ -1119,15 +1284,15 @@ panel.wingToggleButtons    = {}
 panel.wingToggleButtonPool = {}
 
 local function AcquirePillHoverFrame()
-    local f = table.remove(panel.pillHoverFramePool)
-    if f then return f end
-    f = CreateFrame("Frame", nil, panel)
+    local hoverFrame = table.remove(panel.pillHoverFramePool)
+    if hoverFrame then return hoverFrame end
+    hoverFrame = CreateFrame("Frame", nil, panel)
     -- +8, deliberately BELOW the +10 clickables that share the pill row
     -- (entrance plane button, wing chevrons): the lockout tooltip is
     -- passive info and must never intercept clicks meant for buttons.
-    f:SetFrameLevel((panel:GetFrameLevel() or 0) + 8)
-    f:EnableMouse(true)
-    f:SetScript("OnEnter", function(self)
+    hoverFrame:SetFrameLevel((panel:GetFrameLevel() or 0) + 8)
+    hoverFrame:EnableMouse(true)
+    hoverFrame:SetScript("OnEnter", function(self)
         local tipInfo = RR:GetLockoutTooltipInfo(self._lockoutModel)
         if not tipInfo then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -1135,20 +1300,20 @@ local function AcquirePillHoverFrame()
         GameTooltip:AddLine(tipInfo.gloss, 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
     end)
-    f:SetScript("OnLeave", function()
+    hoverFrame:SetScript("OnLeave", function()
         GameTooltip:Hide()
         if GameTooltipText then
             GameTooltipTextLeft1:SetFontObject(GameTooltipText)
         end
     end)
-    return f
+    return hoverFrame
 end
 
 local function ReleasePillHoverFrames()
-    for _, f in ipairs(panel.pillHoverFrames) do
-        f:Hide()
-        f:ClearAllPoints()
-        table.insert(panel.pillHoverFramePool, f)
+    for _, hoverFrame in ipairs(panel.pillHoverFrames) do
+        hoverFrame:Hide()
+        hoverFrame:ClearAllPoints()
+        table.insert(panel.pillHoverFramePool, hoverFrame)
     end
     wipe(panel.pillHoverFrames)
 end
@@ -1264,7 +1429,7 @@ end
 
 -- Footer, two rows anchored bottom-up: credit + version on the bottom row,
 -- the Map / Tmog / Skips / Settings buttons on the row above it. AutoSize
--- reserves space for both via PANEL_FOOTER_RESERVE.
+-- reserves space for both.
 panel.credit = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 panel.credit:SetPoint("BOTTOMLEFT", PAD_LEFT, 8 + FRAME_INSET_Y)
 panel.credit:SetText("")
@@ -1331,44 +1496,44 @@ panel.toastStatus = CreateFrame("Button", nil, panel)
 panel.toastStatus:SetSize(120, 14)
 panel.toastStatus:SetPoint("BOTTOM", 0, 8 + FRAME_INSET_Y)
 do
-    local f = panel.toastStatus
-    f.label = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    f.label:SetFont(BODY_FONT, 10, "")
-    f.label:SetText("Toaster:")
-    f.label:SetTextColor(0.62, 0.62, 0.62)
+    local toastStatus = panel.toastStatus
+    toastStatus.label = toastStatus:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    toastStatus.label:SetFont(BODY_FONT, 10, "")
+    toastStatus.label:SetText(RR.L["Toaster:"])
+    toastStatus.label:SetTextColor(0.62, 0.62, 0.62)
 
-    f.arrow = f:CreateTexture(nil, "OVERLAY")
-    f.arrow:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\ArrowDown")
-    f.arrow:SetSize(10, 10)
+    toastStatus.arrow = toastStatus:CreateTexture(nil, "OVERLAY")
+    toastStatus.arrow:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\ArrowDown")
+    toastStatus.arrow:SetSize(10, 10)
 
     -- Center the label+arrow pair as a group on the footer's bottom baseline.
-    f.Layout = function()
-        local lw = f.label:GetStringWidth() or 0
+    toastStatus.Layout = function()
+        local lw = toastStatus.label:GetStringWidth() or 0
         local gap, aw = 4, 10
         local total = lw + gap + aw
-        f.label:ClearAllPoints()
-        f.label:SetPoint("BOTTOMLEFT", f, "BOTTOM", -total / 2, 0)
-        f.arrow:ClearAllPoints()
-        f.arrow:SetPoint("BOTTOMLEFT", f.label, "BOTTOMRIGHT", gap, 0)
+        toastStatus.label:ClearAllPoints()
+        toastStatus.label:SetPoint("BOTTOMLEFT", toastStatus, "BOTTOM", -total / 2, 0)
+        toastStatus.arrow:ClearAllPoints()
+        toastStatus.arrow:SetPoint("BOTTOMLEFT", toastStatus.label, "BOTTOMRIGHT", gap, 0)
         -- Tighten the click target to the rendered width so it doesn't capture
         -- clicks across the whole footer.
-        f:SetWidth(total + 8)
+        toastStatus:SetWidth(total + 8)
     end
-    f.Layout()
+    toastStatus.Layout()
 
     -- Clickable shortcut into the Toaster settings tab. Brighten the label
     -- on hover to signal it's interactive (the arrow keeps its state color).
-    f:SetScript("OnEnter", function() f.label:SetTextColor(0.95, 0.95, 0.95) end)
-    f:SetScript("OnLeave", function() f.label:SetTextColor(0.62, 0.62, 0.62) end)
-    f:SetScript("OnClick", function()
+    toastStatus:SetScript("OnEnter", function() toastStatus.label:SetTextColor(0.95, 0.95, 0.95) end)
+    toastStatus:SetScript("OnLeave", function() toastStatus.label:SetTextColor(0.62, 0.62, 0.62) end)
+    toastStatus:SetScript("OnClick", function()
         if UI.OpenSettingsToToaster then UI.OpenSettingsToToaster() end
     end)
 
     -- Initial state matches the disabled default (red, down). The lifecycle
     -- reconcile repaints with the live state at login and on every raid
     -- enter/leave and toggle thereafter.
-    f.arrow:SetRotation(0)
-    f.arrow:SetVertexColor(0.95, 0.35, 0.35)
+    toastStatus.arrow:SetRotation(0)
+    toastStatus.arrow:SetVertexColor(0.95, 0.35, 0.35)
 end
 
 -- Action button row: Map, Tmog, Achieves, Skips, Settings, evenly distributed
@@ -1420,11 +1585,11 @@ local function MakeActionButton(name, label, icon, x, onClick)
     return btn
 end
 
-panel.mapBtn = MakeActionButton("Map", "Map", "MapIcon.tga",
+panel.mapBtn = MakeActionButton("Map", RR.L["Map"], "MapIcon.tga",
     START_X,
     function() RR:ShowCurrentMapForStep() end)
 
-panel.tmogBtn = MakeActionButton("Tmog", "Tmog", "HangerIcon.tga",
+panel.tmogBtn = MakeActionButton("Tmog", RR.L["Tmog"], "HangerIcon.tga",
     START_X + (BUTTON_W + BUTTON_GAP) * 1,
     function()
         -- When in a supported raid, default the browser to that raid +
@@ -1441,7 +1606,7 @@ panel.tmogBtn = MakeActionButton("Tmog", "Tmog", "HangerIcon.tga",
         UI.ToggleTransmogBrowser()
     end)
 
-panel.achievesBtn = MakeActionButton("Achieves", "Achieves", "TrophyIcon.tga",
+panel.achievesBtn = MakeActionButton("Achieves", RR.L["Achieves"], "TrophyIcon.tga",
     START_X + (BUTTON_W + BUTTON_GAP) * 2,
     function()
         -- When in a supported raid, default the dropdowns to that raid
@@ -1455,11 +1620,11 @@ panel.achievesBtn = MakeActionButton("Achieves", "Achieves", "TrophyIcon.tga",
         UI.ToggleAchievementsWindow()
     end)
 
-panel.skipsBtn = MakeActionButton("Skips", "Skips", "SkipIcon.tga",
+panel.skipsBtn = MakeActionButton("Skips", RR.L["Skips"], "SkipIcon.tga",
     START_X + (BUTTON_W + BUTTON_GAP) * 3,
     function() UI.ToggleSkipsWindow() end)
 
-panel.settingsBtn = MakeActionButton("Settings", "Settings", "SettingsIcon.tga",
+panel.settingsBtn = MakeActionButton("Settings", RR.L["Settings"], "SettingsIcon.tga",
     START_X + (BUTTON_W + BUTTON_GAP) * 4,
     function() UI.ToggleSettings() end)
 
@@ -1481,11 +1646,17 @@ panel.settingsBtn = MakeActionButton("Settings", "Settings", "SettingsIcon.tga",
 -- panel needs room for the bottom stack (button row ~y=28-50, credit/
 -- version ~y=8) plus a visual gap above the buttons separating them
 -- from the dynamic content above. ~60px covers the layout with margin.
-local PANEL_FOOTER_RESERVE   = 64   -- pixels
 local POPUP_CONTENT_CEILING  = 900  -- transmog popup max height (tall enough
                                     -- for the longest list -- Ra-den, ToT,
                                     -- 41 items -- without overflow)
 local POPUP_CONTENT_MIN      = 240  -- transmog popup min height
+-- Width bounds live on the UI table: the file is at Lua 5.1's 200-local
+-- ceiling, so new file-level locals are not an option here.
+UI.POPUP_DESIGN_W            = 440  -- transmog popup width floor: the layout's
+                                    -- design width, sized around English rows
+UI.POPUP_MAX_W               = 700  -- transmog popup width ceiling: rows wider
+                                    -- than this wrap instead of growing the
+                                    -- frame further
 
 
 -- Sets a FontString's effective font + text safely and forces layout so
@@ -1494,8 +1665,8 @@ local POPUP_CONTENT_MIN      = 240  -- transmog popup min height
 -- can force the recomputation by poking SetWidth.)
 local function ForceFontRelayout(fs)
     if not fs then return end
-    local w = fs:GetWidth()
-    if w and w > 0 then fs:SetWidth(w) end
+    local currentWidth = fs:GetWidth()
+    if currentWidth and currentWidth > 0 then fs:SetWidth(currentWidth) end
 end
 
 function UI.ApplySettings()
@@ -1510,6 +1681,11 @@ function UI.ApplySettings()
 
     SafeSetFont(panel.titleRetro, TITLE_FONT, TITLE_SIZE, "OUTLINE")
     SafeSetFont(panel.titleRuns,  TITLE_FONT, TITLE_SIZE, "OUTLINE")
+    -- The top-line target string shows localized boss and raid names, so it
+    -- routes through the chrome font: the pixel title font covers ASCII only
+    -- and renders accented characters as boxes. English clients keep the
+    -- pixel font.
+    SafeSetFont(panel.titleRaidName, RR:GetChromeFont(), TITLE_SIZE, "OUTLINE")
 
     local bump = RR:GetSetting("fontSize", 12) - 12
     -- Each entry is { widget, baseSize, flags, useBodyFontStyle? }. The
@@ -1830,8 +2006,8 @@ local function ApplyBodyVisibility(visible)
     for _, tx in ipairs(panel.wingStrikes or {}) do
         if visible then tx:Show() else tx:Hide() end
     end
-    for _, f in ipairs(panel.pillHoverFrames or {}) do
-        if visible then f:Show() else f:Hide() end
+    for _, hoverFrame in ipairs(panel.pillHoverFrames or {}) do
+        if visible then hoverFrame:Show() else hoverFrame:Hide() end
     end
     if panel.pillsHover then
         if visible then panel.pillsHover:Show() else panel.pillsHover:Hide() end
@@ -1864,6 +2040,20 @@ end
 -- string width, so it lives as one named value rather than a repeated literal.
 local TITLE_SCALE = 0.83
 
+-- When the minimized bar shows a next-step note, the wordmark becomes a small
+-- "RetroRuns" title tab that straddles the top frame line (half above, half
+-- below), and the note takes the wordmark's old far-left spot. This is the
+-- tab's scale relative to the base title scale; 0.5 reads as a compact label
+-- against the 24pt title font.
+local RR_TITLE_TAB_SCALE = 0.5
+
+-- Route-active minimized-bar edge clearances, screen px. Shared between the
+-- layout function and the width computation, and registered against the left
+-- cap's baked line gap, so they live as named values.
+-- On the UI table, not file locals, to stay under the 200-local ceiling here.
+UI.MINBAR_EDGE_PX = 8        -- left clearance for the "RR" tab and both text rows
+UI.MINBAR_RAID_EDGE_PX = 10  -- right clearance for the raid-name label
+
 -- Width of the minimized bar. Derived from the title's rendered STRING width
 -- (a constant for fixed "RETRO RUNS" text) rather than from live screen-edge
 -- positions. The earlier GetRight()-minus-GetLeft() approach re-measured
@@ -1875,39 +2065,49 @@ local TITLE_SCALE = 0.83
 local function ComputeMinimizedPanelW()
     if not panel.titleRetro or not panel.titleRuns then return nil end
     local retroW = panel.titleRetro:GetStringWidth()
-    local runsW  = panel.titleRuns:GetStringWidth()
-    if not retroW or not runsW or retroW <= 0 or runsW <= 0 then
+    if not retroW or retroW <= 0 then
         -- Text not yet rendered (e.g. first call after a fresh reload);
         -- caller falls back to MINIMIZED_PANEL_W_FALLBACK for one frame.
         return nil
     end
-    -- The title is drawn at TITLE_SCALE while on the bar, so its on-screen
-    -- width is the rendered string width times that scale. The title's left
-    -- edge sits PAD_LEFT from the panel left.
-    local wordmarkW = retroW + runsW
-    -- When the next-step note is showing, the wordmark is collapsed to "RR"
-    -- and the white note sits to its right (anchored with a 6px left pad).
-    -- Add the note's rendered width plus that pad so the bar grows to fit the
-    -- instruction instead of letting it run under the buttons. The pad is in
-    -- screen pixels; convert to pre-scale string-space by dividing by the
-    -- scale so the final * TITLE_SCALE leaves it at 6px on screen.
-    if panel.titleMinNote and panel.titleMinNote:IsShown() then
-        local noteW = panel.titleMinNote:GetStringWidth() or 0
-        if noteW > 0 then
-            wordmarkW = wordmarkW + noteW + (6 / TITLE_SCALE)
-        end
+    -- titleRuns is hidden on the route-active bar (the "RR" tab is a single
+    -- string in titleRetro); only require its width when it's actually shown.
+    local runsW = 0
+    if panel.titleRuns:IsShown() then
+        runsW = panel.titleRuns:GetStringWidth()
+        if not runsW or runsW <= 0 then return nil end
     end
-    local titleScreenW = wordmarkW * TITLE_SCALE
-    local titleRightLocal = PAD_LEFT + titleScreenW
-    -- Layout from the panel right edge:
-    --   close button right edge at right-4 (TOPRIGHT -4,-4)
-    --   close button visible glyph extends ~22px to its left = right-26
-    --   minimize button at TOPRIGHT -30,-4 = right-30 to right-52
-    -- So the buttons need ~52px of width on the right side.
-    -- We want a small visual gap between the title text and the
-    -- minimize button: 12px reads as compact but not crowded.
-    local rightSideWidth   = 52
+    -- Layout from the panel right edge for the text rows:
+    --   close + minimize buttons occupy ~57px inside the right edge (the close
+    --   button clears the curved corner at 12px, the minimize button sits to
+    --   its left), and a 12px gap keeps the text clear of them.
+    local rightSideWidth   = 57
     local titleToButtonGap = 12
+    if panel.titleMinNote and panel.titleMinNote:IsShown() then
+        -- Route-active bar. Two horizontal constraints; the bar must fit the
+        -- wider. String widths are pre-scale; multiply by the string's
+        -- effective scale to get screen px.
+        --   top line: "RR" tab at the left edge, boss label + count at the
+        --     right edge, and a minimum open stretch of border line between
+        --     them. The right string is anchored MINBAR_RAID_EDGE_PX from the
+        --     corner, so that clearance keeps a chunk of line to its right.
+        --   body row: the minNote, left-anchored, clearing the buttons.
+        local tabScale      = TITLE_SCALE * RR_TITLE_TAB_SCALE
+        local edge          = UI.MINBAR_EDGE_PX
+        local topLineGapMin = 24
+        local raidW = (panel.titleRaidName and panel.titleRaidName:IsShown())
+                      and (panel.titleRaidName:GetStringWidth() or 0) or 0
+        local needed = edge + (retroW + runsW) * tabScale + topLineGapMin
+                       + raidW * tabScale + UI.MINBAR_RAID_EDGE_PX
+        local noteW = panel.titleMinNote:GetStringWidth() or 0
+        local noteRow = edge + noteW * TITLE_SCALE
+                        + titleToButtonGap + rightSideWidth
+        if noteRow > needed then needed = noteRow end
+        return math.ceil(needed)
+    end
+    -- Single-row bar (no route): the full wordmark at PAD_LEFT, buttons at
+    -- the right.
+    local titleRightLocal = PAD_LEFT + (retroW + runsW) * TITLE_SCALE
     return math.ceil(titleRightLocal + titleToButtonGap + rightSideWidth)
 end
 
@@ -1937,6 +2137,21 @@ local MINIMIZED_PANEL_W_FALLBACK = 240
 -- art's thin top/bottom edges leave room. Without this, the expanded top-offset
 -- (-12 - FRAME_INSET_Y) strands the title near the bottom of the short bar with
 -- a void above it.
+-- Whether the minimized bar is in its route-active form right now: a minNote
+-- to show AND the active route yields a boss count and a current target. In
+-- this form the bar draws the bespoke frame art and puts the "RR" tab plus the
+-- boss label and count on the top line; the single body row shows the minNote.
+-- When false the bar is the plain single-row "RETRO RUNS" wordmark on the
+-- shared frame. On the UI table, not a file local, to stay under the 200-local
+-- ceiling here.
+function UI.MinimizedBarRouteActive()
+    local minNote = RR.GetActiveMinNote and RR:GetActiveMinNote() or nil
+    if not (minNote and minNote ~= "") then return false end
+    local _, total = RR:GetActiveRouteProgress()
+    local targetName = RR:GetActiveTargetName()
+    return total > 0 and targetName ~= nil
+end
+
 local function ApplyTitleLayoutForState(minimized)
     if minimized then
         -- Shrink via SetScale (not SetFont/SetSize): scaling shrinks the glyph
@@ -1944,40 +2159,115 @@ local function ApplyTitleLayoutForState(minimized)
         -- and the close button's X actually shrinks (SetSize leaves the template
         -- X glyph full-size). TITLE_SCALE = roughly 10pt-equivalent for the
         -- 12pt title and ~10% off the buttons.
-        local s = TITLE_SCALE
-        panel.titleRetro:SetScale(s)
-        panel.titleRuns:SetScale(s)
-        panel.titleMinNote:SetScale(s)
-        panel.closeButton:SetScale(s)
-        panel.minimizeButton:SetScale(s)
+        local titleScale = TITLE_SCALE
+        panel.titleRetro:SetScale(titleScale)
+        panel.titleRuns:SetScale(titleScale)
+        panel.titleRaidName:SetScale(titleScale)
+        panel.titleMinNote:SetScale(titleScale)
+        panel.closeButton:SetScale(titleScale)
+        panel.minimizeButton:SetScale(titleScale)
 
-        -- Decide whether to show the next-step note. GetActiveMinNote returns
-        -- nil when there's no active routing step OR the current seg carries no
-        -- minNote, so a non-nil return is the signal that genuine per-segment
-        -- data exists. Only then collapse the wordmark to "RR" and show the note;
-        -- otherwise keep the full "RETRO RUNS" wordmark. This keeps the bar
-        -- unchanged until minNote data is authored into the routing segments.
+        -- Decide whether the bar is in its route-active form. GetActiveMinNote
+        -- returns nil when there's no active routing step OR the current seg
+        -- carries no minNote, so a non-nil return is the signal that genuine
+        -- per-segment data exists. Only then collapse the wordmark to "RR" and
+        -- put the boss label + count on the top line; otherwise keep the full
+        -- "RETRO RUNS" wordmark. This keeps the bar unchanged until minNote
+        -- data is authored into the routing segments.
         local minNote = RR.GetActiveMinNote and RR:GetActiveMinNote() or nil
-        if minNote and minNote ~= "" then
-            panel.titleRetro:SetText("R")
-            panel.titleRuns:SetText("R")
+        local showNote = minNote and minNote ~= ""
+        if showNote then
+            -- Route active. Top frame line: the "RR" tab at the left end and the
+            -- boss label + count at the right end, both straddling the line. The
+            -- single body row shows the minNote. The tab is one string with the
+            -- pink/blue split inline; two abutted strings leave an outline gap
+            -- between the letters at this size.
+            panel.titleRetro:SetText(("|cff%sR|r|cff4dccffR|r"):format(C_PINK_HEX))
+            panel.titleRuns:SetText("")
+            panel.titleRuns:Hide()
+            panel.titleRetro:SetScale(titleScale * RR_TITLE_TAB_SCALE)
+
+            -- Boss label + position on the top line (titleRaidName repurposed as
+            -- the top-line target string). Label is the shortest form for the
+            -- boss the minNote points at; the position is that boss's place in
+            -- the route's kill order ("2/4" = second of four), so it reads as
+            -- "which boss you're on", scoped to the active route (the wing's
+            -- bosses in an LFR wing, the full raid on N/H). The position takes
+            -- the brand blue, which separates it from the white boss name while
+            -- staying legible: at tab scale each glyph is a few pixels inside a
+            -- black outline, and a gray dim enough to read as secondary gets
+            -- swallowed by it, where a saturated color holds up.
+            local pos, total = RR:GetActiveTargetPosition()
+            local label = RR:GetActiveTargetLabel()
+            local posColor = "|cff4dccff"
+            if pos and total then
+                panel.titleRaidName:SetText(
+                    ("%s %s%d/%d|r"):format(label or "", posColor, pos, total))
+            else
+                panel.titleRaidName:SetText(label or "")
+            end
+            panel.titleRaidName:SetScale(titleScale * RR_TITLE_TAB_SCALE)
+            panel.titleRaidName:Show()
+
             panel.titleMinNote:SetText(minNote)
             panel.titleMinNote:Show()
         else
             panel.titleRetro:SetText("RETRO")
             panel.titleRuns:SetText("RUNS")
+            panel.titleRuns:Show()
+            panel.titleRaidName:SetText("")
+            panel.titleRaidName:Hide()
             panel.titleMinNote:SetText("")
             panel.titleMinNote:Hide()
         end
-        local titleEdge = 20 / s   -- screen clearance so the title clears the corner art
-        local btnEdge   = 18 / s   -- buttons sit a bit closer to the right corner
+
+        -- Placement. No route: the full wordmark centers on the bar (LEFT anchor
+        -- = mid-height), unchanged. Route active: the "RR" tab straddles the TOP
+        -- frame line at the left (LEFT point at y = 0 relative to TOPLEFT puts
+        -- the string's vertical center on the line), the boss label + count
+        -- straddles the same line at the right, and the minNote is the single
+        -- body row centered in the bar.
+        --
+        -- Offset scale space: SetPoint offsets are interpreted in the anchored
+        -- string's OWN effective scale. The top-line strings run at
+        -- s * RR_TITLE_TAB_SCALE, so their offsets divide by that combined
+        -- scale; the minNote runs at plain s and divides by s.
+        local tabScale  = titleScale * RR_TITLE_TAB_SCALE
+        -- Buttons sit inside the bar's curved right corner. The right end cap's
+        -- border arc occupies the rightmost few screen px of the frame, so the
+        -- close button (the rightmost control) needs enough clearance that its
+        -- glyph and glow don't tuck under the curve. 12px clears the arc with a
+        -- small margin.
+        local btnEdge   = 12 / titleScale
         panel.titleRetro:ClearAllPoints()
-        panel.titleRetro:SetPoint("LEFT", panel, "LEFT", titleEdge, 0)
+        panel.titleRaidName:ClearAllPoints()
+        panel.titleMinNote:ClearAllPoints()
+        if showNote then
+            local edgePx = UI.MINBAR_EDGE_PX  -- left clearance, screen px
+            -- "RR" tab: half out of the frame, aligned to the left clearance
+            -- (registered against the left cap's baked line gap).
+            panel.titleRetro:SetPoint("LEFT", panel, "TOPLEFT", edgePx / tabScale, 0)
+            -- Boss label + count at the right end of the top line. The notch
+            -- texture (laid out in LayoutMinbarArt) breaks the border line
+            -- behind it.
+            panel.titleRaidName:SetPoint("RIGHT", panel, "TOPRIGHT",
+                -(UI.MINBAR_RAID_EDGE_PX) / tabScale, 0)
+            -- minNote: single body row, centered in the bar height, at the same
+            -- left clearance.
+            panel.titleMinNote:SetPoint("LEFT", panel, "LEFT", edgePx / titleScale, 0)
+        else
+            panel.titleRetro:SetPoint("LEFT", panel, "LEFT", 20 / titleScale, 0)
+            -- Restore the note's creation-time chain anchor (unused while
+            -- hidden, but keeps the layout coherent if text is set before the
+            -- next layout pass).
+            panel.titleMinNote:SetPoint("LEFT", panel.titleRuns, "RIGHT", 6, 0)
+        end
         panel.closeButton:ClearAllPoints()
         panel.closeButton:SetPoint("RIGHT", panel, "RIGHT", -btnEdge, 0)
-        -- Center the minimize button on the close button's CENTER so the two
-        -- sit at exactly the same height. Both are 24px frames; the x-offset
-        -- tucks them together with a small gap.
+        -- Center the minimize button on the close button's CENTER so the two sit
+        -- at exactly the same height. Both are 24px frames; the x-offset tucks
+        -- them together with a small gap. Buttons anchor to the bar's vertical
+        -- center (RIGHT = mid-height).
         panel.minimizeButton:ClearAllPoints()
         panel.minimizeButton:SetPoint("CENTER", panel.closeButton, "CENTER", -30, 0)
     else
@@ -1985,26 +2275,31 @@ local function ApplyTitleLayoutForState(minimized)
         -- title row placed at the SAME distance from the top border as the
         -- minimized bar (where the title centers in MINIMIZED_PANEL_H). This
         -- keeps the title-to-top-border gap identical between the two states.
-        local s = TITLE_SCALE
-        panel.titleRetro:SetScale(s)
-        panel.titleRuns:SetScale(s)
-        panel.titleMinNote:SetScale(s)
-        panel.closeButton:SetScale(s)
-        panel.minimizeButton:SetScale(s)
-        -- Expanded panel always shows the full wordmark; the next-step note is
-        -- a minimized-bar-only affordance, so restore "RETRO RUNS" and hide it.
+        local titleScale = TITLE_SCALE
+        panel.titleRetro:SetScale(titleScale)
+        panel.titleRuns:SetScale(titleScale)
+        panel.titleRaidName:SetScale(titleScale)
+        panel.titleMinNote:SetScale(titleScale)
+        panel.closeButton:SetScale(titleScale)
+        panel.minimizeButton:SetScale(titleScale)
+        -- Expanded panel always shows the full wordmark; the top-line target
+        -- string and the next-step note are minimized-bar-only affordances, so
+        -- restore "RETRO RUNS" and hide both.
         panel.titleRetro:SetText("RETRO")
         panel.titleRuns:SetText("RUNS")
+        panel.titleRuns:Show()
+        panel.titleRaidName:SetText("")
+        panel.titleRaidName:Hide()
         panel.titleMinNote:SetText("")
         panel.titleMinNote:Hide()
         local expandedRowCenterY = -26
         panel.closeButton:ClearAllPoints()
-        panel.closeButton:SetPoint("RIGHT", panel, "TOPRIGHT", (-22) / s, expandedRowCenterY / s)
+        panel.closeButton:SetPoint("RIGHT", panel, "TOPRIGHT", (-22) / titleScale, expandedRowCenterY / titleScale)
         panel.minimizeButton:ClearAllPoints()
         panel.minimizeButton:SetPoint("CENTER", panel.closeButton, "CENTER", -30, 0)
         -- Title: left-anchored, vertical center matched to the button row center.
         panel.titleRetro:ClearAllPoints()
-        panel.titleRetro:SetPoint("LEFT", panel, "TOPLEFT", PAD_LEFT / s, expandedRowCenterY / s)
+        panel.titleRetro:SetPoint("LEFT", panel, "TOPLEFT", PAD_LEFT / titleScale, expandedRowCenterY / titleScale)
     end
 end
 
@@ -2012,8 +2307,11 @@ function UI.ApplyMinimizedState()
     local minimized = UI.IsMinimized()
     UpdateMinimizeIcon()
     ApplyBodyVisibility(not minimized)
-    ApplyBorderArtForState(minimized)
+    -- Title layout first: the border art's notch is laid out against the
+    -- raid-name label, so the label's text and visibility must be current
+    -- before LayoutMinbarArt runs.
     ApplyTitleLayoutForState(minimized)
+    ApplyBorderArtForState(minimized)
 
     if minimized then
         -- Capture top + left edges before resize so we can re-anchor
@@ -2024,6 +2322,9 @@ function UI.ApplyMinimizedState()
         -- would visually jump in two directions when minimizing.
         local oldH = panel:GetHeight() or MINIMIZED_PANEL_H
         local oldW = panel:GetWidth() or PANEL_W
+        -- The route-active bar is single-row too now (the boss label and count
+        -- ride the top frame line, not a second body row), so the height is
+        -- always the single-row height.
         local newH = MINIMIZED_PANEL_H
         local newW = ComputeMinimizedPanelW() or MINIMIZED_PANEL_W_FALLBACK
         local heightChanged = math.abs(newH - oldH) > 0.5
@@ -2302,9 +2603,50 @@ function UI.AutoSize()
         local scroll = tmogWindow.contentScroll
         local child  = tmogWindow.contentChild
 
-        local fontSize     = RR:GetSetting("fontSize", 12)
-        local renderedSize = math.max(8, fontSize - 1)
-        local lineHeight   = GetBodyFontSize(renderedSize) + 0.5
+        local popupFontSize     = RR:GetSetting("fontSize", 12)
+        local renderedSize = math.max(8, popupFontSize - 1)
+        local popupLineHeight   = GetBodyFontSize(renderedSize) + 0.5
+
+        -- Width: the design width is a floor, not a fixed size. Localized
+        -- item rows can run longer than the English rows the design width
+        -- was chosen around; measure the widest content line and widen the
+        -- popup so rows render unwrapped, up to a ceiling past which
+        -- wrapping resumes. English content fits the floor and the popup
+        -- stays pixel-identical.
+        local content = text:GetText() or ""
+        local measure = tmogWindow.lineMeasure
+        if measure then
+            SetBodyFont(measure, renderedSize, "")
+            local maxLineW = 0
+            local function widen(lineText)
+                if lineText and lineText ~= "" then
+                    measure:SetText(lineText)
+                    local lineWidth = measure:GetStringWidth() or 0
+                    if lineWidth > maxLineW then maxLineW = lineWidth end
+                end
+            end
+            for line in (content .. "\n"):gmatch("(.-)\n") do
+                widen(line)
+            end
+            if tmogWindow.sanctumLine and tmogWindow.sanctumLine:IsShown() then
+                measure:SetText(tmogWindow.sanctumLine:GetText() or "")
+                local sanctumLineWidth = measure:GetStringWidth() or 0
+                -- The vendor travel button sits 4px past the line's text;
+                -- reserve its width so the button never lands under the
+                -- scrollbar gutter.
+                if tmogWindow.sanctumButton
+                        and tmogWindow.sanctumButton:IsShown() then
+                    sanctumLineWidth = sanctumLineWidth
+                        + math.floor(popupFontSize * 1.4) + 4
+                end
+                if sanctumLineWidth > maxLineW then
+                    maxLineW = sanctumLineWidth
+                end
+            end
+            local margin = tmogWindow.contentMargin or 22
+            tmogWindow:SetWidth(math.max(UI.POPUP_DESIGN_W,
+                math.min(UI.POPUP_MAX_W, math.ceil(maxLineW) + margin + 28 + 2)))
+        end
 
         -- Set the scroll + child WIDTH first, before measuring text height.
         -- The content text wraps to the child's width, so its rendered height
@@ -2324,12 +2666,12 @@ function UI.AutoSize()
             local margin = tmogWindow.contentMargin or 22
             scroll:SetPoint("TOP",  tmogWindow.ddClass, "BOTTOM", 0, -10)
             scroll:SetPoint("LEFT", tmogWindow, "LEFT", margin, 0)
-            local popupW = tmogWindow:GetWidth() or 440
+            local popupW = tmogWindow:GetWidth() or UI.POPUP_DESIGN_W
             scroll:SetWidth(math.max(1, popupW - margin - 28))
         end
         if child and scroll then
             local vw = scroll:GetWidth()
-            if not vw or vw < 1 then vw = (tmogWindow:GetWidth() or 440) - 28 - 22 end
+            if not vw or vw < 1 then vw = (tmogWindow:GetWidth() or UI.POPUP_DESIGN_W) - 28 - 22 end
             child:SetWidth(vw)
         end
 
@@ -2339,10 +2681,9 @@ function UI.AutoSize()
         -- leading (a 4-line list estimated 46px but rendered 52.7px), and that
         -- undercount sized the scroll child shorter than its own content,
         -- producing phantom scroll range and a scrollbar on lists that fit.
-        local content = text:GetText() or ""
         local lineCount = 1
         for _ in content:gmatch("\n") do lineCount = lineCount + 1 end
-        local estTextH = lineCount * lineHeight
+        local estTextH = lineCount * popupLineHeight
 
         local measuredTextH = text:GetStringHeight() or 0
         local textH = (measuredTextH > 1) and measuredTextH or estTextH
@@ -2352,14 +2693,14 @@ function UI.AutoSize()
         local sanctumH = 0
         if tmogWindow.sanctumLine and tmogWindow.sanctumLine:IsShown() then
             local sH = tmogWindow.sanctumLine:GetStringHeight() or 0
-            sanctumH = ((sH > 1) and sH or lineHeight) + 2
+            sanctumH = ((sH > 1) and sH or popupLineHeight) + 2
         end
 
         -- Full content height the scroll child must span so nothing is clipped.
         local contentH = textH + sanctumH
 
         -- Color legend footer: two lines plus an 8px gap above it.
-        local legendH = 2 * lineHeight + 8
+        local legendH = 2 * popupLineHeight + 8
 
         -- Popup chrome: top close-button reserve + dropdown stack (four
         -- dropdowns anchored BOTTOMLEFT +4 overlap by 4px each, so 4*32-12=116)
@@ -2370,7 +2711,7 @@ function UI.AutoSize()
         -- Maximum content viewport: whatever the ceiling leaves after chrome
         -- and the legend footer. Content taller than this scrolls.
         local maxViewport = POPUP_CONTENT_CEILING - chromeTop - chromeBot - legendH
-        if maxViewport < lineHeight then maxViewport = lineHeight end
+        if maxViewport < popupLineHeight then maxViewport = popupLineHeight end
         local viewportH = math.min(contentH, maxViewport)
 
         local desired = chromeTop + viewportH + legendH + chromeBot
@@ -2386,17 +2727,33 @@ function UI.AutoSize()
             scroll:SetHeight(math.max(1, viewportH))
             child:SetHeight(math.max(1, contentH))
 
+            -- The layout itself decides scrollability: content taller than
+            -- the capped viewport scrolls, anything else does not. The bar's
+            -- visibility keys off this decision rather than the engine's
+            -- reported range alone -- GetVerticalScrollRange can hold a small
+            -- phantom value (a couple of px) even when the viewport, child,
+            -- and content rects are identical, and trusting it showed a
+            -- scrollbar on lists that fit.
+            tmogWindow.tmogContentScrollable = contentH > (viewportH + 0.5)
+
+            -- Recompute the scroll child rect so the engine's range reflects
+            -- the sizes just set instead of a stale layout.
+            if scroll.UpdateScrollChildRect then
+                scroll:UpdateScrollChildRect()
+            end
+
             -- UIPanelScrollFrameTemplate shows its scrollbar unconditionally,
             -- even when content fits. Install the persistent OnShow guard (no-op
-            -- after first call) and set the immediate state from the actual
-            -- range. The guard + the OnScrollRangeChanged hook together cover
-            -- the template's deferred re-show paths.
+            -- after first call) and set the immediate state from the layout
+            -- decision plus the actual range. The guard + the
+            -- OnScrollRangeChanged hook together cover the template's deferred
+            -- re-show paths.
             if tmogWindow.EnsureTmogBarGuard then tmogWindow.EnsureTmogBarGuard() end
             local bar = tmogWindow.ResolveTmogScrollBar
                         and tmogWindow.ResolveTmogScrollBar()
             if bar then
                 local range = scroll:GetVerticalScrollRange() or 0
-                if range > 1 then
+                if tmogWindow.tmogContentScrollable and range > 1 then
                     bar:Show()
                 else
                     bar:Hide()
@@ -2478,23 +2835,67 @@ local DIFFICULTY_COLOR_ORDER = {
 -- span (e.g. caret-wrapped via HighlightNames) are left alone, so a
 -- soloTip can write ^Mythic^ to force orange highlighting instead of
 -- the auto-applied purple difficulty color.
+-- Difficulty words to colorize, in longest-first match order. The English
+-- words are always present (authored notes are English on every client);
+-- the client's own difficulty names from GetDifficultyInfo are merged in,
+-- so translated notes colorize on any locale with no per-locale word list.
+-- Built lazily once per session; stored on the UI table.
+function UI.GetDifficultyColorWords()
+    if UI._difficultyColorWords then return UI._difficultyColorWords end
+
+    local colors = {}
+    local order  = {}
+    for _, word in ipairs(DIFFICULTY_COLOR_ORDER) do
+        colors[word] = DIFFICULTY_COLORS[word]
+        order[#order + 1] = word
+    end
+
+    -- Client-localized names: 17 = Raid Finder, 14/15/16 = N/H/M. On an
+    -- English client these duplicate the list above and are skipped.
+    if GetDifficultyInfo then
+        local byDifficultyID = {
+            [17] = DIFFICULTY_COLORS["Raid Finder"],
+            [14] = DIFFICULTY_COLORS["Normal"],
+            [15] = DIFFICULTY_COLORS["Heroic"],
+            [16] = DIFFICULTY_COLORS["Mythic"],
+        }
+        for difficultyID, color in pairs(byDifficultyID) do
+            local localizedName = GetDifficultyInfo(difficultyID)
+            if localizedName and localizedName ~= ""
+               and not colors[localizedName] then
+                colors[localizedName] = color
+                order[#order + 1] = localizedName
+            end
+        end
+    end
+
+    -- Longest first, so multi-word names match before any word they contain.
+    table.sort(order, function(a, b) return #a > #b end)
+
+    UI._difficultyColorWords = { colors = colors, order = order }
+    return UI._difficultyColorWords
+end
+
 local function ColorizeDifficulties(text)
     if not text or text == "" then return text end
-    local function colorizePlain(s)
-        for _, word in ipairs(DIFFICULTY_COLOR_ORDER) do
-            local color = DIFFICULTY_COLORS[word]
+    local words = UI.GetDifficultyColorWords()
+    local function colorizePlain(plainText)
+        for _, word in ipairs(words.order) do
+            local color = words.colors[word]
             if color then
                 -- %f[%a] and %f[%A] are Lua's frontier patterns, which act as
                 -- word boundaries. This keeps "Mythic" from matching inside
                 -- "Mythica" and avoids double-coloring if the word appears
                 -- inside an already-colored segment (the |c...|r wrap makes
-                -- word boundaries stable).
-                s = s:gsub(
-                    "%f[%a]" .. word .. "%f[%A]",
+                -- word boundaries stable). Localized names pass through a
+                -- magic-character escape so they read as literal text.
+                local pattern = word:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+                plainText = plainText:gsub(
+                    "%f[%a]" .. pattern .. "%f[%A]",
                     ("|c%s%s|r"):format(color, word))
             end
         end
-        return s
+        return plainText
     end
     -- Walk the text, applying difficulty colors only outside existing
     -- |c...|r spans. Preserves caret-wrapped highlights verbatim.
@@ -2526,7 +2927,15 @@ end
 local function HighlightNames(text)
     if not text or text == "" then return text end
     text = text:gsub("%^([^%^]+)%^", function(span)
-        return OrangeText(span)
+        -- A caret span is a proper noun. Location names (map/sub-zone
+        -- names, portal destinations) have official localized forms in the
+        -- locale table, so look each span up: a hit renders the translated
+        -- name, a miss (RR.L returns the key) renders the original. This is
+        -- how place names inside travel prose get localized -- boss/NPC
+        -- names, which usually have no locale entry, keep their source form.
+        -- Inert on English clients: RR.L returns the key unchanged.
+        local localized = (RR.L and RR.L[span]) or span
+        return OrangeText(localized)
     end)
     -- Strip any stragglers (unmatched carets) so they don't render.
     text = text:gsub("%^", "")
@@ -2625,10 +3034,10 @@ local function BuildPillsText()
     end
 
     for _, p in ipairs(PILLS) do
-        local c = counts[p.id]
-        if c then
+        local count = counts[p.id]
+        if count then
             local hex
-            if c.total > 0 and c.complete == c.total then
+            if count.total > 0 and count.complete == count.total then
                 hex = COMPLETE_HEX
             elseif p.id == activeDiff then
                 hex = ACTIVE_HEX
@@ -2638,12 +3047,12 @@ local function BuildPillsText()
             local lock = (p.id == lockedBucket) and LOCK_GLYPH or ""
             if p.label then
                 table.insert(parts, ("|cff%s%s %d/%d|r%s"):format(
-                    hex, p.label, c.complete, c.total, lock))
+                    hex, p.label, count.complete, count.total, lock))
             else
                 -- Flexible with no committed difficulty yet: count only, no
                 -- N/H letter (asserting either would be inaccurate).
                 table.insert(parts, ("|cff%s%d/%d|r%s"):format(
-                    hex, c.complete, c.total, lock))
+                    hex, count.complete, count.total, lock))
             end
         end
     end
@@ -2762,7 +3171,7 @@ function RR:GetRingPulseRed()
 end
 
 local function BuildTravelText(step)
-    local prefix = ("|cff%sTraveling:|r "):format(C_LABEL)
+    local prefix = ("|cff%s%s|r "):format(C_LABEL, RR.L["Traveling:"])
     if not step then return prefix .. "N/A" end
 
     -- Encounter-freeze: while a boss fight is active, return the last
@@ -2780,12 +3189,12 @@ local function BuildTravelText(step)
 
         local seg = RR:PickNoteSeg(step, mapID)
         if seg and seg.note then
-            return prefix .. HighlightNames(seg.note)
+            return prefix .. HighlightNames(RR.L[seg.note])
         end
         if step.travelText then
-            return prefix .. HighlightNames(step.travelText)
+            return prefix .. HighlightNames(RR.L[step.travelText])
         end
-        return prefix .. "|cff888888Open the map and select a section to see directions.|r"
+        return prefix .. "|cff888888" .. RR.L["Open the map and select a section to see directions."] .. "|r"
     end
 
     local text = compute()
@@ -2824,7 +3233,7 @@ local function BuildTravelText(step)
 end
 
 -- A boss has a "custom" note when it's non-empty AND not the
--- default "Standard Nuke" placeholder.
+-- default "Standard Nuke" tip.
 local function HasCustomEncounterNote(boss, step)
     local tip = (boss and boss.soloTip) or (step and step.soloTip) or ""
     if tip == "" or tip == "N/A" then return false end
@@ -2839,7 +3248,7 @@ local function BuildAchievementsBlock(boss)
     if not boss or not boss.achievements or #boss.achievements == 0 then
         return ""
     end
-    local lines = { ("|cff%sAchievements:|r"):format(C_LABEL) }
+    local lines = { ("|cff%s%s|r"):format(C_LABEL, RR.L["Achievements:"]) }
 
     -- Bracketed state indicator before the link, matching the
     -- Special Loot section's visual grammar. Kept as a separate
@@ -2853,7 +3262,7 @@ local function BuildAchievementsBlock(boss)
     for _, ach in ipairs(boss.achievements) do
         local _, name, _, completed = GetAchievementInfo(ach.id)
         local label = name or ach.name or ("ID " .. ach.id)
-        local tag   = ach.meta and " (Meta)" or ""
+        local tag   = ach.meta and (" " .. RR.L["(Meta)"]) or ""
 
         local stateColor = completed and STATE_COLOR_DONE or STATE_COLOR_TODO
         local stateGlyph = completed and STATE_GLYPH_DONE or STATE_GLYPH_TODO
@@ -2916,8 +3325,8 @@ end
 --      toggle so each section can have its own collapse behaviour later.
 --   3. Special Loot block (if any) -- ALWAYS rendered.
 local function BuildEncounterText(step)
-    local prefix = ("|cff%sBoss Encounter:|r "):format(C_LABEL)
-    if not step then return prefix .. "N/A", false end
+    local prefix = ("|cff%s%s|r "):format(C_LABEL, RR.L["Boss Encounter:"])
+    if not step then return prefix .. RR.L["N/A"], false end
     local boss = RR:GetBossByIndex(step.bossIndex)
 
     local hasCustom = HasCustomEncounterNote(boss, step)
@@ -2927,7 +3336,7 @@ local function BuildEncounterText(step)
     local clickable
     local headerPulsing = false
     if not hasCustom then
-        headerLine = prefix .. "|cffaaaaaaStandard|r"
+        headerLine = prefix .. "|cffaaaaaa" .. RR.L["Standard"] .. "|r"
         clickable  = false
     elseif not RR:GetSetting("encounterExpanded") then
         -- Yellow [!] prefix to draw the eye to bosses that have a
@@ -2942,11 +3351,11 @@ local function BuildEncounterText(step)
         -- phase 0, dimmer at phases 1-2, back up at phase 3. Cosmetic
         -- only -- the link itself stays fully readable throughout.
         local pulseColor = ENCOUNTER_PULSE_COLORS[encounterPulsePhase] or "|cffffff00"
-        headerLine = prefix .. pulseColor .. "[!]|r |cffaaaaaaview special note|r"
+        headerLine = prefix .. pulseColor .. "[!]|r |cffaaaaaa" .. RR.L["view special note"] .. "|r"
         clickable  = true
         headerPulsing = true
     else
-        local tip = (boss and boss.soloTip) or step.soloTip or ""
+        local tip = RR.L[(boss and boss.soloTip) or step.soloTip or ""]
         tip = HighlightNames(tip)
         headerLine = prefix .. tip
         clickable  = true
@@ -2967,11 +3376,11 @@ end
 
 -- Slots that have no transmog value -- exclude from display entirely
 local TRANSMOG_EXCLUDED_SLOTS = {
-    ["Neck"]           = true,
-    ["Finger"]         = true,
-    ["Trinket"]        = true,
-    ["Non-equippable"] = true,
-    ["Unknown"]        = true,
+    [RR.L["Neck"]]           = true,
+    [RR.L["Finger"]]         = true,
+    [RR.L["Trinket"]]        = true,
+    [RR.L["Non-equippable"]] = true,
+    [RR.L["Unknown"]]        = true,
 }
 
 -- Difficulty display order and labels
@@ -2984,10 +3393,10 @@ local DIFF_LETTER = {
 }
 -- Full names used in the "Current difficulty: <name>" header line.
 local DIFF_NAME = {
-    [17] = "LFR",
-    [14] = "Normal",
-    [15] = "Heroic",
-    [16] = "Mythic",
+    [17] = RR.L["LFR"],
+    [14] = RR.L["Normal"],
+    [15] = RR.L["Heroic"],
+    [16] = RR.L["Mythic"],
 }
 
 -- Four-state colours for difficulty dots:
@@ -3245,12 +3654,12 @@ RR.ItemShape        = ItemShape
 -- tag in each row. Chosen to visually distinguish the four kinds without
 -- clashing with class colors or achievement yellow.
 local SPECIAL_KIND_LABEL = {
-    mount      = "Mount",
-    pet        = "Pet",
-    toy        = "Toy",
-    decor      = "Decor",
-    manuscript = "Manuscript",
-    illusion   = "Illusion",
+    mount      = RR.L["Mount"],
+    pet        = RR.L["Pet"],
+    toy        = RR.L["Toy"],
+    decor      = RR.L["Decor"],
+    manuscript = RR.L["Manuscript"],
+    illusion   = RR.L["Illusion"],
 }
 local SPECIAL_KIND_COLOR = {
     mount      = "ff8080ff",   -- light blue
@@ -3398,7 +3807,7 @@ BuildSpecialLootSection = function(boss)
         return nil
     end
 
-    local lines = { ("|cff%sSpecial Loot:|r"):format(C_LABEL) }
+    local lines = { ("|cff%s%s|r"):format(C_LABEL, RR.L["Special Loot:"]) }
     for _, item in ipairs(boss.specialLoot) do
         -- Barter items (e.g. Iskaara Trader's Ottuk -- two-ingredient
         -- purchase) render the mount row with per-ingredient sub-rows
@@ -3446,18 +3855,18 @@ BuildSpecialLootSection = function(boss)
             local stateColor, stateGlyph
             if held == total then
                 stateColor, stateGlyph = SPECIAL_PARTIAL,     SPECIAL_GLYPH_PARTIAL
-                parenSuffix = ("Mount -- %d/%d necks, ready to trade!"):format(held, total)
+                parenSuffix = (RR.L["Mount -- %d/%d necks, ready to trade!"]):format(held, total)
             elseif held > 0 then
                 stateColor, stateGlyph = SPECIAL_PARTIAL,     SPECIAL_GLYPH_PARTIAL
-                parenSuffix = ("Mount -- %d/%d necks in bags"):format(held, total)
+                parenSuffix = (RR.L["Mount -- %d/%d necks in bags"]):format(held, total)
             else
                 stateColor, stateGlyph = SPECIAL_UNCOLLECTED, SPECIAL_GLYPH_UNCOLLECTED
-                parenSuffix = ("Mount -- %d/%d necks in bags"):format(held, total)
+                parenSuffix = (RR.L["Mount -- %d/%d necks in bags"]):format(held, total)
             end
 
             local kindColor  = SPECIAL_KIND_COLOR[item.kind] or "ffaaaaaa"
             local _, itemLink = GetItemInfo(item.id)
-            local display    = itemLink or item.name or ("Item "..tostring(item.id))
+            local display    = itemLink or item.name or (RR.L["Item "]..tostring(item.id))
 
             table.insert(lines,
                 ("|cff777777[ |r|c%s%s|r|cff777777 ]|r %s |c%s(%s)|r"):format(
@@ -3472,8 +3881,8 @@ BuildSpecialLootSection = function(boss)
                 local ingColor = has and SPECIAL_COLLECTED  or SPECIAL_UNCOLLECTED
                 local ingGlyph = has and SPECIAL_GLYPH_COLLECTED or SPECIAL_GLYPH_UNCOLLECTED
                 local _, ingLink = GetItemInfo(ing.id)
-                local ingDisplay = ingLink or ing.name or ("Item "..tostring(ing.id))
-                local ingSuffix  = has and "in bags" or "not in bags"
+                local ingDisplay = ingLink or ing.name or (RR.L["Item "]..tostring(ing.id))
+                local ingSuffix  = has and RR.L["in bags"] or RR.L["not in bags"]
                 table.insert(lines,
                     ("    |cff777777[ |r|c%s%s|r|cff777777 ]|r %s |cffaaaaaa(%s)|r"):format(
                         ingColor, ingGlyph, ingDisplay, ingSuffix))
@@ -3482,14 +3891,14 @@ BuildSpecialLootSection = function(boss)
             -- Trade location hint. Only shown once both ingredients are in
             -- bags (held == total), since that's the moment the player can
             -- actually act on the location. While still farming, the
-            -- trader's location is irrelevant noise. The "in bags" /
-            -- "not in bags" text on each ingredient row already
+            -- trader's location is irrelevant noise. The RR.L["in bags"] /
+            -- RR.L["not in bags"] text on each ingredient row already
             -- communicates that bag-only validation is what's being
             -- checked, so a separate caveat line was redundant and was
             -- removed in v0.6.1.
             if item.barter.at and held == total then
                 table.insert(lines,
-                    ("    |cffaaaaaaTrade at %s.|r"):format(item.barter.at))
+                    ("    |cffaaaaaa" .. RR.L["Trade at %s."] .. "|r"):format(item.barter.at))
             end
 
         else
@@ -3507,7 +3916,7 @@ BuildSpecialLootSection = function(boss)
             -- schema's name field and a plain-text display. The 1s UI
             -- heartbeat will re-render once the cache warms up.
             local _, itemLink = GetItemInfo(item.id)
-            local display = itemLink or item.name or ("Item "..tostring(item.id))
+            local display = itemLink or item.name or (RR.L["Item "]..tostring(item.id))
 
             local kindLabel = SPECIAL_KIND_LABEL[item.kind] or item.kind or "?"
             local kindColor = SPECIAL_KIND_COLOR[item.kind] or "ffaaaaaa"
@@ -3523,13 +3932,13 @@ BuildSpecialLootSection = function(boss)
             -- the parens themselves stay the kind's color.
             local kindInner = kindLabel
             if item.mythicOnly then
-                kindInner = kindLabel .. ", |r|cffF259C7Mythic only|r|c" .. kindColor
+                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Mythic only"] .. "|r|c" .. kindColor
             elseif item.lfrOnly then
-                kindInner = kindLabel .. ", |r|cffF259C7LFR only|r|c" .. kindColor
+                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["LFR only"] .. "|r|c" .. kindColor
             elseif item.normalHeroicOnly then
-                kindInner = kindLabel .. ", |r|cffF259C7Normal/Heroic only|r|c" .. kindColor
+                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Normal/Heroic only"] .. "|r|c" .. kindColor
             elseif item.heroicOnly then
-                kindInner = kindLabel .. ", |r|cffF259C7Heroic only|r|c" .. kindColor
+                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Heroic only"] .. "|r|c" .. kindColor
             end
 
             -- Bracketed state indicator before the name, matching the
@@ -3635,10 +4044,10 @@ local function ItemSummaryState(item)
         local src = item.sources[diffID]
         if src then
             hasAnyBucket = true
-            local s = CollectionStateForSource(src, item.id)
-            if s == "missing" then
+            local collectionState = CollectionStateForSource(src, item.id)
+            if collectionState == "missing" then
                 hasMissing = true
-            elseif s == "shared" then
+            elseif collectionState == "shared" then
                 hasShared = true
             end
         end
@@ -3676,10 +4085,10 @@ local function CountBossLootForDifficulty(boss, diffID, classOverride)
                 -- reads collected under Normal too, matching the browser.
                 if item.sources and item.sources[diffID] then
                     total = total + 1
-                    local s = RR.BinaryFoldedState(item)
-                    if s == "missing" then
+                    local foldedState = RR.BinaryFoldedState(item)
+                    if foldedState == "missing" then
                         needed = needed + 1
-                    elseif s == "shared" then
+                    elseif foldedState == "shared" then
                         shared = shared + 1
                     end
                 end
@@ -3690,18 +4099,18 @@ local function CountBossLootForDifficulty(boss, diffID, classOverride)
                 local src = item.sources and item.sources[diffID]
                 if src then
                     total = total + 1
-                    local s = CollectionStateForSource(src, item.id)
-                    if s == "missing" then
+                    local collectionState = CollectionStateForSource(src, item.id)
+                    if collectionState == "missing" then
                         needed = needed + 1
-                    elseif s == "shared" then
+                    elseif collectionState == "shared" then
                         shared = shared + 1
                     end
                 elseif not item.sources then
                     total = total + 1
-                    local s = FallbackStateForItem(item.id)
-                    if s == "missing" then
+                    local fallbackState = FallbackStateForItem(item.id)
+                    if fallbackState == "missing" then
                         needed = needed + 1
-                    elseif s == "shared" then
+                    elseif fallbackState == "shared" then
                         shared = shared + 1
                     end
                 end
@@ -3730,10 +4139,10 @@ local function CountBossLootAcrossDifficulties(boss, diffIDs, classOverride)
                     local src = item.sources[diffID]
                     if src then
                         sawBucket = true
-                        local s = CollectionStateForSource(src, item.id)
-                        if s == "missing" then
+                        local collectionState = CollectionStateForSource(src, item.id)
+                        if collectionState == "missing" then
                             hasMissing = true
-                        elseif s == "shared" then
+                        elseif collectionState == "shared" then
                             hasShared = true
                         end
                     end
@@ -3750,10 +4159,10 @@ local function CountBossLootAcrossDifficulties(boss, diffIDs, classOverride)
                 -- No sources table: falls through to item-level check,
                 -- counted once regardless of the diffIDs requested.
                 total = total + 1
-                local s = FallbackStateForItem(item.id)
-                if s == "missing" then
+                local fallbackState = FallbackStateForItem(item.id)
+                if fallbackState == "missing" then
                     needed = needed + 1
-                elseif s == "shared" then
+                elseif fallbackState == "shared" then
                     shared = shared + 1
                 end
             end
@@ -3818,11 +4227,11 @@ end
 -- rather than a row of zeros.
 local function FormatStatsFragment(needed, shared)
     if needed == 0 and shared == 0 then
-        return "|cff00ff00Complete|r"
+        return "|cff00ff00" .. RR.L["Complete"] .. "|r"
     end
     local missingColor = (needed == 0) and "ff00ff00" or "ffff9900"
     local sharedColor  = (shared == 0) and "ff00ff00" or "ffff9900"
-    return ("Missing |c%s(%d)|r Shared |c%s(%d)|r"):format(
+    return (RR.L["Missing"] .. " |c%s(%d)|r " .. RR.L["Shared"] .. " |c%s(%d)|r"):format(
         missingColor, needed, sharedColor, shared)
 end
 
@@ -3850,8 +4259,8 @@ function UI.BuildTransmogSummaryUncached(step)
     local boss = RR:GetBossByIndex(step.bossIndex)
     if not boss then return nil end
 
-    local header   = ("|cff%sTransmog Needed:|r"):format(C_LABEL)
-    local clickHnt = "|cff555555[click to browse]|r"
+    local header   = ("|cff%s%s|r"):format(C_LABEL, RR.L["Transmog Needed:"])
+    local clickHnt = "|cff555555" .. RR.L["[click to browse]"] .. "|r"
     local activeID = ActiveDifficulty()
 
     -- Buckets to summarize come from the raid's difficulty model, not a
@@ -3871,7 +4280,7 @@ function UI.BuildTransmogSummaryUncached(step)
         local n, s, t = CountBossLootAcrossDifficulties(boss, DIFFS_FOR_SUMMARY, RR.PlayerClassID())
         if not t then return nil end
         if n == 0 and s == 0 then
-            return header .. " |cffF259C7All appearances collected!|r"
+            return header .. " |cffF259C7" .. RR.L["All appearances collected!"] .. "|r"
         end
         return header .. "\n- " .. FormatStatsFragment(n, s) .. "  " .. clickHnt
     end
@@ -3897,7 +4306,7 @@ function UI.BuildTransmogSummaryUncached(step)
         local n, s, t = CountBossLootAcrossDifficulties(boss, summaryBuckets, RR.PlayerClassID())
         if not t then return nil end
         if n == 0 and s == 0 then
-            return header .. " |cffF259C7All appearances collected!|r"
+            return header .. " |cffF259C7" .. RR.L["All appearances collected!"] .. "|r"
         end
         return header .. "\n- " .. FormatStatsFragment(n, s) .. "  " .. clickHnt
     end
@@ -3906,19 +4315,19 @@ function UI.BuildTransmogSummaryUncached(step)
     local curDone = (curNeeded == 0 and curShared == 0)
     local othDone = (not othTotal) or (othNeeded == 0 and othShared == 0)
     if curDone and othDone then
-        return header .. " |cffF259C7All appearances collected!|r"
+        return header .. " |cffF259C7" .. RR.L["All appearances collected!"] .. "|r"
     end
 
     -- Header + two dash lines, matching the Achievements section format.
     -- Each line renders either Missing/Shared counts or "Complete".
     -- Click hint always on the last (Other difficulties) line.
     local diffName = DIFF_NAME[activeID] or tostring(activeID)
-    local line1 = ("- Current (|cff%s%s|r): %s"):format(
-        C_PINK_HEX, diffName, FormatStatsFragment(curNeeded, curShared))
+    local line1 = ("- %s (|cff%s%s|r): %s"):format(
+        RR.L["Current"], C_PINK_HEX, diffName, FormatStatsFragment(curNeeded, curShared))
     local othFrag = othTotal
         and FormatStatsFragment(othNeeded, othShared)
         or "|cff00ff00Complete|r"
-    local line2 = ("- Other difficulties: %s  %s"):format(othFrag, clickHnt)
+    local line2 = ("- %s: %s  %s"):format(RR.L["Other difficulties"], othFrag, clickHnt)
     return header .. "\n" .. line1 .. "\n" .. line2
 end
 
@@ -4176,12 +4585,12 @@ local function BuildSanctumLine(raid, boss)
     local text
     if vendorInfo then
         local cc = vendorInfo.covenantColor or "ffffffff"
-        text = ("|cff888888  -> Redeem at |r|c%s%s|r|cff888888 vendor: |r|c%s%s|r|cff888888 (|r|cffffffff%s|r|cff888888)|r"):format(
-            cc, vendorInfo.covenantName,
-            cc, vendorInfo.zoneMain,
-            vendorInfo.zoneSub)
+        text = (RR.L["|cff888888  -> Redeem at |r|c%s%s|r|cff888888 vendor: |r|c%s%s|r|cff888888 (|r|cffffffff%s|r|cff888888)|r"]):format(
+            cc, RR.L[vendorInfo.covenantName],
+            cc, RR.L[vendorInfo.zoneMain],
+            RR.L[vendorInfo.zoneSub])
     else
-        text = "|cffff9333  -> No covenant detected|r|cff888888 -- align to redeem weapon tokens.|r"
+        text = RR.L["|cffff9333  -> No covenant detected|r|cff888888 -- align to redeem weapon tokens.|r"]
     end
     return text, raid, covID, vendorInfo
 end
@@ -4195,7 +4604,7 @@ BuildTransmogDetail = function(stepOrCtx)
         boss = RR:GetBossByIndex(stepOrCtx.bossIndex)
     end
     if not boss or not boss.loot or #boss.loot == 0 then
-        return "No loot data for this boss."
+        return RR.L["No loot data for this boss."]
     end
 
     -- Reset per-render caches so we pick up collection changes between pops.
@@ -4210,7 +4619,7 @@ BuildTransmogDetail = function(stepOrCtx)
     end
 
     if #candidates == 0 then
-        return "No transmog data for this boss."
+        return RR.L["No transmog data for this boss."]
     end
 
     local lines = {}
@@ -4220,7 +4629,7 @@ BuildTransmogDetail = function(stepOrCtx)
     local activeName  = activeDiff and DIFF_NAME[activeDiff]
     if activeName then
         table.insert(lines,
-            ("|cff888888Current difficulty: %s|r"):format(activeName))
+            ("|cff888888" .. RR.L["Current difficulty: %s"] .. "|r"):format(activeName))
         table.insert(lines, "")
     end
 
@@ -4255,9 +4664,9 @@ BuildTransmogDetail = function(stepOrCtx)
         end
     end
     local function bucketCount(item)
-        local n = 0
-        for _ in pairs(item.sources or {}) do n = n + 1 end
-        return n
+        local sourceCount = 0
+        for _ in pairs(item.sources or {}) do sourceCount = sourceCount + 1 end
+        return sourceCount
     end
     -- A stable signature of which difficulty buckets an item drops from, so
     -- items with the same bucket count cluster by their actual difficulties
@@ -4308,19 +4717,10 @@ BuildTransmogDetail = function(stepOrCtx)
         local ta, tb = isTier(a), isTier(b)
         if ta ~= tb then return ta end           -- tier block first
         if ta then
-            -- Within tier: class ID ascending, then the same bucket-count ->
-            -- signature -> name ordering regular gear uses. The signature
-            -- term matters because the row emitter separates groups on
-            -- signature change: without it, a class's lone all-difficulty
-            -- token piece sorts alphabetically into the middle of its
-            -- LFR-only pieces and gets sandwiched between two blank lines.
+            -- Within tier: class ID ascending, then name.
             local ka = a.classes[1] or 0
             local kb = b.classes[1] or 0
             if ka ~= kb then return ka < kb end
-            local ca, cb = bucketCount(a), bucketCount(b)
-            if ca ~= cb then return ca < cb end
-            local sa, sb = bucketSignature(a), bucketSignature(b)
-            if sa ~= sb then return sa < sb end
             return (a.name or "") < (b.name or "")
         end
         -- Within regular gear: shorter bucket strips first, then a stable
@@ -4336,6 +4736,17 @@ BuildTransmogDetail = function(stepOrCtx)
     -- Shared between both groups so the name/class-tier formatting stays
     -- consistent regardless of shape.
     local function FormatItemRow(item)
+        -- The item's name in the client's own language, from the item cache.
+        -- GetItemInfo is async: a cold cache returns nil on the first render,
+        -- so the stored data name covers the gap until a refresh. On English
+        -- clients the two are the same string.
+        local itemDisplayName = item.name
+        if item.id and GetItemInfo then
+            local clientName = GetItemInfo(item.id)
+            if clientName and clientName ~= "" then
+                itemDisplayName = clientName
+            end
+        end
         local nameText
         if item.classes then
             -- Pick the right class name + color for the label. If item.classes
@@ -4359,15 +4770,15 @@ BuildTransmogDetail = function(stepOrCtx)
             -- after the "|c" prefix.
             local classHex = "ffff8000"  -- fallback: orange (the old hardcoded color)
             if classToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
-                local c = RAID_CLASS_COLORS[classToken]
-                if c.colorStr then classHex = c.colorStr end
+                local classColor = RAID_CLASS_COLORS[classToken]
+                if classColor.colorStr then classHex = classColor.colorStr end
             end
 
             if className then
-                nameText = ("|cffffffff%s|r |c%s(%s Tier)|r"):format(
-                    item.name, classHex, className)
+                nameText = (RR.L["|cffffffff%s|r |c%s(%s Tier)|r"]):format(
+                    itemDisplayName, classHex, className)
             else
-                nameText = ("|cffffffff%s|r"):format(item.name)
+                nameText = ("|cffffffff%s|r"):format(itemDisplayName)
             end
         else
             -- Non-tier rows render in white by default, in legendary
@@ -4382,7 +4793,7 @@ BuildTransmogDetail = function(stepOrCtx)
                     nameColor = "ffff8000"
                 end
             end
-            nameText = ("|c%s%s|r"):format(nameColor, item.name)
+            nameText = ("|c%s%s|r"):format(nameColor, itemDisplayName)
 
             -- Class-restricted non-tier items (e.g. Nasz'uro, the Unbound
             -- Legacy on Sarkareth) get a "(<Class> only)" suffix appended
@@ -4405,8 +4816,8 @@ BuildTransmogDetail = function(stepOrCtx)
                 if rcName then
                     local rcHex = "ffff8000"  -- fallback: orange
                     if rcToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[rcToken] then
-                        local c = RAID_CLASS_COLORS[rcToken]
-                        if c.colorStr then rcHex = c.colorStr end
+                        local classColor = RAID_CLASS_COLORS[rcToken]
+                        if classColor.colorStr then rcHex = classColor.colorStr end
                     end
                     -- "(|cAARRGGBB<ClassName>|r only)" -- only the class
                     -- name itself is colored; parens and "only" stay in
@@ -4434,8 +4845,8 @@ BuildTransmogDetail = function(stepOrCtx)
                     if ecName then
                         local ecHex = "ffff8000"
                         if ecToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[ecToken] then
-                            local c = RAID_CLASS_COLORS[ecToken]
-                            if c.colorStr then ecHex = c.colorStr end
+                            local classColor = RAID_CLASS_COLORS[ecToken]
+                            if classColor.colorStr then ecHex = classColor.colorStr end
                         end
                         table.insert(tags, ("|c%s%s|r"):format(ecHex, ecName))
                     end
@@ -4559,22 +4970,22 @@ BuildTransmogDetail = function(stepOrCtx)
             table.sort(ids)
             local allCount = (slotLabel == "Main-Hand") and 13 or 9
             if #ids >= allCount then
-                return "All classes"
+                return RR.L["All classes"]
             end
             local parts = {}
             for _, cid in ipairs(ids) do
-                local n = GetClassInfo and GetClassInfo(cid)
-                if n then
+                local classInfoName = GetClassInfo and GetClassInfo(cid)
+                if classInfoName then
                     local hex
                     local token = CLASS_ID_TO_TOKEN[cid]
                     if token and RAID_CLASS_COLORS and RAID_CLASS_COLORS[token] then
-                        local c = RAID_CLASS_COLORS[token]
-                        if c.colorStr then hex = c.colorStr end
+                        local classColor = RAID_CLASS_COLORS[token]
+                        if classColor.colorStr then hex = classColor.colorStr end
                     end
                     if hex then
-                        table.insert(parts, ("|c%s%s|r"):format(hex, n))
+                        table.insert(parts, ("|c%s%s|r"):format(hex, classInfoName))
                     else
-                        table.insert(parts, n)
+                        table.insert(parts, classInfoName)
                     end
                 end
             end
@@ -4585,8 +4996,8 @@ BuildTransmogDetail = function(stepOrCtx)
         for _, slot in ipairs(slotOrder) do
             local classSet = slotClasses[slot]
             if classSet and next(classSet) then
-                local label = ("%s Weapon Token: %s"):format(
-                    slot, FormatClassList(classSet, slot))
+                local label = (RR.L["%s Weapon Token: %s"]):format(
+                    RR.L[slot], FormatClassList(classSet, slot))
                 table.insert(tokenRows, ("|cffffffff%s|r"):format(label))
             end
         end
@@ -4616,7 +5027,7 @@ BuildTransmogDetail = function(stepOrCtx)
         -- string, or nil if the entry produces no usable text.
         local function RenderFootnoteEntry(entry)
             if type(entry) == "string" then
-                return entry
+                return RR.L[entry]
             end
             if type(entry) ~= "table" then return nil end
             local sub
@@ -4628,10 +5039,10 @@ BuildTransmogDetail = function(stepOrCtx)
                 -- Cold-cache fallback: bracketed name, loses clickability
                 -- for this render only.
                 local fallbackName = (entry.itemID and GetItemInfo(entry.itemID))
-                                     or "(item)"
+                                     or RR.L["(item)"]
                 sub = ("|cffa335ee[%s]|r"):format(fallbackName)
             end
-            return (entry.text or ""):gsub("{item}", sub)
+            return (RR.L[entry.text or ""]):gsub("{item}", sub)
         end
 
         -- Single entry vs list: a list has numeric indices, no top-level
@@ -4665,9 +5076,14 @@ end
 -- weapon-token redemption hint (when present), as a global footer.
 local function BuildTmogLegendText()
     return
-        ("|c%sgreen|r|cff888888 = collected      |r|c%sgold|r|cff888888 = via another item|r\n"):format(
+        ("|c%s" .. RR.L["green"] .. "|r|cff888888 = " .. RR.L["collected"]
+            .. "      |r|c%s" .. RR.L["gold"] .. "|r|cff888888 = "
+            .. RR.L["via another item"] .. "|r\n"):format(
             DOT_COLLECTED, DOT_SHARED)
-     .. ("|c%swhite|r|cff888888 = needed (current difficulty)  |r|c%sgray|r|cff888888 = not collected|r"):format(
+     .. ("|c%s" .. RR.L["white"] .. "|r|cff888888 = "
+            .. RR.L["needed (current difficulty)"] .. "  |r|c%s"
+            .. RR.L["gray"] .. "|r|cff888888 = " .. RR.L["not collected"]
+            .. "|r"):format(
             DOT_ACTIVE, DOT_INACTIVE)
 end
 
@@ -4706,10 +5122,10 @@ RR.EXPANSION_ORDER_NEWEST_FIRST = EXPANSION_ORDER_NEWEST_FIRST
 -- patchKey returns { -1 } as a sentinel). Ties break alphabetically
 -- by name so output is deterministic across reloads.
 local function patchKey(raid)
-    local p = raid.patch
-    if not p then return { -1 } end
+    local patch = raid.patch
+    if not patch then return { -1 } end
     local parts = {}
-    for n in p:gmatch("(%d+)") do
+    for n in patch:gmatch("(%d+)") do
         table.insert(parts, tonumber(n) or 0)
     end
     if #parts == 0 then return { -1 } end
@@ -4717,8 +5133,8 @@ local function patchKey(raid)
 end
 local function patchDescending(a, b)
     local ka, kb = patchKey(a), patchKey(b)
-    local n = math.max(#ka, #kb)
-    for i = 1, n do
+    local partCount = math.max(#ka, #kb)
+    for i = 1, partCount do
         local ai = ka[i] or 0
         local bi = kb[i] or 0
         if ai ~= bi then return ai > bi end
@@ -4737,7 +5153,7 @@ local function EnumerateRaids()
         -- Skip incomplete entries (instanceID = 0); they have no resolved
         -- journal IDs and would render as all-dash pills.
         if raid.instanceID and raid.instanceID > 0 then
-            local exp = raid.expansion or "Unknown"
+            local exp = raid.expansion or RR.L["Unknown"]
             byExpansion[exp] = byExpansion[exp] or {}
             table.insert(byExpansion[exp], raid)
         end
@@ -4920,13 +5336,13 @@ end
 GetOrCreateTmogWindow = function()
     if tmogWindow then return tmogWindow end
 
-    local f = CreateFrame("Frame", "RetroRunsTmogWindow", UIParent, "BackdropTemplate")
+    local tmogFrame = CreateFrame("Frame", "RetroRunsTmogWindow", UIParent, "BackdropTemplate")
     -- Initial size matches POPUP_CONTENT_MIN (240) rather than a guess like
     -- 460. AutoSize will grow the frame to fit actual content on first
     -- refresh; starting small means the first visible state after Show()
     -- is either correct or mid-growth, not a visible shrink-to-fit.
-    f:SetSize(440, POPUP_CONTENT_MIN)
-    f:SetBackdrop({
+    tmogFrame:SetSize(UI.POPUP_DESIGN_W, POPUP_CONTENT_MIN)
+    tmogFrame:SetBackdrop({
         bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
         edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
         tile = true, tileSize = 16, edgeSize = 16,
@@ -4936,18 +5352,18 @@ GetOrCreateTmogWindow = function()
     -- frame painted matches subsequent ApplySettings passes. Lazy
     -- windows construct after SavedVariables is loaded (user-action
     -- triggered), so reading the saved value here is safe.
-    f:SetBackdropColor(0.03, 0.03, 0.03, RR:GetSetting("panelOpacity", 1.0))
-    f:SetPoint("TOPLEFT", panel, "TOPRIGHT", 6, 0)
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop",  f.StopMovingOrSizing)
-    f:SetClampedToScreen(true)
-    f:Hide()
+    tmogFrame:SetBackdropColor(0.03, 0.03, 0.03, RR:GetSetting("panelOpacity", 1.0))
+    tmogFrame:SetPoint("TOPLEFT", panel, "TOPRIGHT", 6, 0)
+    tmogFrame:SetMovable(true)
+    tmogFrame:EnableMouse(true)
+    tmogFrame:RegisterForDrag("LeftButton")
+    tmogFrame:SetScript("OnDragStart", tmogFrame.StartMoving)
+    tmogFrame:SetScript("OnDragStop",  tmogFrame.StopMovingOrSizing)
+    tmogFrame:SetClampedToScreen(true)
+    tmogFrame:Hide()
 
-    f:HookScript("OnEnter", CancelTmogHide)
-    f:HookScript("OnLeave", ScheduleTmogHide)
+    tmogFrame:HookScript("OnEnter", CancelTmogHide)
+    tmogFrame:HookScript("OnLeave", ScheduleTmogHide)
 
     -- Hyperlink handlers: makes item links inside contentText (the boss's
     -- loot list, the tmogFootnote) clickable. Same pattern used by
@@ -4955,29 +5371,29 @@ GetOrCreateTmogWindow = function()
     -- global router that opens the appropriate frame for each link type
     -- (item -> tooltip, achievement -> achievement frame, etc.) and is a
     -- no-op on link types it doesn't recognize, so safe as a catch-all.
-    f:SetHyperlinksEnabled(true)
-    f:SetScript("OnHyperlinkClick", function(_, link, text, button)
+    tmogFrame:SetHyperlinksEnabled(true)
+    tmogFrame:SetScript("OnHyperlinkClick", function(_, link, text, button)
         SetItemRef(link, text, button)
     end)
-    f:SetScript("OnHyperlinkEnter", function(self, link)
+    tmogFrame:SetScript("OnHyperlinkEnter", function(self, link)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetHyperlink(link)
         GameTooltip:Show()
     end)
-    f:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
+    tmogFrame:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
 
-    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local title = tmogFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 14, -10)
-    title:SetText("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  Transmog")
-    title:SetFont(TITLE_FONT, 16, "")
+    title:SetText(RR.L["|cffF259C7RETRO|r|cff4DCCFFRUNS|r  Transmog"])
+    title:SetFont(RR:GetChromeFont(), 16, "")
     title:SetShadowOffset(1, -1)
     title:SetShadowColor(0, 0, 0, 1)
 
-    local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    local closeBtn = CreateFrame("Button", nil, tmogFrame, "UIPanelCloseButton")
     closeBtn:SetPoint("TOPRIGHT", -4, -4)
     closeBtn:SetScript("OnClick", function()
         browserState.active = false
-        f:Hide()
+        tmogFrame:Hide()
     end)
 
     -- Three cascading dropdowns: Expansion / Raid / Boss.
@@ -5023,13 +5439,13 @@ GetOrCreateTmogWindow = function()
     local LABEL_GAP  = 4    -- gap between the caption column and the bars
     -- Measure the widest caption so the column is exactly as wide as it needs
     -- to be (a guessed fixed width either clipped "Class:" or left a gap).
-    local capMeasure = f:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local capMeasure = tmogFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     capMeasure:Hide()
     local LABEL_W = 0
-    for _, cap in ipairs({ "Exp:", "Raid:", "Boss:", "Class:" }) do
+    for _, cap in ipairs({ RR.L["Exp:"], RR.L["Raid:"], RR.L["Boss:"], RR.L["Class:"] }) do
         capMeasure:SetText(cap)
-        local w = capMeasure:GetStringWidth() or 0
-        if w > LABEL_W then LABEL_W = w end
+        local textWidth = capMeasure:GetStringWidth() or 0
+        if textWidth > LABEL_W then LABEL_W = textWidth end
     end
     LABEL_W = math.ceil(LABEL_W)
     -- The dropdown template frame has ~16px of non-visible left inset before
@@ -5037,9 +5453,9 @@ GetOrCreateTmogWindow = function()
     -- offset the frame left by DD_INSET.
     local DD_INSET   = 16
 
-    local ddExp  = MakeDD("Expansion", 110, f, "Exp:")
-    local ddRaid = MakeDD("Raid",      185, f, "Raid:")
-    local ddBoss = MakeDD("Boss",      185, f, "Boss:")
+    local ddExp  = MakeDD("Expansion", 110, tmogFrame, RR.L["Exp:"])
+    local ddRaid = MakeDD("Raid",      185, tmogFrame, RR.L["Raid:"])
+    local ddBoss = MakeDD("Boss",      185, tmogFrame, RR.L["Boss:"])
 
     -- Bars: stacked, each stepped slightly right of the one above so the
     -- left edges cascade top-to-bottom. Exp anchors to the frame; Raid,
@@ -5047,7 +5463,7 @@ GetOrCreateTmogWindow = function()
     local barVisibleLeft = LABEL_LEFT + LABEL_W + LABEL_GAP
     local barLeft = barVisibleLeft - DD_INSET
     local DD_STEP = 5
-    ddExp:SetPoint("TOPLEFT",  f,     "TOPLEFT",     barLeft, -32)
+    ddExp:SetPoint("TOPLEFT",  tmogFrame,     "TOPLEFT",     barLeft, -32)
     ddRaid:SetPoint("TOPLEFT", ddExp, "BOTTOMLEFT",  DD_STEP,  4)
     ddBoss:SetPoint("TOPLEFT", ddRaid, "BOTTOMLEFT", DD_STEP,  4)
 
@@ -5066,10 +5482,10 @@ GetOrCreateTmogWindow = function()
     end
     anchorLabel(ddExp); anchorLabel(ddRaid); anchorLabel(ddBoss)
 
-    f.ddExp, f.ddRaid, f.ddBoss = ddExp, ddRaid, ddBoss
+    tmogFrame.ddExp, tmogFrame.ddRaid, tmogFrame.ddBoss = ddExp, ddRaid, ddBoss
     -- Left margin where below-dropdown content (loot list, legend, scroll
     -- region) aligns. Independent of the dropdowns' indented left edge.
-    f.contentMargin = 22
+    tmogFrame.contentMargin = 22
 
     -- Class filter dropdown -- chooses which class's class-gated loot (tier
     -- tokens, or Baradin Hold's equipClasses armor) the browser shows. Each
@@ -5079,10 +5495,10 @@ GetOrCreateTmogWindow = function()
     -- older "show all class tier" checkbox -- a dropdown lets you pick any
     -- single class, not just your-own-vs-everyone. Persisted to
     -- RetroRunsDB.tmogClassFilter (class ID, or 0 for "all").
-    local ddClass = MakeDD("Class", 110, f, "Class:")
+    local ddClass = MakeDD("Class", 110, tmogFrame, RR.L["Class:"])
     ddClass:SetPoint("TOPLEFT", ddBoss, "BOTTOMLEFT", DD_STEP, 4)
     anchorLabel(ddClass)
-    f.ddClass = ddClass
+    tmogFrame.ddClass = ddClass
 
     -- Size each dropdown bar to its widest real content by MEASURING the
     -- rendered string width, rather than a hardcoded guess (which truncated
@@ -5097,19 +5513,19 @@ GetOrCreateTmogWindow = function()
     -- needed. Raid/Boss are measured against all current names; Class against
     -- the class names plus "All classes". Re-runnable: RefreshDropdowns calls
     -- this so newly-added data is accommodated on the next open.
-    local measureFS = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    local measureFS = tmogFrame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     measureFS:Hide()
     local function widestStringWidth(strings)
         local maxW = 0
         for _, s in ipairs(strings) do
             measureFS:SetText(s or "")
-            local w = measureFS:GetStringWidth() or 0
-            if w > maxW then maxW = w end
+            local textWidth = measureFS:GetStringWidth() or 0
+            if textWidth > maxW then maxW = textWidth end
         end
         return maxW
     end
 
-    f.SizeDropdownsToContent = function(self)
+    tmogFrame.SizeDropdownsToContent = function(self)
         -- ARROW_PAD covers the dropdown's right-side arrow button plus the
         -- template's inner left/right text margins. UIDropDownMenu_SetWidth
         -- sets the text region; the visible frame is wider, but the text that
@@ -5124,9 +5540,9 @@ GetOrCreateTmogWindow = function()
         local raidNames, bossNames = {}, {}
         for _, raid in pairs(RetroRuns_Data or {}) do
             if raid.instanceID and raid.instanceID > 0 then
-                raidNames[#raidNames + 1] = raid.name or ""
+                raidNames[#raidNames + 1] = RR:GetLocalizedRaidName(raid) or ""
                 for _, boss in ipairs(raid.bosses or {}) do
-                    bossNames[#bossNames + 1] = boss.name or ""
+                    bossNames[#bossNames + 1] = RR:GetLocalizedBossName(boss) or ""
                 end
             end
         end
@@ -5134,7 +5550,7 @@ GetOrCreateTmogWindow = function()
         local bossW = widestStringWidth(bossNames)
 
         -- Class: localized class names plus the "All classes" entry.
-        local classNames = { "All classes" }
+        local classNames = { RR.L["All classes"] }
         for classID = 1, 13 do
             if CLASS_ID_TO_TOKEN[classID] then
                 classNames[#classNames + 1] = ClassNameForID(classID) or ""
@@ -5172,23 +5588,23 @@ GetOrCreateTmogWindow = function()
         local token = CLASS_ID_TO_TOKEN[classID]
         local hex   = "ffffffff"
         if token and RAID_CLASS_COLORS and RAID_CLASS_COLORS[token] then
-            local c = RAID_CLASS_COLORS[token]
-            if c.colorStr then hex = c.colorStr end
+            local classColor = RAID_CLASS_COLORS[token]
+            if classColor.colorStr then hex = classColor.colorStr end
         end
         return ("|c%s%s|r"):format(hex, name)
     end
 
-    f.RefreshClassDropdown = function(self)
+    tmogFrame.RefreshClassDropdown = function(self)
         local active = ActiveClassFilter()   -- nil = all classes
         UIDropDownMenu_Initialize(ddClass, function()
             -- "All classes" first.
             local allInfo = UIDropDownMenu_CreateInfo()
-            allInfo.text    = "All classes"
+            allInfo.text    = RR.L["All classes"]
             allInfo.value   = 0
             allInfo.checked = (active == nil)
             allInfo.func    = function()
                 RR:SetSetting("tmogClassFilter", 0)
-                if f.RefreshAll then f:RefreshAll() end
+                if tmogFrame.RefreshAll then tmogFrame:RefreshAll() end
             end
             UIDropDownMenu_AddButton(allInfo)
 
@@ -5199,13 +5615,13 @@ GetOrCreateTmogWindow = function()
                 info.checked = (active == classID)
                 info.func    = function()
                     RR:SetSetting("tmogClassFilter", classID)
-                    if f.RefreshAll then f:RefreshAll() end
+                    if tmogFrame.RefreshAll then tmogFrame:RefreshAll() end
                 end
                 UIDropDownMenu_AddButton(info)
             end
         end)
         if active == nil then
-            UIDropDownMenu_SetText(ddClass, "All classes")
+            UIDropDownMenu_SetText(ddClass, RR.L["All classes"])
         else
             UIDropDownMenu_SetText(ddClass, ClassFilterLabel(active))
         end
@@ -5217,19 +5633,19 @@ GetOrCreateTmogWindow = function()
     -- content + sanctum line so the list scrolls; the color legend below is a
     -- FIXED footer on the popup itself, so it never scrolls out of view.
     -- Pattern mirrors the What's New page in SettingsCanvas.
-    local scroll = CreateFrame("ScrollFrame", "RetroRunsTmogScroll", f,
+    local scroll = CreateFrame("ScrollFrame", "RetroRunsTmogScroll", tmogFrame,
                                "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOP",  ddClass, "BOTTOM", 0, -10)
-    scroll:SetPoint("LEFT", f, "LEFT", 22, 0)
+    scroll:SetPoint("LEFT", tmogFrame, "LEFT", 22, 0)
     -- Initial size is a placeholder; AutoSize clears these points and re-sizes
     -- the scroll region every layout pass (TOP from the dropdown stack, LEFT
     -- from the frame's content margin, explicit width and height = exactly the
     -- content viewport, so range is zero when content fits). -28 right inset
     -- leaves room for the scrollbar.
-    scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -28, 40)
+    scroll:SetPoint("BOTTOMRIGHT", tmogFrame, "BOTTOMRIGHT", -28, 40)
     scroll:HookScript("OnEnter", CancelTmogHide)
     scroll:HookScript("OnLeave", ScheduleTmogHide)
-    f.contentScroll = scroll
+    tmogFrame.contentScroll = scroll
 
     -- Resolve this scroll's scrollbar across client versions. Older clients
     -- expose it as the global "<name>ScrollBar"; modern (10.x+) ones attach
@@ -5237,7 +5653,7 @@ GetOrCreateTmogWindow = function()
     local function ResolveScrollBar()
         return scroll.ScrollBar or _G["RetroRunsTmogScrollScrollBar"]
     end
-    f.ResolveTmogScrollBar = ResolveScrollBar
+    tmogFrame.ResolveTmogScrollBar = ResolveScrollBar
 
     -- Install a persistent guard on the scrollbar that re-hides it whenever
     -- there is no scrollable range. UIPanelScrollFrameTemplate (and the modern
@@ -5254,23 +5670,26 @@ GetOrCreateTmogWindow = function()
         if not bar then return end
         bar:HookScript("OnShow", function(self)
             local range = scroll:GetVerticalScrollRange() or 0
-            if range <= 1 then
+            if not tmogFrame.tmogContentScrollable or range <= 1 then
                 self:Hide()
             end
         end)
         barGuardInstalled = true
     end
-    f.EnsureTmogBarGuard = EnsureBarGuard
+    tmogFrame.EnsureTmogBarGuard = EnsureBarGuard
 
     -- Also react to the range-changed event directly: when the range drops to
     -- zero (switching from a long boss list to a short one), hide the bar and
-    -- snap to top; when real range appears, show it.
+    -- snap to top; when real range appears on genuinely scrollable content,
+    -- show it. Visibility requires the layout's scrollability decision to
+    -- agree -- the reported range alone can hold a small phantom value on
+    -- content that fits.
     scroll:HookScript("OnScrollRangeChanged", function(self)
         EnsureBarGuard()
         local bar = ResolveScrollBar()
         if not bar then return end
         local range = self:GetVerticalScrollRange() or 0
-        if range > 1 then
+        if tmogFrame.tmogContentScrollable and range > 1 then
             bar:Show()
         else
             bar:Hide()
@@ -5281,7 +5700,7 @@ GetOrCreateTmogWindow = function()
     local scrollChild = CreateFrame("Frame", "RetroRunsTmogScrollChild", scroll)
     scrollChild:SetSize(10, 10)   -- real size set per layout pass
     scroll:SetScrollChild(scrollChild)
-    f.contentChild = scrollChild
+    tmogFrame.contentChild = scrollChild
 
     -- The loot list (contentText) and sanctum line render into the scroll
     -- child, so item/achievement link clicks route through the child's
@@ -5314,7 +5733,14 @@ GetOrCreateTmogWindow = function()
     text:SetJustifyV("TOP")
     text:SetWordWrap(true)
 
-    f.contentText = text
+    tmogFrame.contentText = text
+
+    -- Hidden, unanchored FontString for measuring content lines at their
+    -- natural (unwrapped) width. AutoSize applies the content font to it
+    -- each pass, so the measurement always matches what renders.
+    local lineMeasure = tmogFrame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    lineMeasure:Hide()
+    tmogFrame.lineMeasure = lineMeasure
 
     -- Sanctum vendor line. Lives inside the scroll child, below the main
     -- content text, so it scrolls with the content it belongs to. Width
@@ -5331,18 +5757,18 @@ GetOrCreateTmogWindow = function()
     sanctumLine:SetJustifyV("TOP")
     sanctumLine:SetWordWrap(true)
     sanctumLine:Hide()
-    f.sanctumLine = sanctumLine
+    tmogFrame.sanctumLine = sanctumLine
 
     -- Color legend. FIXED footer on the popup (NOT in the scroll child), so
     -- it stays pinned at the bottom while the content above it scrolls.
     -- Anchored to the popup's bottom in the layout pass.
-    local legendLine = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    legendLine:SetPoint("BOTTOMLEFT",  f, "BOTTOMLEFT",  22, 12)
-    legendLine:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 12)
+    local legendLine = tmogFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    legendLine:SetPoint("BOTTOMLEFT",  tmogFrame, "BOTTOMLEFT",  22, 12)
+    legendLine:SetPoint("BOTTOMRIGHT", tmogFrame, "BOTTOMRIGHT", -14, 12)
     legendLine:SetJustifyH("LEFT")
     legendLine:SetJustifyV("TOP")
     legendLine:SetWordWrap(true)
-    f.legendLine = legendLine
+    tmogFrame.legendLine = legendLine
 
     -- Flight button anchored against the sanctum line's RENDERED text
     -- width (GetStringWidth, not the FontString's frame width which
@@ -5356,18 +5782,22 @@ GetOrCreateTmogWindow = function()
     local sanctumBtn = CreateFrame("Button", nil, scrollChild)
     sanctumBtn:RegisterForClicks("LeftButtonUp")
     sanctumBtn:SetFrameLevel((scrollChild:GetFrameLevel() or 0) + 10)
-    sanctumBtn:SetNormalTexture("Interface\\Minimap\\Tracking\\FlightMaster")
+    sanctumBtn:SetNormalTexture("Interface\\AddOns\\RetroRuns\\Media\\PlaneIcon")
+    local planeTexture = sanctumBtn:GetNormalTexture()
+    if planeTexture then
+        planeTexture:SetVertexColor(C_PINK[1], C_PINK[2], C_PINK[3], 1)
+    end
     sanctumBtn:SetHighlightTexture(
-        "Interface\\Minimap\\Tracking\\FlightMaster", "ADD")
+        "Interface\\AddOns\\RetroRuns\\Media\\PlaneIcon", "ADD")
     sanctumBtn:Hide()
     sanctumBtn:HookScript("OnEnter", CancelTmogHide)
     sanctumBtn:HookScript("OnLeave", ScheduleTmogHide)
-    f.sanctumButton = sanctumBtn
+    tmogFrame.sanctumButton = sanctumBtn
 
-    tmogWindow = f
+    tmogWindow = tmogFrame
 
-    -- Dropdown initializers (defined after f exists so they can reference it).
-    f.RefreshDropdowns = function(self)
+    -- Dropdown initializers (defined after tmogFrame exists so they can reference it).
+    tmogFrame.RefreshDropdowns = function(self)
         EnsureBrowserDefaults()
         local byExp, expList = EnumerateRaids()
 
@@ -5386,7 +5816,7 @@ GetOrCreateTmogWindow = function()
                     local first = byExp[expName] and byExp[expName][1]
                     browserState.raidKey   = first and first.instanceID or nil
                     browserState.bossIndex = 1
-                    f:RefreshAll()
+                    tmogFrame:RefreshAll()
                 end
                 UIDropDownMenu_AddButton(info)
             end
@@ -5399,21 +5829,21 @@ GetOrCreateTmogWindow = function()
             for _, raid in ipairs(raids) do
                 local n, s, t = CountRaidLoot(raid)
                 local info = UIDropDownMenu_CreateInfo()
-                info.text = (raid.name or "?") .. FormatCountSuffix(n, s, t)
+                info.text = (RR:GetLocalizedRaidName(raid) or "?") .. FormatCountSuffix(n, s, t)
                 info.value = raid.instanceID
                 info.checked = (raid.instanceID == browserState.raidKey)
                 info.func = function()
                     if browserState.raidKey == raid.instanceID then return end
                     browserState.raidKey   = raid.instanceID
                     browserState.bossIndex = 1
-                    f:RefreshAll()
+                    tmogFrame:RefreshAll()
                 end
                 UIDropDownMenu_AddButton(info)
             end
         end)
         local raidName = "(none)"
         local selRaid = browserState.raidKey and RR:GetRaidByInstanceID(browserState.raidKey)
-        if selRaid then raidName = selRaid.name or "?" end
+        if selRaid then raidName = RR:GetLocalizedRaidName(selRaid) or "?" end
         UIDropDownMenu_SetText(ddRaid, raidName)
 
         -- Boss dropdown (within current raid)
@@ -5423,31 +5853,31 @@ GetOrCreateTmogWindow = function()
             for idx, boss in ipairs(raid.bosses) do
                 local n, s, t = CountBossLoot(boss)
                 local info = UIDropDownMenu_CreateInfo()
-                info.text = (boss.name or ("Boss " .. idx)) .. FormatCountSuffix(n or 0, s or 0, t or 0)
+                info.text = (RR:GetLocalizedBossName(boss) or ("Boss " .. idx)) .. FormatCountSuffix(n or 0, s or 0, t or 0)
                 info.value = idx
                 info.checked = (idx == browserState.bossIndex)
                 info.func = function()
                     if browserState.bossIndex == idx then return end
                     browserState.bossIndex = idx
-                    UIDropDownMenu_SetText(ddBoss, boss.name or ("Boss " .. idx))
-                    f:RefreshContent()
+                    UIDropDownMenu_SetText(ddBoss, RR:GetLocalizedBossName(boss) or ("Boss " .. idx))
+                    tmogFrame:RefreshContent()
                 end
                 UIDropDownMenu_AddButton(info)
             end
         end)
         local bossName = "(none)"
         local _, selBoss = GetBrowserSelection()
-        if selBoss then bossName = selBoss.name or "?" end
+        if selBoss then bossName = RR:GetLocalizedBossName(selBoss) or "?" end
         UIDropDownMenu_SetText(ddBoss, bossName)
 
         -- Fit the bars to their content (measured, not guessed).
         if self.SizeDropdownsToContent then self:SizeDropdownsToContent() end
     end
 
-    f.RefreshContent = function(self)
+    tmogFrame.RefreshContent = function(self)
         local raid, boss = GetBrowserSelection()
         local detail = boss and BuildTransmogDetail({ boss = boss })
-                              or "Select a raid and boss."
+                              or RR.L["Select a raid and boss."]
         text:SetText(detail or "")
         local fontSize = RR:GetSetting("fontSize", 12)
         SetBodyFont(text, fontSize - 1, "")
@@ -5491,13 +5921,14 @@ GetOrCreateTmogWindow = function()
                     CancelTmogHide()
                     GameTooltip:SetOwner(selfBtn, "ANCHOR_RIGHT")
                     GameTooltip:SetText(
-                        ("Travel to %s"):format(
-                            sanctumVendor.vendorName or "Sanctum vendor"),
+                        (RR.L["Travel to %s"]):format(
+                            (sanctumVendor.vendorName and RR.L[sanctumVendor.vendorName])
+                                or RR.L["Sanctum vendor"]),
                         1, 1, 1)
                     GameTooltip:AddLine(
                         ("%s -- %s"):format(
-                            sanctumVendor.zoneSub or "",
-                            sanctumVendor.zoneMain or ""),
+                            RR.L[sanctumVendor.zoneSub or ""],
+                            RR.L[sanctumVendor.zoneMain or ""]),
                         0.7, 0.7, 0.7, true)
                     GameTooltip:Show()
                 end)
@@ -5548,7 +5979,7 @@ GetOrCreateTmogWindow = function()
         UI.AutoSize()
     end
 
-    f.RefreshAll = function(self)
+    tmogFrame.RefreshAll = function(self)
         WarmBrowserItemCache()
         self:RefreshDropdowns()
         self:RefreshContent()
@@ -5585,7 +6016,7 @@ GetOrCreateTmogWindow = function()
     -- Disable (grey + dim) the dropdown there so the player gets a visible
     -- "this control doesn't apply right now" signal rather than a live
     -- control with no observable effect.
-    f.RefreshClassDropdownEnabled = function(self)
+    tmogFrame.RefreshClassDropdownEnabled = function(self)
         local raid, boss = GetBrowserSelection()
         local hasClassFiltered = false
         if raid and boss then
@@ -5631,12 +6062,12 @@ GetOrCreateTmogWindow = function()
 
     -- Realtime collection-state refresh, debounced 50ms. The per-render
     -- appearance cache (in BuildTransmogDetail) auto-clears on next render.
-    f:RegisterEvent("TRANSMOG_COLLECTION_SOURCE_ADDED")
-    f:RegisterEvent("TRANSMOG_COLLECTION_SOURCE_REMOVED")
-    f:RegisterEvent("TRANSMOG_COLLECTION_UPDATED")
+    tmogFrame:RegisterEvent("TRANSMOG_COLLECTION_SOURCE_ADDED")
+    tmogFrame:RegisterEvent("TRANSMOG_COLLECTION_SOURCE_REMOVED")
+    tmogFrame:RegisterEvent("TRANSMOG_COLLECTION_UPDATED")
 
     local refreshPending = false
-    f:SetScript("OnEvent", function(self)
+    tmogFrame:SetScript("OnEvent", function(self)
         if not self:IsShown() then return end
         if refreshPending then return end
         refreshPending = true
@@ -5648,7 +6079,7 @@ GetOrCreateTmogWindow = function()
         end)
     end)
 
-    return f
+    return tmogFrame
 end
 
 function UI.UpdateTmogWindow(step)
@@ -5679,8 +6110,8 @@ end
 -- not in a supported raid, red down = disabled. Mirrors the settings panel's
 -- Active Status so both surfaces agree. Safe to call any time.
 function UI.RefreshFooterToasterStatus()
-    local f = panel.toastStatus
-    if not f or not f.arrow then return end
+    local toastStatus = panel.toastStatus
+    if not toastStatus or not toastStatus.arrow then return end
     local enabled = RR:GetSetting("toasterEnabled", false) ~= false
     local inRaid  = RR.currentRaid ~= nil
     local color, up
@@ -5691,8 +6122,8 @@ function UI.RefreshFooterToasterStatus()
     else
         color, up = { 1.00, 0.55, 0.20 }, false    -- amber, down
     end
-    f.arrow:SetRotation(up and math.pi or 0)       -- asset points down natively
-    f.arrow:SetVertexColor(color[1], color[2], color[3])
+    toastStatus.arrow:SetRotation(up and math.pi or 0)       -- asset points down natively
+    toastStatus.arrow:SetVertexColor(color[1], color[2], color[3])
 end
 
 -- Public entry point for "/rr tmog" and any other "open the browser from
@@ -5704,7 +6135,7 @@ function UI.OpenTransmogBrowser()
     if skipsWindow and skipsWindow:IsShown() then skipsWindow:Hide() end
     if achievementsWindow and achievementsWindow:IsShown() then achievementsWindow:Hide() end
 
-    local w = GetOrCreateTmogWindow()
+    local window = GetOrCreateTmogWindow()
     browserState.active = true
     CancelTmogHide()
     -- Apply current scale before showing so the first visible state matches
@@ -5712,9 +6143,9 @@ function UI.OpenTransmogBrowser()
     -- construction-time default of 1.0. Skips and achievements apply scale
     -- at their open sites the same way.
     local scale = RR:GetSetting("windowScale", 1.0)
-    w:SetScale(scale)
-    w:RefreshAll()
-    w:Show()
+    window:SetScale(scale)
+    window:RefreshAll()
+    window:Show()
     -- One more AutoSize after Show so the first visible frame is already at
     -- the final size. Otherwise the initial creation's SetSize(440, MIN)
     -- briefly shows through before the AutoSize inside RefreshAll's height
@@ -5739,7 +6170,7 @@ end
 -- running the probe.
 function UI.DumpTmogSize()
     local lines = {}
-    local function add(s) table.insert(lines, s or "") end
+    local function add(line) table.insert(lines, line or "") end
 
     if not tmogWindow then
         add("Tmog window not constructed yet. Open the tmog browser first.")
@@ -5769,10 +6200,10 @@ function UI.DumpTmogSize()
         local shown = w:IsShown() and "shown" or "HIDDEN"
         local top   = w:GetTop()    or 0
         local bot   = w:GetBottom() or 0
-        local h     = w:GetHeight() or 0
+        local windowHeight     = w:GetHeight() or 0
         local sh    = (w.GetStringHeight and w:GetStringHeight()) or -1
         add(("  %s [%s]: height=%.1f  stringHeight=%.1f  top=%.1f  bottom=%.1f"):format(
-            label, shown, h, sh, top, bot))
+            label, shown, windowHeight, sh, top, bot))
     end
 
     widgetSummary("text",        text)
@@ -5814,11 +6245,9 @@ function UI.DumpTmogSize()
 
     -- Geometry comparison: where does the last visible widget actually
     -- end vs where the frame ends?
+    -- Legend is anchored under sanctumLine when sanctum shows;
+    -- legend is still the lowest widget either way.
     local lastBot = legendLine and legendLine:GetBottom()
-    if sanctumLine and sanctumLine:IsShown() then
-        -- Legend is anchored under sanctumLine when sanctum shows;
-        -- legend is still the lowest widget either way.
-    end
     if lastBot and fBot then
         local gap = lastBot - fBot
         add("")
@@ -5876,14 +6305,8 @@ end
 -- ----------------------------------------------------------------------------
 
 -- Skip-unlocked marker: yellow raid-target star, same texture used for
--- Fyrakk's portal POI. Three states for the leading raid-row marker:
---   SKIP_MARKER_LED      -- gold: skip unlocked on this account
---   SKIP_MARKER_LED_DIM  -- dim: skip exists but not yet unlocked
---   SKIP_MARKER_LED_NONE -- transparent: no skip mechanic; reserves
---                           column width so rows align.
+-- Fyrakk's portal POI. Gold means the skip is unlocked on this account.
 local SKIP_MARKER_LED      = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:12:12|t"
-local SKIP_MARKER_LED_DIM  = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:12:12:0:0:64:64:0:64:0:64:80:80:80|t"
-local SKIP_MARKER_LED_NONE = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:12:12:0:0:64:64:0:64:0:64:0:0:0:0|t"
 -- Row variants: the idle-list raid rows render at the body font (12+),
 -- the legend at LEGEND_FONT_SIZE (10), so the same texture px reads
 -- larger on the rows. These row markers are sized down to land at the
@@ -5903,7 +6326,7 @@ local ENTRANCE_MARKER =
 -- Skip-legend footer line. Explains the gold star; dim and invisible
 -- variants don't need explicit legend coverage.
 local IDLE_SKIP_LEGEND =
-    "|cff9d9d9d" .. SKIP_MARKER_LED .. " = skip unlocked -- check Skips for details|r"
+    "|cff9d9d9d" .. SKIP_MARKER_LED .. " = " .. RR.L["skip unlocked -- check Skips for details"] .. "|r"
 
 -- Footer legend below the supported-raids list. Two lines:
 --   Routing: <Zygor|Mapzeroth|None> [with AWP Orchestration]
@@ -5914,9 +6337,9 @@ local function BuildEntranceLegend()
     local LBL_HEX  = "9d9d9d"  -- labels, connectors, prepositions
     local WARN_HEX = "ff4040"  -- soft-warning text (Zygor arrow off)
 
-    local function lit(s) return ("|cff%s%s|r"):format(LIT_HEX, s) end
-    local function lbl(s) return ("|cff%s%s|r"):format(LBL_HEX, s) end
-    local function warn(s) return ("|cff%s%s|r"):format(WARN_HEX, s) end
+    local function lit(text) return ("|cff%s%s|r"):format(LIT_HEX, text) end
+    local function lbl(text) return ("|cff%s%s|r"):format(LBL_HEX, text) end
+    local function warn(text) return ("|cff%s%s|r"):format(WARN_HEX, text) end
 
     local awpInst       = RR:IsAWPInstalled()
     local zygorInst     = RR:IsZygorInstalled()
@@ -5943,12 +6366,12 @@ local function BuildEntranceLegend()
         routingActive = lit("Zygor")
         if not RR:IsZygorArrowEnabled() then
             routingActive = routingActive .. " " .. warn(
-                "|Hretroruns:zygor_arrow|h[Waypoint Arrow Disabled - Click to Enable]|h")
+                "|Hretroruns:zygor_arrow|h" .. RR.L["[Waypoint Arrow Disabled - Click to Enable]"] .. "|h")
         end
     elseif mapzerothInst then
         routingActive = lit("Mapzeroth")
     else
-        routingActive = lit("None")
+        routingActive = lit(RR.L["None"])
     end
 
     -- AWP Orchestration tail: ONLY when AWP is installed AND a backend
@@ -5956,24 +6379,24 @@ local function BuildEntranceLegend()
     -- tail in that case.
     local routingTail = ""
     if awpInst and (zygorInst or mapzerothInst) then
-        routingTail = lbl(" with ") .. lit("AWP Orchestration")
+        routingTail = lbl(RR.L[" with "]) .. lit("AWP Orchestration")
     end
 
     -- WAYPOINT line. TomTom or Blizzard Native -- exactly one
     -- describes which addon drops the destination arrow. Native is
     -- the universal fallback.
-    local waypointActive = tomtomInst and lit("TomTom") or lit("Native")
+    local waypointActive = tomtomInst and lit("TomTom") or lit(RR.L["Native"])
 
     -- OVERLAY tail. AWP and WUI as peers; either, both, or neither
     -- can be active. Tail entirely omitted when neither is installed.
     local overlayTail = ""
     if awpInst and wuiInst then
-        overlayTail = lbl(" with 3D Overlay from ")
-            .. lit("AWP") .. lbl(" and ") .. lit("WUI")
+        overlayTail = lbl(RR.L[" with 3D Overlay from "])
+            .. lit("AWP") .. lbl(RR.L[" and "]) .. lit("WUI")
     elseif awpInst then
-        overlayTail = lbl(" with 3D Overlay from ") .. lit("AWP")
+        overlayTail = lbl(RR.L[" with 3D Overlay from "]) .. lit("AWP")
     elseif wuiInst then
-        overlayTail = lbl(" with 3D Overlay from ") .. lit("WUI")
+        overlayTail = lbl(RR.L[" with 3D Overlay from "]) .. lit("WUI")
     end
 
     -- Return two rows. Each row has a label half (gray "Routing: " or
@@ -5985,8 +6408,8 @@ local function BuildEntranceLegend()
     -- "Routing: " is narrower than "Waypoint: " so concatenated text
     -- doesn't column-align even when labels are styled identically).
     return {
-        { withMarker = true,  label = lbl("Routing: "),  data = routingActive  .. routingTail },
-        { withMarker = false, label = lbl("Waypoint: "), data = waypointActive .. overlayTail },
+        { withMarker = true,  label = lbl(RR.L["Routing: "]),  data = routingActive  .. routingTail },
+        { withMarker = false, label = lbl(RR.L["Waypoint: "]), data = waypointActive .. overlayTail },
     }
 end
 
@@ -6091,7 +6514,7 @@ local function BuildSkipsRows()
     if not fn then
         add({ kind = "message", text =
             "|cffff5555Account-wide skip detection unavailable on this client.|r\n"
-            .. "|cff9d9d9dRequires Patch 11.0.5 or later.|r" })
+            .. "|cff9d9d9d" .. RR.L["Requires Patch 11.0.5 or later."] .. "|r" })
         return rows
     end
 
@@ -6108,7 +6531,7 @@ local function BuildSkipsRows()
             -- shared Alliance copy, so the skip trigger names the correct
             -- faction's NPC. Mirrors BuildIdleListRows.
             local resolved = RR:GetRaidByInstanceID(raid.instanceID) or raid
-            local exp = resolved.expansion or "Unknown"
+            local exp = resolved.expansion or RR.L["Unknown"]
             if not byExp[exp] then
                 byExp[exp] = {}
                 table.insert(expOrder, exp)
@@ -6190,14 +6613,14 @@ local function BuildSkipsRows()
                 local isMultiChain = perChain and #perChain > 1
 
                 if isMultiChain then
-                    local function cellsForChain(c)
+                    local function cellsForChain(chain)
                         local mCell, hCell, nCell
                         if cascading then
-                            mCell = c.ceiling and c.ceiling >= 16 or false
-                            hCell = c.ceiling and c.ceiling >= 15 or false
-                            nCell = c.ceiling and c.ceiling >= 14 or false
+                            mCell = chain.ceiling and chain.ceiling >= 16 or false
+                            hCell = chain.ceiling and chain.ceiling >= 15 or false
+                            nCell = chain.ceiling and chain.ceiling >= 14 or false
                         else
-                            mCell = c.ceiling == 16
+                            mCell = chain.ceiling == 16
                             hCell = "na"
                             nCell = "na"
                         end
@@ -6207,7 +6630,7 @@ local function BuildSkipsRows()
                     local m2, h2, n2 = cellsForChain(perChain[2])
                     table.insert(expRows, {
                         kind    = "raidRow",
-                        name    = raid.name or "?",
+                        name    = RR:GetLocalizedRaidName(raid) or "?",
                         mythic  = m1, heroic  = h1, normal  = n1,
                         mythic2 = m2, heroic2 = h2, normal2 = n2,
                         trigger = raid.skipTrigger,
@@ -6241,7 +6664,7 @@ local function BuildSkipsRows()
                     end
                     table.insert(expRows, {
                         kind   = "raidRow",
-                        name   = raid.name or "?",
+                        name   = RR:GetLocalizedRaidName(raid) or "?",
                         mythic = mCell,
                         heroic = hCell,
                         normal = nCell,
@@ -6449,8 +6872,8 @@ end
 -- positions per-row widgets at the appropriate y offset, and resizes
 -- the frame to fit.
 local function RefreshSkipsContent()
-    local w = skipsWindow
-    if not w then return end
+    local window = skipsWindow
+    if not window then return end
 
     HideAllSkipsSlots()
     ReleaseSkipsToggleButtons()
@@ -6478,14 +6901,14 @@ local function RefreshSkipsContent()
     local y = -topMargin
 
     -- Update the persistent column header strings to match font size.
-    if w.colHeaderM then
-        SetBodyFont(w.colHeaderM, rowFontSize, "")
-        SetBodyFont(w.colHeaderH, rowFontSize, "")
-        SetBodyFont(w.colHeaderN, rowFontSize, "")
+    if window.colHeaderM then
+        SetBodyFont(window.colHeaderM, rowFontSize, "")
+        SetBodyFont(window.colHeaderH, rowFontSize, "")
+        SetBodyFont(window.colHeaderN, rowFontSize, "")
     end
 
     for i, row in ipairs(rows) do
-        local slot = GetSkipsRowSlot(w, i)
+        local slot = GetSkipsRowSlot(window, i)
 
         if row.kind == "expansionHeader" then
             SetBodyFont(slot.expHeader, rowFontSize, "")
@@ -6498,7 +6921,7 @@ local function RefreshSkipsContent()
             -- the button shows +/- or the row expands/collapses.
             slot.expHeader:SetText(("    |cff00ffff%s|r"):format(row.text))
             slot.expHeader:ClearAllPoints()
-            slot.expHeader:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y)
+            slot.expHeader:SetPoint("TOPLEFT", window, "TOPLEFT", SKIPS_COL_NAME_X, y)
             slot.expHeader:Show()
 
             -- Toggle button: square at the font height, anchored to the
@@ -6507,7 +6930,7 @@ local function RefreshSkipsContent()
             -- in the idle list). Click flips collapse state and rebuilds.
             local exp = row.text
             local shown = row.expanded
-            local btn = AcquireSkipsToggleButton(w)
+            local btn = AcquireSkipsToggleButton(window)
             btn:SetSize(rowFontSize, rowFontSize)
             SetSkipsToggleTextures(btn, shown)
             btn:ClearAllPoints()
@@ -6540,7 +6963,7 @@ local function RefreshSkipsContent()
             SetBodyFont(slot.name, rowFontSize, "")
             slot.name:SetText("|cffffffff  " .. row.name .. "|r")
             slot.name:ClearAllPoints()
-            slot.name:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y)
+            slot.name:SetPoint("TOPLEFT", window, "TOPLEFT", SKIPS_COL_NAME_X, y)
             slot.name:SetWidth(SKIPS_COL_INFO_X - SKIPS_COL_NAME_X - 8)
             slot.name:Show()
 
@@ -6557,13 +6980,13 @@ local function RefreshSkipsContent()
             if RR.currentRaid and row.raidRef
                and row.raidRef.instanceID == RR.currentRaid.instanceID then
                 slot.highlight:ClearAllPoints()
-                slot.highlight:SetPoint("TOPLEFT",     w, "TOPLEFT",  4,  y + 2)
-                slot.highlight:SetPoint("BOTTOMRIGHT", w, "TOPRIGHT", -4, y - lineHeight + 4)
+                slot.highlight:SetPoint("TOPLEFT",     window, "TOPLEFT",  4,  y + 2)
+                slot.highlight:SetPoint("BOTTOMRIGHT", window, "TOPRIGHT", -4, y - lineHeight + 4)
                 slot.highlight:Show()
 
                 slot.accent:ClearAllPoints()
-                slot.accent:SetPoint("TOPLEFT",    w, "TOPLEFT", 4, y + 2)
-                slot.accent:SetPoint("BOTTOMLEFT", w, "TOPLEFT", 4, y - lineHeight + 4)
+                slot.accent:SetPoint("TOPLEFT",    window, "TOPLEFT", 4, y + 2)
+                slot.accent:SetPoint("BOTTOMLEFT", window, "TOPLEFT", 4, y - lineHeight + 4)
                 slot.accent:Show()
             end
 
@@ -6585,9 +7008,9 @@ local function RefreshSkipsContent()
                 -- name's visual midline -- the button's GameFontHighlightSmall
                 -- glyph centers at y-8 (button is 16 tall), while the row
                 -- name's body-font text sits higher in its line-box.
-                slot.infoBtn:SetPoint("TOPLEFT", w, "TOPLEFT",
+                slot.infoBtn:SetPoint("TOPLEFT", window, "TOPLEFT",
                     SKIPS_COL_INFO_X - 14, y + 2)
-                slot.infoBtn:SetFrameLevel(w:GetFrameLevel() + 2)
+                slot.infoBtn:SetFrameLevel(window:GetFrameLevel() + 2)
                 local raidRef = row.raidRef
                 slot.infoBtn:SetScript("OnClick", function()
                     -- Toggle: re-click same row closes; click on a
@@ -6602,10 +7025,10 @@ local function RefreshSkipsContent()
             --   "?"  -> unknown glyph (Garrosh undeterminable)
             --   true -> green (unlocked)
             --   false -> white (locked: exists but not unlocked)
-            local function cellText(v)
-                if v == "na" then return SKIPS_CELL_NA end
-                if v == "?" then return SKIPS_CELL_UNKNOWN end
-                if v then
+            local function cellText(cellValue)
+                if cellValue == "na" then return SKIPS_CELL_NA end
+                if cellValue == "?" then return SKIPS_CELL_UNKNOWN end
+                if cellValue then
                     return SKIPS_CELL_UNLOCKED
                 end
                 return SKIPS_CELL_LOCKED
@@ -6623,14 +7046,14 @@ local function RefreshSkipsContent()
             slot.cellM:SetText(cellText(row.mythic))
             slot.cellM:ClearAllPoints()
             if row.mythic2 ~= nil then
-                slot.cellM:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_MYTHIC_X - pairOffset, y)
+                slot.cellM:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_MYTHIC_X - pairOffset, y)
                 SetBodyFont(slot.cellM2, rowFontSize, "")
                 slot.cellM2:SetText(cellText(row.mythic2))
                 slot.cellM2:ClearAllPoints()
-                slot.cellM2:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_MYTHIC_X + pairOffset, y)
+                slot.cellM2:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_MYTHIC_X + pairOffset, y)
                 slot.cellM2:Show()
             else
-                slot.cellM:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_MYTHIC_X, y)
+                slot.cellM:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_MYTHIC_X, y)
             end
             slot.cellM:Show()
 
@@ -6638,14 +7061,14 @@ local function RefreshSkipsContent()
             slot.cellH:SetText(cellText(row.heroic))
             slot.cellH:ClearAllPoints()
             if row.heroic2 ~= nil then
-                slot.cellH:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_HEROIC_X - pairOffset, y)
+                slot.cellH:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_HEROIC_X - pairOffset, y)
                 SetBodyFont(slot.cellH2, rowFontSize, "")
                 slot.cellH2:SetText(cellText(row.heroic2))
                 slot.cellH2:ClearAllPoints()
-                slot.cellH2:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_HEROIC_X + pairOffset, y)
+                slot.cellH2:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_HEROIC_X + pairOffset, y)
                 slot.cellH2:Show()
             else
-                slot.cellH:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_HEROIC_X, y)
+                slot.cellH:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_HEROIC_X, y)
             end
             slot.cellH:Show()
 
@@ -6653,14 +7076,14 @@ local function RefreshSkipsContent()
             slot.cellN:SetText(cellText(row.normal))
             slot.cellN:ClearAllPoints()
             if row.normal2 ~= nil then
-                slot.cellN:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_NORMAL_X - pairOffset, y)
+                slot.cellN:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_NORMAL_X - pairOffset, y)
                 SetBodyFont(slot.cellN2, rowFontSize, "")
                 slot.cellN2:SetText(cellText(row.normal2))
                 slot.cellN2:ClearAllPoints()
-                slot.cellN2:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_NORMAL_X + pairOffset, y)
+                slot.cellN2:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_NORMAL_X + pairOffset, y)
                 slot.cellN2:Show()
             else
-                slot.cellN:SetPoint("TOP", w, "TOPLEFT", SKIPS_COL_NORMAL_X, y)
+                slot.cellN:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_NORMAL_X, y)
             end
             slot.cellN:Show()
 
@@ -6672,8 +7095,8 @@ local function RefreshSkipsContent()
             -- consecutive dividers (text has internal top-padding that
             -- shifts its visual midpoint upward).
             slot.divider:ClearAllPoints()
-            slot.divider:SetPoint("TOPLEFT",  w, "TOPLEFT",  SKIPS_COL_NAME_X, y - lineHeight + SKIPS_ROW_DIVIDER_INSET)
-            slot.divider:SetPoint("TOPRIGHT", w, "TOPRIGHT", -14, y - lineHeight + SKIPS_ROW_DIVIDER_INSET)
+            slot.divider:SetPoint("TOPLEFT",  window, "TOPLEFT",  SKIPS_COL_NAME_X, y - lineHeight + SKIPS_ROW_DIVIDER_INSET)
+            slot.divider:SetPoint("TOPRIGHT", window, "TOPRIGHT", -14, y - lineHeight + SKIPS_ROW_DIVIDER_INSET)
             slot.divider:Show()
 
             y = y - lineHeight
@@ -6692,7 +7115,7 @@ local function RefreshSkipsContent()
             SetBodyFont(slot.name, rowFontSize, "")
             slot.name:SetText(row.text)
             slot.name:ClearAllPoints()
-            slot.name:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y)
+            slot.name:SetPoint("TOPLEFT", window, "TOPLEFT", SKIPS_COL_NAME_X, y)
             slot.name:SetWidth(SKIPS_WINDOW_WIDTH - SKIPS_COL_NAME_X - 14)
             slot.name:Show()
             y = y - (lineHeight * 3)
@@ -6700,17 +7123,17 @@ local function RefreshSkipsContent()
     end
 
     -- Position the disclaimer below the last row, with a small gap.
-    if w.disclaimer then
-        SetBodyFont(w.disclaimer, fontSize - 1, "")
-        w.disclaimer:ClearAllPoints()
-        w.disclaimer:SetPoint("TOPLEFT", w, "TOPLEFT", SKIPS_COL_NAME_X, y - 8)
-        w.disclaimer:SetPoint("TOPRIGHT", w, "TOPRIGHT", -14, y - 8)
+    if window.disclaimer then
+        SetBodyFont(window.disclaimer, fontSize - 1, "")
+        window.disclaimer:ClearAllPoints()
+        window.disclaimer:SetPoint("TOPLEFT", window, "TOPLEFT", SKIPS_COL_NAME_X, y - 8)
+        window.disclaimer:SetPoint("TOPRIGHT", window, "TOPRIGHT", -14, y - 8)
     end
 
     -- Compute total height: |y| (negative offset to last row) + disclaimer
     -- height + bottom margin.
     local lastY = math.abs(y)
-    local disclaimerH = w.disclaimer and w.disclaimer:GetStringHeight() or 0
+    local disclaimerH = window.disclaimer and window.disclaimer:GetStringHeight() or 0
     local desired = lastY + 14 + disclaimerH + 14
     local clamped = math.max(SKIPS_WINDOW_MIN_HEIGHT,
                              math.min(SKIPS_WINDOW_MAX_HEIGHT, desired))
@@ -6728,87 +7151,87 @@ local function RefreshSkipsContent()
     -- scaled coord space, and UIParent BOTTOMLEFT is the origin, so the
     -- captured values can be used directly as the anchor offset at any
     -- window-scale setting.
-    local oldTop  = w:GetTop()
-    local oldLeft = w:GetLeft()
-    w:SetHeight(clamped)
+    local oldTop  = window:GetTop()
+    local oldLeft = window:GetLeft()
+    window:SetHeight(clamped)
     if oldTop and oldLeft then
-        w:ClearAllPoints()
-        w:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", oldLeft, oldTop)
+        window:ClearAllPoints()
+        window:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", oldLeft, oldTop)
     end
 end
 
 GetOrCreateSkipsWindow = function()
     if skipsWindow then return skipsWindow end
 
-    local f = CreateFrame("Frame", "RetroRunsSkipsWindow", UIParent, "BackdropTemplate")
+    local skipsFrame = CreateFrame("Frame", "RetroRunsSkipsWindow", UIParent, "BackdropTemplate")
     -- Initial height matches MIN; RefreshSkipsContent grows it on first show.
-    f:SetSize(SKIPS_WINDOW_WIDTH, SKIPS_WINDOW_MIN_HEIGHT)
-    f:SetBackdrop({
+    skipsFrame:SetSize(SKIPS_WINDOW_WIDTH, SKIPS_WINDOW_MIN_HEIGHT)
+    skipsFrame:SetBackdrop({
         bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
         edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
         tile = true, tileSize = 16, edgeSize = 16,
         insets = { left = 3, right = 3, top = 3, bottom = 3 },
     })
-    f:SetBackdropColor(0.03, 0.03, 0.03, RR:GetSetting("panelOpacity", 1.0))
+    skipsFrame:SetBackdropColor(0.03, 0.03, 0.03, RR:GetSetting("panelOpacity", 1.0))
     -- Anchor to the right of the main panel, same as Tmog.
-    f:SetPoint("TOPLEFT", panel, "TOPRIGHT", 6, 0)
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop",  f.StopMovingOrSizing)
-    f:SetClampedToScreen(true)
-    f:SetFrameStrata("HIGH")
-    f:Hide()
+    skipsFrame:SetPoint("TOPLEFT", panel, "TOPRIGHT", 6, 0)
+    skipsFrame:SetMovable(true)
+    skipsFrame:EnableMouse(true)
+    skipsFrame:RegisterForDrag("LeftButton")
+    skipsFrame:SetScript("OnDragStart", skipsFrame.StartMoving)
+    skipsFrame:SetScript("OnDragStop",  skipsFrame.StopMovingOrSizing)
+    skipsFrame:SetClampedToScreen(true)
+    skipsFrame:SetFrameStrata("HIGH")
+    skipsFrame:Hide()
 
     -- The skip-detail frame is conceptually a child of this window (it
     -- opens from a row's [ i ] button). Hide it whenever this window
     -- hides, so it doesn't linger after the Skips window is closed or
     -- mutexed away by another auxiliary window.
-    f:HookScript("OnHide", function() UI.HideSkipDetail() end)
+    skipsFrame:HookScript("OnHide", function() UI.HideSkipDetail() end)
 
-    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local title = skipsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 14, -10)
-    title:SetText("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  Raid Skips")
-    title:SetFont(TITLE_FONT, 16, "")
+    title:SetText(RR.L["|cffF259C7RETRO|r|cff4DCCFFRUNS|r  Raid Skips"])
+    title:SetFont(RR:GetChromeFont(), 16, "")
     title:SetShadowOffset(1, -1)
     title:SetShadowColor(0, 0, 0, 1)
 
-    local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    local closeBtn = CreateFrame("Button", nil, skipsFrame, "UIPanelCloseButton")
     closeBtn:SetPoint("TOPRIGHT", -4, -4)
-    closeBtn:SetScript("OnClick", function() f:Hide() end)
+    closeBtn:SetScript("OnClick", function() skipsFrame:Hide() end)
 
     -- Static column headers. Sit at y=-32, just below the title bar.
     -- These are persistent (not pool-managed) since they never change.
     local function MakeColHeader(x, text)
-        local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        fs:SetPoint("TOP", f, "TOPLEFT", x, -32)
+        local fs = skipsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        fs:SetPoint("TOP", skipsFrame, "TOPLEFT", x, -32)
         fs:SetJustifyH("CENTER")
         fs:SetText("|cffaaaaaa" .. text .. "|r")
         return fs
     end
-    f.colHeaderN = MakeColHeader(SKIPS_COL_NORMAL_X, "Normal")
-    f.colHeaderH = MakeColHeader(SKIPS_COL_HEROIC_X, "Heroic")
-    f.colHeaderM = MakeColHeader(SKIPS_COL_MYTHIC_X, "Mythic")
+    skipsFrame.colHeaderN = MakeColHeader(SKIPS_COL_NORMAL_X, RR.L["Normal"])
+    skipsFrame.colHeaderH = MakeColHeader(SKIPS_COL_HEROIC_X, RR.L["Heroic"])
+    skipsFrame.colHeaderM = MakeColHeader(SKIPS_COL_MYTHIC_X, RR.L["Mythic"])
 
     -- Disclaimer at the bottom. Anchored dynamically by RefreshSkipsContent
     -- after the last row, so no fixed position here.
     -- Footer legend: the four cell-dot states plus the info-button note.
     -- Dots reuse the cell glyph constants so the key always matches what
     -- the rows paint. The "?" unknown state is intentionally omitted.
-    local disclaimer = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    local disclaimer = skipsFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     disclaimer:SetJustifyH("LEFT")
     disclaimer:SetWordWrap(true)
     disclaimer:SetText(
-        SKIPS_CELL_NA       .. " |cff9d9d9dN/A|r    "
-     .. SKIPS_CELL_LOCKED   .. " |cff9d9d9dLocked|r    "
-     .. SKIPS_CELL_UNLOCKED .. " |cff9d9d9dUnlocked|r")
-    f.disclaimer = disclaimer
+        SKIPS_CELL_NA       .. " |cff9d9d9d" .. RR.L["N/A"] .. "|r    "
+     .. SKIPS_CELL_LOCKED   .. " |cff9d9d9d" .. RR.L["Locked"] .. "|r    "
+     .. SKIPS_CELL_UNLOCKED .. " |cff9d9d9d" .. RR.L["Unlocked"] .. "|r")
+    skipsFrame.disclaimer = disclaimer
 
-    f.RefreshContent = RefreshSkipsContent
+    skipsFrame.RefreshContent = RefreshSkipsContent
 
-    skipsWindow = f
-    return f
+    skipsWindow = skipsFrame
+    return skipsFrame
 end
 
 function UI.OpenSkipsWindow()
@@ -6820,7 +7243,7 @@ function UI.OpenSkipsWindow()
     if tmogWindow and tmogWindow:IsShown() then tmogWindow:Hide() end
     if achievementsWindow and achievementsWindow:IsShown() then achievementsWindow:Hide() end
 
-    local w = GetOrCreateSkipsWindow()
+    local window = GetOrCreateSkipsWindow()
 
     -- Snap to the current raid: opening the window while in a supported
     -- raid expands that raid's expansion section. Seeded only here, at
@@ -6830,16 +7253,16 @@ function UI.OpenSkipsWindow()
         RR.state.skipsExpandedExpansions = { [RR.currentRaid.expansion] = true }
         -- Mark the raid context as seen so the settings heartbeat doesn't
         -- treat the new window's nil _lastRaidKey as a transition.
-        w._lastRaidKey = RR.currentRaid.instanceID
+        window._lastRaidKey = RR.currentRaid.instanceID
     end
 
     -- Apply current settings (scale + font) before refreshing so the
     -- first visible state already matches the user's settings rather
     -- than rendering at default and then snapping to settings.
     local scale = RR:GetSetting("windowScale", 1.0)
-    w:SetScale(scale)
+    window:SetScale(scale)
     RefreshSkipsContent()
-    w:Show()
+    window:Show()
 end
 
 function UI.ToggleSkipsWindow()
@@ -6886,13 +7309,13 @@ local function BuildWhatsNewBody()
             -- Subheader (Added / Fixed / Changed / Removed). Gold to
             -- match the "Note:" / "Reward:" / "Title:" label color
             -- used elsewhere in the addon.
-            table.insert(lines, ("|cffffd200%s|r"):format(section.heading or ""))
+            table.insert(lines, ("|cffffd200%s|r"):format(RR.L[section.heading or ""]))
             for _, bullet in ipairs(section.bullets or {}) do
                 -- Render **bold** spans as bright-white inline color.
                 -- The CHANGELOG voice puts the lead-in headline-style
                 -- phrase in **bold** before the supporting prose, so
                 -- bright-white-on-grey gives the same visual emphasis.
-                local rendered = bullet:gsub("%*%*(.-)%*%*",
+                local rendered = RR.L[bullet]:gsub("%*%*(.-)%*%*",
                     "|cffffffff%1|r")
                 table.insert(lines, "  - |cffaaaaaa" .. rendered .. "|r")
             end
@@ -6988,26 +7411,26 @@ local function BuildIdleListPills(raid)
 
     local parts = {}
     for _, p in ipairs(PILLS) do
-        local c = counts[p.id]
+        local count = counts[p.id]
         local label = p.label
         local lock = (p.id == lockedBucket) and LOCK_GLYPH or ""
 
-        if c and c.total > 0 then
+        if count and count.total > 0 then
             local hex
-            if c.complete >= c.total then
+            if count.complete >= count.total then
                 hex = CLEARED
-            elseif c.complete > 0 then
+            elseif count.complete > 0 then
                 hex = PARTIAL
             else
                 hex = FRESH
             end
             if label then
                 table.insert(parts, ("|cff%s%s %d/%d|r%s"):format(
-                    hex, label, c.complete, c.total, lock))
+                    hex, label, count.complete, count.total, lock))
             else
                 -- Flexible, no committed difficulty yet: count only.
                 table.insert(parts, ("|cff%s%d/%d|r%s"):format(
-                    hex, c.complete, c.total, lock))
+                    hex, count.complete, count.total, lock))
             end
         else
             if label then
@@ -7063,7 +7486,7 @@ local function BuildIdleListRows()
             -- Horde-variant IDs absent from the Alliance bosses[] table.
             -- Alliance and Neutral characters get the shared raid object.
             local resolved = RR:GetRaidByInstanceID(raid.instanceID) or raid
-            local exp = resolved.expansion or "Unknown"
+            local exp = resolved.expansion or RR.L["Unknown"]
             byExpansion[exp] = byExpansion[exp] or {}
             table.insert(byExpansion[exp], resolved)
         end
@@ -7090,7 +7513,7 @@ local function BuildIdleListRows()
     local anyEntranceShown = false
 
     local function emitRaid(raid)
-        local name  = raid.name or "??"
+        local name  = RR:GetLocalizedRaidName(raid) or "??"
 
         -- Leading skip-status marker(s). Single-chain raids show one
         -- marker; multi-chain raids (Antorus, Hellfire Citadel) show one
@@ -7221,7 +7644,7 @@ local function BuildIdleListRows()
     end
 
     if #rows == 0 then
-        table.insert(rows, { kind = "emptyMessage", text = "|cff9d9d9d(no raid data loaded)|r" })
+        table.insert(rows, { kind = "emptyMessage", text = RR.L["|cff9d9d9d(no raid data loaded)|r"] })
     end
 
     -- Skip legend appears whenever at least one raid line is rendered
@@ -7272,26 +7695,26 @@ local function FingerprintIdleRows(rows)
         -- kind + text covers most rows; expansionHeader adds expanded
         -- flag (toggle glyph state); raidName / pillRow include their
         -- rendered text which captures kill counts via the pill string.
-        local k = row.kind or "?"
-        local t = row.text or ""
-        local e = (row.expanded == true) and "1" or "0"
+        local rowKind = row.kind or "?"
+        local rowText = row.text or ""
+        local expandedFlag = (row.expanded == true) and "1" or "0"
         local exp = row.exp or ""
         -- Wing rows carry no .text; serialize their content so expand/
         -- collapse and any kill-state change re-fingerprints (and re-renders).
-        if k == "wingHeader" and row.wing then
-            local w = row.wing
-            t = ("%s|%d/%d|%s|%s"):format(
-                w.name or "", w.complete or 0, w.total or 0,
-                w.unmapped and "u" or "m",
+        if rowKind == "wingHeader" and row.wing then
+            local wing = row.wing
+            rowText = ("%s|%d/%d|%s|%s"):format(
+                wing.name or "", wing.complete or 0, wing.total or 0,
+                wing.unmapped and "u" or "m",
                 row.wingOpen and "o" or "c")
-        elseif k == "wingBoss" and row.boss then
-            local b = row.boss
-            local kill = (b.killed == true) and "1"
-                or (b.killed == false and "0" or "x")
-            t = ("%s|%s|%s"):format(b.name or "", kill,
+        elseif rowKind == "wingBoss" and row.boss then
+            local boss = row.boss
+            local kill = (boss.killed == true) and "1"
+                or (boss.killed == false and "0" or "x")
+            rowText = ("%s|%s|%s"):format(boss.name or "", kill,
                 row.unmapped and "u" or "m")
         end
-        parts[i] = ("%s|%s|%s|%s"):format(k, e, exp, t)
+        parts[i] = ("%s|%s|%s|%s"):format(rowKind, expandedFlag, exp, rowText)
     end
     return table.concat(parts, "\n")
 end
@@ -7406,27 +7829,27 @@ RefreshIdleList = function()
                 -- Green when fully cleared, gray otherwise. An unmapped wing
                 -- appends a small gray flag. Leads with the sub-line indent so
                 -- it sits under the pill row, then its own spaces step further.
-                local w = row.wing
-                local hex = (w.total > 0 and w.complete >= w.total)
+                local wing = row.wing
+                local hex = (wing.total > 0 and wing.complete >= wing.total)
                     and "00ff00" or "888888"
-                local marker = w.unmapped and " |cff888888*|r" or ""
+                local marker = wing.unmapped and " |cff888888*|r" or ""
                 fs:SetText((RR.PILL_SUBLINE_INDENT .. "        |cff%s%s|r |cff9d9d9d(%d/%d)|r%s"):format(
-                    hex, w.name, w.complete or 0, w.total or 0, marker))
+                    hex, wing.name, wing.complete or 0, wing.total or 0, marker))
             elseif row.kind == "wingBoss" then
                 -- One boss per line, a further level under the wing header.
                 -- Dead = faded gray; alive = white; unmapped wing's bosses
                 -- render neutral lavender. Leads with the sub-line indent like
                 -- the wing header.
-                local b = row.boss
+                local boss = row.boss
                 local hex
                 if row.unmapped then
                     hex = "b9a3d6"       -- pending (per-boss state unknown)
-                elseif b.killed then
+                elseif boss.killed then
                     hex = "6f6f6f"       -- dead, faded
                 else
                     hex = "ffffff"       -- alive
                 end
-                fs:SetText((RR.PILL_SUBLINE_INDENT .. "            |cff%s%s|r"):format(hex, b.name))
+                fs:SetText((RR.PILL_SUBLINE_INDENT .. "            |cff%s%s|r"):format(hex, boss.name))
             else
                 -- raidName / pillRow / emptyMessage all carry pre-built
                 -- text strings.
@@ -7482,8 +7905,8 @@ RefreshIdleList = function()
                 RR.state = RR.state or {}
                 local wingExpanded = RR.state.wingExpandedRaids
                     and RR.state.wingExpandedRaids[raid.instanceID]
-                local g = math.floor(fontSize * 0.83)
-                btn:SetSize(g, g)
+                local glyphSize = math.floor(fontSize * 0.83)
+                btn:SetSize(glyphSize, glyphSize)
                 panel.SetWingChevron(btn, wingExpanded)
                 btn:ClearAllPoints()
 
@@ -7532,8 +7955,8 @@ RefreshIdleList = function()
                 local btn = panel.AcquireWingToggleButton()
                 local raid = row.raid
                 local wingKey = row.wing.key
-                local g = math.floor(fontSize * 0.71)
-                btn:SetSize(g, g)
+                local glyphSize = math.floor(fontSize * 0.71)
+                btn:SetSize(glyphSize, glyphSize)
                 panel.SetWingChevron(btn, row.wingOpen)
                 btn:ClearAllPoints()
                 -- Just left of the wing name: 24px = the 16px sub-line indent
@@ -7646,7 +8069,7 @@ RefreshIdleList = function()
             end
             fs:Show()
             table.insert(panel.idleListLegendLines, fs)
-            topFS, bottomFS = fs, fs
+            topFS = fs
 
         elseif row.kind == "entranceLegend" then
             -- Multi-row block, two FontStrings PER row (label + data)
@@ -7680,6 +8103,8 @@ RefreshIdleList = function()
 
             local prevLabelFS = nil
             local prevSpec = nil
+            local placedRows = {}
+            local labelRightMax = 0
             for j = #entranceRows, 1, -1 do
                 local rowSpec = entranceRows[j]
                 -- LABEL FontString
@@ -7715,29 +8140,44 @@ RefreshIdleList = function()
                 labelFS:Show()
                 table.insert(panel.idleListLegendLines, labelFS)
 
-                -- DATA FontString -- anchored to a FIXED panel-x
-                -- position (LEGEND_DATA_COLUMN past PAD_LEFT), NOT
-                -- relative to the label. Anchoring relative to the
-                -- label fails on row 1 because the label there
-                -- includes the marker glyph prefix ("[glyph] = "),
-                -- so "label LEFT + 56px" lands inside the label text
-                -- itself. Panel-anchoring puts both rows' data in
-                -- the same vertical column regardless of label
-                -- contents. The Y is matched to the label so they
-                -- share the same baseline.
-                local dataFS = AcquireIdleListLine()
-                SetBodyFont(dataFS, LEGEND_FONT_SIZE, "")
-                dataFS:SetText(rowSpec.data)
-                dataFS:ClearAllPoints()
-                dataFS:SetPoint("LEFT", labelFS, "LEFT",
-                    LEGEND_DATA_COLUMN - xOffsetFor(rowSpec), 0)
-                dataFS:Show()
-                table.insert(panel.idleListLegendLines, dataFS)
+                -- Data FontStrings are placed after ALL labels exist
+                -- (second pass below): the shared data column must
+                -- clear the widest rendered label, and label widths
+                -- vary by locale, so this pass only tracks the running
+                -- maximum of each label's right edge (left offset +
+                -- rendered string width).
+                local labelRight = xOffsetFor(rowSpec) + labelFS:GetStringWidth()
+                if labelRight > labelRightMax then labelRightMax = labelRight end
+                table.insert(placedRows, { labelFS = labelFS, spec = rowSpec })
 
                 if not bottomFS then bottomFS = labelFS end
                 topFS = labelFS
                 prevLabelFS = labelFS
                 prevSpec = rowSpec
+            end
+
+            -- DATA FontStrings -- one shared x column so the provider
+            -- names align vertically across rows. The column sits at
+            -- the fixed design position OR just past the widest label,
+            -- whichever is farther right: labels wider than the design
+            -- width (localized "Waypoint: ") push the column out
+            -- instead of being overdrawn. Each row anchors relative to
+            -- its own label, compensating that row's indent, so the
+            -- shared column holds regardless of the row-1 marker
+            -- prefix. The Y matches the label for a shared baseline.
+            local dataColumnX = LEGEND_DATA_COLUMN
+            if labelRightMax + 8 > dataColumnX then
+                dataColumnX = labelRightMax + 8
+            end
+            for _, placed in ipairs(placedRows) do
+                local dataFS = AcquireIdleListLine()
+                SetBodyFont(dataFS, LEGEND_FONT_SIZE, "")
+                dataFS:SetText(placed.spec.data)
+                dataFS:ClearAllPoints()
+                dataFS:SetPoint("LEFT", placed.labelFS, "LEFT",
+                    dataColumnX - xOffsetFor(placed.spec), 0)
+                dataFS:Show()
+                table.insert(panel.idleListLegendLines, dataFS)
             end
         end
 
@@ -7826,13 +8266,13 @@ function UI.Update()
             -- theming used elsewhere (the wing-name message).
             routeLabel = "|cffF259C7LFR|r"
         elseif RR.state.activeRouteVariant == "skip" then
-            routeLabel = "|cff00ffffSkip|r"
+            routeLabel = "|cff00ffff" .. RR.L["Skip"] .. "|r"
         else
-            routeLabel = "|cff00ff00Full|r"
+            routeLabel = "|cff00ff00" .. RR.L["Full"] .. "|r"
         end
-        panel.credit:SetText("|cff9d9d9dRoute:|r " .. routeLabel)
+        panel.credit:SetText(RR.L["|cff9d9d9dRoute:|r "] .. routeLabel)
     else
-        panel.credit:SetText("Created by |cff4DCCFFPhotek|r")
+        panel.credit:SetText(RR.L["Created by |cff4DCCFFPhotek|r"])
     end
 
     if raid and loaded then
@@ -7847,7 +8287,7 @@ function UI.Update()
         -- Alliance blue / Horde red roughly matching Blizzard's faction
         -- colors. Bracketed-letter pattern matches the [!] style on the
         -- boss-encounter line.
-        local raidLabel = "Raid: " .. raid.name
+        local raidLabel = RR.L["Raid: "] .. (RR:GetLocalizedRaidName(raid) or raid.name)
         if RetroRuns_DataHorde and RetroRuns_DataHorde[raid.instanceID] then
             local faction = UnitFactionGroup("player")
             if faction == "Horde" then
@@ -7869,9 +8309,10 @@ function UI.Update()
                 panel.wingLine:SetFont(rfFont, rfSize - 2, rfFlags)
             end
             local WING_ARROW = "|TInterface\\ChatFrame\\ChatFrameExpandArrow:10:10:0:0:32:32:0:32:0:32:242:89:199|t"
+            local wingName = RR:GetCurrentWingName() or wing.name
             panel.wingLine:SetText(
                 "  " .. WING_ARROW ..
-                " |cff9d9d9dLFR Wing:|r |cffF259C7" .. wing.name .. "|r")
+                " |cff9d9d9d" .. RR.L["LFR Wing:"] .. "|r |cffF259C7" .. wingName .. "|r")
         else
             panel.wingLine:SetText("")
         end
@@ -7914,9 +8355,9 @@ function UI.Update()
             -- so the still-working browsers remain one click away.
             local wingName = RR:GetCurrentWingName()
             if wingName then
-                panel.next:SetText(("|cffffffffLFR routing for |r|cffF259C7%s|r|cffffffff isn't supported yet.|r"):format(wingName))
+                panel.next:SetText(("|cffffffff" .. RR.L["LFR routing for"] .. " |r|cffF259C7%s|r|cffffffff " .. RR.L["isn't supported yet."] .. "|r"):format(wingName))
             else
-                panel.next:SetText("|cffffffffLFR routing isn't supported yet.|r")
+                panel.next:SetText(RR.L["|cffffffffLFR routing isn't supported yet.|r"])
             end
             panel.travel:SetText("")
             panel.exitNote:SetText("")
@@ -7962,7 +8403,7 @@ function UI.Update()
             -- above. The boss name itself takes the FontString's default
             -- GameFontNormal gold; the |cffffffff...|r escape paints only
             -- the prefix label white so the boss-name color is unchanged.
-            panel.next:SetText("|cffffffffBoss:|r " .. (boss and boss.name or "Unknown"))
+            panel.next:SetText(RR.L["|cffffffffBoss:|r "] .. ((boss and RR:GetLocalizedBossName(boss)) or RR.L["Unknown"]))
             panel.travel:SetText(BuildTravelText(step))
             panel.exitNote:SetText("")
             panel.exitNote:Hide()
@@ -8033,9 +8474,9 @@ function UI.Update()
             panel.listHeader:ClearAllPoints()
             panel.listHeader:SetPoint("TOPLEFT", panel.transmog, "BOTTOMLEFT", 0, -12)
             if RR.state.testMode then
-                panel.listHeader:SetText("Boss Progress  |cffffff00[ TEST MODE ]|r")
+                panel.listHeader:SetText(RR.L["Boss Progress  |cffffff00[ TEST MODE ]|r"])
             else
-                panel.listHeader:SetText("Boss Progress")
+                panel.listHeader:SetText(RR.L["Boss Progress"])
             end
             -- Render the boss list as per-line FontStrings rather than
             -- one multi-line FontString, matching the idle-list
@@ -8105,11 +8546,11 @@ function UI.Update()
             -- layout with different text.
             if routeComplete then
                 if RR:GetActiveWing() then
-                    panel.next:SetText("|cff00ff00LFR Wing Complete!|r")
+                    panel.next:SetText(RR.L["|cff00ff00LFR Wing Complete!|r"])
                 elseif isSkip then
-                    panel.next:SetText("|cff00ff00Skip Run Complete!|r")
+                    panel.next:SetText(RR.L["|cff00ff00Skip Run Complete!|r"])
                 else
-                    panel.next:SetText("|cff00ff00Run complete!|r")
+                    panel.next:SetText(RR.L["|cff00ff00Run complete!|r"])
                 end
                 -- Optional per-raid exit note, shown below the banner with an
                 -- inline exit glyph. In an LFR wing the raid's authored exit
@@ -8120,7 +8561,7 @@ function UI.Update()
                 local exitNote
                 local activeWing = RR:GetActiveWing()
                 if activeWing then
-                    exitNote = activeWing.exitNote or "Leave instance group via LFG tool."
+                    exitNote = activeWing.exitNote or RR.L["Leave instance group via LFG tool."]
                 else
                     exitNote = raid and raid.exitNote
                 end
@@ -8130,7 +8571,7 @@ function UI.Update()
                     panel.exitNote:SetText(
                         ("|TInterface\\AddOns\\RetroRuns\\Media\\ExitIcon:%d:%d:0:-1:64:64:0:64:0:64:242:89:199|t ")
                             :format(exitGlyphSize, exitGlyphSize) ..
-                        "|cfff259c7Exit Note:|r " .. HighlightNames(exitNote))
+                        "|cfff259c7" .. RR.L["Exit Note:"] .. "|r " .. HighlightNames(RR.L[exitNote]))
                     panel.exitNote:SetTextColor(1, 1, 1)
                     SetBodyFont(panel.exitNote, exitFontSize, "")
                     panel.exitNote:Show()
@@ -8139,7 +8580,7 @@ function UI.Update()
                     panel.exitNote:Hide()
                 end
             else
-                panel.next:SetText("|cffff9333Routing data not yet captured for this raid.|r")
+                panel.next:SetText(RR.L["|cffff9333Routing data not yet captured for this raid.|r"])
                 panel.exitNote:SetText("")
                 panel.exitNote:Hide()
             end
@@ -8170,7 +8611,7 @@ function UI.Update()
             else
                 panel.listHeader:SetPoint("TOPLEFT", panel.next, "BOTTOMLEFT", 0, -12)
             end
-            panel.listHeader:SetText("|cff9d9d9dWhere to next:|r")
+            panel.listHeader:SetText(RR.L["|cff9d9d9dWhere to next:|r"])
             RefreshIdleList()
         end
     else
@@ -8194,12 +8635,12 @@ function UI.Update()
             local displayName = RR:GetRaidDisplayName() or raid.name
             panel.progress:SetText(
                 ("|cffffff00Detected:|r %s"):format(displayName))
-            panel.next:SetText("Type |cffffffff/rr|r to load navigation.")
+            panel.next:SetText(RR.L["Type |cffffffff/rr|r to load navigation."])
         else
             -- Single line. The "Travel to..." text by itself implies
             -- "you're not in a supported raid yet" -- a separate
             -- "No supported legacy raid detected" line was redundant.
-            panel.progress:SetText("Travel to a supported raid to begin.")
+            panel.progress:SetText(RR.L["Travel to a supported raid to begin."])
             panel.next:SetText("")
         end
 
@@ -8223,7 +8664,7 @@ function UI.Update()
         -- accumulate as visible gap, hence this re-anchor.
         panel.listHeader:ClearAllPoints()
         panel.listHeader:SetPoint("TOPLEFT", panel.progress, "BOTTOMLEFT", 0, -8)
-        panel.listHeader:SetText("|cff9d9d9dCurrently supported:|r")
+        panel.listHeader:SetText(RR.L["|cff9d9d9dCurrently supported:|r"])
         RefreshIdleList()
         -- Hide the intermediate Button widgets in idle state. With empty
         -- text + EnableMouse(false), Button frames are functionally
@@ -8272,8 +8713,8 @@ local GetOrCreateAchievementsWindow
 -- StaticPopup for the "copy Wowhead URL" dialog (Ctrl+C, dismiss). Addons
 -- can't open URLs directly, so a copy-popup is the standard pattern.
 StaticPopupDialogs["RETRORUNS_WOWHEAD_URL"] = {
-    text         = "%s\n|cffffd200%s|r\n\nWowhead URL (Ctrl+C to copy):",
-    button1      = OKAY or "Okay",
+    text         = RR.L["%s\n|cffffd200%s|r\n\nWowhead URL (Ctrl+C to copy):"],
+    button1      = OKAY or RR.L["Okay"],
     hasEditBox   = true,
     editBoxWidth = 280,
     timeout      = 0,
@@ -8296,8 +8737,8 @@ StaticPopupDialogs["RETRORUNS_WOWHEAD_URL"] = {
 
 -- StaticPopup for the Settings panel's "comments and feedback" button.
 StaticPopupDialogs["RETRORUNS_CHAT_URL"] = {
-    text         = "Comments and feedback\n\nCurseForge URL (Ctrl+C to copy):",
-    button1      = OKAY or "Okay",
+    text         = RR.L["Comments and feedback\n\nCurseForge URL (Ctrl+C to copy):"],
+    button1      = OKAY or RR.L["Okay"],
     hasEditBox   = true,
     editBoxWidth = 280,
     timeout      = 0,
@@ -8323,8 +8764,8 @@ StaticPopupDialogs["RETRORUNS_CHAT_URL"] = {
 -- substitutions in the text format string. Single-line EditBox
 -- pre-filled with the GitHub Issues URL; user Ctrl+C's and dismisses.
 StaticPopupDialogs["RETRORUNS_BUG_URL"] = {
-    text         = "Report a bug\n\nGitHub Issues URL (Ctrl+C to copy):",
-    button1      = OKAY or "Okay",
+    text         = RR.L["Report a bug\n\nGitHub Issues URL (Ctrl+C to copy):"],
+    button1      = OKAY or RR.L["Okay"],
     hasEditBox   = true,
     editBoxWidth = 280,
     timeout      = 0,
@@ -8345,8 +8786,8 @@ StaticPopupDialogs["RETRORUNS_BUG_URL"] = {
 }
 
 StaticPopupDialogs["RETRORUNS_DISCORD_URL"] = {
-    text         = "Known Hangout\n\nDiscord invite URL (Ctrl+C to copy):",
-    button1      = OKAY or "Okay",
+    text         = RR.L["Known Hangout\n\nDiscord invite URL (Ctrl+C to copy):"],
+    button1      = OKAY or RR.L["Okay"],
     hasEditBox   = true,
     editBoxWidth = 280,
     timeout      = 0,
@@ -8378,62 +8819,63 @@ local skipDetailFrame
 local function GetOrCreateSkipDetailFrame()
     if skipDetailFrame then return skipDetailFrame end
 
-    local f = CreateFrame("Frame", "RetroRunsSkipDetailFrame", UIParent, "BackdropTemplate")
-    f:SetSize(312, 120)  -- placeholder; ShowSkipDetail sizes to content
-    f:SetBackdrop({
+    local detailFrame = CreateFrame("Frame", "RetroRunsSkipDetailFrame", UIParent, "BackdropTemplate")
+    detailFrame:SetSize(312, 120)  -- placeholder; ShowSkipDetail sizes to content
+    detailFrame:SetBackdrop({
         bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
         edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
         tile = true, tileSize = 16, edgeSize = 16,
         insets = { left = 3, right = 3, top = 3, bottom = 3 },
     })
-    f:SetBackdropColor(0.03, 0.03, 0.03, RR:GetSetting("panelOpacity", 1.0))
-    f:SetFrameStrata("DIALOG")  -- above the Skips window it spawns from
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:SetClampedToScreen(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", f.StopMovingOrSizing)
-    f:Hide()
+    detailFrame:SetBackdropColor(0.03, 0.03, 0.03, RR:GetSetting("panelOpacity", 1.0))
+    detailFrame:SetFrameStrata("DIALOG")  -- above the Skips window it spawns from
+    detailFrame:SetMovable(true)
+    detailFrame:EnableMouse(true)
+    detailFrame:SetClampedToScreen(true)
+    detailFrame:RegisterForDrag("LeftButton")
+    detailFrame:SetScript("OnDragStart", detailFrame.StartMoving)
+    detailFrame:SetScript("OnDragStop", detailFrame.StopMovingOrSizing)
+    detailFrame:Hide()
 
     -- Title: "Skip:" in retro pink, then the raid name. Left-aligned,
     -- anchored top-left with a 16px inset.
-    local title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    local title = detailFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     title:SetJustifyH("LEFT")
-    title:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -14)
-    f.titleText = title
+    title:SetPoint("TOPLEFT", detailFrame, "TOPLEFT", 16, -14)
+    detailFrame.titleText = title
 
     -- Body: the labeled detail lines. Anchored below the title; width is
     -- set per-show once the content width is measured.
-    local body = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    local body = detailFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     body:SetJustifyH("LEFT")
     body:SetWordWrap(true)
-    body:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -40)
-    f.bodyText = body
+    body:SetPoint("TOPLEFT", detailFrame, "TOPLEFT", 16, -40)
+    detailFrame.bodyText = body
 
-    local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-    closeBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -4, -4)
-    closeBtn:SetScript("OnClick", function() f:Hide() end)
+    local closeBtn = CreateFrame("Button", nil, detailFrame, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", detailFrame, "TOPRIGHT", -4, -4)
+    closeBtn:SetScript("OnClick", function() detailFrame:Hide() end)
 
     -- Hyperlink routing on the body FontString's parent frame. Quest
     -- links open the Wowhead URL StaticPopup; native achievement links
     -- fall through to SetItemRef (opens the in-game Achievement frame).
     -- Because this frame is not a StaticPopup, spawning the URL popup
     -- doesn't relayout or move it.
-    f:SetHyperlinksEnabled(true)
-    f:SetScript("OnHyperlinkClick", function(_, link, text, button)
+    detailFrame:SetHyperlinksEnabled(true)
+    detailFrame:SetScript("OnHyperlinkClick", function(_, link, text, button)
         local questID = link and link:match("^RR_quest:(%d+)$")
         if questID then
-            local raid = f.rrRaid
+            local raid = detailFrame.rrRaid
             UI.ShowWowheadQuestPopup(tonumber(questID),
-                (raid and raid.name) or "?",
-                (raid and raid.skipTrigger and raid.skipTrigger.questName)
-                    or ("Quest " .. questID))
+                (raid and RR:GetLocalizedRaidName(raid)) or "?",
+                (raid and raid.skipTrigger and raid.skipTrigger.questName
+                    and RR.L[raid.skipTrigger.questName])
+                    or (RR.L["Quest "] .. questID))
             return
         end
         SetItemRef(link, text, button)
     end)
-    f:SetScript("OnHyperlinkEnter", function(self2, link)
+    detailFrame:SetScript("OnHyperlinkEnter", function(self2, link)
         -- In-game tooltip for native achievement links on hover. RR_quest
         -- links carry no resolvable tooltip, so skip them.
         if link and link:match("^RR_quest:") then return end
@@ -8441,24 +8883,24 @@ local function GetOrCreateSkipDetailFrame()
         GameTooltip:SetHyperlink(link)
         GameTooltip:Show()
     end)
-    f:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
+    detailFrame:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
 
     -- Hidden tag for the [ i ]-button toggle: which raid is currently
     -- displayed. Cleared on hide.
-    f:SetScript("OnHide", function(self) self.rrSkipRaidID = nil end)
+    detailFrame:SetScript("OnHide", function(self) self.rrSkipRaidID = nil end)
 
-    skipDetailFrame = f
-    return f
+    skipDetailFrame = detailFrame
+    return detailFrame
 end
 
 -- Populate and show the skip-detail frame for a raid, positioned at the
 -- cursor. Mirrors the old StaticPopup body-build verbatim.
 function UI.ShowSkipDetail(raid)
-    local f  = GetOrCreateSkipDetailFrame()
-    local fs = f.bodyText
+    local detailFrame  = GetOrCreateSkipDetailFrame()
+    local fs = detailFrame.bodyText
 
-    f.rrRaid = raid
-    f.titleText:SetText("|cffF259C7Skip:|r " .. ((raid and raid.name) or "?"))
+    detailFrame.rrRaid = raid
+    detailFrame.titleText:SetText(RR.L["|cffF259C7Skip:|r "] .. ((raid and RR:GetLocalizedRaidName(raid)) or "?"))
 
     do
         -- Build the labeled body lines. Render lines that have content;
@@ -8498,16 +8940,16 @@ function UI.ShowSkipDetail(raid)
         -- A "Detection:" row: a gray difficulty label and a value (one or
         -- more links, or plain text). Empty values are skipped by callers.
         local function detectionLine(label, value)
-            return ("|cff9d9d9d%s Detection:|r %s"):format(label, value)
+            return ("|cff9d9d9d" .. RR.L["%s Detection:"] .. "|r %s"):format(label, value)
         end
 
         -- Header line: the human-readable name of the unlock, type-
         -- specific but parallel in form. Garrosh has no single name, so
         -- its panel goes straight to the Detection rows.
         if trig.questName and trig.questName ~= "" then
-            table.insert(lines, "|cff9d9d9dQuest:|r " .. trig.questName)
+            table.insert(lines, "|cff9d9d9d" .. RR.L["Quest:"] .. "|r " .. RR.L[trig.questName])
         elseif trig.achievementName and trig.achievementName ~= "" then
-            table.insert(lines, "|cff9d9d9dAchievement:|r " .. trig.achievementName)
+            table.insert(lines, "|cff9d9d9d" .. RR.L["Achievement:"] .. "|r " .. RR.L[trig.achievementName])
         end
 
         -- Detection rows. Every skip type renders the same per-difficulty
@@ -8521,11 +8963,12 @@ function UI.ShowSkipDetail(raid)
             -- with long chain names.
             local names = (trig and trig.questNames) or {}
             for _, chain in ipairs(sq) do
-                local chainLabel = chain.label or "Skip"
+                local chainLabel = (chain.label and RR.L[chain.label])
+                                   or RR.L["Skip"]
                 local qname = names[chain.label]
-                local header = ("|cff9d9d9d%s Detection:|r"):format(chainLabel)
+                local header = ("|cff9d9d9d" .. RR.L["%s Detection:"] .. "|r"):format(chainLabel)
                 if qname and qname ~= "" then
-                    header = header .. (" |cffaaaaaa(%s)|r"):format(qname)
+                    header = header .. (" |cffaaaaaa(%s)|r"):format(RR.L[qname])
                 end
                 table.insert(lines, header)
 
@@ -8539,14 +8982,14 @@ function UI.ShowSkipDetail(raid)
         elseif sq then
             -- Single-chain quest. One Detection row per difficulty.
             local lm, lh, ln = questLink(sq.mythic), questLink(sq.heroic), questLink(sq.normal)
-            if lm then table.insert(lines, detectionLine("Mythic", lm)) end
-            if lh then table.insert(lines, detectionLine("Heroic", lh)) end
-            if ln then table.insert(lines, detectionLine("Normal", ln)) end
+            if lm then table.insert(lines, detectionLine(RR.L["Mythic"], lm)) end
+            if lh then table.insert(lines, detectionLine(RR.L["Heroic"], lh)) end
+            if ln then table.insert(lines, detectionLine(RR.L["Normal"], ln)) end
         elseif raid and raid.skipAchievement then
             -- Achievement-gated skip (BfD). Mythic-only.
             local sa = raid.skipAchievement
             if sa.mythic then
-                table.insert(lines, detectionLine("Mythic", achievementLink(sa.mythic)))
+                table.insert(lines, detectionLine(RR.L["Mythic"], achievementLink(sa.mythic)))
             end
         elseif raid and raid.skipGarrosh then
             -- Account-wide scroll skip (SoO). Detection sources by
@@ -8554,7 +8997,7 @@ function UI.ShowSkipDetail(raid)
             -- achievements, and the per-character Normal kill statistics.
             local sg = raid.skipGarrosh
             if sg.mythicAchievement then
-                table.insert(lines, detectionLine("Mythic", achievementLink(sg.mythicAchievement)))
+                table.insert(lines, detectionLine(RR.L["Mythic"], achievementLink(sg.mythicAchievement)))
             end
             if sg.heroicAchievements and #sg.heroicAchievements > 0 then
                 local achParts = {}
@@ -8564,17 +9007,19 @@ function UI.ShowSkipDetail(raid)
                 -- The faction-alternative achievements (Conqueror /
                 -- Liberator) are mutually exclusive -- only one applies
                 -- per character -- so join them with "or".
-                table.insert(lines, detectionLine("Heroic",
-                    table.concat(achParts, " |cffaaaaaaor|r ")))
+                table.insert(lines, detectionLine(RR.L["Heroic"],
+                    table.concat(achParts, " |cffaaaaaa" .. RR.L["or"] .. "|r ")))
             end
             if sg.normalStatistics and #sg.normalStatistics > 0 then
                 local statParts = {}
                 for _, statID in ipairs(sg.normalStatistics) do
                     table.insert(statParts, ("%d"):format(statID))
                 end
-                table.insert(lines, detectionLine("Normal",
-                    "|cffaaaaaaStatistic Check on Normal Kills (This Char) - ID "
-                    .. table.concat(statParts, ", ") .. "|r"))
+                table.insert(lines, detectionLine(RR.L["Normal"],
+                    "|cffaaaaaa"
+                    .. (RR.L["Statistic Check on Normal Kills (This Char) - ID %s"])
+                        :format(table.concat(statParts, ", "))
+                    .. "|r"))
             end
         end
 
@@ -8585,12 +9030,12 @@ function UI.ShowSkipDetail(raid)
             -- The textures are written as literals here; they must stay in
             -- sync with the SKIPS_CELL_UNLOCKED / _LOCKED / _UNKNOWN
             -- definitions.
-            local detailText = trig.details
+            local detailText = RR.L[trig.details]
                 :gsub("{check}", "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t")
                 :gsub("{x}", "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14:0:-2|t")
                 :gsub("{unknown}", "|TInterface\\RaidFrame\\ReadyCheck-Waiting:14:14|t")
             table.insert(lines,
-                "|cff9d9d9dSkip Details:|r " .. HighlightNames(detailText))
+                "|cff9d9d9d" .. RR.L["Skip Details:"] .. "|r " .. HighlightNames(detailText))
         end
 
         fs:SetText(table.concat(lines, "\n\n"))
@@ -8613,8 +9058,8 @@ function UI.ShowSkipDetail(raid)
         fs:SetWordWrap(false)
         for _, line in ipairs(measure) do
             fs:SetText(line)
-            local w = fs:GetStringWidth() or 0
-            if w > widest then widest = w end
+            local textWidth = fs:GetStringWidth() or 0
+            if textWidth > widest then widest = textWidth end
         end
 
         -- Frame width hugs the widest rendered line: body width is the
@@ -8628,7 +9073,7 @@ function UI.ShowSkipDetail(raid)
         local MIN_BODY = 280
         local MAX_BODY = 420
         local bodyW    = math.max(MIN_BODY, math.min(MAX_BODY, widest))
-        f:SetWidth(bodyW + 2 * INSET)
+        detailFrame:SetWidth(bodyW + 2 * INSET)
 
         -- Give the body an explicit width matching the frame's inset box
         -- and restore wrap, so the multi-paragraph Skip Details flows
@@ -8641,19 +9086,19 @@ function UI.ShowSkipDetail(raid)
         -- Compute total height: top padding, title height, gap, body
         -- height, bottom padding. The close [X] overlays the top-right
         -- corner rather than occupying vertical space.
-        local titleH = f.titleText:GetStringHeight() or 16
+        local titleH = detailFrame.titleText:GetStringHeight() or 16
         local bodyH  = fs:GetStringHeight() or 0
-        f:SetHeight(20 + titleH + 10 + bodyH + 18)
+        detailFrame:SetHeight(20 + titleH + 10 + bodyH + 18)
 
         -- Tag the frame with the raid's instanceID so the [ i ] button
         -- can recognize "already open for this raid" and toggle closed.
-        f.rrSkipRaidID = raid and raid.instanceID or nil
+        detailFrame.rrSkipRaidID = raid and raid.instanceID or nil
     end
 
     -- Apply the user's window scale before positioning so the cursor
     -- math below uses the frame's final effective scale (mismatched
     -- scale would offset the anchor by the scale factor).
-    f:SetScale(RR:GetSetting("windowScale", 1.0))
+    detailFrame:SetScale(RR:GetSetting("windowScale", 1.0))
 
     -- Position at the cursor, hanging down-and-right of the click point
     -- so the [ i ] button stays uncovered. GetCursorPosition returns
@@ -8661,17 +9106,17 @@ function UI.ShowSkipDetail(raid)
     -- so the anchor lands at the cursor regardless of windowScale. Clamp
     -- so popups near a screen edge slide back into view.
     local mx, my = GetCursorPosition()
-    local effScale = f:GetEffectiveScale() or 1
-    f:ClearAllPoints()
+    local effScale = detailFrame:GetEffectiveScale() or 1
+    detailFrame:ClearAllPoints()
     if mx and my and effScale > 0 then
-        f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT",
+        detailFrame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT",
             mx / effScale + 16, my / effScale - 16)
     else
-        f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+        detailFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     end
 
-    f:Show()
-    f:Raise()
+    detailFrame:Show()
+    detailFrame:Raise()
 end
 
 function UI.HideSkipDetail()
@@ -8695,46 +9140,46 @@ function UI._GetOrCreateLoadDialog()
 
     local LOAD_DIALOG_BASE = RR.L["SELECT ROUTE"]
 
-    local f = CreateFrame("Frame", "RetroRunsLoadDialog", UIParent, "BackdropTemplate")
-    f.loadBase = LOAD_DIALOG_BASE
-    f:SetSize(340, 175)
+    local loadDialog = CreateFrame("Frame", "RetroRunsLoadDialog", UIParent, "BackdropTemplate")
+    loadDialog.loadBase = LOAD_DIALOG_BASE
+    loadDialog:SetSize(340, 175)
     -- Height for a single-line raid name; ShowLoadDialog grows the frame
     -- when the name wraps so the prompt and buttons keep their spacing.
-    f.baseHeight = 175
-    f:SetBackdrop(PanelBackdrop(PANEL_EDGE_SIZE_FULL))
-    f:SetBackdropColor(1, 1, 1, RR:GetSetting("panelOpacity", 1.0))
-    f:SetBackdropBorderColor(1, 1, 1, 1)
-    f:SetFrameStrata("FULLSCREEN_DIALOG")
-    f:SetPoint("CENTER", UIParent, "CENTER", 0, 240)
-    f:EnableMouse(true)
-    f:SetClampedToScreen(true)
+    loadDialog.baseHeight = 175
+    loadDialog:SetBackdrop(PanelBackdrop(PANEL_EDGE_SIZE_FULL))
+    loadDialog:SetBackdropColor(1, 1, 1, RR:GetSetting("panelOpacity", 1.0))
+    loadDialog:SetBackdropBorderColor(1, 1, 1, 1)
+    loadDialog:SetFrameStrata("FULLSCREEN_DIALOG")
+    loadDialog:SetPoint("CENTER", UIParent, "CENTER", 0, 240)
+    loadDialog:EnableMouse(true)
+    loadDialog:SetClampedToScreen(true)
 
     -- RETRORUNS wordmark, retro font, two-tone like the panel title.
     -- Larger than the raid name below it. Pulled in from the top border.
-    local brand = f:CreateFontString(nil, "OVERLAY")
+    local brand = loadDialog:CreateFontString(nil, "OVERLAY")
     brand:SetFont(TITLE_FONT, 22, "OUTLINE")
-    brand:SetPoint("TOP", f, "TOP", 0, -24)
+    brand:SetPoint("TOP", loadDialog, "TOP", 0, -24)
     brand:SetText("|cffF259C7RETRO|r|cff4DCCFFRUNS|r")
-    f.brand = brand
+    loadDialog.brand = brand
 
     -- Raid name (replaces "Route data found for:"), retro font, smaller
     -- than the wordmark above.
-    local raidName = f:CreateFontString(nil, "OVERLAY")
+    local raidName = loadDialog:CreateFontString(nil, "OVERLAY")
     raidName:SetFont(TITLE_FONT, 15, "")
     raidName:SetPoint("TOP", brand, "BOTTOM", 0, -14)
     raidName:SetWidth(300)
     raidName:SetWordWrap(true)
     raidName:SetJustifyH("CENTER")
     raidName:SetTextColor(1, 1, 0)
-    f.raidName = raidName
+    loadDialog.raidName = raidName
 
     -- SELECT ROUTE prompt in the retro font, centered.
-    local loading = f:CreateFontString(nil, "OVERLAY")
+    local loading = loadDialog:CreateFontString(nil, "OVERLAY")
     loading:SetFont(TITLE_FONT, 14, "")
     loading:SetPoint("TOP", raidName, "BOTTOM", 0, -14)
     loading:SetJustifyH("CENTER")
     loading:SetText(LOAD_DIALOG_BASE)
-    f.loading = loading
+    loadDialog.loading = loading
 
     -- Button row: FULL / SKIP, centered as a pair. Each uses custom neon
     -- textures (the word is baked into the art) for all four button
@@ -8743,73 +9188,101 @@ function UI._GetOrCreateLoadDialog()
     local BTN_W, BTN_H, BTN_GAP = 140, 36, 4
     local MEDIA = "Interface\\AddOns\\RetroRuns\\Media\\"
     local function MakeTextureButton(baseName, anchorX)
-        local b = CreateFrame("Button", nil, f)
-        b:SetSize(BTN_W, BTN_H)
-        b:SetPoint("BOTTOM", f, "BOTTOM", anchorX, 30)
+        local choiceButton = CreateFrame("Button", nil, loadDialog)
+        choiceButton:SetSize(BTN_W, BTN_H)
+        choiceButton:SetPoint("BOTTOM", loadDialog, "BOTTOM", anchorX, 30)
 
-        b:SetNormalTexture(MEDIA .. baseName)
-        b:SetPushedTexture(MEDIA .. baseName .. "_Pushed")
-        b:SetDisabledTexture(MEDIA .. baseName .. "_Disabled")
+        choiceButton:SetNormalTexture(MEDIA .. baseName)
+        choiceButton:SetPushedTexture(MEDIA .. baseName .. "_Pushed")
+        choiceButton:SetDisabledTexture(MEDIA .. baseName .. "_Disabled")
         -- Highlight overlays the current state on hover. BLEND (not ADD)
         -- since these are full opaque buttons, not glow-only deltas.
-        b:SetHighlightTexture(MEDIA .. baseName .. "_Highlight", "BLEND")
+        choiceButton:SetHighlightTexture(MEDIA .. baseName .. "_Highlight", "BLEND")
 
         -- The hover highlight overlay sits above the pushed texture and
         -- masks it; hide the highlight on press so the pushed art shows,
         -- restore it on release.
-        b:SetScript("OnMouseDown", function(self)
+        choiceButton:SetScript("OnMouseDown", function(self)
             if self:IsEnabled() then
                 local hl = self:GetHighlightTexture()
                 if hl then hl:Hide() end
             end
         end)
-        b:SetScript("OnMouseUp", function(self)
+        choiceButton:SetScript("OnMouseUp", function(self)
             local hl = self:GetHighlightTexture()
             if hl then hl:Show() end
         end)
-        return b
+        return choiceButton
     end
     local halfStride = (BTN_W + BTN_GAP) / 2
-    f.fullBtn = MakeTextureButton("FullButton", -halfStride)
-    f.skipBtn = MakeTextureButton("SkipButton", halfStride)
+    loadDialog.fullBtn = MakeTextureButton("FullButton", -halfStride)
+    loadDialog.skipBtn = MakeTextureButton("SkipButton", halfStride)
+
+    -- The button words are baked into the art in English. When the locale
+    -- table translates them, a small translated word sits just above the
+    -- button (outer-aligned, tinted to the button's neon color) and shows
+    -- only while that button is hovered. English clients (and any locale
+    -- keeping the English word) get nothing.
+    local SUB_LABEL_SIZE = 8   -- native pixel-font size, renders crisp
+    local SUB_LABEL_GAP  = 3   -- px between label baseline and button top
+    local function AddTranslatedSubLabel(button, englishWord, colorHex, outerSide)
+        local translated = RR.L[englishWord]
+        if translated == englishWord then return end
+        local label = button:CreateFontString(nil, "OVERLAY")
+        label:SetFont(RR:GetChromeFont(), SUB_LABEL_SIZE, "")
+        if outerSide == "LEFT" then
+            label:SetPoint("BOTTOMLEFT", button, "TOPLEFT", 4, SUB_LABEL_GAP)
+        else
+            label:SetPoint("BOTTOMRIGHT", button, "TOPRIGHT", -4, SUB_LABEL_GAP)
+        end
+        label:SetText(("|c%s%s|r"):format(colorHex, translated))
+        label:Hide()
+        -- Hover-only. Motion scripts stay live on a disabled button so a
+        -- locked SKIP still reveals its translation on hover.
+        button:SetMotionScriptsWhileDisabled(true)
+        button:HookScript("OnEnter", function() label:Show() end)
+        button:HookScript("OnLeave", function() label:Hide() end)
+    end
+    AddTranslatedSubLabel(loadDialog.fullBtn, "FULL", "ff4dccff", "LEFT")
+    AddTranslatedSubLabel(loadDialog.skipBtn, "SKIP", "fff259c7", "RIGHT")
 
     -- Enable/disable the button; the engine swaps to the disabled texture
     -- automatically, so this is just the state toggle. (Kept as a helper so
     -- ShowLoadDialog's call sites stay readable.)
-    f.SetButtonEnabled = function(btn, enabled)
+    loadDialog.SetButtonEnabled = function(btn, enabled)
         if enabled then btn:Enable() else btn:Disable() end
     end
 
-    f.fullBtn:SetScript("OnClick", function()
-        f:Hide()
+    loadDialog.fullBtn:SetScript("OnClick", function()
+        loadDialog:Hide()
         -- Explicit "standard" overrides any persisted variant; a bare call
         -- would keep the restored one (the silent-reload path).
         RR:LoadCurrentRaid("standard")
     end)
-    f.skipBtn:SetScript("OnClick", function()
-        f:Hide()
+    loadDialog.skipBtn:SetScript("OnClick", function()
+        loadDialog:Hide()
         RR:LoadCurrentRaid("skip")
     end)
 
     -- Footer beneath SKIP, standard small font (retro is unreadable this
     -- small). Shows the disabled reason; hidden when SKIP is enabled.
-    local skipFooter = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    skipFooter:SetPoint("TOP", f.skipBtn, "BOTTOM", 0, 3)
+    local skipFooter = loadDialog:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    skipFooter:SetPoint("TOP", loadDialog.skipBtn, "BOTTOM", 0, 3)
     skipFooter:SetJustifyH("CENTER")
-    f.skipFooter = skipFooter
+    loadDialog.skipFooter = skipFooter
 
     -- "Continue?" hint, re-anchored at show time under whichever button
     -- matches the route the player already selected this lockout (before
     -- the first kill, when the picker re-prompts). Blank otherwise.
-    local continueHint = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local continueHint = loadDialog:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     continueHint:SetJustifyH("CENTER")
     continueHint:SetTextColor(0.4, 1, 0.4)
     continueHint:SetText("")
-    f.continueHint = continueHint
+    loadDialog.continueHint = continueHint
 
     -- Close [X], matching the main panel: themed CloseIcon texture, hover
     -- brightens. Closing cancels the load (same as the old CANCEL button).
-    local closeBtn = CreateFrame("Button", nil, f)
+    local closeBtn = CreateFrame("Button", nil, loadDialog)
     closeBtn:SetSize(24, 24)
     closeBtn:SetPoint("TOPRIGHT", -10 - FRAME_INSET_X, -4 - FRAME_INSET_Y)
     do
@@ -8821,17 +9294,17 @@ function UI._GetOrCreateLoadDialog()
         closeBtn:SetScript("OnLeave", function(self) self._tex:SetVertexColor(1, 1, 1) end)
     end
     closeBtn:SetScript("OnClick", function()
-        f:Hide()
+        loadDialog:Hide()
         RR:UnloadCurrentRaid()
     end)
-    f.closeBtn = closeBtn
+    loadDialog.closeBtn = closeBtn
 
-    f:SetScript("OnHide", function(self)
+    loadDialog:SetScript("OnHide", function(self)
         self:SetScript("OnUpdate", nil)
     end)
 
-    UI._loadDialogFrame = f
-    return f
+    UI._loadDialogFrame = loadDialog
+    return loadDialog
 end
 
 -- Show the load dialog for the current raid. raidName is the display
@@ -8845,20 +9318,33 @@ end
 --                           unlocked the skip here
 -- "N/A" wins when both apply (no skip exists, so unlock state is moot).
 function UI.ShowLoadDialog(raidName)
-    local f = UI._GetOrCreateLoadDialog()
+    local dialog = UI._GetOrCreateLoadDialog()
     local raid = RR.currentRaid
     local diff = RR.state and RR.state.currentDifficultyID
 
-    f.raidName:SetText(raidName or (raid and raid.name) or "?")
-    f.loading:SetText(f.loadBase)
+    -- The load-dialog title and prompt normally render in the pixel wordmark
+    -- font (04B_03), which covers ASCII only. On a non-English client these
+    -- lines show localized content, so they render in the client's default
+    -- font (full glyph coverage for the client's language) regardless of
+    -- whether a particular string happens to be all-ASCII this time -- a
+    -- Spanish raid name without accents should still match the rest of the
+    -- Spanish UI, and the next raid's name may well carry accents. English
+    -- clients keep the pixel font. The RETRORUNS wordmark above is a brand
+    -- mark (ASCII by definition) and stays in the pixel font either way.
+    -- Swapped per-populate, so both branches are always set.
+    local titleName = raidName or (raid and RR:GetLocalizedRaidName(raid)) or "?"
+    dialog.raidName:SetFont(RR:GetChromeFont(), 15, "")
+    dialog.loading:SetFont(RR:GetChromeFont(), 14, "")
+    dialog.raidName:SetText(titleName)
+    dialog.loading:SetText(dialog.loadBase)
 
     -- Long raid names (difficulty suffix included) wrap to a second line.
     -- The buttons anchor to the frame bottom, so a fixed height lets the
     -- wrapped name shove the prompt into the button row. Grow the frame
     -- by the overflow past one line so the vertical spacing holds.
-    local nameLineHeight = f.raidName:GetLineHeight() or 15
-    local nameTextHeight = f.raidName:GetStringHeight() or nameLineHeight
-    f:SetHeight(f.baseHeight + math.max(0, nameTextHeight - nameLineHeight))
+    local nameLineHeight = dialog.raidName:GetLineHeight() or 15
+    local nameTextHeight = dialog.raidName:GetStringHeight() or nameLineHeight
+    dialog:SetHeight(dialog.baseHeight + math.max(0, nameTextHeight - nameLineHeight))
 
     -- Resolve SKIP state. Gate on the chain the authored route targets:
     -- a raid with multiple skip chains (HFC: Iskar + Mannoroth) but one
@@ -8879,42 +9365,42 @@ function UI.ShowLoadDialog(raidName)
     local resumeIsSkip = showContinue and savedVariant == "skip" and unlocked
     -- FULL is always a valid choice; ensure it's enabled and full-color
     -- (it may have been left desaturated from a prior disabled state).
-    f.SetButtonEnabled(f.fullBtn, true)
+    dialog.SetButtonEnabled(dialog.fullBtn, true)
     if hasRoute and unlocked then
-        f.SetButtonEnabled(f.skipBtn, true)
+        dialog.SetButtonEnabled(dialog.skipBtn, true)
         -- When SKIP is the route being resumed, the footer becomes the
         -- "Continue?" hint (replacing the boss name) so it lands in the
         -- footer slot rather than stacking onto the frame border below it.
-        f.skipFooter:SetText(resumeIsSkip and RR.L["Continue?"] or (raid.skipToBoss or ""))
+        dialog.skipFooter:SetText(resumeIsSkip and RR.L["Continue?"] or (raid.skipToBoss or ""))
     else
-        f.SetButtonEnabled(f.skipBtn, false)
+        dialog.SetButtonEnabled(dialog.skipBtn, false)
         if not hasRoute then
-            f.skipFooter:SetText(RR.L["N/A"])
+            dialog.skipFooter:SetText(RR.L["N/A"])
         elseif not RR:RaidSkipIsCascading(raid) then
             -- Non-cascading (achievement-gated) skips are Mythic-only.
-            f.skipFooter:SetText(RR.L["Mythic only"])
+            dialog.skipFooter:SetText(RR.L["Mythic only"])
         else
-            f.skipFooter:SetText(RR.L["locked"])
+            dialog.skipFooter:SetText(RR.L["locked"])
         end
     end
     -- Color the footer green while it's serving as the Continue? hint,
     -- matching the FULL-side hint; otherwise the default disabled grey.
     if resumeIsSkip then
-        f.skipFooter:SetTextColor(0.4, 1, 0.4)
+        dialog.skipFooter:SetTextColor(0.4, 1, 0.4)
     else
-        f.skipFooter:SetTextColor(0.5, 0.5, 0.5)
+        dialog.skipFooter:SetTextColor(0.5, 0.5, 0.5)
     end
 
     -- FULL-side "Continue?" sits under the FULL button. (The SKIP-side
     -- case is handled in the footer above.)
-    f.continueHint:ClearAllPoints()
-    f.continueHint:SetText("")
+    dialog.continueHint:ClearAllPoints()
+    dialog.continueHint:SetText("")
     if showContinue and savedVariant ~= "skip" then
-        f.continueHint:SetPoint("TOP", f.fullBtn, "BOTTOM", 0, 3)
-        f.continueHint:SetText(RR.L["Continue?"])
+        dialog.continueHint:SetPoint("TOP", dialog.fullBtn, "BOTTOM", 0, 3)
+        dialog.continueHint:SetText(RR.L["Continue?"])
     end
 
-    f:Show()
+    dialog:Show()
 end
 
 function UI.HideLoadDialog()
@@ -8930,7 +9416,7 @@ function UI.ShowWowheadPopup(achievementID, bossName, achievementName)
     local url = ("https://www.wowhead.com/achievement=%d"):format(achievementID)
     -- Defensive defaults if the caller (older codepath) doesn't pass names.
     bossName        = bossName        or "?"
-    achievementName = achievementName or ("Achievement " .. achievementID)
+    achievementName = achievementName or (RR.L["Achievement "] .. achievementID)
     StaticPopup_Show("RETRORUNS_WOWHEAD_URL",
                      bossName, achievementName, { url = url })
 end
@@ -8943,7 +9429,7 @@ function UI.ShowWowheadQuestPopup(questID, raidName, questName)
     if not questID then return end
     local url = ("https://www.wowhead.com/quest=%d"):format(questID)
     raidName  = raidName  or "?"
-    questName = questName or ("Quest " .. questID)
+    questName = questName or (RR.L["Quest "] .. questID)
     StaticPopup_Show("RETRORUNS_WOWHEAD_URL",
                      raidName, questName, { url = url })
 end
@@ -8985,7 +9471,7 @@ local function BuildAchievementRows(raid)
         table.insert(rows, {
             kind          = "glory",
             id            = meta.id,
-            name          = mName or meta.name or ("Glory ID " .. meta.id),
+            name          = mName or meta.name or (RR.L["Glory ID "] .. meta.id),
             completed     = mCompleted,
             done          = done,
             total         = total,
@@ -9005,7 +9491,7 @@ local function BuildAchievementRows(raid)
     --    produce a single naRow.
     if raid.bosses then
         for _, boss in ipairs(raid.bosses) do
-            local bossName = boss.name or "?"
+            local bossName = RR:GetLocalizedBossName(boss) or "?"
             if not boss.achievements or #boss.achievements == 0 then
                 table.insert(rows, { kind = "naRow", bossName = bossName })
             else
@@ -9029,7 +9515,7 @@ local function BuildAchievementRows(raid)
 end
 
 -- Last-rendered fingerprint for the achievements window's row table.
--- Used to short-circuit f.RefreshContent when no state change has occurred
+-- Used to short-circuit the window's RefreshContent when no state change has occurred
 -- since the last render. Same root-cause class as the idle-list click-race
 -- bug: UI.Update calls UpdateAchievementsWindow on every 1Hz heartbeat,
 -- which calls RefreshContent, which calls HideAllAchSlots() -- hiding the
@@ -9058,22 +9544,22 @@ end
 local function FingerprintAchRows(rows, currentBossName)
     local parts = {}
     for i, row in ipairs(rows) do
-        local k = row.kind or "?"
-        if k == "glory" then
+        local rowKind = row.kind or "?"
+        if rowKind == "glory" then
             parts[i] = ("G|%s|%s|%s|%s|%s"):format(
                 tostring(row.id), tostring(row.name),
                 tostring(row.completed),
                 tostring(row.done), tostring(row.total))
-        elseif k == "achRow" then
+        elseif rowKind == "achRow" then
             parts[i] = ("A|%s|%s|%s|%s|%s|%s"):format(
                 tostring(row.bossName), tostring(row.achievementID),
                 tostring(row.achievementName), tostring(row.completed),
                 tostring(row.soloable), tostring(row.meta))
-        elseif k == "naRow" then
+        elseif rowKind == "naRow" then
             parts[i] = ("N|%s"):format(tostring(row.bossName))
         else
             -- spacer, header: no per-row state beyond kind
-            parts[i] = k
+            parts[i] = rowKind
         end
     end
     parts[#parts + 1] = "CB|" .. tostring(currentBossName or "")
@@ -9296,31 +9782,31 @@ end
 GetOrCreateAchievementsWindow = function()
     if achievementsWindow then return achievementsWindow end
 
-    local f = CreateFrame("Frame", "RetroRunsAchievementsWindow", UIParent, "BackdropTemplate")
-    f:SetSize(ACH_WINDOW_WIDTH, ACH_WINDOW_MIN_HEIGHT)
-    f:SetBackdrop({
+    local achFrame = CreateFrame("Frame", "RetroRunsAchievementsWindow", UIParent, "BackdropTemplate")
+    achFrame:SetSize(ACH_WINDOW_WIDTH, ACH_WINDOW_MIN_HEIGHT)
+    achFrame:SetBackdrop({
         bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
         edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
         tile = true, tileSize = 16, edgeSize = 16,
         insets = { left = 3, right = 3, top = 3, bottom = 3 },
     })
-    f:SetBackdropColor(0.03, 0.03, 0.03, RR:GetSetting("panelOpacity", 1.0))
-    f:SetPoint("TOPLEFT", panel, "TOPRIGHT", 6, 0)
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop",  f.StopMovingOrSizing)
-    f:SetClampedToScreen(true)
-    f:SetFrameStrata("HIGH")
-    f:Hide()
+    achFrame:SetBackdropColor(0.03, 0.03, 0.03, RR:GetSetting("panelOpacity", 1.0))
+    achFrame:SetPoint("TOPLEFT", panel, "TOPRIGHT", 6, 0)
+    achFrame:SetMovable(true)
+    achFrame:EnableMouse(true)
+    achFrame:RegisterForDrag("LeftButton")
+    achFrame:SetScript("OnDragStart", achFrame.StartMoving)
+    achFrame:SetScript("OnDragStop",  achFrame.StopMovingOrSizing)
+    achFrame:SetClampedToScreen(true)
+    achFrame:SetFrameStrata("HIGH")
+    achFrame:Hide()
 
     -- Hyperlink router: achievement and item links use SetItemRef as
     -- usual. Custom RR_wowhead: links would no longer reach this handler
     -- (the per-row Button is the new entry point), but the prefix check
     -- is left in for forward compatibility / safety.
-    f:SetHyperlinksEnabled(true)
-    f:SetScript("OnHyperlinkClick", function(_, link, text, button)
+    achFrame:SetHyperlinksEnabled(true)
+    achFrame:SetScript("OnHyperlinkClick", function(_, link, text, button)
         local achID = link and link:match("^RR_wowhead:(%d+)$")
         if achID then
             UI.ShowWowheadPopup(tonumber(achID))
@@ -9328,25 +9814,25 @@ GetOrCreateAchievementsWindow = function()
         end
         SetItemRef(link, text, button)
     end)
-    f:SetScript("OnHyperlinkEnter", function(self, link)
+    achFrame:SetScript("OnHyperlinkEnter", function(self, link)
         if link and link:match("^RR_wowhead:") then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetHyperlink(link)
         GameTooltip:Show()
     end)
-    f:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
+    achFrame:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
 
     -- Title plate
-    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local title = achFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 14, -10)
-    title:SetText("|cffF259C7RETRO|r|cff4DCCFFRUNS|r  Achievements")
-    title:SetFont(TITLE_FONT, 16, "")
+    title:SetText(RR.L["|cffF259C7RETRO|r|cff4DCCFFRUNS|r  Achievements"])
+    title:SetFont(RR:GetChromeFont(), 16, "")
     title:SetShadowOffset(1, -1)
     title:SetShadowColor(0, 0, 0, 1)
 
-    local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    local closeBtn = CreateFrame("Button", nil, achFrame, "UIPanelCloseButton")
     closeBtn:SetPoint("TOPRIGHT", -4, -4)
-    closeBtn:SetScript("OnClick", function() f:Hide() end)
+    closeBtn:SetScript("OnClick", function() achFrame:Hide() end)
 
     -- Two cascading dropdowns: Expansion / Raid. Boss-level selection
     -- was removed when the window switched to a full-raid table view --
@@ -9379,13 +9865,13 @@ GetOrCreateAchievementsWindow = function()
     -- ("Exp:"/"Raid:"/"Boss:"/"Class:") even though this window only renders
     -- Exp and Raid, so the caption column -- and therefore the gap between
     -- the caption and the bar -- lines up exactly with the browser.
-    local capMeasure = f:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local capMeasure = achFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     capMeasure:Hide()
     local LABEL_W = 0
-    for _, cap in ipairs({ "Exp:", "Raid:", "Boss:", "Class:" }) do
+    for _, cap in ipairs({ RR.L["Exp:"], RR.L["Raid:"], RR.L["Boss:"], RR.L["Class:"] }) do
         capMeasure:SetText(cap)
-        local w = capMeasure:GetStringWidth() or 0
-        if w > LABEL_W then LABEL_W = w end
+        local textWidth = capMeasure:GetStringWidth() or 0
+        if textWidth > LABEL_W then LABEL_W = textWidth end
     end
     LABEL_W = math.ceil(LABEL_W)
     -- The dropdown template frame has ~16px of non-visible left inset before
@@ -9393,27 +9879,27 @@ GetOrCreateAchievementsWindow = function()
     -- offset the frame left by DD_INSET.
     local DD_INSET = 16
 
-    local ddExp  = MakeDD("Expansion", 140, f, "Exp:")
-    local ddRaid = MakeDD("Raid",      220, f, "Raid:")
+    local ddExp  = MakeDD("Expansion", 140, achFrame, RR.L["Exp:"])
+    local ddRaid = MakeDD("Raid",      220, achFrame, RR.L["Raid:"])
 
     -- Bars: stacked. Visible left edge sits just right of the caption column;
     -- subtract DD_INSET so the frame's offset lands the visible bar there.
     local barVisibleLeft = LABEL_LEFT + LABEL_W + LABEL_GAP
     local barLeft = barVisibleLeft - DD_INSET
-    ddExp:SetPoint("TOPLEFT",  f,     "TOPLEFT",     barLeft, -32)
+    ddExp:SetPoint("TOPLEFT",  achFrame,     "TOPLEFT",     barLeft, -32)
     ddRaid:SetPoint("TOPLEFT", ddExp, "BOTTOMLEFT",  0,       4)
 
     -- Labels: left-aligned at LABEL_LEFT, vertically aligned to each bar.
     local function anchorLabel(dd)
         if not dd.label then return end
         dd.label:ClearAllPoints()
-        dd.label:SetPoint("LEFT", f, "LEFT", LABEL_LEFT, 2)
+        dd.label:SetPoint("LEFT", achFrame, "LEFT", LABEL_LEFT, 2)
         dd.label:SetPoint("TOP",  dd, "TOP",  0, -6)
         dd.label:SetWidth(LABEL_W)
     end
     anchorLabel(ddExp); anchorLabel(ddRaid)
 
-    f.ddExp, f.ddRaid = ddExp, ddRaid
+    achFrame.ddExp, achFrame.ddRaid = ddExp, ddRaid
 
     -- Size the bars to their content, matching the transmog browser's rule:
     -- each bar fits its longest string plus room for the arrow. Exp uses the
@@ -9422,18 +9908,18 @@ GetOrCreateAchievementsWindow = function()
         local maxW = 0
         for _, s in ipairs(strings) do
             capMeasure:SetText(s)
-            local w = capMeasure:GetStringWidth() or 0
-            if w > maxW then maxW = w end
+            local textWidth = capMeasure:GetStringWidth() or 0
+            if textWidth > maxW then maxW = textWidth end
         end
         return maxW
     end
-    f.SizeDropdownsToContent = function(self)
+    achFrame.SizeDropdownsToContent = function(self)
         local ARROW_PAD = 30
         local expW = widestAchStringWidth(EXPANSION_ORDER_NEWEST_FIRST)
         local raidNames = {}
         for _, raid in pairs(RetroRuns_Data or {}) do
             if raid.instanceID and raid.instanceID > 0 then
-                raidNames[#raidNames + 1] = raid.name or ""
+                raidNames[#raidNames + 1] = RR:GetLocalizedRaidName(raid) or ""
             end
         end
         local raidW = widestAchStringWidth(raidNames)
@@ -9445,36 +9931,36 @@ GetOrCreateAchievementsWindow = function()
     -- repositioned by RefreshContent based on whether the raid has a
     -- gloryMeta. titleLine renders only when the Glory rewards a title
     -- (e.g. "the Tomb Raider"). Hidden entirely when there's no Glory.
-    f.gloryLine = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    f.gloryLine:SetJustifyH("LEFT")
-    f.gloryLine:SetWordWrap(false)
+    achFrame.gloryLine = achFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    achFrame.gloryLine:SetJustifyH("LEFT")
+    achFrame.gloryLine:SetWordWrap(false)
 
-    f.rewardLine = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.rewardLine:SetJustifyH("LEFT")
-    f.rewardLine:SetWordWrap(false)
+    achFrame.rewardLine = achFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    achFrame.rewardLine:SetJustifyH("LEFT")
+    achFrame.rewardLine:SetWordWrap(false)
 
-    f.titleLine = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.titleLine:SetJustifyH("LEFT")
-    f.titleLine:SetWordWrap(false)
+    achFrame.titleLine = achFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    achFrame.titleLine:SetJustifyH("LEFT")
+    achFrame.titleLine:SetWordWrap(false)
 
     -- Column-header FontStrings. Persistent (positioned by RefreshContent
     -- based on whether Glory is present) and shown for every non-empty
     -- raid render.
-    f.hdrStatus = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.hdrStatus:SetJustifyH("CENTER")
-    f.hdrStatus:SetText("|cff4DCCFFStatus|r")
+    achFrame.hdrStatus = achFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    achFrame.hdrStatus:SetJustifyH("CENTER")
+    achFrame.hdrStatus:SetText(RR.L["|cff4DCCFFStatus|r"])
 
-    f.hdrAch = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.hdrAch:SetJustifyH("LEFT")
-    f.hdrAch:SetText("|cff4DCCFFAchievement|r")
+    achFrame.hdrAch = achFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    achFrame.hdrAch:SetJustifyH("LEFT")
+    achFrame.hdrAch:SetText(RR.L["|cff4DCCFFAchievement|r"])
 
-    f.hdrBoss = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.hdrBoss:SetJustifyH("LEFT")
-    f.hdrBoss:SetText("|cff4DCCFFBoss|r")
+    achFrame.hdrBoss = achFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    achFrame.hdrBoss:SetJustifyH("LEFT")
+    achFrame.hdrBoss:SetText(RR.L["|cff4DCCFFBoss|r"])
 
-    f.hdrWowhead = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    f.hdrWowhead:SetJustifyH("CENTER")
-    f.hdrWowhead:SetText("|cffff8000Wowhead|r")
+    achFrame.hdrWowhead = achFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    achFrame.hdrWowhead:SetJustifyH("CENTER")
+    achFrame.hdrWowhead:SetText(RR.L["|cffff8000Wowhead|r"])
 
     -- Hidden measurement FontString used by RefreshContent to query the
     -- rendered width of each row's text BEFORE laying it out, so columns
@@ -9483,8 +9969,8 @@ GetOrCreateAchievementsWindow = function()
     -- GetStringHeight, which is lazy after SetFont): call SetFont first
     -- with the measurement font, then SetText, then read GetStringWidth.
     -- Hidden so it never appears on screen.
-    f.measureFS = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    f.measureFS:Hide()
+    achFrame.measureFS = achFrame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    achFrame.measureFS:Hide()
 
     -- Legend below the table. Two FontStrings: meta-key on the left,
     -- soloable color key on the right. Splitting them lets the soloable
@@ -9495,25 +9981,26 @@ GetOrCreateAchievementsWindow = function()
     --   orange = soloable with class-specific abilities ("kinda")
     --   red    = not soloable
     --   gray   = not yet evaluated
-    f.legendLeft = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.legendLeft:SetJustifyH("LEFT")
-    f.legendLeft:SetText(
-        "|cff9d9d9d|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14|t = meta criteria|r"
+    achFrame.legendLeft = achFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    achFrame.legendLeft:SetJustifyH("LEFT")
+    achFrame.legendLeft:SetText(
+        "|cff9d9d9d|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14|t = "
+        .. RR.L["meta criteria"] .. "|r"
     )
 
-    f.legendRight = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.legendRight:SetJustifyH("RIGHT")
-    f.legendRight:SetText(
-        "|cff9d9d9dSoloable: |r|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:0:255:0|t|cff9d9d9d yes  |r"
-        .. "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:255:136:0|t|cff9d9d9d kinda  |r"
-        .. "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:255:51:51|t|cff9d9d9d no  |r"
-        .. "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:40:40:40|t|cff9d9d9d unknown|r"
+    achFrame.legendRight = achFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    achFrame.legendRight:SetJustifyH("RIGHT")
+    achFrame.legendRight:SetText(
+        "|cff9d9d9d" .. RR.L["Soloable: "] .. "|r|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:0:255:0|t|cff9d9d9d " .. RR.L["yes"] .. "  |r"
+        .. "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:255:136:0|t|cff9d9d9d " .. RR.L["kinda"] .. "  |r"
+        .. "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:255:51:51|t|cff9d9d9d " .. RR.L["no"] .. "  |r"
+        .. "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:40:40:40|t|cff9d9d9d " .. RR.L["unknown"] .. "|r"
     )
 
-    achievementsWindow = f
+    achievementsWindow = achFrame
 
     -- ----- Dropdown initializers -----
-    f.RefreshDropdowns = function(self)
+    achFrame.RefreshDropdowns = function(self)
         EnsureAchDefaults()
         local byExp, expList = EnumerateRaids()
 
@@ -9528,7 +10015,7 @@ GetOrCreateAchievementsWindow = function()
                     achState.expansion = expName
                     local first = byExp[expName] and byExp[expName][1]
                     achState.raidKey = first and first.instanceID or nil
-                    f:RefreshAll()
+                    achFrame:RefreshAll()
                 end
                 UIDropDownMenu_AddButton(info)
             end
@@ -9539,7 +10026,7 @@ GetOrCreateAchievementsWindow = function()
             local raids = byExp[achState.expansion] or {}
             for _, raid in ipairs(raids) do
                 local info = UIDropDownMenu_CreateInfo()
-                info.text    = raid.name or "?"
+                info.text    = RR:GetLocalizedRaidName(raid) or "?"
                 info.value   = raid.instanceID
                 info.checked = (raid.instanceID == achState.raidKey)
                 info.func    = function()
@@ -9549,21 +10036,21 @@ GetOrCreateAchievementsWindow = function()
                     -- updated alongside the content. Calling RefreshContent
                     -- alone would leave the raid dropdown showing the
                     -- previous raid's name.
-                    f:RefreshAll()
+                    achFrame:RefreshAll()
                 end
                 UIDropDownMenu_AddButton(info)
             end
         end)
         local raidName = "(none)"
         local selRaid = achState.raidKey and RR:GetRaidByInstanceID(achState.raidKey)
-        if selRaid then raidName = selRaid.name or "?" end
+        if selRaid then raidName = RR:GetLocalizedRaidName(selRaid) or "?" end
         UIDropDownMenu_SetText(ddRaid, raidName)
     end
 
     -- ----- Row-table refresh -----
     -- Rebuilds the table content, positions all row widgets, sizes the
     -- window. Same shape as RefreshSkipsContent.
-    f.RefreshContent = function(self)
+    achFrame.RefreshContent = function(self)
         if self.SizeDropdownsToContent then self:SizeDropdownsToContent() end
         local raid = achState.raidKey and RR:GetRaidByInstanceID(achState.raidKey) or nil
         local rows = BuildAchievementRows(raid)
@@ -9578,7 +10065,7 @@ GetOrCreateAchievementsWindow = function()
             local step = RR.state and RR.state.activeStep
             if step and step.bossIndex and raid.bosses then
                 local boss = raid.bosses[step.bossIndex]
-                if boss then currentBossName = boss.name end
+                if boss then currentBossName = RR:GetLocalizedBossName(boss) end
             end
         end
 
@@ -9592,7 +10079,7 @@ GetOrCreateAchievementsWindow = function()
         -- need the very first render to proceed even though "no diff"
         -- is technically true.
         local fp = FingerprintAchRows(rows, currentBossName)
-        if fp == lastAchRowsFingerprint and f.hdrStatus:IsShown() then
+        if fp == lastAchRowsFingerprint and achFrame.hdrStatus:IsShown() then
             return
         end
         lastAchRowsFingerprint = fp
@@ -9604,13 +10091,13 @@ GetOrCreateAchievementsWindow = function()
         -- always for non-empty raids -- but if a future code path renders
         -- a raid with no rows, hiding here ensures the previous raid's
         -- headers don't leak through visually.
-        f.gloryLine:Hide()
-        f.rewardLine:Hide()
-        f.titleLine:Hide()
-        f.hdrStatus:Hide()
-        f.hdrAch:Hide()
-        f.hdrBoss:Hide()
-        f.hdrWowhead:Hide()
+        achFrame.gloryLine:Hide()
+        achFrame.rewardLine:Hide()
+        achFrame.titleLine:Hide()
+        achFrame.hdrStatus:Hide()
+        achFrame.hdrAch:Hide()
+        achFrame.hdrBoss:Hide()
+        achFrame.hdrWowhead:Hide()
 
         local fontSize   = RR:GetSetting("fontSize", 12)
         -- Row content renders one point smaller than the user-facing
@@ -9638,8 +10125,8 @@ GetOrCreateAchievementsWindow = function()
             return fontString:GetStringWidth() or 0
         end
 
-        local widestAch  = MeasureWidth(f.measureFS, "Achievement")  -- start with header width
-        local widestBoss = MeasureWidth(f.measureFS, "Boss")
+        local widestAch  = MeasureWidth(achFrame.measureFS, RR.L["Achievement"])  -- start with header width
+        local widestBoss = MeasureWidth(achFrame.measureFS, RR.L["Boss"])
         for _, row in ipairs(rows) do
             if row.kind == "achRow" then
                 -- Build the same string the achievement column will
@@ -9651,14 +10138,14 @@ GetOrCreateAchievementsWindow = function()
                               or row.achievementName
                 local soloStar = GetSoloableStar(row.soloable)
                 local achText  = metaPrefix .. link .. soloStar
-                local achW = MeasureWidth(f.measureFS, achText)
+                local achW = MeasureWidth(achFrame.measureFS, achText)
                 if achW > widestAch then widestAch = achW end
 
-                local bossW = MeasureWidth(f.measureFS, row.bossName)
+                local bossW = MeasureWidth(achFrame.measureFS, row.bossName)
                 if bossW > widestBoss then widestBoss = bossW end
 
             elseif row.kind == "naRow" then
-                local bossW = MeasureWidth(f.measureFS, row.bossName)
+                local bossW = MeasureWidth(achFrame.measureFS, row.bossName)
                 if bossW > widestBoss then widestBoss = bossW end
             end
         end
@@ -9681,7 +10168,7 @@ GetOrCreateAchievementsWindow = function()
         local wowheadColumnW = ACH_WOWHEAD_BTN_W + ACH_WOWHEAD_RIGHT_INSET + 20
         local windowW = colBossX + colBossW + wowheadColumnW
         windowW = math.max(windowW, ACH_WINDOW_WIDTH)
-        f:SetWidth(windowW)
+        achFrame:SetWidth(windowW)
 
         -- Vertical cursor starts below the dropdown stack. The two
         -- dropdowns occupy ~64px below the title bar.
@@ -9691,28 +10178,28 @@ GetOrCreateAchievementsWindow = function()
         -- Glory header (two lines: header + reward). Hidden if absent.
         local rowsStart = 1
         if rows[1] and rows[1].kind == "glory" then
-            local g = rows[1]
+            local gloryRow = rows[1]
 
             -- Status fragment: "[ ✓ ]" if completed, "n/N" otherwise.
             -- Gold for the progress count to match the encounter section.
             local statusFrag
-            if g.completed then
+            if gloryRow.completed then
                 statusFrag = ("|cff777777[ |r|cff00ff00%s|r|cff777777 ]|r"):format(ACH_CELL_DONE)
             else
-                statusFrag = ("|cffffd200%d/%d|r"):format(g.done or 0, g.total or 0)
+                statusFrag = ("|cffffd200%d/%d|r"):format(gloryRow.done or 0, gloryRow.total or 0)
             end
 
-            local link = GetAchievementLink and GetAchievementLink(g.id) or g.name
-            if g.completed and link ~= g.name then
+            local link = GetAchievementLink and GetAchievementLink(gloryRow.id) or gloryRow.name
+            if gloryRow.completed and link ~= gloryRow.name then
                 link = link:gsub("^|cff%x%x%x%x%x%x", ""):gsub("|r$", "")
                 link = ("|cff888888%s|r"):format(link)
             end
-            SetBodyFont(f.gloryLine, fontSize + 2, "")
-            f.gloryLine:SetText(("%s   %s"):format(link, statusFrag))
-            f.gloryLine:ClearAllPoints()
-            f.gloryLine:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
-            f.gloryLine:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, y)
-            f.gloryLine:Show()
+            SetBodyFont(achFrame.gloryLine, fontSize + 2, "")
+            achFrame.gloryLine:SetText(("%s   %s"):format(link, statusFrag))
+            achFrame.gloryLine:ClearAllPoints()
+            achFrame.gloryLine:SetPoint("TOPLEFT", achFrame, "TOPLEFT", 14, y)
+            achFrame.gloryLine:SetPoint("TOPRIGHT", achFrame, "TOPRIGHT", -14, y)
+            achFrame.gloryLine:Show()
             y = y - (fontSize + 6)
 
             -- Reward line. The line shows a state glyph indicating whether
@@ -9720,25 +10207,25 @@ GetOrCreateAchievementsWindow = function()
             -- then the resolved spell/item link. Glyph vocabulary matches
             -- Special Loot (green check for collected, plain X otherwise).
             local rewardText
-            if g.rewardSpellID and C_Spell and C_Spell.GetSpellLink then
-                rewardText = C_Spell.GetSpellLink(g.rewardSpellID)
+            if gloryRow.rewardSpellID and C_Spell and C_Spell.GetSpellLink then
+                rewardText = C_Spell.GetSpellLink(gloryRow.rewardSpellID)
             end
-            if not rewardText and g.rewardItemID then
-                local _, itemLink = GetItemInfo(g.rewardItemID)
+            if not rewardText and gloryRow.rewardItemID then
+                local _, itemLink = GetItemInfo(gloryRow.rewardItemID)
                 rewardText = itemLink
             end
             if not rewardText then
-                rewardText = g.rewardName
-                          and ("|cffffffff%s|r"):format(g.rewardName)
-                          or  "|cffffffff(Reward)|r"
+                rewardText = gloryRow.rewardName
+                          and ("|cffffffff%s|r"):format(RR.L[gloryRow.rewardName])
+                          or  "|cffffffff" .. RR.L["(Reward)"] .. "|r"
             end
 
-            SetBodyFont(f.rewardLine, rowFontSize, "")
-            f.rewardLine:SetText(("|cff9d9d9dReward:|r %s"):format(rewardText))
-            f.rewardLine:ClearAllPoints()
-            f.rewardLine:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
-            f.rewardLine:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, y)
-            f.rewardLine:Show()
+            SetBodyFont(achFrame.rewardLine, rowFontSize, "")
+            achFrame.rewardLine:SetText(("|cff9d9d9d" .. RR.L["Reward:"] .. "|r %s"):format(rewardText))
+            achFrame.rewardLine:ClearAllPoints()
+            achFrame.rewardLine:SetPoint("TOPLEFT", achFrame, "TOPLEFT", 14, y)
+            achFrame.rewardLine:SetPoint("TOPRIGHT", achFrame, "TOPRIGHT", -14, y)
+            achFrame.rewardLine:Show()
             y = y - lineHeight
 
             -- Title line. Some Glory metas (Tomb, etc.) award a character
@@ -9746,16 +10233,16 @@ GetOrCreateAchievementsWindow = function()
             -- informational line below the reward; no collection-state
             -- query since the title-knowledge API surface is awkward and
             -- the value to the player is just knowing it exists.
-            if g.rewardTitle then
-                SetBodyFont(f.titleLine, rowFontSize, "")
-                f.titleLine:SetText(("|cff9d9d9dTitle:|r |cffffffff%s|r"):format(g.rewardTitle))
-                f.titleLine:ClearAllPoints()
-                f.titleLine:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
-                f.titleLine:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, y)
-                f.titleLine:Show()
+            if gloryRow.rewardTitle then
+                SetBodyFont(achFrame.titleLine, rowFontSize, "")
+                achFrame.titleLine:SetText(("|cff9d9d9d" .. RR.L["Title:"] .. "|r |cffffffff%s|r"):format(RR.L[gloryRow.rewardTitle]))
+                achFrame.titleLine:ClearAllPoints()
+                achFrame.titleLine:SetPoint("TOPLEFT", achFrame, "TOPLEFT", 14, y)
+                achFrame.titleLine:SetPoint("TOPRIGHT", achFrame, "TOPRIGHT", -14, y)
+                achFrame.titleLine:Show()
                 y = y - lineHeight
             else
-                f.titleLine:Hide()
+                achFrame.titleLine:Hide()
             end
 
             -- Skip the glory row in the data-row loop below; the spacer
@@ -9775,32 +10262,32 @@ GetOrCreateAchievementsWindow = function()
 
             elseif row.kind == "header" then
                 -- Position the persistent column-header FontStrings.
-                SetBodyFont(f.hdrStatus, rowFontSize, "")
-                f.hdrStatus:ClearAllPoints()
-                f.hdrStatus:SetPoint("TOP", f, "TOPLEFT", ACH_COL_STATUS_X, y)
-                f.hdrStatus:Show()
+                SetBodyFont(achFrame.hdrStatus, rowFontSize, "")
+                achFrame.hdrStatus:ClearAllPoints()
+                achFrame.hdrStatus:SetPoint("TOP", achFrame, "TOPLEFT", ACH_COL_STATUS_X, y)
+                achFrame.hdrStatus:Show()
 
-                SetBodyFont(f.hdrAch, rowFontSize, "")
-                f.hdrAch:ClearAllPoints()
-                f.hdrAch:SetPoint("TOPLEFT", f, "TOPLEFT", ACH_COL_NAME_X, y)
-                f.hdrAch:Show()
+                SetBodyFont(achFrame.hdrAch, rowFontSize, "")
+                achFrame.hdrAch:ClearAllPoints()
+                achFrame.hdrAch:SetPoint("TOPLEFT", achFrame, "TOPLEFT", ACH_COL_NAME_X, y)
+                achFrame.hdrAch:Show()
 
-                SetBodyFont(f.hdrBoss, rowFontSize, "")
-                f.hdrBoss:ClearAllPoints()
-                f.hdrBoss:SetPoint("TOPLEFT", f, "TOPLEFT", colBossX, y)
-                f.hdrBoss:Show()
+                SetBodyFont(achFrame.hdrBoss, rowFontSize, "")
+                achFrame.hdrBoss:ClearAllPoints()
+                achFrame.hdrBoss:SetPoint("TOPLEFT", achFrame, "TOPLEFT", colBossX, y)
+                achFrame.hdrBoss:Show()
 
-                SetBodyFont(f.hdrWowhead, rowFontSize, "")
-                f.hdrWowhead:ClearAllPoints()
+                SetBodyFont(achFrame.hdrWowhead, rowFontSize, "")
+                achFrame.hdrWowhead:ClearAllPoints()
                 -- CENTER-anchor the header at the button center so the
                 -- label reads as a column header for the buttons below.
-                f.hdrWowhead:SetPoint("TOP", f, "TOPRIGHT", ACH_WOWHEAD_CENTER_X, y)
-                f.hdrWowhead:Show()
+                achFrame.hdrWowhead:SetPoint("TOP", achFrame, "TOPRIGHT", ACH_WOWHEAD_CENTER_X, y)
+                achFrame.hdrWowhead:Show()
 
                 y = y - lineHeight
 
             elseif row.kind == "achRow" then
-                local slot = GetAchRowSlot(f, i)
+                local slot = GetAchRowSlot(achFrame, i)
 
                 -- Current-boss highlight + left accent bar. The textures
                 -- span from this row's top (y) down to the bottom of its
@@ -9813,13 +10300,13 @@ GetOrCreateAchievementsWindow = function()
                 -- behind the row's content.
                 if currentBossName and row.bossName == currentBossName then
                     slot.highlight:ClearAllPoints()
-                    slot.highlight:SetPoint("TOPLEFT",     f, "TOPLEFT",  14, y + 1)
-                    slot.highlight:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                    slot.highlight:SetPoint("TOPLEFT",     achFrame, "TOPLEFT",  14, y + 1)
+                    slot.highlight:SetPoint("BOTTOMRIGHT", achFrame, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
                     slot.highlight:Show()
 
                     slot.accent:ClearAllPoints()
-                    slot.accent:SetPoint("TOPLEFT",    f, "TOPLEFT", 14, y + 1)
-                    slot.accent:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                    slot.accent:SetPoint("TOPLEFT",    achFrame, "TOPLEFT", 14, y + 1)
+                    slot.accent:SetPoint("BOTTOMLEFT", achFrame, "TOPLEFT", 14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
                     slot.accent:Show()
                 end
 
@@ -9833,7 +10320,7 @@ GetOrCreateAchievementsWindow = function()
                 SetBodyFont(slot.status, rowFontSize, "")
                 slot.status:SetText(statusText)
                 slot.status:ClearAllPoints()
-                slot.status:SetPoint("TOP", f, "TOPLEFT", ACH_COL_STATUS_X, y)
+                slot.status:SetPoint("TOP", achFrame, "TOPLEFT", ACH_COL_STATUS_X, y)
                 slot.status:Show()
 
                 -- Achievement cell: meta-prefix + link + soloable star.
@@ -9857,7 +10344,7 @@ GetOrCreateAchievementsWindow = function()
                 slot.ach:SetText(metaPrefix .. link .. soloStar)
                 slot.ach:SetWidth(colNameW)
                 slot.ach:ClearAllPoints()
-                slot.ach:SetPoint("TOPLEFT", f, "TOPLEFT", ACH_COL_NAME_X, y)
+                slot.ach:SetPoint("TOPLEFT", achFrame, "TOPLEFT", ACH_COL_NAME_X, y)
                 slot.ach:Show()
 
                 -- Boss cell.
@@ -9865,7 +10352,7 @@ GetOrCreateAchievementsWindow = function()
                 slot.boss:SetText(("|cffcccccc%s|r"):format(row.bossName))
                 slot.boss:SetWidth(colBossW)
                 slot.boss:ClearAllPoints()
-                slot.boss:SetPoint("TOPLEFT", f, "TOPLEFT", colBossX, y)
+                slot.boss:SetPoint("TOPLEFT", achFrame, "TOPLEFT", colBossX, y)
                 slot.boss:Show()
 
                 -- Wowhead button. Click handler captures achievement ID
@@ -9882,7 +10369,7 @@ GetOrCreateAchievementsWindow = function()
                 -- UIPanelButtonTemplate's chrome sits low in its SetSize box,
                 -- so the visible button reads bottom-heavy if anchored at y.
                 -- The +2 nudges it to the row's visual center.
-                slot.wowhead:SetPoint("TOPRIGHT", f, "TOPRIGHT", -ACH_WOWHEAD_RIGHT_INSET, y + 2)
+                slot.wowhead:SetPoint("TOPRIGHT", achFrame, "TOPRIGHT", -ACH_WOWHEAD_RIGHT_INSET, y + 2)
                 slot.wowhead:Show()
 
                 -- Subtle row divider. Anchored using ACH_ROW_BOTTOM_INSET
@@ -9891,14 +10378,14 @@ GetOrCreateAchievementsWindow = function()
                 -- comment value (5px above nominal row bottom) is set
                 -- once at the constant; tune there.
                 slot.divider:ClearAllPoints()
-                slot.divider:SetPoint("TOPLEFT",  f, "TOPLEFT",  14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
-                slot.divider:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                slot.divider:SetPoint("TOPLEFT",  achFrame, "TOPLEFT",  14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                slot.divider:SetPoint("TOPRIGHT", achFrame, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
                 slot.divider:Show()
 
                 y = y - lineHeight
 
             elseif row.kind == "naRow" then
-                local slot = GetAchRowSlot(f, i)
+                local slot = GetAchRowSlot(achFrame, i)
 
                 -- Current-boss highlight (see achRow comment for layer
                 -- and inset rationale). naRow gets the same treatment so
@@ -9906,13 +10393,13 @@ GetOrCreateAchievementsWindow = function()
                 -- marked as "where you are".
                 if currentBossName and row.bossName == currentBossName then
                     slot.highlight:ClearAllPoints()
-                    slot.highlight:SetPoint("TOPLEFT",     f, "TOPLEFT",  14, y + 1)
-                    slot.highlight:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                    slot.highlight:SetPoint("TOPLEFT",     achFrame, "TOPLEFT",  14, y + 1)
+                    slot.highlight:SetPoint("BOTTOMRIGHT", achFrame, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
                     slot.highlight:Show()
 
                     slot.accent:ClearAllPoints()
-                    slot.accent:SetPoint("TOPLEFT",    f, "TOPLEFT", 14, y + 1)
-                    slot.accent:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                    slot.accent:SetPoint("TOPLEFT",    achFrame, "TOPLEFT", 14, y + 1)
+                    slot.accent:SetPoint("BOTTOMLEFT", achFrame, "TOPLEFT", 14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
                     slot.accent:Show()
                 end
 
@@ -9921,21 +10408,21 @@ GetOrCreateAchievementsWindow = function()
                 SetBodyFont(slot.status, rowFontSize, "")
                 slot.status:SetText(ACH_CELL_NA)
                 slot.status:ClearAllPoints()
-                slot.status:SetPoint("TOP", f, "TOPLEFT", ACH_COL_STATUS_X, y)
+                slot.status:SetPoint("TOP", achFrame, "TOPLEFT", ACH_COL_STATUS_X, y)
                 slot.status:Show()
 
                 SetBodyFont(slot.ach, rowFontSize, "")
                 slot.ach:SetText(ACH_CELL_NA)
                 slot.ach:SetWidth(colNameW)
                 slot.ach:ClearAllPoints()
-                slot.ach:SetPoint("TOPLEFT", f, "TOPLEFT", ACH_COL_NAME_X, y)
+                slot.ach:SetPoint("TOPLEFT", achFrame, "TOPLEFT", ACH_COL_NAME_X, y)
                 slot.ach:Show()
 
                 SetBodyFont(slot.boss, rowFontSize, "")
                 slot.boss:SetText(("|cffcccccc%s|r"):format(row.bossName))
                 slot.boss:SetWidth(colBossW)
                 slot.boss:ClearAllPoints()
-                slot.boss:SetPoint("TOPLEFT", f, "TOPLEFT", colBossX, y)
+                slot.boss:SetPoint("TOPLEFT", achFrame, "TOPLEFT", colBossX, y)
                 slot.boss:Show()
 
                 -- Wowhead button slot stays hidden for naRow (no
@@ -9943,8 +10430,8 @@ GetOrCreateAchievementsWindow = function()
 
                 -- Same row divider as achRow so visual rhythm is uniform.
                 slot.divider:ClearAllPoints()
-                slot.divider:SetPoint("TOPLEFT",  f, "TOPLEFT",  14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
-                slot.divider:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                slot.divider:SetPoint("TOPLEFT",  achFrame, "TOPLEFT",  14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                slot.divider:SetPoint("TOPRIGHT", achFrame, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
                 slot.divider:Show()
 
                 y = y - lineHeight
@@ -9955,41 +10442,41 @@ GetOrCreateAchievementsWindow = function()
         -- left FontString anchored TOPLEFT, right FontString anchored
         -- TOPRIGHT. Both at y - 6 (small gap below the last row's
         -- divider).
-        SetBodyFont(f.legendLeft, fontSize - 1, "")
-        f.legendLeft:ClearAllPoints()
-        f.legendLeft:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y - 6)
+        SetBodyFont(achFrame.legendLeft, fontSize - 1, "")
+        achFrame.legendLeft:ClearAllPoints()
+        achFrame.legendLeft:SetPoint("TOPLEFT", achFrame, "TOPLEFT", 14, y - 6)
 
-        SetBodyFont(f.legendRight, fontSize - 1, "")
-        f.legendRight:ClearAllPoints()
-        f.legendRight:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, y - 6)
+        SetBodyFont(achFrame.legendRight, fontSize - 1, "")
+        achFrame.legendRight:ClearAllPoints()
+        achFrame.legendRight:SetPoint("TOPRIGHT", achFrame, "TOPRIGHT", -14, y - 6)
 
         -- Total height: |y| + legend height + bottom margin. Use the
         -- taller of the two legend FontStrings (they're typically the
         -- same height, but be defensive in case of font wrapping).
         local lastY = math.abs(y)
         local legendH = math.max(
-            f.legendLeft:GetStringHeight()  or fontSize,
-            f.legendRight:GetStringHeight() or fontSize
+            achFrame.legendLeft:GetStringHeight()  or fontSize,
+            achFrame.legendRight:GetStringHeight() or fontSize
         )
         local desired = lastY + legendH + 16
         local clamped = math.max(ACH_WINDOW_MIN_HEIGHT,
                                  math.min(ACH_WINDOW_MAX_HEIGHT, desired))
-        f:SetHeight(clamped)
+        achFrame:SetHeight(clamped)
     end
 
-    f.RefreshAll = function(self)
+    achFrame.RefreshAll = function(self)
         self:RefreshDropdowns()
         self:RefreshContent()
     end
 
     -- Live refresh on achievement events. Debounced 50ms to collapse
     -- CRITERIA_UPDATE bursts. Refresh only fires when the window is shown.
-    f:RegisterEvent("ACHIEVEMENT_EARNED")
-    f:RegisterEvent("CRITERIA_UPDATE")
-    f:RegisterEvent("RECEIVED_ACHIEVEMENT_LIST")
+    achFrame:RegisterEvent("ACHIEVEMENT_EARNED")
+    achFrame:RegisterEvent("CRITERIA_UPDATE")
+    achFrame:RegisterEvent("RECEIVED_ACHIEVEMENT_LIST")
 
     local refreshPending = false
-    f:SetScript("OnEvent", function(self)
+    achFrame:SetScript("OnEvent", function(self)
         if not self:IsShown() then return end
         if refreshPending then return end
         refreshPending = true
@@ -10001,7 +10488,7 @@ GetOrCreateAchievementsWindow = function()
         end)
     end)
 
-    return f
+    return achFrame
 end
 
 -- Public refresh hook for route-progress changes. Called from UI.Update
@@ -10027,14 +10514,14 @@ function UI.OpenAchievementsWindow()
     if tmogWindow and tmogWindow:IsShown() then tmogWindow:Hide() end
     if skipsWindow and skipsWindow:IsShown() then skipsWindow:Hide() end
 
-    local w = GetOrCreateAchievementsWindow()
+    local window = GetOrCreateAchievementsWindow()
     -- Apply current settings (scale + font) before refreshing so the first
     -- visible state already matches the user's settings rather than
     -- rendering at default and then snapping to settings.
     local scale = RR:GetSetting("windowScale", 1.0)
-    w:SetScale(scale)
-    w:RefreshAll()
-    w:Show()
+    window:SetScale(scale)
+    window:RefreshAll()
+    window:Show()
 end
 
 function UI.ToggleAchievementsWindow()
@@ -10068,8 +10555,8 @@ C_Timer.NewTicker(0.1, function()
         and panel.encounter.header and panel.encounter.header.label then
         local pulseColor = ENCOUNTER_PULSE_COLORS[encounterPulsePhase] or "|cffffff00"
         panel.encounter.header.label:SetText(
-            ("|cff%sBoss Encounter:|r "):format(C_LABEL)
-            .. pulseColor .. "[!]|r |cffaaaaaaview special note|r")
+            ("|cff%s%s|r "):format(C_LABEL, RR.L["Boss Encounter:"])
+            .. pulseColor .. "[!]|r |cffaaaaaa" .. RR.L["view special note"] .. "|r")
     end
 end)
 
