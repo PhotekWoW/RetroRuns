@@ -13,6 +13,7 @@ RetroRuns_Data[1712] = {
     patch             = "7.3.2",
 
     exitNote = "At the bottom of the stairs, talk to Grand Artificer Romuul for several teleport options.",
+    minExitNote = "Talk to Romuul Below",
 
     -- Entrance is in Antoran Wastes (mapID 885) on Argus, at the
     -- crack beneath the artillery platform near Felfire Armory --

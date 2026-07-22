@@ -13,6 +13,7 @@ RetroRuns_Data[1205] = {
     patch             = "6.0.3",
 
     exitNote = "Jump off the ledge to your death, and you will respawn at the raid exit.",
+    minExitNote = "Jump off Ledge",
 
     entrance = {
         mapID = 543,

@@ -468,6 +468,7 @@ RetroRuns_Data[1676] = {
     },
 
     exitNote = "Talk to Image of Aegwynn to teleport back to the entrance.",
+    minExitNote = "Talk to Aegwynn",
 
     lfrWings = {
         -- Wing 1 -- The Gates of Hell: Goroth, Harjatan, Mistress

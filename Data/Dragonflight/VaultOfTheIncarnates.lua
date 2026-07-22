@@ -15,6 +15,7 @@ RetroRuns_Data[2522] = {
     -- Shown one line below the run-complete banner. No exit shortcut --
     -- the player spawns in front of the exit after the Raszageth cutscene.
     exitNote = "Exit portal nearby.",
+    minExitNote = "Exit Portal Nearby",
 
     -- Entrance is at the eastern end of Thaldraszus (uiMapID 2025),
     -- behind the complex of Tyrhold. Coords from Wowpedia/Warcraft

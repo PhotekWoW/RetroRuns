@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "2.2.0"
+local VERSION    = "2.2.1"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -5632,6 +5632,8 @@ SlashCmdList["RETRORUNS"] = function(input)
         elseif sub == "off"   then RR:DisableToaster()
         elseif sub == "debug" then RR:ToasterDebug()
         elseif sub == "clear" then RR:ToasterClearTrace()
+        elseif sub == "probe" then
+            if RR.ToastProbe then RR:ToastProbe(args[3], args[4]) end
         else                       RR:ToggleToaster()
         end
 

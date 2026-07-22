@@ -121,7 +121,7 @@ Main commands, type in chat:
 
 ## Status
 
-Version **2.2.0**
+Version **2.2.1**
 
 ## Reporting bugs / requesting features
 

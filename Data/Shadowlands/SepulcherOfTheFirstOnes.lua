@@ -15,6 +15,7 @@ RetroRuns_Data[2481] = {
     -- Shown one line below the run-complete banner. No exit shortcut --
     -- the exit portal is right beside the final boss.
     exitNote = "Exit portal nearby.",
+    minExitNote = "Exit Portal Nearby",
 
     -- Entrance is on a floating island in eastern Zereth Mortis
     -- (uiMapID 1970). Reaching the door requires the Ancient Translocator

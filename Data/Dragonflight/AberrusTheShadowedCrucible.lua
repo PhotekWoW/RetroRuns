@@ -14,6 +14,7 @@ RetroRuns_Data[2569] = {
 
     -- Shown one line below the run-complete banner.
     exitNote = "Talk to ^Sabellian^ to be ported to the entrance.",
+    minExitNote = "Talk to Sabellian",
 
     -- Entrance is at the northern end of Zaralek Cavern (uiMapID 2133)
     -- at the Aberrus Approach. The platform is elevated -- dragonriding

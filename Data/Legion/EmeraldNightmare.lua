@@ -13,6 +13,7 @@ RetroRuns_Data[1520] = {
     patch             = "7.0.3",
 
     exitNote = "Run past the pond to find an exit portal among the trees.",
+    minExitNote = "Past Pond to Portal",
 
     -- Entrance is in Val'sharah (mapID 641), subZone Shaladrassil,
     -- under the corrupted World Tree. The player walks through a
@@ -537,7 +538,7 @@ RetroRuns_Data[1520] = {
                             when    = { mapID = 778 },
                             kind    = "path",
                             note    = "When you're back in the central hub, take the final portal towards ^Un'Goro Crater^.",
-                            minNote = "Un'goro Crater Portal",
+                            minNote = "Un'Goro Crater Portal",
                             points  = {
                                 { 0.588, 0.520 },
                                 { 0.583, 0.646 },
@@ -748,7 +749,7 @@ RetroRuns_Data[1520] = {
                     when    = { mapID = 778 },
                     kind    = "path",
                     note    = "When you're back in the central hub, take the final portal towards ^Un'Goro Crater^.",
-                    minNote = "Un'goro Crater Portal",
+                    minNote = "Un'Goro Crater Portal",
                     points  = {
                         { 0.588, 0.520 },
                         { 0.583, 0.646 },

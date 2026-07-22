@@ -13,6 +13,7 @@ RetroRuns_Data[720] = {
     patch             = "4.2.0",
 
     exitNote = "Jump in the lava to die, and you will respawn at the raid entrance.",
+    minExitNote = "Jump in Lava",
 
     -- Firelands keeps Normal and Heroic on separate weekly lockouts (unlike
     -- the other Cataclysm raids, which share one). Patch 4.2 shipped with

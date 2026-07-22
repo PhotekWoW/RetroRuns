@@ -13,6 +13,7 @@ RetroRuns_Data[967] = {
     patch             = "4.3.0",
 
     exitNote = "Jump off the back of the platform to die and respawn at the entrance.",
+    minExitNote = "Jump off Platform",
 
     -- Dragon Soul introduced Raid Finder. Normal and Heroic share one
     -- weekly lockout, with 10 and 25 dropping the same loot and folding

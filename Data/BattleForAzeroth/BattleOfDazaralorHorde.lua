@@ -330,6 +330,7 @@ RetroRuns_DataHorde[2070] = {
     },
 
     exitNote = "Talk to Nathanos Blightcaller to be teleported out of the instance.",
+    minExitNote = "Talk to Nathanos",
 
     -- Routing. Boss order matches bossesHorde[] -- Horde fights:
     -- Champion -> Grong (Jungle Lord) -> Jadefire -> Opulence ->

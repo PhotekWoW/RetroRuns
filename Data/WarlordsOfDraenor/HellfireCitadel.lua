@@ -13,6 +13,7 @@ RetroRuns_Data[1448] = {
     patch             = "6.2.0",
 
     exitNote = "Take one of the nearby Kirin Tor portals to be teleported to the raid entrance.",
+    minExitNote = "Kirin Tor Portal",
 
     entrance = {
         mapID = 534,

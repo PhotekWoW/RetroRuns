@@ -14,6 +14,7 @@ RetroRuns_Data[2450] = {
 
     -- Shown one line below the run-complete banner.
     exitNote = "Exit portal nearby.",
+    minExitNote = "Exit Portal Nearby",
 
     -- Entrance is in Desmotaeron, the back of Helgarde Keep, in The Maw
     -- (uiMapID 1543).

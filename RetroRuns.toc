@@ -2,11 +2,17 @@
 ## Title: RetroRuns
 ## Title-esES: RetroRuns
 ## Title-esMX: RetroRuns
+## Title-deDE: RetroRuns
+## Title-frFR: RetroRuns
+## Title-ruRU: RetroRuns
 ## Notes: Solo legacy raid navigator: routing, tips, and achievement tracking
 ## Notes-esES: Navegador de bandas antiguas en solitario: rutas, consejos y seguimiento de logros
 ## Notes-esMX: Navegador de bandas antiguas en solitario: rutas, consejos y seguimiento de logros
+## Notes-deDE: Solo-Navigator für alte Schlachtzüge: Routen, Tipps und Erfolgstracking
+## Notes-frFR: Navigateur de raids d'antan en solo : itinéraires, conseils et suivi des hauts faits
+## Notes-ruRU: Навигатор по старым рейдам для игры соло: маршруты, советы и отслеживание достижений
 ## Author: Photek
-## Version: 2.2.0
+## Version: 2.2.1
 ## X-License: MIT
 ## SavedVariables: RetroRunsDB, RetroRunsDebug
 ## IconTexture: Interface\AddOns\RetroRuns\Media\MinimapIcon
@@ -49,6 +55,9 @@ Data\Cataclysm\DragonSoul.lua
 Core\Core.lua
 Locales\enUS.lua
 Locales\esES.lua
+Locales\deDE.lua
+Locales\frFR.lua
+Locales\ruRU.lua
 Locales\Apply.lua
 Core\Navigation.lua
 Core\Engine.lua

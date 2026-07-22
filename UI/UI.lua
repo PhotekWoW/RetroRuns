@@ -2046,12 +2046,19 @@ local TITLE_SCALE = 0.83
 -- tab's scale relative to the base title scale; 0.5 reads as a compact label
 -- against the 24pt title font.
 local RR_TITLE_TAB_SCALE = 0.5
+-- The completion banner replaces the boss label on the top line. It is the
+-- whole message at that point rather than one of two paired readouts, so it
+-- runs a step larger than the tab scale.
+UI.RR_TITLE_BANNER_SCALE = 0.62
 
 -- Route-active minimized-bar edge clearances, screen px. Shared between the
 -- layout function and the width computation, and registered against the left
 -- cap's baked line gap, so they live as named values.
 -- On the UI table, not file locals, to stay under the 200-local ceiling here.
-UI.MINBAR_EDGE_PX = 8        -- left clearance for the "RR" tab and both text rows
+UI.MINBAR_EDGE_PX = 8        -- left clearance for the "RR" tab, which straddles the frame
+-- The body row sits INSIDE the frame, so it needs to clear the left cap's
+-- border art rather than straddle it like the tab above.
+UI.MINBAR_BODY_EDGE_PX = 16
 UI.MINBAR_RAID_EDGE_PX = 10  -- right clearance for the raid-name label
 
 -- Width of the minimized bar. Derived from the title's rendered STRING width
@@ -2097,10 +2104,15 @@ local function ComputeMinimizedPanelW()
         local topLineGapMin = 24
         local raidW = (panel.titleRaidName and panel.titleRaidName:IsShown())
                       and (panel.titleRaidName:GetStringWidth() or 0) or 0
+        -- The right-hand top-line string runs at the banner scale on a
+        -- completed run and the tab scale otherwise; measure it at whichever
+        -- it is actually using, or the bar under-measures and clips it.
+        local raidScale = (panel.titleRaidName and panel.titleRaidName:GetScale())
+                          or tabScale
         local needed = edge + (retroW + runsW) * tabScale + topLineGapMin
-                       + raidW * tabScale + UI.MINBAR_RAID_EDGE_PX
+                       + raidW * raidScale + UI.MINBAR_RAID_EDGE_PX
         local noteW = panel.titleMinNote:GetStringWidth() or 0
-        local noteRow = edge + noteW * TITLE_SCALE
+        local noteRow = UI.MINBAR_BODY_EDGE_PX + noteW * TITLE_SCALE
                         + titleToButtonGap + rightSideWidth
         if noteRow > needed then needed = noteRow end
         return math.ceil(needed)
@@ -2144,7 +2156,14 @@ local MINIMIZED_PANEL_W_FALLBACK = 240
 -- When false the bar is the plain single-row "RETRO RUNS" wordmark on the
 -- shared frame. On the UI table, not a file local, to stay under the 200-local
 -- ceiling here.
+-- True when the minimized bar is in its two-row form: the bespoke border art
+-- with the "RR" tab and a right-hand string straddling the top frame line.
+-- That form serves an active route AND a completed run, which shows the
+-- completion banner and the exit line in the same slots.
 function UI.MinimizedBarRouteActive()
+    if RR.IsActiveRouteComplete and RR:IsActiveRouteComplete() then
+        return true
+    end
     local minNote = RR.GetActiveMinNote and RR:GetActiveMinNote() or nil
     if not (minNote and minNote ~= "") then return false end
     local _, total = RR:GetActiveRouteProgress()
@@ -2176,6 +2195,26 @@ local function ApplyTitleLayoutForState(minimized)
         -- data is authored into the routing segments.
         local minNote = RR.GetActiveMinNote and RR:GetActiveMinNote() or nil
         local showNote = minNote and minNote ~= ""
+
+        -- Run complete: no active step, so no minNote, but the player still
+        -- needs the way out. The note row carries the short exit form, which
+        -- always resolves (a raid with no authored exit says so plainly),
+        -- and the top line carries the completion banner in place of the
+        -- boss label, which has no target to point at.
+        local completeBanner
+        if not showNote
+            and RR.IsActiveRouteComplete and RR:IsActiveRouteComplete() then
+            if RR:GetActiveWing() then
+                completeBanner = RR.L["|cff00ff00LFR Wing Complete!|r"]
+            elseif RR.state and RR.state.activeRouteVariant == "skip" then
+                completeBanner = RR.L["|cff00ff00Skip Run Complete!|r"]
+            else
+                completeBanner = RR.L["|cff00ff00Raid Complete!|r"]
+            end
+            minNote = "|cfff259c7" .. RR.L["Exit:"] .. "|r "
+                .. (RR.GetActiveMinExitNote and RR:GetActiveMinExitNote() or "")
+            showNote = true
+        end
         if showNote then
             -- Route active. Top frame line: the "RR" tab at the left end and the
             -- boss label + count at the right end, both straddling the line. The
@@ -2200,13 +2239,18 @@ local function ApplyTitleLayoutForState(minimized)
             local pos, total = RR:GetActiveTargetPosition()
             local label = RR:GetActiveTargetLabel()
             local posColor = "|cff4dccff"
-            if pos and total then
+            if completeBanner then
+                -- Run complete: the top line carries the completion banner in
+                -- place of the boss label, which has no target to point at.
+                panel.titleRaidName:SetText(completeBanner)
+            elseif pos and total then
                 panel.titleRaidName:SetText(
                     ("%s %s%d/%d|r"):format(label or "", posColor, pos, total))
             else
                 panel.titleRaidName:SetText(label or "")
             end
-            panel.titleRaidName:SetScale(titleScale * RR_TITLE_TAB_SCALE)
+            panel.titleRaidName:SetScale(titleScale
+                * (completeBanner and UI.RR_TITLE_BANNER_SCALE or RR_TITLE_TAB_SCALE))
             panel.titleRaidName:Show()
 
             panel.titleMinNote:SetText(minNote)
@@ -2250,11 +2294,14 @@ local function ApplyTitleLayoutForState(minimized)
             -- Boss label + count at the right end of the top line. The notch
             -- texture (laid out in LayoutMinbarArt) breaks the border line
             -- behind it.
+            local rightScale = titleScale
+                * (completeBanner and UI.RR_TITLE_BANNER_SCALE or RR_TITLE_TAB_SCALE)
             panel.titleRaidName:SetPoint("RIGHT", panel, "TOPRIGHT",
-                -(UI.MINBAR_RAID_EDGE_PX) / tabScale, 0)
-            -- minNote: single body row, centered in the bar height, at the same
-            -- left clearance.
-            panel.titleMinNote:SetPoint("LEFT", panel, "LEFT", edgePx / titleScale, 0)
+                -(UI.MINBAR_RAID_EDGE_PX) / rightScale, 0)
+            -- minNote: single body row, centered in the bar height. Inside the
+            -- frame, so it takes the wider body clearance.
+            panel.titleMinNote:SetPoint("LEFT", panel, "LEFT",
+                UI.MINBAR_BODY_EDGE_PX / titleScale, 0)
         else
             panel.titleRetro:SetPoint("LEFT", panel, "LEFT", 20 / titleScale, 0)
             -- Restore the note's creation-time chain anchor (unused while
@@ -2935,7 +2982,11 @@ local function HighlightNames(text)
         -- names, which usually have no locale entry, keep their source form.
         -- Inert on English clients: RR.L returns the key unchanged.
         local localized = (RR.L and RR.L[span]) or span
-        return OrangeText(localized)
+        -- A name the game records under two forms is stored with both,
+        -- separated by a vertical bar, so a routing gate can accept either.
+        -- Prose shows one name, so render the first.
+        local firstForm = string.match(localized, "^([^|]+)|")
+        return OrangeText(firstForm or localized)
     end)
     -- Strip any stragglers (unmatched carets) so they don't render.
     text = text:gsub("%^", "")
@@ -3374,13 +3425,16 @@ local function BuildEncounterText(step)
     return headerLine, achBlock, specialBlock, clickable, headerPulsing
 end
 
--- Slots that have no transmog value -- exclude from display entirely
+-- Slots that have no transmog value -- excluded from display entirely.
+-- Keyed on the authored slot strings from the data files, which are English
+-- in every locale: the loot generators write them from the numeric item
+-- InventoryType, not from client text.
 local TRANSMOG_EXCLUDED_SLOTS = {
-    [RR.L["Neck"]]           = true,
-    [RR.L["Finger"]]         = true,
-    [RR.L["Trinket"]]        = true,
-    [RR.L["Non-equippable"]] = true,
-    [RR.L["Unknown"]]        = true,
+    ["Neck"]           = true,
+    ["Finger"]         = true,
+    ["Trinket"]        = true,
+    ["Non-equippable"] = true,
+    ["Unknown"]        = true,
 }
 
 -- Difficulty display order and labels
@@ -6434,7 +6488,14 @@ local SKIPS_WINDOW_MAX_HEIGHT   = 600
 -- name column starts at frame-left + content padding and runs up to
 -- the first cell; the three cell columns are right-aligned around their
 -- center x-positions so a glyph and the header letter both sit
--- visually centered. Offsets are tuned for SKIPS_WINDOW_WIDTH=400.
+-- visually centered.
+--
+-- These are the ENGLISH defaults. Difficulty names are far wider in some
+-- languages ("Героический" against "Heroic"), so the window measures its
+-- own headers on creation and widens both the column pitch and the frame
+-- to fit. Every consumer reads window.colNormalX / colHeroicX /
+-- colMythicX / contentWidth rather than these constants; the values below
+-- are the floor those calculations start from.
 --
 -- Difficulty order: Mythic / Heroic / Normal (left to right). Hardest
 -- first matches a player's typical mental model when checking "do I have
@@ -6453,6 +6514,10 @@ local SKIPS_COL_INFO_X     = 205
 local SKIPS_COL_NORMAL_X   = 240
 local SKIPS_COL_HEROIC_X   = 300
 local SKIPS_COL_MYTHIC_X   = 360
+
+-- Clear space demanded between two neighbouring column headers, and
+-- between the leftmost header and the info-button column.
+local SKIPS_COL_HEADER_GAP = 12
 
 -- Per-row vertical spacing. Driven by font size at refresh time; this
 -- is the multiplier (rendered line-height = fontSize * SKIPS_LINE_GAP).
@@ -7046,14 +7111,14 @@ local function RefreshSkipsContent()
             slot.cellM:SetText(cellText(row.mythic))
             slot.cellM:ClearAllPoints()
             if row.mythic2 ~= nil then
-                slot.cellM:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_MYTHIC_X - pairOffset, y)
+                slot.cellM:SetPoint("TOP", window, "TOPLEFT", (window.colMythicX or SKIPS_COL_MYTHIC_X) - pairOffset, y)
                 SetBodyFont(slot.cellM2, rowFontSize, "")
                 slot.cellM2:SetText(cellText(row.mythic2))
                 slot.cellM2:ClearAllPoints()
-                slot.cellM2:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_MYTHIC_X + pairOffset, y)
+                slot.cellM2:SetPoint("TOP", window, "TOPLEFT", (window.colMythicX or SKIPS_COL_MYTHIC_X) + pairOffset, y)
                 slot.cellM2:Show()
             else
-                slot.cellM:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_MYTHIC_X, y)
+                slot.cellM:SetPoint("TOP", window, "TOPLEFT", window.colMythicX or SKIPS_COL_MYTHIC_X, y)
             end
             slot.cellM:Show()
 
@@ -7061,14 +7126,14 @@ local function RefreshSkipsContent()
             slot.cellH:SetText(cellText(row.heroic))
             slot.cellH:ClearAllPoints()
             if row.heroic2 ~= nil then
-                slot.cellH:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_HEROIC_X - pairOffset, y)
+                slot.cellH:SetPoint("TOP", window, "TOPLEFT", (window.colHeroicX or SKIPS_COL_HEROIC_X) - pairOffset, y)
                 SetBodyFont(slot.cellH2, rowFontSize, "")
                 slot.cellH2:SetText(cellText(row.heroic2))
                 slot.cellH2:ClearAllPoints()
-                slot.cellH2:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_HEROIC_X + pairOffset, y)
+                slot.cellH2:SetPoint("TOP", window, "TOPLEFT", (window.colHeroicX or SKIPS_COL_HEROIC_X) + pairOffset, y)
                 slot.cellH2:Show()
             else
-                slot.cellH:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_HEROIC_X, y)
+                slot.cellH:SetPoint("TOP", window, "TOPLEFT", window.colHeroicX or SKIPS_COL_HEROIC_X, y)
             end
             slot.cellH:Show()
 
@@ -7076,14 +7141,14 @@ local function RefreshSkipsContent()
             slot.cellN:SetText(cellText(row.normal))
             slot.cellN:ClearAllPoints()
             if row.normal2 ~= nil then
-                slot.cellN:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_NORMAL_X - pairOffset, y)
+                slot.cellN:SetPoint("TOP", window, "TOPLEFT", (window.colNormalX or SKIPS_COL_NORMAL_X) - pairOffset, y)
                 SetBodyFont(slot.cellN2, rowFontSize, "")
                 slot.cellN2:SetText(cellText(row.normal2))
                 slot.cellN2:ClearAllPoints()
-                slot.cellN2:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_NORMAL_X + pairOffset, y)
+                slot.cellN2:SetPoint("TOP", window, "TOPLEFT", (window.colNormalX or SKIPS_COL_NORMAL_X) + pairOffset, y)
                 slot.cellN2:Show()
             else
-                slot.cellN:SetPoint("TOP", window, "TOPLEFT", SKIPS_COL_NORMAL_X, y)
+                slot.cellN:SetPoint("TOP", window, "TOPLEFT", window.colNormalX or SKIPS_COL_NORMAL_X, y)
             end
             slot.cellN:Show()
 
@@ -7116,7 +7181,7 @@ local function RefreshSkipsContent()
             slot.name:SetText(row.text)
             slot.name:ClearAllPoints()
             slot.name:SetPoint("TOPLEFT", window, "TOPLEFT", SKIPS_COL_NAME_X, y)
-            slot.name:SetWidth(SKIPS_WINDOW_WIDTH - SKIPS_COL_NAME_X - 14)
+            slot.name:SetWidth((window.contentWidth or SKIPS_WINDOW_WIDTH) - SKIPS_COL_NAME_X - 14)
             slot.name:Show()
             y = y - (lineHeight * 3)
         end
@@ -7213,6 +7278,36 @@ GetOrCreateSkipsWindow = function()
     skipsFrame.colHeaderN = MakeColHeader(SKIPS_COL_NORMAL_X, RR.L["Normal"])
     skipsFrame.colHeaderH = MakeColHeader(SKIPS_COL_HEROIC_X, RR.L["Heroic"])
     skipsFrame.colHeaderM = MakeColHeader(SKIPS_COL_MYTHIC_X, RR.L["Mythic"])
+
+    -- Fit the columns to the translated headers. The headers are centered
+    -- on their column, so two neighbours collide once the pitch drops below
+    -- half of each one's width plus a gap. Widen the pitch to the worst
+    -- neighbouring pair, then widen the frame to match. English and Spanish
+    -- measure under the default pitch and come out unchanged.
+    local widthN = skipsFrame.colHeaderN:GetStringWidth() or 0
+    local widthH = skipsFrame.colHeaderH:GetStringWidth() or 0
+    local widthM = skipsFrame.colHeaderM:GetStringWidth() or 0
+    local pitch = math.max(
+        SKIPS_COL_HEROIC_X - SKIPS_COL_NORMAL_X,
+        (widthN + widthH) / 2 + SKIPS_COL_HEADER_GAP,
+        (widthH + widthM) / 2 + SKIPS_COL_HEADER_GAP)
+    pitch = math.ceil(pitch)
+
+    -- The leftmost header must also clear the info-button column.
+    local normalX = math.max(SKIPS_COL_NORMAL_X,
+        math.ceil(SKIPS_COL_INFO_X + widthN / 2 + SKIPS_COL_HEADER_GAP))
+    skipsFrame.colNormalX = normalX
+    skipsFrame.colHeroicX = normalX + pitch
+    skipsFrame.colMythicX = normalX + pitch * 2
+    skipsFrame.contentWidth = math.max(SKIPS_WINDOW_WIDTH,
+        math.ceil(skipsFrame.colMythicX + widthM / 2 + SKIPS_COL_NAME_X))
+
+    skipsFrame.colHeaderH:SetPoint("TOP", skipsFrame, "TOPLEFT", skipsFrame.colHeroicX, -32)
+    skipsFrame.colHeaderM:SetPoint("TOP", skipsFrame, "TOPLEFT", skipsFrame.colMythicX, -32)
+    if normalX ~= SKIPS_COL_NORMAL_X then
+        skipsFrame.colHeaderN:SetPoint("TOP", skipsFrame, "TOPLEFT", normalX, -32)
+    end
+    skipsFrame:SetWidth(skipsFrame.contentWidth)
 
     -- Disclaimer at the bottom. Anchored dynamically by RefreshSkipsContent
     -- after the last row, so no fixed position here.
@@ -8553,25 +8648,16 @@ function UI.Update()
                     panel.next:SetText(RR.L["|cff00ff00Run complete!|r"])
                 end
                 -- Optional per-raid exit note, shown below the banner with an
-                -- inline exit glyph. In an LFR wing the raid's authored exit
-                -- (walk to a specific spot / portal) doesn't apply -- you leave
-                -- through the LFG tool. A wing may author its own exitNote (for
-                -- per-wing instructions); when it doesn't, fall back to the
-                -- generic LFG-tool line. Outside LFR, show the raid's note.
-                local exitNote
-                local activeWing = RR:GetActiveWing()
-                if activeWing then
-                    exitNote = activeWing.exitNote or RR.L["Leave instance group via LFG tool."]
-                else
-                    exitNote = raid and raid.exitNote
-                end
+                -- inline exit glyph. Wing-aware selection lives in the engine
+                -- (GetActiveExitNote) so the minimized bar shows the same note.
+                local exitNote = RR:GetActiveExitNote()
                 if exitNote and exitNote ~= "" then
                     local exitFontSize = RR:GetSetting("fontSize", 12)
                     local exitGlyphSize = exitFontSize + 3
                     panel.exitNote:SetText(
                         ("|TInterface\\AddOns\\RetroRuns\\Media\\ExitIcon:%d:%d:0:-1:64:64:0:64:0:64:242:89:199|t ")
                             :format(exitGlyphSize, exitGlyphSize) ..
-                        "|cfff259c7" .. RR.L["Exit Note:"] .. "|r " .. HighlightNames(RR.L[exitNote]))
+                        "|cfff259c7" .. RR.L["Exit Note:"] .. "|r " .. HighlightNames(exitNote))
                     panel.exitNote:SetTextColor(1, 1, 1)
                     SetBodyFont(panel.exitNote, exitFontSize, "")
                     panel.exitNote:Show()
@@ -10158,8 +10244,20 @@ GetOrCreateAchievementsWindow = function()
         local colNameW = math.max(widestAch  + COL_PADDING, ACH_COL_NAME_W)
         local colBossW = math.max(widestBoss + COL_PADDING, ACH_COL_BOSS_W)
 
+        -- The status header is centered on its column while the achievement
+        -- column is left-anchored, so a status word wider than twice the gap
+        -- between them runs into the achievement heading. Push the name
+        -- column right when that happens; English sits just inside the
+        -- default, and longer translations need the room.
+        local statusHalf = MeasureWidth(achFrame.measureFS,
+            RR.L["|cff4DCCFFStatus|r"]) / 2
+        local colNameX = ACH_COL_NAME_X
+        if ACH_COL_STATUS_X + statusHalf > colNameX then
+            colNameX = math.ceil(ACH_COL_STATUS_X + statusHalf + 10)
+        end
+
         -- Boss column starts after the achievement column ends.
-        local colBossX = ACH_COL_NAME_X + colNameW + 6
+        local colBossX = colNameX + colNameW + 6
 
         -- Window width: status column + ach column + boss column +
         -- Wowhead column (button + inset on each side) + left margin.
@@ -10269,7 +10367,7 @@ GetOrCreateAchievementsWindow = function()
 
                 SetBodyFont(achFrame.hdrAch, rowFontSize, "")
                 achFrame.hdrAch:ClearAllPoints()
-                achFrame.hdrAch:SetPoint("TOPLEFT", achFrame, "TOPLEFT", ACH_COL_NAME_X, y)
+                achFrame.hdrAch:SetPoint("TOPLEFT", achFrame, "TOPLEFT", colNameX, y)
                 achFrame.hdrAch:Show()
 
                 SetBodyFont(achFrame.hdrBoss, rowFontSize, "")
@@ -10344,7 +10442,7 @@ GetOrCreateAchievementsWindow = function()
                 slot.ach:SetText(metaPrefix .. link .. soloStar)
                 slot.ach:SetWidth(colNameW)
                 slot.ach:ClearAllPoints()
-                slot.ach:SetPoint("TOPLEFT", achFrame, "TOPLEFT", ACH_COL_NAME_X, y)
+                slot.ach:SetPoint("TOPLEFT", achFrame, "TOPLEFT", colNameX, y)
                 slot.ach:Show()
 
                 -- Boss cell.
@@ -10415,7 +10513,7 @@ GetOrCreateAchievementsWindow = function()
                 slot.ach:SetText(ACH_CELL_NA)
                 slot.ach:SetWidth(colNameW)
                 slot.ach:ClearAllPoints()
-                slot.ach:SetPoint("TOPLEFT", achFrame, "TOPLEFT", ACH_COL_NAME_X, y)
+                slot.ach:SetPoint("TOPLEFT", achFrame, "TOPLEFT", colNameX, y)
                 slot.ach:Show()
 
                 SetBodyFont(slot.boss, rowFontSize, "")

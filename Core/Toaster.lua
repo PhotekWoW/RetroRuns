@@ -210,7 +210,8 @@ end
 -- Construct a toast frame's visuals on a parent. Shared by the live pool and
 -- the settings preview. Does not pool or set live behavior.
 local function ConstructToastFrame(parent)
-    local toastFrame = CreateFrame("Frame", nil, parent or UIParent)
+    local toastFrame = CreateFrame("Button", nil, parent or UIParent)
+    toastFrame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     toastFrame:SetSize(TOAST_W, TOAST_H)
     toastFrame:SetScale(TOAST_SCALE)
     toastFrame:SetFrameStrata("HIGH")
@@ -298,14 +299,30 @@ end
 local function ReleaseFrame(toastFrame)
     toastFrame:Hide()
     toastFrame:SetScript("OnUpdate", nil)
-    -- Clear stay-until-click wiring before pooling.
+    -- Clear mouse wiring before pooling.
     toastFrame:SetScript("OnMouseDown", nil)
     toastFrame:EnableMouse(false)
+    -- Clear hover-pause wiring. A pooled frame keeps its scripts and its
+    -- mouse-motion flag, so a stale hoverStart would freeze the next toast's
+    -- countdown at a timestamp from the previous one.
+    toastFrame:SetScript("OnEnter", nil)
+    toastFrame:SetScript("OnLeave", nil)
+    toastFrame.hoverStart = nil
+    if toastFrame.SetMouseMotionEnabled then
+        toastFrame:SetMouseMotionEnabled(false)
+    end
     if toastFrame.mergeKey then Presenter.byKey[toastFrame.mergeKey] = nil end
     toastFrame.mergeKey = nil
     toastFrame.qty = nil
     toastFrame.glowOn = nil
     toastFrame.quality = nil
+    -- Clear click wiring and identity. A pooled frame that kept these would
+    -- act on the previous drop.
+    toastFrame:SetScript("OnClick", nil)
+    toastFrame.sourceID = nil
+    toastFrame.mountID = nil
+    toastFrame.petID = nil
+    toastFrame.toyID = nil
     if toastFrame.glow then toastFrame.glow:Hide() end
     Presenter.pool[#Presenter.pool + 1] = toastFrame
 end
@@ -498,25 +515,124 @@ local function DismissToast(toastFrame)
     Restack()
 end
 
+-- Open the dressing-room preview for whatever the toast represents. Preview
+-- works in combat, so this path is deliberately not combat-gated.
+local function PreviewToastItem(toastFrame)
+    if toastFrame.sourceID and DressUpVisual then
+        DressUpVisual(toastFrame.sourceID)
+        return true
+    elseif toastFrame.mountID and DressUpMount then
+        DressUpMount(toastFrame.mountID)
+        return true
+    elseif toastFrame.petID and DressUpBattlePet and C_PetJournal then
+        local speciesID, _, _, _, _, displayID, _, _, _, _, creatureID =
+            C_PetJournal.GetPetInfoByPetID(toastFrame.petID)
+        if creatureID and displayID and speciesID then
+            DressUpBattlePet(creatureID, displayID, speciesID)
+            return true
+        end
+    end
+    return false
+end
+
+-- Open the collection journal at this drop. The journal is protected in
+-- combat, so the click is ignored there rather than erroring.
+local function OpenToastInJournal(toastFrame)
+    if InCombatLockdown and InCombatLockdown() then return false end
+
+    if toastFrame.sourceID then
+        if TransmogUtil and TransmogUtil.OpenCollectionToItem then
+            TransmogUtil.OpenCollectionToItem(toastFrame.sourceID)
+            return true
+        end
+        return false
+    end
+
+    if not (toastFrame.mountID or toastFrame.petID or toastFrame.toyID) then
+        return false
+    end
+    if not CollectionsJournal and CollectionsJournal_LoadUI then
+        CollectionsJournal_LoadUI()
+    end
+    if not CollectionsJournal or not SetCollectionsJournalShown then return false end
+
+    if toastFrame.mountID then
+        SetCollectionsJournalShown(true, COLLECTIONS_JOURNAL_TAB_INDEX_MOUNTS)
+        if MountJournal_SelectByMountID then
+            MountJournal_SelectByMountID(toastFrame.mountID)
+        end
+    elseif toastFrame.petID then
+        SetCollectionsJournalShown(true, COLLECTIONS_JOURNAL_TAB_INDEX_PETS)
+        if PetJournal_SelectPet then
+            PetJournal_SelectPet(PetJournal, toastFrame.petID)
+        end
+    else
+        SetCollectionsJournalShown(true, COLLECTIONS_JOURNAL_TAB_INDEX_TOYS)
+    end
+    return true
+end
+
+-- Right-click dismisses in every mode. Left-click opens the drop in its
+-- collection journal, or previews it when the dress-up modifier is held.
+local function ToastOnClick(toastFrame, button)
+    if button == "RightButton" then
+        DismissToast(toastFrame)
+        return
+    end
+    if IsModifiedClick and IsModifiedClick("DRESSUP") then
+        PreviewToastItem(toastFrame)
+    else
+        OpenToastInJournal(toastFrame)
+    end
+end
+
 -- Drive fade with OnUpdate against elapsed wall-clock; resets on a merge so a
 -- re-hit refreshes the dwell time instead of letting an old toast expire.
 -- In stay-until-click mode the toast fades in then holds at full opacity
 -- indefinitely; a mouse click dismisses it (wired here, cleared on release).
+--
+-- Hovering pauses the countdown: the elapsed time is measured from `born`, so
+-- holding the frame is a matter of pushing `born` forward by the time spent
+-- under the cursor. Leaving resumes from the same point rather than
+-- restarting, and a toast hovered during its fade-out returns to full opacity
+-- for as long as the cursor stays on it.
 local function StartFade(toastFrame)
     toastFrame.born = GetTime()
 
+    -- Toasts take clicks in both modes: right-click dismisses, left-click
+    -- opens or previews the drop. Mouse handling no longer differs between
+    -- stay-until-click and the timed fade -- the only difference is whether
+    -- the countdown runs.
+    toastFrame:EnableMouse(true)
+    toastFrame:SetScript("OnMouseDown", nil)
+    toastFrame:SetScript("OnClick", ToastOnClick)
+
     local stay = StayUntilClick()
-    if stay then
-        -- Clickable, dismiss-on-click; cleared in ReleaseFrame.
-        toastFrame:EnableMouse(true)
-        toastFrame:SetScript("OnMouseDown", function(self) DismissToast(self) end)
-    else
-        toastFrame:EnableMouse(false)
-        toastFrame:SetScript("OnMouseDown", nil)
-    end
+
+    toastFrame.hoverStart = nil
+    toastFrame:SetScript("OnEnter", function(self)
+        self.hoverStart = GetTime()
+        -- A toast caught mid-fade is the one most worth reading, so bring it
+        -- back to full opacity for as long as the cursor is on it. The fade
+        -- itself is only paused: OnLeave resumes from the same point rather
+        -- than restarting the dwell, so brushing past a toast does not keep
+        -- it on screen appreciably longer.
+        self:SetAlpha(1)
+    end)
+    toastFrame:SetScript("OnLeave", function(self)
+        if self.hoverStart then
+            self.born = self.born + (GetTime() - self.hoverStart)
+            self.hoverStart = nil
+        end
+    end)
 
     local hold = EffectiveHold()
     toastFrame:SetScript("OnUpdate", function(self)
+        -- Hovered: hold full opacity and stop the countdown where it was.
+        if self.hoverStart then
+            self:SetAlpha(1)
+            return
+        end
         local elapsed = GetTime() - self.born
         local a
         if elapsed < FADE_IN then
@@ -571,6 +687,14 @@ local function ShowOne(toast)
     local toastFrame = AcquireFrame()
     toastFrame.mergeKey = nil
     toastFrame.qty = 1
+
+    -- Click-action identity. Only set on live toasts; the settings preview
+    -- builds frames through the same constructor but never populates these,
+    -- so a preview toast has nothing to act on.
+    toastFrame.sourceID = toast.sourceID
+    toastFrame.mountID  = toast.mountID
+    toastFrame.petID    = toast.petID
+    toastFrame.toyID    = toast.isSpecial and toast.itemID or nil
 
     -- Scale = base x windowScale x toasterScale.
     local userScale  = (RR.GetSetting and RR:GetSetting("windowScale", 1.0)) or 1.0
@@ -819,9 +943,10 @@ local function BuildUnlockOverlay()
         overlay.samples[i] = toast
     end
 
-    -- Hint caption above the frame.
+    -- Hint caption above the frame. Carries a translated string, so it takes
+    -- the chrome font: the pixel face covers ASCII only.
     local label = overlay:CreateFontString(nil, "OVERLAY")
-    label:SetFont(TITLE_FONT, 12, "OUTLINE")
+    label:SetFont((RR.GetChromeFont and RR:GetChromeFont()) or TITLE_FONT, 12, "OUTLINE")
     label:SetPoint("BOTTOMLEFT", overlay, "TOPLEFT", 0, 4)
     label:SetText(RR.L["Drag to move"])
     label:SetJustifyH("LEFT")
@@ -1079,6 +1204,8 @@ local function OnDropEvent(_, event, ...)
             specialKind = kindLabel,   -- Mount / Pet / Toy (expansion label)
             itemID      = toyItemID,    -- toys only; nil for mount/pet
             link        = link,         -- chat hyperlink for the expansion row
+            mountID     = (event == "NEW_MOUNT_ADDED") and id or nil,
+            petID       = (event == "NEW_PET_ADDED") and id or nil,
         }
         -- Retry briefly if the journal wasn't ready. Bounded; toast shows now.
         if (not name or name == "") and event ~= nil then
@@ -1187,6 +1314,7 @@ local function OnDropEvent(_, event, ...)
             isAppearance = true,        -- emit a pink chat line for this one
             itemID       = itemID,      -- for name/quality resolution
             link         = srcLink,     -- canonical source link (correct variant) for the chat line
+            sourceID     = sourceID,    -- appearance identity for preview / journal
         }
 
         if itemID then
@@ -1566,8 +1694,12 @@ QualityColoredLink = function(link)
 end
 
 -- "New!" tag appended to newly-collected items (appearances + special) in the
--- expansion. Pink to match the appearance theme.
-local NEW_TAG = "  |cffF259C7[New!]|r"
+-- expansion. Pink to match the appearance theme. Resolved per call: this file
+-- loads before the locale table is applied, so a load-time constant would
+-- bake in English.
+local function NewTag()
+    return "  " .. RR.L["|cffF259C7[New!]|r"]
+end
 
 local function ShowVendorList(id)
     local entry = Summary.store[id]
@@ -1588,7 +1720,7 @@ local function ShowVendorList(id)
                 or (it.itemID and select(2, C_Item.GetItemInfo("item:" .. it.itemID)))
                 or (it.name and ("|cffa335ee[" .. it.name .. "]|r"))
                 or ("item " .. tostring(it.itemID))
-            RR:Print("  " .. shown .. NEW_TAG)
+            RR:Print("  " .. shown .. NewTag())
         elseif it.kind == "special" then
             -- Prefer the real chat link; plain name is the last resort.
             local shown = it.link
@@ -1598,8 +1730,10 @@ local function ShowVendorList(id)
             if not shown then
                 shown = (it.name and it.name ~= "" and it.name) or "Special loot"
             end
+            -- specialKind is stored in English (it is a data value, compared
+            -- against "Special"); translate at render.
             local tag = it.specialKind and it.specialKind ~= "Special"
-                and (" |cff999999(" .. it.specialKind .. ")|r") or ""
+                and (" |cff999999(" .. (RR.L[it.specialKind] or it.specialKind) .. ")|r") or ""
             RR:Print("  " .. shown .. tag)
         elseif it.kind == "token" then
             -- Tier token: quality-colored link, tagged, quantity if stacked.
@@ -1805,7 +1939,7 @@ function RR:BuildPreviewBatch(parent)
     local samples = {
         { header = "New Appearance", id = 18832, icon = IconFor(18832), quality = 4, glowColor = GLOW_PINK, appearance = true },
         { header = "New Appearance", id = 12640, icon = IconFor(12640), quality = 4, glowColor = GLOW_PINK, appearance = true },
-        { header = "Special Loot",   id = 43952, icon = IconFor(43952), quality = 4, glowColor = nil,       appearance = false },
+        { header = "Special Loot",   id = 43952, icon = IconFor(43952), quality = 4, glowColor = nil,       appearance = false, name = "Azure Drake" },
     }
 
     local PREVIEW_SCALE = 0.55
@@ -1822,8 +1956,16 @@ function RR:BuildPreviewBatch(parent)
         toastFrame.glow:SetPoint("TOPLEFT", -90, 28)
         toastFrame.glow:SetPoint("BOTTOMRIGHT", 90, -28)
 
+        -- These previews skip the show path, so they take the typeface swap
+        -- directly: the pixel face covers ASCII only.
+        local previewFont = (RR.GetBodyFont and RR:GetBodyFont()) or TITLE_FONT
+        toastFrame.header:SetFont(previewFont, 16, "OUTLINE")
+        toastFrame.itemNameText:SetFont(previewFont, 20, "OUTLINE")
         toastFrame.header:SetText(RR.L[s.header]:upper())
-        local nm = (GetItemInfo and GetItemInfo(s.id)) or ""
+        -- A sample with its own name mirrors a mount/pet row, whose live
+        -- toast shows the journal name; the item id only supplies the icon.
+        local nm = (s.name and RR.L[s.name])
+            or (GetItemInfo and GetItemInfo(s.id)) or ""
         ApplyContent(toastFrame, {
             icon = s.icon, name = nm, quality = s.quality, glowColor = s.glowColor,
             isAppearance = s.appearance, isSpecial = (not s.appearance),
@@ -1842,8 +1984,9 @@ function RR:BuildPreviewBatch(parent)
                 math.min(glow[3] * boost, 1), 1.0)
         end
 
-        -- Async fill (name + icon) if the item wasn't cached.
-        if nm == "" and GetItemInfo then
+        -- Async fill (name + icon) if the item wasn't cached. A fixed-name
+        -- sample never needs it.
+        if nm == "" and not s.name and GetItemInfo then
             local waiter = CreateFrame("Frame")
             waiter:RegisterEvent("GET_ITEM_INFO_RECEIVED")
             waiter:SetScript("OnEvent", function()
@@ -1869,9 +2012,13 @@ function RR:BuildPreviewBatch(parent)
         -- SetPoint offsets are in the frame's own (scaled) coordinate space.
         f:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -((i - 1) * stepY) / PREVIEW_SCALE)
     end
+    -- The stack's true vertical extent in the parent's coordinate space:
+    -- gaps between frames plus the last frame's scaled height. The settings
+    -- page lays out below the stack from this number.
+    local stackHeight = (#frames - 1) * stepY + (TOAST_H * PREVIEW_SCALE)
 
     -- Group handle with a staggered reveal across all frames.
-    local group = { frames = frames }
+    local group = { frames = frames, stackHeight = stackHeight }
     function group:PlayReveal()
         local soundOn = RR:GetSetting("toasterSound", true) ~= false
         local frameCount = #self.frames
@@ -1911,8 +2058,11 @@ function RR:BuildPreviewBatch(parent)
         end
     end
     -- Special-loot sample (mount) for the expansion, name colored to its type.
+    -- Live mount rows carry the mount-journal name, which the client localizes,
+    -- so the sample uses the same name through the locale table. kind stays
+    -- English; it is a lookup key.
     group.specials = {
-        { name = "Reins of the Azure Drake", kind = "Mount", color = "ffffffff" },
+        { name = RR.L["Azure Drake"], kind = "Mount", color = "ffffffff" },
     }
 
     -- Summary line: Special / Appearances / Vendor-grade (no token sample).
@@ -1923,17 +2073,17 @@ function RR:BuildPreviewBatch(parent)
     -- special. Returns rows, allResolved.
     function group:GetExpansionRows()
         local rows, allResolved = {}, true
-        rows[#rows + 1] = "|cff999999From that kill:|r"
+        rows[#rows + 1] = RR.L["|cff999999From that kill:|r"]
         for _, apprID in ipairs(self.appearanceIDs) do
             local name = C_Item.GetItemInfo("item:" .. apprID)
             if not name then allResolved = false end
             rows[#rows + 1] = "  " .. (name and ("|cffa335ee[" .. name .. "]|r") or ("item:" .. apprID))
-                .. "  |cffF259C7[New!]|r"
+                .. "  " .. RR.L["|cffF259C7[New!]|r"]
         end
         local sp = self.specials[1]
         if sp then
             rows[#rows + 1] = ("  |c%s%s|r |cff999999(%s)|r")
-                :format(sp.color, sp.name, sp.kind)
+                :format(sp.color, sp.name, RR.L[sp.kind] or sp.kind)
         end
         return rows, allResolved
     end
@@ -2007,7 +2157,11 @@ function RR:BuildToasterMockup(parent, mockScale)
     -- Banner toasts use the art's fixed 4:1 width.
     if toast.useBanner then toast:SetWidth(TOAST_W_FIXED) end
     -- ApplyContent doesn't set the header; set it here (no :upper(), matching
-    -- the unlock-drag sample).
+    -- the unlock-drag sample). The mock skips the show path, so it takes the
+    -- typeface swap directly: the pixel face covers ASCII only.
+    local mockFont = (RR.GetBodyFont and RR:GetBodyFont()) or TITLE_FONT
+    toast.header:SetFont(mockFont, 16, "OUTLINE")
+    toast.itemNameText:SetFont(mockFont, 20, "OUTLINE")
     toast.header:SetText(RR.L["New Appearance"])
     -- Static glow tint (the live pulse ticker doesn't run here).
     if toast.glowOn and toast.glow then
@@ -2078,3 +2232,6 @@ end
 function RR:IsToasterEnabled()
     return self:GetSetting("toasterEnabled", false) == true
 end
+
+-- Push a fully-formed descriptor through the live display path.
+RR._ToasterShowOne = function(toast) ShowOne(toast) end

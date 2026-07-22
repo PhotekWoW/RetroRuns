@@ -13,6 +13,7 @@ RetroRuns_Data[1530] = {
     patch             = "7.1.5",
 
     exitNote = "Jump off the ledge to your death, and you will respawn at the raid exit.",
+    minExitNote = "Jump off Ledge",
 
     -- Entrance is in Suramar (mapID 680), at the Sanctum Depths
     -- portal inside the Sanctum of Order building in central Suramar

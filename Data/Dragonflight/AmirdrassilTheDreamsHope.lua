@@ -14,6 +14,7 @@ RetroRuns_Data[2549] = {
 
     -- Shown one line below the run-complete banner.
     exitNote = "Click the portal to ^Wellspring Atrium^ to be teleported to the entrance.",
+    minExitNote = "Portal to Wellspring",
 
     -- Entrance is at the Wellspring of Life in northwestern Emerald
     -- Dream (uiMapID 2200). Access requires completing the first two

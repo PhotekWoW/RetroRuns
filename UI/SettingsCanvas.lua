@@ -115,7 +115,7 @@ end
 
 -- ---- Control builders (operate on a given page) --------------------------
 
-local function AddCheckbox(page, label, tooltip, indent, getValue, setValue)
+local function AddCheckbox(page, label, indent, getValue, setValue)
     local cb = CreateFrame("CheckButton", nil, page, "InterfaceOptionsCheckButtonTemplate")
     cb:SetPoint("TOPLEFT", indent or 0, pageCursor[page])
     cb.Text:SetText(label)
@@ -125,10 +125,6 @@ local function AddCheckbox(page, label, tooltip, indent, getValue, setValue)
     cb.Text:SetTextColor(unpack(COLOR_LABEL))
     cb.Text:SetShadowOffset(1, -1)
     cb.Text:SetShadowColor(0, 0, 0, 1)
-    if tooltip then
-        cb.tooltipText = label
-        cb.tooltipRequirement = tooltip
-    end
     cb:SetScript("OnClick", function(self) setValue(self:GetChecked() and true or false) end)
     cb.RR_Refresh = function(self) self:SetChecked(getValue()) end
     controls[#controls + 1] = cb
@@ -251,7 +247,7 @@ AddDropdown(pageGeneral, RR.L["Boss Progress Display"], {
     function() return RR:GetSetting("bossOrderMode", "rr") end,
     function(value) RR:SetSetting("bossOrderMode", value); if UI.Update then UI.Update() end end)
 
-AddCheckbox(pageGeneral, RR.L["Minimap Button"], RR.L["Show the RetroRuns button on the minimap."], 0,
+AddCheckbox(pageGeneral, RR.L["Minimap Button"], 0,
     function() return RR:GetSetting("showMinimap") ~= false end,
     function(value)
         RR:SetSetting("showMinimap", value)
@@ -328,18 +324,27 @@ do
     local tagline = pageToaster:CreateFontString(nil, "ARTWORK")
     tagline:SetFont(CANVAS_FONT, 17, "")
     tagline:SetPoint("TOPLEFT", 0, pageCursor[pageToaster])
+    -- Clamped to the page width so long translations wrap instead of
+    -- running past the frame edge; the cursor advances by the rendered
+    -- height so a wrapped line pushes everything below it down.
+    tagline:SetWidth(CONTENT_W)
+    tagline:SetJustifyH("LEFT")
     tagline:SetText(RR.L["Toast what matters. Silence everything else."])
     tagline:SetTextColor(unpack(COLOR_CYAN))
     tagline:SetShadowOffset(1, -1); tagline:SetShadowColor(0, 0, 0, 1)
-    pageCursor[pageToaster] = pageCursor[pageToaster] - (17 + 8)
+    pageCursor[pageToaster] = pageCursor[pageToaster]
+        - (math.max(17, math.ceil(tagline:GetStringHeight())) + 8)
 
     local subline = pageToaster:CreateFontString(nil, "ARTWORK")
     subline:SetFont(CANVAS_FONT, 12, "")
     subline:SetPoint("TOPLEFT", 0, pageCursor[pageToaster])
+    subline:SetWidth(CONTENT_W)
+    subline:SetJustifyH("LEFT")
     subline:SetText(RR.L["Filter Blizzard Native Loot / Tmog Notifications"])
     subline:SetTextColor(unpack(COLOR_PINK))
     subline:SetShadowOffset(1, -1); subline:SetShadowColor(0, 0, 0, 1)
-    pageCursor[pageToaster] = pageCursor[pageToaster] - (12 + 8)
+    pageCursor[pageToaster] = pageCursor[pageToaster]
+        - (math.max(12, math.ceil(subline:GetStringHeight())) + 8)
 
     -- Horizontal divider separating the tagline from the controls below.
     local div = pageToaster:CreateTexture(nil, "ARTWORK")
@@ -557,30 +562,47 @@ do
     lbl:SetTextColor(unpack(COLOR_LABEL))
     lbl:SetShadowOffset(1, -1); lbl:SetShadowColor(0, 0, 0, 1)
 
-    -- Host frame the sample batch is anchored within. Three toasts at 0.55
-    -- scale stacked with small gaps.
+    -- Host frame the sample batch is anchored within. Width fixed here;
+    -- height is set below from the stack extent the batch reports.
     local host = CreateFrame("Frame", nil, container)
-    host:SetSize(220, 200)
+    host:SetWidth(220)
 
     if RR.BuildPreviewBatch then
         local group = RR:BuildPreviewBatch(host)
 
-        -- Play button sits just right of the "Preview:" label.
+        -- Play button sits just right of the preview label. Both the label
+        -- and the button text vary a lot by language, so the button sizes to
+        -- its own text and the pair is kept clear of the right column: if
+        -- they would reach it, the button drops onto its own line beneath
+        -- the label instead of sliding under the notes.
         local play = CreateFrame("Button", nil, container, "UIPanelButtonTemplate")
-        play:SetSize(60, 20)
-        play:SetPoint("LEFT", lbl, "RIGHT", 10, 0)
         play:SetText(RR.L["Play"])
+        local playW = math.max(60, math.ceil(play:GetTextWidth() + 20))
+        play:SetSize(playW, 20)
 
-        -- The right column holds three stacked text blocks at x=248: the
-        -- "Toasts only pop" note, the "Everything else" note, and the loot
-        -- summary preview. The toast stack occupies the left column.
-        local RIGHT_X    = 248
-        local NOTE_W     = 200
-        local SUMMARY_X  = 248
-        local NOTE2_X, NOTE2_W = 248, 200
+        local RIGHT_X = 248
+        local NOTE_W  = 200
+        local labelW  = math.ceil(lbl:GetStringWidth())
+        local playWrapped = (labelW + 10 + playW) > (RIGHT_X - 12)
+        if playWrapped then
+            play:SetPoint("TOPLEFT", lbl, "BOTTOMLEFT", 0, -6)
+        else
+            play:SetPoint("LEFT", lbl, "RIGHT", 10, 0)
+        end
 
-        -- "Toasts only pop" note, top of the right column. Narrow width wraps it
-        -- to a few lines beside the toast stack.
+        -- The right column holds three stacked text blocks: the "Toasts only
+        -- pop" note, the "Everything else" note, and the loot summary
+        -- preview. The toast stack occupies the left column. Every vertical
+        -- offset below is MEASURED from rendered text heights (floored at the
+        -- font size in case metrics are unavailable at build), never assumed:
+        -- translated strings wrap to different line counts, and fixed offsets
+        -- sized for English collide in longer locales.
+        local function blockHeight(fontString, fontSize)
+            return math.max(fontSize, math.ceil(fontString:GetStringHeight()))
+        end
+
+        -- "Toasts only pop" note, top of the right column. Narrow width wraps
+        -- it to a few lines beside the toast stack.
         local noteTop = cy - 30
         local note = container:CreateFontString(nil, "ARTWORK")
         note:SetFont(CANVAS_FONT, 16, "")
@@ -591,31 +613,67 @@ do
         note:SetTextColor(unpack(COLOR_PINK))
         note:SetShadowOffset(1, -1); note:SetShadowColor(0, 0, 0, 1)
 
-        -- Toast stack, left column, below the Preview/Play row.
-        cy = cy - 30
+        -- Toast stack, left column, below the Preview/Play row. The host is
+        -- sized to the stack's true extent (reported by the batch) so the
+        -- legend can anchor below it without guessing. A wrapped Play button
+        -- adds its own row, so the stack starts below that instead.
+        cy = cy - 30 - (playWrapped and 26 or 0)
         local toastTop = cy
+        local stackH = math.ceil(group.stackHeight or 170)
+        host:SetSize(220, stackH)
         host:SetPoint("TOPLEFT", 8, cy)
 
-        local bottomTop = toastTop - 84
-
-        -- "Everything else" note, below the first note in the right column.
+        -- "Everything else" note flows below the first note's rendered
+        -- bottom, whatever line count the locale produced.
+        local note2Top = noteTop - blockHeight(note, 16) - 14
         local note2 = container:CreateFontString(nil, "ARTWORK")
         note2:SetFont(CANVAS_FONT, 16, "")
-        note2:SetPoint("TOPLEFT", NOTE2_X, bottomTop)
-        note2:SetWidth(NOTE2_W)
+        note2:SetPoint("TOPLEFT", RIGHT_X, note2Top)
+        note2:SetWidth(NOTE_W)
         note2:SetJustifyH("LEFT")
         note2:SetText(RR.L["Everything else prints to chat in a summary."])
         note2:SetTextColor(unpack(COLOR_PINK))
         note2:SetShadowOffset(1, -1); note2:SetShadowColor(0, 0, 0, 1)
 
-        -- Loot summary preview, below the second note.
-        local summaryTop = bottomTop - 52
+        -- Click-action legend, left column, below the sample toast stack.
+        -- Each line is "gesture: action" in every locale; the gesture segment
+        -- (up to the first colon) renders in the accent cyan so the three
+        -- rows scan as a keybind table rather than a text blob. A line
+        -- without a colon renders unstyled.
+        local function StyleGestureLine(line)
+            local colonAt = line:find(":", 1, true)
+            if not colonAt then return line end
+            return "|cff4DCCFF" .. line:sub(1, colonAt - 1) .. "|r"
+                .. line:sub(colonAt)
+        end
+        local legendTop = toastTop - stackH - 10
+        local legend = container:CreateFontString(nil, "ARTWORK")
+        legend:SetFont(CANVAS_FONT, 16, "")
+        legend:SetPoint("TOPLEFT", 8, legendTop)
+        legend:SetWidth(NOTE_W + 28)
+        legend:SetJustifyH("LEFT")
+        legend:SetSpacing(4)
+        legend:SetText(StyleGestureLine(RR.L["Ctrl+Left: Preview"]) .. "\n"
+            .. StyleGestureLine(RR.L["Left-Click: Open in Collections"]) .. "\n"
+            .. StyleGestureLine(RR.L["Right-Click: Dismiss"]))
+        legend:SetTextColor(unpack(COLOR_LABEL))
+        legend:SetShadowOffset(1, -1); legend:SetShadowColor(0, 0, 0, 1)
+
+        -- Loot summary preview flows below the second note.
+        local summaryTop = note2Top - blockHeight(note2, 16) - 16
         local summaryHdr = container:CreateFontString(nil, "ARTWORK")
         summaryHdr:SetFont(CANVAS_FONT, CONTROL_FONT_SIZE, "")
-        summaryHdr:SetPoint("TOPLEFT", SUMMARY_X, summaryTop)
+        summaryHdr:SetPoint("TOPLEFT", RIGHT_X, summaryTop)
+        summaryHdr:SetWidth(CONTENT_W / PREVIEW_SCALE - RIGHT_X)
+        summaryHdr:SetJustifyH("LEFT")
         summaryHdr:SetText(RR.L["Loot Summary Preview (in Chat)"])
         summaryHdr:SetTextColor(unpack(COLOR_LABEL))
         summaryHdr:SetShadowOffset(1, -1); summaryHdr:SetShadowColor(0, 0, 0, 1)
+
+        -- Left column's bottom edge: the legend's rendered extent. Held for
+        -- the container-height computation at the end of this branch, which
+        -- must clear BOTH columns.
+        local leftBottom = legendTop - blockHeight(legend, 16)
 
         -- The summary line (always shown, carries the [view] link), then the
         -- "From that kill:" expansion that [view] reveals. Both are single
@@ -700,10 +758,12 @@ do
             C_Timer.After(1.0, function() UIFrameFadeIn(summaryRow, 0.15, 0, 1) end)
         end)
 
-        -- Container bottom is the loot summary preview's bottom: header plus
-        -- the summary line plus the expansion rows (~15px each).
+        -- Container bottom must clear BOTH columns: the loot summary
+        -- preview's full extent on the right (header, summary line, and the
+        -- [view]-revealed expansion rows at ~15px each), and the click-action
+        -- legend on the left.
         local total = 1 + #expansionRows
-        cy = summaryTop - 18 - (total * 15)
+        cy = math.min(leftBottom, summaryTop - 18 - (total * 15)) - 6
     else
         cy = cy - 30
         host:SetPoint("TOPLEFT", 8, cy)
@@ -810,8 +870,7 @@ do
         end
     end
 
-    local stayCheck = AddCheckbox(pageCustomize, RR.L["Toasts remain visible until clicked"],
-        RR.L["When enabled, toasts stay on screen until you click them to dismiss."], 0,
+    local stayCheck = AddCheckbox(pageCustomize, RR.L["Toasts remain visible until right-clicked"], 0,
         function() return RR:GetSetting("toasterStayUntilClick", false) end,
         function(value)
             RR:SetSetting("toasterStayUntilClick", value)

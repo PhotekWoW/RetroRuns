@@ -25,6 +25,30 @@
 local RR = RetroRuns
 RR.WhatsNew = {
     {
+        version  = "2.2.1",
+        date     = "2026-07-21",
+        sections = {
+            {
+                heading = "Added",
+                bullets = {
+                    "**RetroRuns now speaks German, French, and Russian.** Full localization on deDE, frFR, and ruRU clients: the interface, every travel note and solo tip, boss and place names, achievement notes, sub-zone routing, dialog triggers, and the What's New window. Route tracking works the same as it does in English, including the steps that advance when you enter a specific part of a raid or when a boss speaks; quest, achievement, and place names carry Blizzard's official localized titles. English and Spanish clients are unchanged.",
+                    "**Loot toasts respond to clicks.** Right-click a toast to dismiss it. Ctrl-click to preview the item in the dressing room, whether it is an appearance, a mount, or a pet. Left-click opens the drop where it lives in your collection: appearances in the Appearances tab, mounts in the Mount Journal, pets in the Pet Journal, toys in the Toy Box. Opening a collection window is not possible during combat, so left-click waits until the fight is over; dismissing and previewing work at any time. The three gestures are listed in the toaster settings under Toaster Preview.",
+                    "**Loot toasts now hold while you hover them.** Hovering a toast brings it back to full opacity and keeps it on screen for as long as the cursor stays on it, so there is time to read what dropped. Moving away resumes the fade from where it left off.",
+                    "**The minimized bar shows the way out when a run is complete.** Finishing a raid in minimized mode used to leave the bar showing only the RetroRuns wordmark. It now reads \"Raid Complete!\" — or the skip and Raid Finder equivalents — with an abbreviated exit tip beneath it.",
+                },
+            },
+            {
+                heading = "Fixed",
+                bullets = {
+                    "**Toaster settings page layout holds up in every language.** The header wraps inside the frame instead of running past it, and the explainer text, click-gesture legend, and loot-summary preview no longer overlap the sample toasts.",
+                    "**The notification preview's Play button no longer runs into the notes beside it.** The button sizes to its own label and moves to its own line when the pair would reach the right-hand column.",
+                    "**Localization fixes for Spanish clients.** Two Emerald Nightmare travel notes and twenty-one highlighted place names now render fully in Spanish, the Merithra and Vol'jin dialog triggers fire again, and the loot summary's chat rows (the \"From that kill\" heading, the \"New!\" tag, and the Mount, Pet, and Toy labels) are translated.",
+                },
+            },
+        },
+    },
+
+    {
         version  = "2.2.0",
         date     = "2026-07-18",
         sections = {
@@ -39,6 +63,7 @@ RR.WhatsNew = {
                 heading = "Fixed",
                 bullets = {
                     "**The panel now keeps one position across all characters.** The window's position has always been saved account-wide, but the game's own per-character frame memory was re-applying each character's last position over it, so every character ended up with the panel somewhere different. The saved position now wins everywhere: move it once and it stays there for the whole account.",
+                    "**Boss progress now tracks correctly on non-English clients in Mists of Pandaria raids.** On a client running in a non-English language, killing a boss in Mogu'shan Vaults, Heart of Fear, Terrace of Endless Spring, Throne of Thunder, or Siege of Orgrimmar did not register the kill or advance the route: the boss progress list, travel note, and map line stayed on the first boss no matter how far you had cleared. The Encounter Journal lookup used to match kills was reading at a difficulty those raids do not offer. English clients were unaffected and remain unchanged.",
                     "**The loot summary no longer misses drops when loot arrives a moment after the loot window closes.** On higher-latency pulls the summary could appear empty; it now waits briefly for the last items.",
                     "**The transmog window no longer shows a scrollbar when a boss's loot list fits.** A scrollbar, and a clipped travel button, appeared on bosses with a weapon-token footnote even when the list fit.",
                     "**The vendor travel button in the transmog window uses the correct plane icon and no longer sits under the scrollbar.**",
@@ -130,19 +155,6 @@ RR.WhatsNew = {
                 heading = "Fixed",
                 bullets = {
                     "**Continued refinement of routes and travel notes across raids** -- smoother paths and clearer directions in a number of places.",
-                },
-            },
-        },
-    },
-
-    {
-        version  = "1.14.0a",
-        date     = "2026-06-19",
-        sections = {
-            {
-                heading = "Fixed",
-                bullets = {
-                    "**Clicking on the world map no longer causes an error.** A hotfix for a problem where opening the world map to your location could trigger a Lua error in some situations.",
                 },
             },
         },

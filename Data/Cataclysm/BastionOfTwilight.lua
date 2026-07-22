@@ -13,6 +13,7 @@ RetroRuns_Data[671] = {
     patch             = "4.0.3",
 
     exitNote = "Jump in the lava to die. You will respawn at the entrance. |cffffffff(Heroic Only)|r",
+    minExitNote = "Jump in Lava (Heroic)",
 
     -- Both Normal and Heroic are offered, folded into one weekly lockout.
     difficultyModel     = "shared",

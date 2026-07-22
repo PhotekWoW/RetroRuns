@@ -411,6 +411,7 @@ RetroRuns_Data[2217] = {
     },
 
     exitNote = "Exit portal nearby.",
+    minExitNote = "Exit Portal Nearby",
 
     routing = {
         -- `requires` lists immediate predecessors only, not the full
@@ -875,6 +876,7 @@ RetroRuns_Data[2217] = {
             name   = "Vision of Destiny",
             bosses = { 1, 2, 3 },   -- Wrathion, Maut, The Prophet Skitra
             exitNote = "Leave instance group via LFG tool.\n\nNote: If you plan to visit the ^Waking Dream^ wing to kill ^N'Zoth^, you must have ^Ashjra'kamas, Shroud of Resolve^ in your inventory for the Queueing NPC to present the option.",
+            minExitNote = "Leave via LFG Tool",
             -- Per-boss lockout bits, captured one kill at a time on a fresh
             -- lockout: Wrathion->3, Maut->1, The Prophet Skitra->6.
             lockoutBits = { [1] = 3, [2] = 1, [3] = 6 },
@@ -961,6 +963,7 @@ RetroRuns_Data[2217] = {
             name   = "Halls of Devotion",
             bosses = { 4, 9, 5, 10 },   -- Dark Inquisitor Xanesh, Vexiona, The Hivemind, Ra-den the Despoiled
             exitNote = "Leave instance group via LFG tool.\n\nNote: If you plan to visit the ^Waking Dream^ wing to kill ^N'Zoth^, you must have ^Ashjra'kamas, Shroud of Resolve^ in your inventory for the Queueing NPC to present the option.",
+            minExitNote = "Leave via LFG Tool",
             -- Per-boss lockout bits, captured one kill at a time on a fresh
             -- lockout: Xanesh->2, Vexiona->8, The Hivemind->5, Ra-den->4.
             lockoutBits = { [4] = 2, [9] = 8, [5] = 5, [10] = 4 },
@@ -1127,6 +1130,7 @@ RetroRuns_Data[2217] = {
             name   = "Gift of Flesh",
             bosses = { 6, 7, 8 },   -- Shad'har the Insatiable, Drest'agath, Il'gynoth, Corruption Reborn
             exitNote = "Leave instance group via LFG tool.\n\nNote: If you plan to visit the ^Waking Dream^ wing to kill ^N'Zoth^, you must have ^Ashjra'kamas, Shroud of Resolve^ in your inventory for the Queueing NPC to present the option.",
+            minExitNote = "Leave via LFG Tool",
             -- Per-boss lockout bits, captured one kill at a time on a fresh
             -- lockout: Shad'har->7, Drest'agath->10, Il'gynoth->12.
             lockoutBits = { [6] = 7, [7] = 10, [8] = 12 },
@@ -1247,6 +1251,7 @@ RetroRuns_Data[2217] = {
             name   = "The Waking Dream",
             bosses = { 11, 12 },   -- Carapace of N'Zoth, N'Zoth the Corruptor
             exitNote = "Leave instance group via LFG tool.",
+            minExitNote = "Leave via LFG Tool",
             -- Per-boss lockout bits, captured one kill at a time on a fresh
             -- lockout: Carapace->9, N'Zoth->11.
             lockoutBits = { [11] = 9, [12] = 11 },

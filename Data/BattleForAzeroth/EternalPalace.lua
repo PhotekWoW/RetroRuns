@@ -13,6 +13,7 @@ RetroRuns_Data[2164] = {
     patch             = "8.2",
 
     exitNote = "Talk to First Arcanist Thalyssra to be teleported out of the instance.",
+    minExitNote = "Talk to Thalyssra",
 
     -- Entrance is the whirlpool at the Gate of the Queen in northern
     -- Nazjatar (uiMapID 1355), in front of the Azshara statue. The

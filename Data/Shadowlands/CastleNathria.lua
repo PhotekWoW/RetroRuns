@@ -14,6 +14,7 @@ RetroRuns_Data[2296] = {
 
     -- Shown one line below the run-complete banner.
     exitNote = "Talk to Prince Renathal to teleport back to Sludgefist's platform, then run west to reach the exit.",
+    minExitNote = "Talk to Renathal, Run West",
 
     -- World coordinates of the raid entrance portal in Revendreth
     -- (uiMapID 1525). The entrance sits in the central spire of the

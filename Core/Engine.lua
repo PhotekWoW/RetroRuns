@@ -241,24 +241,43 @@ local function SegWhenSubZone(seg)
     return seg.when.subZone
 end
 
+-- Separator between alternate localized forms of one gate value. A locale
+-- entry may list several strings the client is known to return for the same
+-- room, e.g. "Kammer des Mondes|Die Kammer des Mondes": the game ships two
+-- copies of some instance geometry whose area names differ only by a
+-- definite article, and which copy the player is standing in decides which
+-- name GetSubZoneText returns.
+local GATE_ALTERNATE_SEPARATOR = "|"
+
+-- True when liveSubZone is the gate's authored English value or any of the
+-- localized forms the active locale lists for it.
+--
+-- Order matters: the authored English is tested first, so an English client
+-- (where RR.L returns the key unchanged) settles on the first comparison and
+-- never reaches the locale branch.
+local function GateSubZoneMatches(gateSubZone, liveSubZone)
+    if not gateSubZone then return true end
+    if gateSubZone == liveSubZone then return true end
+    local localizedGate = RR and RR.L and RR.L[gateSubZone]
+    if not localizedGate or localizedGate == gateSubZone then
+        return false
+    end
+    if localizedGate == liveSubZone then return true end
+    if not string.find(localizedGate, GATE_ALTERNATE_SEPARATOR, 1, true) then
+        return false
+    end
+    for alternate in string.gmatch(localizedGate, "[^" ..
+            GATE_ALTERNATE_SEPARATOR .. "]+") do
+        if alternate == liveSubZone then return true end
+    end
+    return false
+end
+
 local function WhenMatches(seg, mapID, subZone)
     local segMapID = SegMapID(seg)
     if not segMapID then return false end
     if segMapID ~= mapID then return false end
-    local gateSubZone = SegWhenSubZone(seg)
-    if gateSubZone and gateSubZone ~= subZone then
-        -- On a non-English client GetSubZoneText() returns the localized
-        -- area name, so an authored English gate can never text-match it.
-        -- Accept the gate's localized form from the locale table as well.
-        -- Inert on English clients and for gates without a locale entry:
-        -- there RR.L returns the key itself, which already failed above.
-        local localizedGate = RR and RR.L and RR.L[gateSubZone]
-        if not (localizedGate and localizedGate ~= gateSubZone
-                and localizedGate == subZone) then
-            return false
-        end
-    end
-    return true
+    return GateSubZoneMatches(SegWhenSubZone(seg), subZone)
 end
 
 local function AfterSatisfied(seg, currentProgress)
@@ -267,6 +286,18 @@ local function AfterSatisfied(seg, currentProgress)
         if prereqIdx >= currentProgress then return false end
     end
     return true
+end
+
+-- Blizzard's own localized strings mix the two apostrophe glyphs for the
+-- same name: AreaTable ships both "Faille de l'Ombre" and the typographic
+-- form for one room, on different area IDs, and creature names vary the
+-- same way. A trigger captured with one glyph therefore misses a client
+-- that emits the other, silently and permanently. Folding the typographic
+-- apostrophe (U+2019, bytes E2 80 99) to the plain one on both sides of a
+-- comparison removes the whole class. Folding is many-to-one, so strings
+-- that already matched still match; it can only add matches, never remove.
+local function FoldApostrophes(text)
+    return (string.gsub(text, "\226\128\153", "'"))
 end
 
 -- triggeredBy.dialog fires on any NPC dialog event (CHAT_MSG_MONSTER_YELL,
@@ -296,13 +327,17 @@ local function TriggerMatches(seg, event, eventData)
             local localizedNpc = RR and RR.L and RR.L[dialogTrigger.npc]
             if not (localizedNpc and localizedNpc ~= dialogTrigger.npc
                     and eventData.npc ~= nil
-                    and string.lower(localizedNpc)
-                        == string.lower(eventData.npc)) then
+                    and string.lower(FoldApostrophes(localizedNpc))
+                        == string.lower(FoldApostrophes(eventData.npc))) then
                 return false
             end
         end
         if not dialogTrigger.match or not eventData.text then return false end
-        if string.find(eventData.text, dialogTrigger.match, 1, true) then
+        -- Only the boolean result is used, so folding the haystack is safe;
+        -- no caller reads the returned position.
+        local spokenLine = FoldApostrophes(eventData.text)
+        if string.find(spokenLine, FoldApostrophes(dialogTrigger.match),
+                       1, true) then
             return true
         end
         -- The spoken line also arrives in the client's language; the locale
@@ -311,7 +346,8 @@ local function TriggerMatches(seg, event, eventData)
         local localizedMatch = RR and RR.L and RR.L[dialogTrigger.match]
         return localizedMatch ~= nil
             and localizedMatch ~= dialogTrigger.match
-            and string.find(eventData.text, localizedMatch, 1, true) ~= nil
+            and string.find(spokenLine, FoldApostrophes(localizedMatch),
+                            1, true) ~= nil
     end
 
     return false
@@ -324,7 +360,7 @@ local function HasLeft(seg, mapID, subZone)
     if not seg then return true end
     local gateSubZone = SegWhenSubZone(seg)
     if gateSubZone then
-        return subZone ~= gateSubZone
+        return not GateSubZoneMatches(gateSubZone, subZone)
     end
     local segMapID = SegMapID(seg)
     if not segMapID then return true end
@@ -548,6 +584,41 @@ function RR:GetActiveMinNote()
     return nil
 end
 
+-- The exit note for the active route, localized. In an LFR wing the raid's
+-- authored exit (walk to a specific spot / portal) doesn't apply -- you
+-- leave through the LFG tool -- so a wing may author its own exitNote and
+-- otherwise falls back to the generic LFG-tool line. Outside LFR, the
+-- raid's note. Returns nil when nothing is authored.
+function RR:GetActiveExitNote()
+    local activeWing = self:GetActiveWing()
+    if activeWing then
+        return RR.L[activeWing.exitNote or "Leave instance group via LFG tool."]
+    end
+    local raid = self.currentRaid
+    if raid and raid.exitNote and raid.exitNote ~= "" then
+        return RR.L[raid.exitNote]
+    end
+    return nil
+end
+
+-- Short exit instruction for the minimized bar, localized. Mirrors
+-- GetActiveExitNote's wing-then-raid selection, but falls back to a fixed
+-- line rather than nil: the bar always has room for one and the player
+-- always needs an answer at the end of a run. Every LFR wing leaves the
+-- same way, so a wing without its own short form gets the generic tool
+-- line; a raid that authors no exit at all says so plainly.
+function RR:GetActiveMinExitNote()
+    local activeWing = self:GetActiveWing()
+    if activeWing then
+        return RR.L[activeWing.minExitNote or "Leave via LFG Tool"]
+    end
+    local raid = self.currentRaid
+    if raid and raid.minExitNote and raid.minExitNote ~= "" then
+        return RR.L[raid.minExitNote]
+    end
+    return RR.L["No shortcut available"]
+end
+
 -------------------------------------------------------------------------------
 -- Line picker
 -------------------------------------------------------------------------------
@@ -607,7 +678,7 @@ function RR:SeedProgress(step)
             local segMapID = SegMapID(seg)
             local segSubZ  = SegWhenSubZone(seg)
             if segMapID == mapID
-                and (not segSubZ or segSubZ == subZone)
+                and GateSubZoneMatches(segSubZ, subZone)
             then
                 seed = i
                 break

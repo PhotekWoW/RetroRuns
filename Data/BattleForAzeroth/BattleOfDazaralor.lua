@@ -309,6 +309,7 @@ RetroRuns_Data[2070] = {
     },
 
     exitNote = "Talk to Anduin Wrynn to be teleported out of the instance.",
+    minExitNote = "Talk to Anduin",
 
     lfrWings = {
         -- Wing 1 -- Siege of Dazar'alor (Alliance): Champion, Jadefire, Grong.
