@@ -1,11 +1,13 @@
 ## Interface: 120005, 120007
 ## Title: RetroRuns
+## Title-zhCN: RetroRuns 旧世团本导航
 ## Title-esES: RetroRuns
 ## Title-esMX: RetroRuns
 ## Title-deDE: RetroRuns
 ## Title-frFR: RetroRuns
 ## Title-ruRU: RetroRuns
 ## Notes: Solo legacy raid navigator: routing, tips, and achievement tracking
+## Notes-zhCN: 旧版本团队副本单刷导航：路线、提示与成就追踪
 ## Notes-esES: Navegador de bandas antiguas en solitario: rutas, consejos y seguimiento de logros
 ## Notes-esMX: Navegador de bandas antiguas en solitario: rutas, consejos y seguimiento de logros
 ## Notes-deDE: Solo-Navigator für alte Schlachtzüge: Routen, Tipps und Erfolgstracking
@@ -58,6 +60,7 @@ Locales\esES.lua
 Locales\deDE.lua
 Locales\frFR.lua
 Locales\ruRU.lua
+Locales\zhCN.lua
 Locales\Apply.lua
 Core\Navigation.lua
 Core\Engine.lua

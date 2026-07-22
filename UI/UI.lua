@@ -5163,6 +5163,9 @@ local EXPANSION_ORDER_NEWEST_FIRST = {
     "Burning Crusade",
     "Classic",
 }
+function RR:GetLocalizedExpansionName(expansion)
+    return self.L[expansion] or expansion
+end
 -- Also expose on RR so cross-window code (Skips) can reach it without
 -- duplicating the list. Originally only used by BuildIdleListText below;
 -- Exposed for BuildSkipsRows so the Skips window sorts raids by
@@ -5588,7 +5591,11 @@ GetOrCreateTmogWindow = function()
         local ARROW_PAD = 30
 
         -- Expansion: full constant list (future names included).
-        local expW = widestStringWidth(EXPANSION_ORDER_NEWEST_FIRST)
+        local localizedExpansions = {}
+        for _, expName in ipairs(EXPANSION_ORDER_NEWEST_FIRST) do
+            table.insert(localizedExpansions, RR:GetLocalizedExpansionName(expName))
+        end
+        local expW = widestStringWidth(localizedExpansions)
 
         -- Raid + Boss: every current raid and boss name.
         local raidNames, bossNames = {}, {}
@@ -5860,7 +5867,7 @@ GetOrCreateTmogWindow = function()
             for _, expName in ipairs(expList) do
                 local n, s, t = CountExpansionLoot(expName, byExp)
                 local info = UIDropDownMenu_CreateInfo()
-                info.text = expName .. FormatCountSuffix(n, s, t)
+                info.text = RR:GetLocalizedExpansionName(expName) .. FormatCountSuffix(n, s, t)
                 info.value = expName
                 info.checked = (expName == browserState.expansion)
                 info.func = function()
@@ -5875,7 +5882,7 @@ GetOrCreateTmogWindow = function()
                 UIDropDownMenu_AddButton(info)
             end
         end)
-        UIDropDownMenu_SetText(ddExp, browserState.expansion or "(none)")
+        UIDropDownMenu_SetText(ddExp, RR:GetLocalizedExpansionName(browserState.expansion or "(none)"))
 
         -- Raid dropdown (within current expansion)
         UIDropDownMenu_Initialize(ddRaid, function()
@@ -6746,7 +6753,7 @@ local function BuildSkipsRows()
         -- header always emits so the toggle stays reachable.
         if #expRows > 0 then
             local expd = isExpanded(exp)
-            add({ kind = "expansionHeader", text = exp, expanded = expd })
+            add({ kind = "expansionHeader", text = RR:GetLocalizedExpansionName(exp), expanded = expd })
             if expd then
                 for _, row in ipairs(expRows) do add(row) end
             end
@@ -7918,7 +7925,7 @@ RefreshIdleList = function()
             if row.kind == "expansionHeader" then
                 -- Indent with leading spaces to leave room for the
                 -- toggle button glyph anchored at LEFT.
-                fs:SetText(("    |cff00ffff%s|r"):format(row.exp))
+                fs:SetText(("    |cff00ffff%s|r"):format(RR:GetLocalizedExpansionName(row.exp)))
             elseif row.kind == "wingHeader" then
                 -- Wing header: "WingName (n/N)", one level under the pill row.
                 -- Green when fully cleared, gray otherwise. An unmapped wing
@@ -10093,7 +10100,7 @@ GetOrCreateAchievementsWindow = function()
         UIDropDownMenu_Initialize(ddExp, function()
             for _, expName in ipairs(expList) do
                 local info = UIDropDownMenu_CreateInfo()
-                info.text    = expName
+                info.text    = RR:GetLocalizedExpansionName(expName)
                 info.value   = expName
                 info.checked = (expName == achState.expansion)
                 info.func    = function()
@@ -10106,7 +10113,7 @@ GetOrCreateAchievementsWindow = function()
                 UIDropDownMenu_AddButton(info)
             end
         end)
-        UIDropDownMenu_SetText(ddExp, achState.expansion or "(none)")
+        UIDropDownMenu_SetText(ddExp, RR:GetLocalizedExpansionName(achState.expansion or "(none)"))
 
         UIDropDownMenu_Initialize(ddRaid, function()
             local raids = byExp[achState.expansion] or {}
