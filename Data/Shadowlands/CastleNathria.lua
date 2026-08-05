@@ -374,7 +374,6 @@ RetroRuns_Data[2296] = {
             name               = "Sun King's Salvation",
             journalEncounterID = 2422,
             aliases            = { "Sun King", "Kael'thas" },
-            soloTip            = "Heal (or bandage) Kael. Kill Shade. Rinse/repeat as necessary.",
             achievements       = {
                 { id = 14608, name = "Burning Bright", meta = true, soloable = "yes" },
             },

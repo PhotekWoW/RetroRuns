@@ -280,6 +280,18 @@ local function WhenMatches(seg, mapID, subZone)
     return GateSubZoneMatches(SegWhenSubZone(seg), subZone)
 end
 
+-- True when ANY of the step's segments location-matches the player.
+-- Public: step selection uses this for the optional-step cede rule
+-- (a step flagged `optional` yields to a later step once the player's
+-- position matches the later step and no longer matches this one).
+function RR:StepLocationMatches(step, mapID, subZone)
+    if not step or not step.segments or not mapID then return false end
+    for _, seg in ipairs(step.segments) do
+        if WhenMatches(seg, mapID, subZone) then return true end
+    end
+    return false
+end
+
 local function AfterSatisfied(seg, currentProgress)
     if not seg or not seg.after then return true end
     for _, prereqIdx in ipairs(seg.after) do
@@ -302,8 +314,25 @@ end
 
 -- triggeredBy.dialog fires on any NPC dialog event (CHAT_MSG_MONSTER_YELL,
 -- _SAY, _RAID_BOSS_EMOTE) whose npc + text matches the seg's trigger.
+--
+-- triggeredBy.encounter fires on a successful ENCOUNTER_END whose
+-- dungeonEncounterID equals the seg's. Used for scripted fights that end a
+-- leg of a route without being Encounter Journal bosses -- Ruby Sanctum's
+-- three lieutenants each have their own DungeonEncounter row (1147/1148/
+-- 1149) but only Halion appears in the journal. Preferred over a dialog
+-- trigger on a boss death yell: chat payloads inside an encounter window
+-- can arrive secret-tainted, and whether a death yell resolves before or
+-- after ENCOUNTER_END is a race, so the same yell is readable on one kill
+-- and redacted on the next. ENCOUNTER_END carries no such payload and is
+-- locale-independent.
 local function TriggerMatches(seg, event, eventData)
     if not seg or not seg.triggeredBy then return true end
+
+    if seg.triggeredBy.encounter then
+        if event ~= "encounter-end" then return false end
+        if not eventData then return false end
+        return eventData.encounterID == seg.triggeredBy.encounter
+    end
 
     if seg.triggeredBy.dialog then
         if event ~= "npc-dialog" then return false end
@@ -408,17 +437,35 @@ local function ComputeAdvancedProgress(segments, progress, state, event, eventDa
             end
 
             if not movedDeeper then
-                local dialoguePasses = false
+                local gatePasses = false
                 if event == "npc-dialog" then
                     if not progressSeg.triggeredBy then
-                        dialoguePasses = true
+                        gatePasses = true
                     elseif TriggerMatches(progressSeg, event, eventData) then
-                        dialoguePasses = true
+                        gatePasses = true
                     elseif stepIndex and RR:HasTriggerFired(stepIndex, progress) then
-                        dialoguePasses = true
+                        gatePasses = true
+                    end
+                elseif event == "encounter-end" then
+                    -- Deliberately NARROWER than the dialog case. A kill can
+                    -- release stay-here only when the seg being crossed
+                    -- explicitly declares a matching encounter trigger. If
+                    -- this instead passed on the event alone (as dialog does
+                    -- for untriggered segs), any boss kill would let a
+                    -- stationary player advance onto a later seg sharing the
+                    -- current mapID -- the Vault Terros/Sennarth and Highmaul
+                    -- 612/610 shapes -- in every shipped raid. Scoped this
+                    -- way, behaviour is unchanged everywhere except segs
+                    -- authored with triggeredBy.encounter.
+                    local nextSeg = segments[progress + 1]
+                    if nextSeg and nextSeg.triggeredBy
+                        and nextSeg.triggeredBy.encounter
+                        and TriggerMatches(nextSeg, event, eventData)
+                    then
+                        gatePasses = true
                     end
                 end
-                if not dialoguePasses then
+                if not gatePasses then
                     return progress
                 end
             end

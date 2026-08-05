@@ -65,6 +65,7 @@ RetroRuns_Data[720] = {
         id   = 5828,
         name = "Glory of the Firelands Raider",
         rewardItemID       = 69230,
+        rewardMountSpellID = 97560,
         rewardName         = "Corrupted Egg of Millagazor",
         rewardKind         = "mount",
     },

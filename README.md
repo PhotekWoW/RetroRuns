@@ -50,6 +50,17 @@ Currently supports:
 * The Bastion of Twilight (4.0.1)
 * Baradin Hold (4.0.1)
 
+**Wrath of the Lich King**
+* The Ruby Sanctum (3.3.5)
+* Icecrown Citadel (3.3.0)
+* Onyxia's Lair (3.2.2)
+* Trial of the Crusader (3.2.0)
+* Ulduar (3.1.0)
+* Naxxramas (3.0.2)
+* The Eye of Eternity (3.0.2)
+* The Obsidian Sanctum (3.0.2)
+* Vault of Archavon (3.0.2)
+
 ## Installation
 
 1. Download the latest `RetroRuns.zip`.
@@ -121,7 +132,7 @@ Main commands, type in chat:
 
 ## Status
 
-Version **2.2.1**
+Version **2.3.0**
 
 ## Reporting bugs / requesting features
 

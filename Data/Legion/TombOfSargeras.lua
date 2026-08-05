@@ -452,8 +452,8 @@ RetroRuns_Data[1676] = {
                 {
                     when   = { mapID = 856 },
                     kind    = "path",
-                    note    = "After arriving in ^The Twisting Nether^, work your way down the path, killing trash all the way until you reach ^Kil'Jaeden^.",
-                    minNote = "Trash then Kil'Jaeden",
+                    note    = "After arriving in ^The Twisting Nether^, work your way down the path, killing trash all the way until you reach ^Kil'jaeden^.",
+                    minNote = "Trash then Kil'jaeden",
                     points  = {
                         { 0.158, 0.468 },
                         { 0.394, 0.456 },
@@ -775,7 +775,7 @@ RetroRuns_Data[1676] = {
                         {
                             when   = { mapID = 856 },
                             kind    = "path",
-                            note    = "After arriving in ^The Twisting Nether^, work your way down the path, killing trash all the way until you reach ^Kil'Jaeden^.",
+                            note    = "After arriving in ^The Twisting Nether^, work your way down the path, killing trash all the way until you reach ^Kil'jaeden^.",
                             minNote = "Trash then Kil'jaeden",
                             points  = {
                                 { 0.158, 0.468 },
@@ -1223,7 +1223,7 @@ RetroRuns_Data[1676] = {
                 {
                     when   = { mapID = 856 },
                     kind    = "path",
-                    note    = "After arriving in ^The Twisting Nether^, work your way down the path, killing trash all the way until you reach ^Kil'Jaeden^.",
+                    note    = "After arriving in ^The Twisting Nether^, work your way down the path, killing trash all the way until you reach ^Kil'jaeden^.",
                     minNote = "Trash then Kil'jaeden",
                     points  = {
                         { 0.158, 0.468 },

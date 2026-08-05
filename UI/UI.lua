@@ -94,12 +94,28 @@ RR.PILL_PLANE_GUTTER   = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:14
 -- Font helper
 -------------------------------------------------------------------------------
 
+-- SetFont RAISES a Lua error when the font file fails to load ("Invalid
+-- font asset"); it does not return false. With replaced client fonts
+-- (files dropped into the game's Fonts folder) that load failure can be
+-- transient, and an unprotected call aborts whatever populate it sits in,
+-- stranding half-built UI. Each attempt is therefore pcall-wrapped, and
+-- the floor is a font OBJECT: the client itself must be able to render
+-- GameFontNormal, so it cannot be defeated by a bad file on disk.
 local function SafeSetFont(fs, path, size, flags)
     if not fs then return end
-    if not (path and fs:SetFont(path, size, flags or "")) then
-        fs:SetFont(BODY_FONT, size, flags or "")
+    flags = flags or ""
+    local ok = path and pcall(fs.SetFont, fs, path, size, flags)
+    if ok then return end
+    if path ~= BODY_FONT then
+        ok = pcall(fs.SetFont, fs, BODY_FONT, size, flags)
+        if ok then return end
     end
+    fs:SetFontObject("GameFontNormal")
 end
+-- Published for modules that load after UI.lua (SettingsCanvas) and for
+-- deferred code in earlier-loading modules (Toaster): one hardened font
+-- setter for the whole addon.
+RR.SafeSetFont = SafeSetFont
 
 -- Resolve the user's bodyFontStyle setting to a {path, sizeFactor}
 -- entry from BODY_FONT_INFO. Defaults to "standard" (FRIZQT) if unset
@@ -173,9 +189,20 @@ panel:SetMovable(true)
 panel:EnableMouse(true)
 panel:RegisterForDrag("LeftButton")
 panel:SetClampedToScreen(true)
-panel:SetScript("OnDragStart", panel.StartMoving)
+-- While a drag is in progress the move machinery owns the panel's
+-- position. The periodic layout pass (AutoSize / ApplyMinimizedState,
+-- driven by UI.Update) re-anchors the panel from the SAVED offsets,
+-- which mid-drag still hold the pre-drag position -- so any layout
+-- tick during a drag snapped the panel back toward where the drag
+-- started. isBeingDragged gates every panel geometry write in those
+-- paths; the skipped re-fit runs once at drag stop instead.
+panel:SetScript("OnDragStart", function(self)
+    self.isBeingDragged = true
+    self:StartMoving()
+end)
 panel:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
+    self.isBeingDragged = nil
     -- Named movable frames get flagged user-placed the moment a drag
     -- starts, and the client then stores their position per character
     -- and re-applies it after our own restore, so every character ends
@@ -197,6 +224,15 @@ panel:SetScript("OnDragStop", function(self)
     self:SetPoint("CENTER", UIParent, "CENTER", x, y)
     RR:SetSetting("panelX", math.floor(x + 0.5))
     RR:SetSetting("panelY", math.floor(y + 0.5))
+    -- Any layout pass skipped while the drag was in progress runs now,
+    -- against the freshly saved offsets.
+    if UI.ApplyMinimizedState then UI.ApplyMinimizedState() end
+end)
+-- If the panel is hidden mid-drag (e.g. the show-panel setting flips),
+-- OnDragStop never fires for it, so clear the flag here or the layout
+-- pass would stay disabled after the panel reappears.
+panel:HookScript("OnHide", function(self)
+    self.isBeingDragged = nil
 end)
 
 -- Forward declarations for auxiliary windows (assigned further down).
@@ -387,7 +423,7 @@ panel.logo:Hide()
 -- panel's top-left now that the logo is hidden.
 panel.titleRetro = panel:CreateFontString(nil, "OVERLAY")
 panel.titleRetro:SetPoint("TOPLEFT", PAD_LEFT + 8, -12 - FRAME_INSET_Y)
-panel.titleRetro:SetFont(BODY_FONT, 12, "OUTLINE")
+SafeSetFont(panel.titleRetro, BODY_FONT, 12, "OUTLINE")
 panel.titleRetro:SetText("RETRO")
 panel.titleRetro:SetTextColor(unpack(C_PINK))
 panel.titleRetro:SetShadowOffset(1, -1)
@@ -395,7 +431,7 @@ panel.titleRetro:SetShadowColor(0, 0, 0, 1)
 
 panel.titleRuns = panel:CreateFontString(nil, "OVERLAY")
 panel.titleRuns:SetPoint("LEFT", panel.titleRetro, "RIGHT", 0, 0)
-panel.titleRuns:SetFont(BODY_FONT, 12, "OUTLINE")
+SafeSetFont(panel.titleRuns, BODY_FONT, 12, "OUTLINE")
 panel.titleRuns:SetText("RUNS")
 panel.titleRuns:SetTextColor(unpack(C_BLUE))
 panel.titleRuns:SetShadowOffset(1, -1)
@@ -408,7 +444,7 @@ panel.titleRuns:SetShadowColor(0, 0, 0, 1)
 -- frame. Boss label white, count dimmed at render time. Hidden by default;
 -- ApplyTitleLayoutForState shows it only when a route is active.
 panel.titleRaidName = panel:CreateFontString(nil, "OVERLAY")
-panel.titleRaidName:SetFont(BODY_FONT, 12, "OUTLINE")
+SafeSetFont(panel.titleRaidName, BODY_FONT, 12, "OUTLINE")
 panel.titleRaidName:SetText("")
 panel.titleRaidName:SetTextColor(1, 1, 1)
 panel.titleRaidName:SetShadowOffset(1, -1)
@@ -422,7 +458,7 @@ panel.titleRaidName:Hide()
 -- when minimized with an active route note to display.
 panel.titleMinNote = panel:CreateFontString(nil, "OVERLAY")
 panel.titleMinNote:SetPoint("LEFT", panel.titleRuns, "RIGHT", 6, 0)
-panel.titleMinNote:SetFont(BODY_FONT, 14, "OUTLINE")
+SafeSetFont(panel.titleMinNote, BODY_FONT, 14, "OUTLINE")
 panel.titleMinNote:SetText("")
 panel.titleMinNote:SetTextColor(1, 1, 1)
 panel.titleMinNote:SetShadowOffset(1, -1)
@@ -483,7 +519,7 @@ end
 panel.mode = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 panel.mode:SetPoint("TOPRIGHT", -56 - FRAME_INSET_X, -14 - FRAME_INSET_Y)
 panel.mode:SetText("")
-panel.mode:SetFont(TITLE_FONT, 9, "OUTLINE")
+SafeSetFont(panel.mode, TITLE_FONT, 9, "OUTLINE")
 panel.mode:SetShadowOffset(1, -1)
 panel.mode:SetShadowColor(0, 0, 0, 1)
 
@@ -548,7 +584,25 @@ RR.LockoutTipByModel = {
         label = RR.L["Independent lockouts"],
         gloss = RR.L["Each difficulty has its own weekly lockout"],
     },
+    -- difficultyLocked keeps the shared label, but its own gloss: the week
+    -- locks to a difficulty while the two sizes stay interchangeable, so
+    -- remaining bosses can be killed at either size. Its own entry rather
+    -- than an alias of shared, since sizesShared and sizesHeroic raids do
+    -- NOT work that way and must not inherit the size wording.
+    difficultyLocked = {
+        label = RR.L["Shared lockout"],
+        gloss = RR.L["One difficulty per week; 10 and 25 share it"],
+    },
 }
+-- The Wrath size models split by lockout shape. sizes keeps every size on
+-- its own weekly lockout (the independent wording). sizesShared spans one
+-- lockout across 10 and 25, and sizesHeroic spans one across all four
+-- size/heroic combinations -- both are the shared wording, since the game
+-- classes each size and mode as a difficulty, so "One difficulty per week"
+-- reads true for them.
+RR.LockoutTipByModel.sizes            = RR.LockoutTipByModel.independent
+RR.LockoutTipByModel.sizesHeroic      = RR.LockoutTipByModel.shared
+RR.LockoutTipByModel.sizesShared      = RR.LockoutTipByModel.shared
 function RR:GetLockoutTooltipInfo(model)
     return self.LockoutTipByModel[model or "independent"]
 end
@@ -629,6 +683,14 @@ panel.encounter.achievements.label:SetWordWrap(true)
 panel.encounter.achievements.label:SetNonSpaceWrap(true)
 panel.encounter.achievements:SetHyperlinksEnabled(true)
 panel.encounter.achievements:SetScript("OnHyperlinkClick", function(_, link, text, button)
+    -- The "None" row on bosses without achievements opens the
+    -- achievements window, the same destination a real achievement
+    -- link resolves to.
+    if link == "rrachui" then
+        if not AchievementFrame then AchievementFrame_LoadUI() end
+        ToggleAchievementFrame()
+        return
+    end
     SetItemRef(link, text, button)
 end)
 
@@ -658,6 +720,10 @@ browserState = {
     raidKey   = nil,
     bossIndex = nil,
     active    = false,
+    -- Which class's class-gated loot the browser is showing: a class ID,
+    -- 0 for "all classes", or nil for "the class being played". Runtime
+    -- only, deliberately NOT a saved setting -- see ActiveClassFilter.
+    classFilter = nil,
 }
 
 -- Transmog summary button (mouseover opens popup)
@@ -1216,6 +1282,9 @@ local function ReleaseIdleListLines()
         table.insert(panel.idleListLinePool, fs)
     end
     wipe(panel.idleListLines)
+    -- Belongs to the rows just released; a stale value would inflate the
+    -- next height reserve for a list that no longer has those gaps.
+    panel._idleListExtraGapPx = 0
     for _, fs in ipairs(panel.idleListLegendLines) do
         fs:Hide()
         fs:ClearAllPoints()
@@ -1410,7 +1479,7 @@ do
         end
         local mfs = panel._strikeMeasureFS
         local ff, fsz, ffl = bossFS:GetFont()
-        if ff then mfs:SetFont(ff, fsz or fontSize, ffl or "") end
+        if ff then SafeSetFont(mfs, ff, fsz or fontSize, ffl or "") end
         mfs:SetText(indentStr or "")
         local indentW = mfs:GetStringWidth() or 0
 
@@ -1435,7 +1504,7 @@ panel.credit:SetPoint("BOTTOMLEFT", PAD_LEFT, 8 + FRAME_INSET_Y)
 panel.credit:SetText("")
 -- Footer credit: standard font, locked at construction (footer doesn't
 -- scale with the user's font slider).
-panel.credit:SetFont(BODY_FONT, 10, "")
+SafeSetFont(panel.credit, BODY_FONT, 10, "")
 
 -- Right-side footer cluster: a clickable bracketed version link. A pulsing
 -- yellow [!] sits just left of the version until the player clicks it
@@ -1449,7 +1518,7 @@ panel.version.glyph:SetPoint("BOTTOMRIGHT", panel.version, "BOTTOMRIGHT", 0, 0)
 panel.version.glyph:SetText("|cff7faaff[v" .. RetroRuns.VERSION .. "]|r")
 -- Footer version glyph: standard font, locked at construction (footer
 -- doesn't scale with the user's font slider).
-panel.version.glyph:SetFont(BODY_FONT, 10, "")
+SafeSetFont(panel.version.glyph, BODY_FONT, 10, "")
 -- Resize the button width to wrap the rendered text so the click target
 -- doesn't extend past the visible "[v...]" glyph.
 panel.version:SetWidth((panel.version.glyph:GetStringWidth() or 60) + 4)
@@ -1485,7 +1554,7 @@ panel.whatsNewLabel:SetText("")
 -- Locked font like the rest of the footer (no scaling). The pulse ticker
 -- rewrites this FontString's text every ~100ms via SetText; SetText
 -- preserves the font, so a single SetFont here sticks for the addon's life.
-panel.whatsNewLabel:SetFont(BODY_FONT, 10, "")
+SafeSetFont(panel.whatsNewLabel, BODY_FONT, 10, "")
 
 -- Centered footer status: "Toaster:" + a colored arrow glyph mirroring the
 -- settings panel's Active Status (green up = active, amber down = travel to a
@@ -1498,7 +1567,7 @@ panel.toastStatus:SetPoint("BOTTOM", 0, 8 + FRAME_INSET_Y)
 do
     local toastStatus = panel.toastStatus
     toastStatus.label = toastStatus:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    toastStatus.label:SetFont(BODY_FONT, 10, "")
+    SafeSetFont(toastStatus.label, BODY_FONT, 10, "")
     toastStatus.label:SetText(RR.L["Toaster:"])
     toastStatus.label:SetTextColor(0.62, 0.62, 0.62)
 
@@ -2206,7 +2275,9 @@ local function ApplyTitleLayoutForState(minimized)
             and RR.IsActiveRouteComplete and RR:IsActiveRouteComplete() then
             if RR:GetActiveWing() then
                 completeBanner = RR.L["|cff00ff00LFR Wing Complete!|r"]
-            elseif RR.state and RR.state.activeRouteVariant == "skip" then
+            elseif (RR.state and RR.state.activeRouteVariant == "skip")
+                or (RR.ActiveRouteSkippedOptionalBoss
+                    and RR:ActiveRouteSkippedOptionalBoss()) then
                 completeBanner = RR.L["|cff00ff00Skip Run Complete!|r"]
             else
                 completeBanner = RR.L["|cff00ff00Raid Complete!|r"]
@@ -2376,7 +2447,8 @@ function UI.ApplyMinimizedState()
         local newW = ComputeMinimizedPanelW() or MINIMIZED_PANEL_W_FALLBACK
         local heightChanged = math.abs(newH - oldH) > 0.5
         local widthChanged  = math.abs(newW - oldW) > 0.5
-        if heightChanged or widthChanged then
+        -- Geometry writes are skipped mid-drag (see the OnDragStart note).
+        if (heightChanged or widthChanged) and not panel.isBeingDragged then
             local oldTop  = panel:GetTop()
             local oldLeft = panel:GetLeft()
             local fscale  = panel:GetEffectiveScale()
@@ -2418,7 +2490,8 @@ function UI.ApplyMinimizedState()
         -- maximizing on the LEFT half of the screen would jump rightward
         -- as the center stayed fixed and the right edge expanded.
         local oldW = panel:GetWidth() or PANEL_W
-        if math.abs(PANEL_W - oldW) > 0.5 then
+        -- Geometry writes are skipped mid-drag (see the OnDragStart note).
+        if math.abs(PANEL_W - oldW) > 0.5 and not panel.isBeingDragged then
             local oldLeft = panel:GetLeft()
             local fscale  = panel:GetEffectiveScale()
             local pscale  = UIParent:GetEffectiveScale()
@@ -2529,12 +2602,17 @@ function UI.AutoSize()
         local gap     = 2
         local idleH   = #panel.idleListLines * rowH
                       + (math.max(0, #panel.idleListLines - 1)) * gap
+                      + (panel._idleListExtraGapPx or 0)
                       + 8  -- top spacing under listHeader
         listH = math.max(listH, idleH)
         hasContent = true
     end
 
-    if hasContent then
+    -- Skip the panel resize/re-anchor entirely while the panel is being
+    -- dragged (see the OnDragStart note); the drag-stop handler re-runs
+    -- the layout pass. The transmog-popup sizing below is unaffected --
+    -- it never writes panel geometry.
+    if hasContent and not panel.isBeingDragged then
         -- Footer reserve covers (from the panel's bottom edge): the action
         -- button row and, in idle mode, the skip/entrance legend block that
         -- pins above it. The legend block bottom-anchors LEGEND_BOTTOM_OFFSET
@@ -2897,11 +2975,18 @@ function UI.GetDifficultyColorWords()
         order[#order + 1] = word
     end
 
-    -- Client-localized names: 17 = Raid Finder, 14/15/16 = N/H/M. On an
-    -- English client these duplicate the list above and are skipped.
+    -- Client-localized names: 17 = Raid Finder, 14/15/16 = N/H/M, 3/4/5/6
+    -- the Wrath sizes ("10 Player" etc.). The sizes reuse the Normal color
+    -- (plain 10/25) and the Heroic color (heroic 10/25) so the palette
+    -- stays at four. On an English client the 14/15/16/17 names duplicate
+    -- the list above and are skipped.
     if GetDifficultyInfo then
         local byDifficultyID = {
             [17] = DIFFICULTY_COLORS["Raid Finder"],
+            [3]  = DIFFICULTY_COLORS["Normal"],
+            [4]  = DIFFICULTY_COLORS["Normal"],
+            [5]  = DIFFICULTY_COLORS["Heroic"],
+            [6]  = DIFFICULTY_COLORS["Heroic"],
             [14] = DIFFICULTY_COLORS["Normal"],
             [15] = DIFFICULTY_COLORS["Heroic"],
             [16] = DIFFICULTY_COLORS["Mythic"],
@@ -2930,15 +3015,24 @@ local function ColorizeDifficulties(text)
         for _, word in ipairs(words.order) do
             local color = words.colors[word]
             if color then
-                -- %f[%a] and %f[%A] are Lua's frontier patterns, which act as
-                -- word boundaries. This keeps "Mythic" from matching inside
-                -- "Mythica" and avoids double-coloring if the word appears
-                -- inside an already-colored segment (the |c...|r wrap makes
-                -- word boundaries stable). Localized names pass through a
+                -- %f[%w] and %f[%W] are Lua's frontier patterns, which act
+                -- as word boundaries over letters AND digits -- difficulty
+                -- names can begin with a digit ("10 Player"), which a
+                -- letter-only frontier would never match. Each frontier is
+                -- applied only when that edge of the name is a word
+                -- character: a frontier next to a punctuation edge (the
+                -- ")" closing "10 Player (Heroic)") can never match, and
+                -- the literal punctuation already delimits the name. This
+                -- keeps "Mythic" from matching inside "Mythica" and avoids
+                -- double-coloring if the word appears inside an
+                -- already-colored segment (the |c...|r wrap makes word
+                -- boundaries stable). Localized names pass through a
                 -- magic-character escape so they read as literal text.
                 local pattern = word:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+                if word:find("^%w") then pattern = "%f[%w]" .. pattern end
+                if word:find("%w$") then pattern = pattern .. "%f[%W]" end
                 plainText = plainText:gsub(
-                    "%f[%a]" .. pattern .. "%f[%A]",
+                    pattern,
                     ("|c%s%s|r"):format(color, word))
             end
         end
@@ -3042,7 +3136,10 @@ local function BuildPillsText()
     -- like the rest of the addon, the pill row covers Normal and up,
     -- while LFR sources live in the transmog browser. Mists raids drop
     -- Mythic (16); the model's bucket list handles that automatically.
+    -- 3/4/5/6 are the Wrath size difficulties, kept as their own buckets
+    -- because each size has its own loot table.
     local BUCKET_LABEL = {
+        [3] = "10N", [4] = "25N", [5] = "10H", [6] = "25H",
         [14] = "N", [15] = "H", [16] = "M",
     }
 
@@ -3057,10 +3154,15 @@ local function BuildPillsText()
         end
     end
 
-    -- Shared lockout (Mists fold or Cataclysm): the Normal/Heroic sibling
-    -- of a committed mode is locked for the week. Lock glyph marks it (no
+    -- Shared lockout: the committed mode's shared-lockout sibling
+    -- (Normal/Heroic, or 10/25 on Wrath raids) is locked for the week. Lock glyph marks it (no
     -- recolor; see the idle builder for why color alone won't read here).
-    local lockedBucket = RR:GetLockedOutBucket(raid, counts)
+    -- Every sibling the shared lockout blocks, not just one: a four-member
+    -- group (Wrath sizesHeroic) locks three pills off a single commit.
+    local lockedBuckets = {}
+    for _, bucket in ipairs(RR:GetLockedOutBuckets(raid, counts) or {}) do
+        lockedBuckets[bucket] = true
+    end
     -- yOffset drops the icon onto the text baseline; trailing RGB tints it
     -- gold (the LFG lock is the locked-out marker).
     local LOCK_GLYPH = " |TInterface\\PetBattles\\PetBattle-LockIcon:12:12:0:0|t"
@@ -3095,7 +3197,7 @@ local function BuildPillsText()
             else
                 hex = PENDING_HEX
             end
-            local lock = (p.id == lockedBucket) and LOCK_GLYPH or ""
+            local lock = lockedBuckets[p.id] and LOCK_GLYPH or ""
             if p.label then
                 table.insert(parts, ("|cff%s%s %d/%d|r%s"):format(
                     hex, p.label, count.complete, count.total, lock))
@@ -3296,8 +3398,13 @@ end
 -- clickable hyperlinks color-coded by completion state. Returns ""
 -- for bosses with no achievements (caller appends unconditionally).
 local function BuildAchievementsBlock(boss)
-    if not boss or not boss.achievements or #boss.achievements == 0 then
-        return ""
+    if not boss then return "" end
+    if not boss.achievements or #boss.achievements == 0 then
+        -- Keep the section visible so every boss pane has the same
+        -- shape; the row is clickable and opens the achievements
+        -- window like a real achievement link would.
+        return ("|cff%s%s|r\n|Hrrachui|h|cff888888%s|r|h"):format(
+            C_LABEL, RR.L["Achievements:"], RR.L["None"])
     end
     local lines = { ("|cff%s%s|r"):format(C_LABEL, RR.L["Achievements:"]) }
 
@@ -3438,16 +3545,31 @@ local TRANSMOG_EXCLUDED_SLOTS = {
 }
 
 -- Difficulty display order and labels
-local DIFF_ORDER  = { 17, 14, 15, 16 }   -- LFR, Normal, Heroic, Mythic
+-- LFR, then the Wrath sizes (10/25 x Normal/Heroic), then Normal, Heroic,
+-- Mythic. The two families never appear on the same item, so only the
+-- within-family order shows.
+local DIFF_ORDER  = { 17, 3, 4, 5, 6, 14, 15, 16 }
 local DIFF_LETTER = {
     [17] = "LFR",
+    [3]  = "10N",
+    [4]  = "25N",
+    [5]  = "10H",
+    [6]  = "25H",
     [14] = "N",
     [15] = "H",
     [16] = "M",
 }
--- Full names used in the "Current difficulty: <name>" header line.
+
+-- Full names used in the "Current difficulty: <name>" header line. The
+-- Wrath size difficulties take the client's own names via
+-- GetDifficultyInfo ("10 Player" etc.), already localized on every
+-- client.
 local DIFF_NAME = {
     [17] = RR.L["LFR"],
+    [3]  = (GetDifficultyInfo and GetDifficultyInfo(3)) or "10 Player",
+    [4]  = (GetDifficultyInfo and GetDifficultyInfo(4)) or "25 Player",
+    [5]  = (GetDifficultyInfo and GetDifficultyInfo(5)) or "10 Player (Heroic)",
+    [6]  = (GetDifficultyInfo and GetDifficultyInfo(6)) or "25 Player (Heroic)",
     [14] = RR.L["Normal"],
     [15] = RR.L["Heroic"],
     [16] = RR.L["Mythic"],
@@ -3524,11 +3646,9 @@ local function HasAppearanceViaAnySource(appearanceID)
 end
 
 -- Returns the appearance ID (visual ID) for an item by its itemID.
--- We use GetItemInfo(itemID) rather than GetSourceInfo(sourceID) because
--- the latter appears to return nil for sources the current character
--- hasn't personally collected -- breaking our shared-appearance detection
--- for the exact case we care about (items the player doesn't have).
--- GetItemInfo is based on the item itself and always returns the pair.
+-- Collapses to the Normal-difficulty appearance, so callers wanting a
+-- specific difficulty's look want GetAppearanceIDForSource instead. Used as
+-- the fallback when a per-source lookup returns nil.
 local appearanceIDCache = {}
 
 local function GetAppearanceIDForItem(itemID)
@@ -3602,6 +3722,65 @@ end
 -- commands (like /rr tmogaudit in Core.lua) can use the exact same logic
 -- the UI uses at render time. Without this, diagnostics would reimplement
 -- the state logic and silently drift from the UI over time.
+-- The Wrath size pairs, and the label a folded pair prints. When a row
+-- carries BOTH difficulties of a pair and they resolve to one appearance,
+-- the two pills say the same thing twice ("10N || 10H", always the same
+-- color) -- fold them to the bare size instead. Wrath-only: the modern
+-- N/H/M difficulties have no size dimension to fold into, and LFR stands
+-- alone.
+UI.WRATH_SIZE_PAIRS = {
+    { normal = 3, heroic = 5, label = "10" },
+    { normal = 4, heroic = 6, label = "25" },
+}
+
+-- True when the folded pill anchored at anchorDiffID stands for
+-- activeDiff -- i.e. activeDiff is the heroic half that the fold absorbed.
+-- The anchor itself is handled by the plain `diffID == activeDiff` test.
+function UI.FoldAbsorbsDifficulty(item, anchorDiffID, activeDiff)
+    if not activeDiff then return false end
+    for _, pair in ipairs(UI.WRATH_SIZE_PAIRS) do
+        if pair.normal == anchorDiffID then
+            return pair.heroic == activeDiff
+        end
+    end
+    return false
+end
+
+-- For a row, returns { [diffID] = label } for the difficulties whose label
+-- changes, plus a skip set of the difficulties the fold absorbs. Only folds
+-- a pair when BOTH difficulties are present AND both sources resolve to the
+-- same appearance -- recolor pairs (Icecrown Citadel's Heroic looks) keep
+-- their own labels and their own states. A row that folds one pair but not
+-- the other renders mixed labels ("10 || 25N"), which is correct: each pill
+-- still states exactly what it drops at.
+function UI.FoldedSizeLabels(item)
+    if not item or not item.sources then return nil, nil end
+    local labels, skip
+    for _, pair in ipairs(UI.WRATH_SIZE_PAIRS) do
+        local normalSource = item.sources[pair.normal]
+        local heroicSource = item.sources[pair.heroic]
+        if normalSource and heroicSource then
+            local foldable = (normalSource == heroicSource)
+            if not foldable then
+                local normalAppearance = GetAppearanceIDForSource(normalSource)
+                local heroicAppearance = GetAppearanceIDForSource(heroicSource)
+                -- Cold cache (nil) must NOT fold: an unresolved pair would
+                -- collapse two genuinely different looks into one pill. The
+                -- next refresh after the cache warms folds it correctly.
+                foldable = (normalAppearance ~= nil)
+                    and (normalAppearance == heroicAppearance)
+            end
+            if foldable then
+                labels = labels or {}
+                skip   = skip or {}
+                labels[pair.normal] = pair.label
+                skip[pair.heroic]   = true
+            end
+        end
+    end
+    return labels, skip
+end
+
 RR.CollectionStateForSource = CollectionStateForSource
 RR.FallbackStateForItem     = FallbackStateForItem
 
@@ -3714,6 +3893,7 @@ local SPECIAL_KIND_LABEL = {
     decor      = RR.L["Decor"],
     manuscript = RR.L["Manuscript"],
     illusion   = RR.L["Illusion"],
+    musicroll  = RR.L["Music Roll"],
 }
 local SPECIAL_KIND_COLOR = {
     mount      = "ff8080ff",   -- light blue
@@ -3722,6 +3902,7 @@ local SPECIAL_KIND_COLOR = {
     decor      = "ffd4a373",   -- warm cream/tan (evokes housing/home)
     manuscript = "ff7fffd4",   -- aquamarine (evokes dragonriding sky/scale)
     illusion   = "ffc8a2ff",   -- pale violet (evokes arcane weapon-enchant glow)
+    musicroll  = "ffff9e80",   -- warm coral (evokes a warm jukebox glow)
 }
 
 -- State-indicator colors. |c...|r wraps text only -- texture glyphs
@@ -3772,13 +3953,14 @@ local function SpecialCollectionStateForItem(item)
         end
         return "missing"
 
-    elseif item.kind == "manuscript" then
-        -- Drakewatcher Manuscripts are consumable items: clicking one
-        -- casts a "Deciphering" spell whose only effect is to flag a
-        -- hidden quest as complete on the current character. The item
-        -- is gone after use, but the quest flag persists for life --
-        -- so the durable "is the unlock learned?" check is
-        -- IsQuestFlaggedCompleted(questID).
+    elseif item.kind == "manuscript" or item.kind == "musicroll" then
+        -- Consumable unlock items: using one flags a hidden quest as
+        -- complete on the current character, then the item is gone. The
+        -- quest flag persists for life, so the durable "is it unlocked?"
+        -- check is IsQuestFlaggedCompleted(questID). Drakewatcher
+        -- Manuscripts unlock a dragonriding visual; Music Rolls unlock a
+        -- garrison jukebox track (the item's Use spell adds the track,
+        -- but the completed quest is what records ownership).
         --
         -- Per-character (not account-wide). That's intentional and
         -- matches the rest of RetroRuns' "what does THIS character
@@ -3993,6 +4175,14 @@ BuildSpecialLootSection = function(boss)
                 kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Normal/Heroic only"] .. "|r|c" .. kindColor
             elseif item.heroicOnly then
                 kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Heroic only"] .. "|r|c" .. kindColor
+            elseif item.heroic25Only then
+                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["25 Player Heroic only"] .. "|r|c" .. kindColor
+            elseif item.size10Only then
+                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["10 Player only"] .. "|r|c" .. kindColor
+            elseif item.size25Only then
+                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["25 Player only"] .. "|r|c" .. kindColor
+            elseif item.hardModeOnly then
+                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Hard mode only"] .. "|r|c" .. kindColor
             end
 
             -- Bracketed state indicator before the name, matching the
@@ -4021,19 +4211,28 @@ end
 -- present. The class browser dropdown chooses the filter class.
 --
 -- Active class filter: which class the tmog browser is currently showing
--- class-gated loot for. Stored in the `tmogClassFilter` setting as a class
--- ID (1-13), or 0 meaning "all classes". When unset (nil), defaults to the
--- player's own class, so the out-of-box view matches what a player expects
--- to collect. Returns nil for the "all classes" case, otherwise a class ID.
+-- class-gated loot for. A class ID (1-13), 0 meaning "all classes", or nil
+-- meaning the class being played. Returns nil for the "all classes" case,
+-- otherwise a class ID.
+--
+-- This is deliberately RUNTIME state (browserState.classFilter), not a
+-- saved setting. It was a saved setting, and being saved was the bug: the
+-- choice is a temporary view -- picked in the dropdown, or reached by
+-- clicking a toast for gear this character cannot wear -- yet it outlived
+-- the browser, the session, and the character. RetroRunsDB is account-wide,
+-- so a Hunter chosen once left every later browser open, on every character,
+-- showing Hunter. Guarding it with an owner class only narrowed that to
+-- characters sharing the owner's class, and did nothing across a reload.
+-- Nothing persists now, so every open starts on the class being played.
 local function ActiveClassFilter()
-    local sel = RR:GetSetting("tmogClassFilter")
+    local _, _, playerClassID = UnitClass("player")
+    local sel = browserState.classFilter
     if sel == 0 then return nil end          -- explicit "all classes"
     if type(sel) == "number" and sel >= 1 and sel <= 13 then
         return sel
     end
-    -- Unset / invalid: default to the player's class.
-    local _, _, classID = UnitClass("player")
-    return classID
+    -- Unset / invalid: the class being played.
+    return playerClassID
 end
 
 -- The player's own class ID. The main-panel summary counts against this
@@ -4061,7 +4260,11 @@ end
 -- summary, which always reflects the player's own class regardless of the
 -- browser's class dropdown). When nil, falls back to ActiveClassFilter --
 -- the browser dropdown selection.
-local function ItemIsTransmogCandidate(item, classOverride)
+-- includeOtherFaction admits rows locked to the opposite faction. The
+-- browser passes it so those appearances can be tracked; the summary
+-- counters do not, so the counts keep meaning "what this character can go
+-- get here".
+local function ItemIsTransmogCandidate(item, classOverride, includeOtherFaction)
     -- Special-loot entries (pets, mounts, toys, illusions, manuscripts,
     -- decor) carry a `kind` and belong in the boss specialLoot list, which
     -- the core UI surfaces separately. They have no equip slot and no
@@ -4069,8 +4272,24 @@ local function ItemIsTransmogCandidate(item, classOverride)
     -- transmog browser regardless of which array they were authored into.
     if item.kind then return false end
     if TRANSMOG_EXCLUDED_SLOTS[item.slot] then return false end
+    -- Faction-locked rows (Trial of the Crusader drops per-faction item
+    -- variants from the same encounter) can't be looted by this character,
+    -- but the game grants the opposite faction's appearance when its mirror
+    -- drops, so they are collectible and worth tracking. The browser shows
+    -- them in their own block; everywhere else they stay hidden.
+    if not includeOtherFaction
+        and item.faction and item.faction ~= UnitFactionGroup("player") then
+        return false
+    end
     if not ItemIsForPlayer(item, classOverride) then return false end
     return true
+end
+
+-- True for a row that belongs to the other faction: lootable only on a
+-- character of that faction, collectible here only through the grant its
+-- mirror carries.
+local function ItemIsOtherFaction(item)
+    return item.faction ~= nil and item.faction ~= UnitFactionGroup("player")
 end
 
 -- The "active" (current in-game) difficulty, folded to its display
@@ -4443,6 +4662,22 @@ local function BinaryStateRendering(state)
     end
 end
 
+-- True for a row whose sources all live in the 10/25-player size
+-- difficulties (3/4/5/6) and span more than one of them: a single
+-- appearance dropping on several sizes. On the UI table rather than a
+-- file-level local (the chunk is at Lua's local ceiling).
+function UI.IsMergedSizeDifficultyRow(item)
+    if not item or not item.sources then return false end
+    local bucketCount = 0
+    for diffID in pairs(item.sources) do
+        if diffID ~= 3 and diffID ~= 4 and diffID ~= 5 and diffID ~= 6 then
+            return false
+        end
+        bucketCount = bucketCount + 1
+    end
+    return bucketCount >= 2
+end
+
 -- Renders a binary-shape row: "[ <glyph> ]" bracket with the glyph colored
 -- per state. Single sourceID drives a single CollectionStateForSource call.
 -- Falls back to FallbackStateForItem when sources is nil/empty so an entry
@@ -4454,6 +4689,49 @@ local function BuildBinaryRow(item)
     -- shared helper the summary counter also uses, so the row and the
     -- main-panel count can never disagree on a binary item.
     local state = RR.BinaryFoldedState(item)
+
+    -- Merged size-difficulty rows render as a letter strip like any other
+    -- multi-difficulty row, so the row itself says which sizes drop it.
+    -- Every letter takes the folded state: owning any one size's source
+    -- collects the appearance everywhere, so the strip never splits colors.
+    -- When nothing is collected, the current difficulty's letter highlights
+    -- white and the rest dim, matching the per-difficulty strips.
+    if UI.IsMergedSizeDifficultyRow(item) then
+        local activeDiff = ActiveDifficulty()
+        -- Fold N/H pairs that share one appearance down to the bare size,
+        -- so "10N || 10H" (two pills that can never differ) reads "10".
+        local foldedLabels, foldedSkip = UI.FoldedSizeLabels(item)
+        local inner = {}
+        for _, diffID in ipairs(DIFF_ORDER) do
+            if item.sources[diffID] and not (foldedSkip and foldedSkip[diffID]) then
+                local colour
+                if state == "collected" then
+                    colour = DOT_COLLECTED
+                elseif state == "shared" then
+                    colour = DOT_SHARED
+                elseif diffID == activeDiff
+                    or (foldedLabels and foldedLabels[diffID]
+                        and UI.FoldAbsorbsDifficulty(item, diffID, activeDiff)) then
+                    -- A folded pill highlights white when EITHER of its
+                    -- difficulties is the current one, since it stands for
+                    -- both.
+                    colour = DOT_ACTIVE
+                else
+                    colour = DOT_INACTIVE
+                end
+                local label = (foldedLabels and foldedLabels[diffID])
+                    or DIFF_LETTER[diffID]
+                table.insert(inner, ("|c%s%s|r"):format(colour, label))
+            end
+        end
+        if debugEnabled then
+            RR._dotTrace = RR._dotTrace or {}
+            RR._dotTrace[item.id] = ("item=%s (id=%d) shape=binary(size-merged) state=%s"):format(
+                item.name or "?", item.id or 0, state)
+        end
+        local sep = "|cff555555 || |r"
+        return "|cff777777[ |r" .. table.concat(inner, sep) .. "|cff777777 ]|r"
+    end
 
     local colour, glyph = BinaryStateRendering(state)
 
@@ -4490,14 +4768,21 @@ local function BuildPerDiffRow(item)
             item.sources and "yes" or "NO"))
     end
 
+    -- A perdiff row can still carry ONE folded pair alongside a genuine
+    -- recolor pair (10N/10H sharing a look while 25N/25H are recolors).
+    -- Fold only the sharing pair; the recolor pills keep their own labels
+    -- and their own per-source states.
+    local foldedLabels, foldedSkip = UI.FoldedSizeLabels(item)
     for _, diffID in ipairs(DIFF_ORDER) do
         local src = item.sources and item.sources[diffID]
+        if foldedSkip and foldedSkip[diffID] then src = nil end
         -- Skip empty buckets. WoD-era split-loot-table raids have items
         -- with only 1 bucket ({[17]} for LFR pool) or 3 buckets ({[14],
         -- [15], [16]} for N/H/M pool); rendering iterates only over
         -- the diffs the item actually drops at.
         if src then
-            local letter = DIFF_LETTER[diffID]
+            local letter = (foldedLabels and foldedLabels[diffID])
+                or DIFF_LETTER[diffID]
             local colour
 
             local state = CollectionStateForSource(src, item.id)
@@ -4506,7 +4791,9 @@ local function BuildPerDiffRow(item)
                 colour = DOT_COLLECTED
             elseif state == "shared" then
                 colour = DOT_SHARED
-            elseif diffID == activeDiff then
+            elseif diffID == activeDiff
+                or (foldedLabels and foldedLabels[diffID]
+                    and UI.FoldAbsorbsDifficulty(item, diffID, activeDiff)) then
                 colour = DOT_ACTIVE
             else
                 colour = DOT_INACTIVE
@@ -4667,7 +4954,7 @@ BuildTransmogDetail = function(stepOrCtx)
 
     local candidates = {}
     for _, item in ipairs(boss.loot) do
-        if ItemIsTransmogCandidate(item) then
+        if ItemIsTransmogCandidate(item, nil, true) then
             table.insert(candidates, item)
         end
     end
@@ -4708,18 +4995,46 @@ BuildTransmogDetail = function(stepOrCtx)
     -- items (3 buckets: { [14], [15], [16] }), then full 4-bucket items
     -- (Legion+ per-difficulty raids). The grouping reads naturally as
     -- "shorter strips at the top" without needing an explicit sub-header.
-    local binaryItems  = {}
-    local perDiffItems = {}
+    -- Hard-mode-only drops (Ulduar) come out of the shape grouping entirely
+    -- and render as their own block at the bottom. They are a different kind
+    -- of gate from difficulty shape -- you cannot get them at all without
+    -- activating the encounter's hard mode -- so mixing them into the normal
+    -- strips would imply they drop on a standard clear.
+    -- Opposite-faction drops come out first, for the same reason: they are a
+    -- gate on the character rather than on the run, and interleaving them
+    -- would imply this character can loot them.
+    local binaryItems    = {}
+    local perDiffItems   = {}
+    local hardModeItems  = {}
+    local otherFactionItems = {}
     for _, item in ipairs(candidates) do
-        if ItemShape(item) == "binary" then
+        if ItemIsOtherFaction(item) then
+            table.insert(otherFactionItems, item)
+        elseif item.hardModeOnly then
+            table.insert(hardModeItems, item)
+        elseif ItemShape(item) == "binary"
+            and not UI.IsMergedSizeDifficultyRow(item) then
+            -- Merged size-difficulty rows are binary in state but render as
+            -- letter strips, so they group with the per-difficulty rows and
+            -- take the same bucket-signature clustering.
             table.insert(binaryItems, item)
         else
             table.insert(perDiffItems, item)
         end
     end
     local function bucketCount(item)
+        -- Counts RENDERED pills, not raw sources: a Wrath N/H pair that
+        -- shares one appearance folds to a single pill, so a folded
+        -- {10N,10H} row shows one pill and must sort with the other
+        -- one-pill rows rather than with the two-pill recolors it happens
+        -- to share a source count with.
+        local _, foldedSkip = UI.FoldedSizeLabels(item)
         local sourceCount = 0
-        for _ in pairs(item.sources or {}) do sourceCount = sourceCount + 1 end
+        for diffID in pairs(item.sources or {}) do
+            if not (foldedSkip and foldedSkip[diffID]) then
+                sourceCount = sourceCount + 1
+            end
+        end
         return sourceCount
     end
     -- A stable signature of which difficulty buckets an item drops from, so
@@ -4728,10 +5043,17 @@ BuildTransmogDetail = function(stepOrCtx)
     -- keeps the single-bucket group from mixing Normal-only ({[14]}) items in
     -- with the Raid Finder ({[17]}) pool -- they share bucketCount 1 but are
     -- different drop sources and shouldn't be intermingled. Lower difficulty
-    -- IDs sort first (Normal 14 before LFR 17).
+    -- IDs sort first (Normal 14 before LFR 17). Folded-away buckets are
+    -- excluded for the same reason as the count: the signature must
+    -- describe the strip the player sees.
     local function bucketSignature(item)
+        local _, foldedSkip = UI.FoldedSizeLabels(item)
         local ids = {}
-        for diffID in pairs(item.sources or {}) do ids[#ids + 1] = diffID end
+        for diffID in pairs(item.sources or {}) do
+            if not (foldedSkip and foldedSkip[diffID]) then
+                ids[#ids + 1] = diffID
+            end
+        end
         table.sort(ids)
         return table.concat(ids, ",")
     end
@@ -4767,14 +5089,27 @@ BuildTransmogDetail = function(stepOrCtx)
     local function isTier(item)
         return item.classes and #item.classes > 0
     end
-    table.sort(perDiffItems, function(a, b)
+    table.sort(hardModeItems, function(a, b)
+        local ka, kb = classKey(a), classKey(b)
+        if ka ~= kb then return ka < kb end
+        return (a.name or "") < (b.name or "")
+    end)
+    local function CompareRegularRows(a, b)
         local ta, tb = isTier(a), isTier(b)
         if ta ~= tb then return ta end           -- tier block first
         if ta then
-            -- Within tier: class ID ascending, then name.
+            -- Within tier: class ID ascending, then difficulty signature,
+            -- then name. The signature comes before the name so the
+            -- blank-line grouping below yields one block per difficulty;
+            -- name-first only LOOKED grouped on raids whose tier prefixes
+            -- happened to sort in difficulty order (Heroes' before
+            -- Valorous), and fragmented on Vault of Archavon where the
+            -- per-class PvP set names interleave the sizes.
             local ka = a.classes[1] or 0
             local kb = b.classes[1] or 0
             if ka ~= kb then return ka < kb end
+            local sa, sb = bucketSignature(a), bucketSignature(b)
+            if sa ~= sb then return sa < sb end
             return (a.name or "") < (b.name or "")
         end
         -- Within regular gear: shorter bucket strips first, then a stable
@@ -4784,7 +5119,11 @@ BuildTransmogDetail = function(stepOrCtx)
         local sa, sb = bucketSignature(a), bucketSignature(b)
         if sa ~= sb then return sa < sb end
         return (a.name or "") < (b.name or "")
-    end)
+    end
+    table.sort(perDiffItems, CompareRegularRows)
+    -- The faction block takes the same ordering, so it reads like the main
+    -- list rather than like a differently-sorted appendix.
+    table.sort(otherFactionItems, CompareRegularRows)
 
     -- Helper: format one item's full row ("rowIndicator  name [tier label]").
     -- Shared between both groups so the name/class-tier formatting stays
@@ -4911,6 +5250,28 @@ BuildTransmogDetail = function(stepOrCtx)
                 end
             end
         end
+
+        -- Drops that only appear when the encounter's hard mode was
+        -- activated. Appended last so it reads after any class tag, and
+        -- colored like the other availability tags rather than like the
+        -- item name.
+        if item.hardModeOnly then
+            nameText = ("%s |cffffffff(|r|cffF259C7%s|r|cffffffff)|r"):format(
+                nameText, RR.L["Hard mode only"])
+        end
+
+        -- Opposite-faction drops. Tagged per row rather than under a block
+        -- header, matching how hard-mode rows announce themselves (no block
+        -- in this popup carries a sub-header). Colored in the faction's own
+        -- color so the tag reads at a glance.
+        if ItemIsOtherFaction(item) then
+            local factionColor = (item.faction == "Alliance") and "ff6699ff" or "ffcc4444"
+            local factionLabel = (item.faction == "Alliance")
+                and (FACTION_ALLIANCE or RR.L["Alliance"])
+                or  (FACTION_HORDE or RR.L["Horde"])
+            nameText = ("%s |cffffffff(|r|c%s%s|r|cffffffff)|r"):format(
+                nameText, factionColor, factionLabel)
+        end
         return ("%s  %s"):format(BuildDotRow(item), nameText)
     end
 
@@ -4950,6 +5311,29 @@ BuildTransmogDetail = function(stepOrCtx)
             table.insert(lines, "")
         end
         lastSignature = sig
+        table.insert(lines, FormatItemRow(item))
+        MaybeAppendAcquisitionNote(item)
+    end
+
+    -- Hard-mode-only block, last. Separated by a blank line like the other
+    -- groups; every row already carries its own "Hard mode only" tag, so no
+    -- sub-header is needed (and none of the other blocks use one).
+    if #hardModeItems > 0 and (#binaryItems > 0 or #perDiffItems > 0) then
+        table.insert(lines, "")
+    end
+    for _, item in ipairs(hardModeItems) do
+        table.insert(lines, FormatItemRow(item))
+        MaybeAppendAcquisitionNote(item)
+    end
+
+    -- Opposite-faction block, after everything this character can loot.
+    -- Separated by a blank line like the other groups; every row carries its
+    -- own faction tag, so no sub-header is needed.
+    if #otherFactionItems > 0
+        and (#binaryItems > 0 or #perDiffItems > 0 or #hardModeItems > 0) then
+        table.insert(lines, "")
+    end
+    for _, item in ipairs(otherFactionItems) do
         table.insert(lines, FormatItemRow(item))
         MaybeAppendAcquisitionNote(item)
     end
@@ -5058,7 +5442,8 @@ BuildTransmogDetail = function(stepOrCtx)
 
         if #tokenRows > 0 then
             -- Blank-line separator above the token section.
-            if #binaryItems > 0 or #perDiffItems > 0 then
+            if #binaryItems > 0 or #perDiffItems > 0 or #hardModeItems > 0
+                or #otherFactionItems > 0 then
                 table.insert(lines, "")
             end
             for _, row in ipairs(tokenRows) do
@@ -5439,7 +5824,7 @@ GetOrCreateTmogWindow = function()
     local title = tmogFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 14, -10)
     title:SetText(RR.L["|cffF259C7RETRO|r|cff4DCCFFRUNS|r  Transmog"])
-    title:SetFont(RR:GetChromeFont(), 16, "")
+    SafeSetFont(title, RR:GetChromeFont(), 16, "")
     title:SetShadowOffset(1, -1)
     title:SetShadowColor(0, 0, 0, 1)
 
@@ -5448,6 +5833,20 @@ GetOrCreateTmogWindow = function()
     closeBtn:SetScript("OnClick", function()
         browserState.active = false
         tmogFrame:Hide()
+    end)
+
+    -- The class filter is a view for as long as the browser is open, not a
+    -- saved preference. Looking at another class's drops -- picked in the
+    -- dropdown, or reached by clicking a toast for gear this character
+    -- cannot wear -- must not follow the player to the next time they open
+    -- the browser, nor to the next character. Clearing on hide sends the
+    -- next open back to the class being played, which is what
+    -- ActiveClassFilter returns once nothing is stored.
+    tmogFrame:HookScript("OnHide", function()
+        browserState.classFilter = nil
+        if tmogFrame.RefreshClassDropdown then
+            tmogFrame:RefreshClassDropdown()
+        end
     end)
 
     -- Three cascading dropdowns: Expansion / Raid / Boss.
@@ -5548,7 +5947,7 @@ GetOrCreateTmogWindow = function()
     -- ActiveClassFilter), so the out-of-box view is unchanged. Replaces the
     -- older "show all class tier" checkbox -- a dropdown lets you pick any
     -- single class, not just your-own-vs-everyone. Persisted to
-    -- RetroRunsDB.tmogClassFilter (class ID, or 0 for "all").
+    -- browserState.classFilter (class ID, or 0 for "all").
     local ddClass = MakeDD("Class", 110, tmogFrame, RR.L["Class:"])
     ddClass:SetPoint("TOPLEFT", ddBoss, "BOTTOMLEFT", DD_STEP, 4)
     anchorLabel(ddClass)
@@ -5587,8 +5986,14 @@ GetOrCreateTmogWindow = function()
         -- overlaps the longest string.
         local ARROW_PAD = 30
 
-        -- Expansion: full constant list (future names included).
-        local expW = widestStringWidth(EXPANSION_ORDER_NEWEST_FIRST)
+        -- Expansion: full constant list (future names included), measured
+        -- as displayed -- the dropdown renders localized names where the
+        -- locale carries them.
+        local localizedExpansions = {}
+        for i, expansionName in ipairs(EXPANSION_ORDER_NEWEST_FIRST) do
+            localizedExpansions[i] = RR.L[expansionName]
+        end
+        local expW = widestStringWidth(localizedExpansions)
 
         -- Raid + Boss: every current raid and boss name.
         local raidNames, bossNames = {}, {}
@@ -5657,7 +6062,7 @@ GetOrCreateTmogWindow = function()
             allInfo.value   = 0
             allInfo.checked = (active == nil)
             allInfo.func    = function()
-                RR:SetSetting("tmogClassFilter", 0)
+                browserState.classFilter = 0
                 if tmogFrame.RefreshAll then tmogFrame:RefreshAll() end
             end
             UIDropDownMenu_AddButton(allInfo)
@@ -5668,7 +6073,7 @@ GetOrCreateTmogWindow = function()
                 info.value   = classID
                 info.checked = (active == classID)
                 info.func    = function()
-                    RR:SetSetting("tmogClassFilter", classID)
+                    browserState.classFilter = classID
                     if tmogFrame.RefreshAll then tmogFrame:RefreshAll() end
                 end
                 UIDropDownMenu_AddButton(info)
@@ -5860,7 +6265,7 @@ GetOrCreateTmogWindow = function()
             for _, expName in ipairs(expList) do
                 local n, s, t = CountExpansionLoot(expName, byExp)
                 local info = UIDropDownMenu_CreateInfo()
-                info.text = expName .. FormatCountSuffix(n, s, t)
+                info.text = RR.L[expName] .. FormatCountSuffix(n, s, t)
                 info.value = expName
                 info.checked = (expName == browserState.expansion)
                 info.func = function()
@@ -5875,7 +6280,7 @@ GetOrCreateTmogWindow = function()
                 UIDropDownMenu_AddButton(info)
             end
         end)
-        UIDropDownMenu_SetText(ddExp, browserState.expansion or "(none)")
+        UIDropDownMenu_SetText(ddExp, RR.L[browserState.expansion or "(none)"])
 
         -- Raid dropdown (within current expansion)
         UIDropDownMenu_Initialize(ddRaid, function()
@@ -6984,7 +7389,7 @@ local function RefreshSkipsContent()
             -- to the font height and anchored to LEFT, so the reserved
             -- run of spaces keeps the visible label from shifting whether
             -- the button shows +/- or the row expands/collapses.
-            slot.expHeader:SetText(("    |cff00ffff%s|r"):format(row.text))
+            slot.expHeader:SetText(("    |cff00ffff%s|r"):format(RR.L[row.text]))
             slot.expHeader:ClearAllPoints()
             slot.expHeader:SetPoint("TOPLEFT", window, "TOPLEFT", SKIPS_COL_NAME_X, y)
             slot.expHeader:Show()
@@ -7258,7 +7663,7 @@ GetOrCreateSkipsWindow = function()
     local title = skipsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 14, -10)
     title:SetText(RR.L["|cffF259C7RETRO|r|cff4DCCFFRUNS|r  Raid Skips"])
-    title:SetFont(RR:GetChromeFont(), 16, "")
+    SafeSetFont(title, RR:GetChromeFont(), 16, "")
     title:SetShadowOffset(1, -1)
     title:SetShadowColor(0, 0, 0, 1)
 
@@ -7446,8 +7851,11 @@ local function BuildIdleListPills(raid)
     -- Build from the raid's difficulty model so shared-lockout raids show
     -- N | H and independent raids show N | H | M without a per-model branch. LFR (17)
     -- is intentionally absent from the label map, matching the in-raid
-    -- pill row -- LFR sources live in the transmog browser.
+    -- pill row -- LFR sources live in the transmog browser. 3/4/5/6 are
+    -- the Wrath size difficulties, kept as their own buckets because each
+    -- size has its own loot table.
     local BUCKET_LABEL = {
+        [3] = "10N", [4] = "25N", [5] = "10H", [6] = "25H",
         [14] = "N", [15] = "H", [16] = "M",
     }
     local PILLS = {}
@@ -7464,11 +7872,16 @@ local function BuildIdleListPills(raid)
     local FRESH    = "888888"  -- matches SPECIAL_UNCOLLECTED RGB
     local INACTIVE = "555555"  -- doesn't apply
 
-    -- Mists shared lockout: once a mode is committed for the week, its
-    -- Normal/Heroic sibling is unreachable. Mark that sibling with a lock
+    -- Shared lockout: once a mode is committed for the week, its
+    -- shared-lockout sibling (Normal/Heroic, or 10/25) is unreachable. Mark that sibling with a lock
     -- glyph (no recolor -- an untouched pill is already gray, so color
     -- alone couldn't distinguish "locked this week" from "not yet done").
-    local lockedBucket = RR:GetLockedOutBucket(raid, counts)
+    -- Every sibling the shared lockout blocks, not just one: a four-member
+    -- group (Wrath sizesHeroic) locks three pills off a single commit.
+    local lockedBuckets = {}
+    for _, bucket in ipairs(RR:GetLockedOutBuckets(raid, counts) or {}) do
+        lockedBuckets[bucket] = true
+    end
     -- yOffset drops the icon onto the text baseline; trailing RGB tints it
     -- gold (the LFG lock is the locked-out marker).
     local LOCK_GLYPH = " |TInterface\\PetBattles\\PetBattle-LockIcon:12:12:0:0|t"
@@ -7508,7 +7921,7 @@ local function BuildIdleListPills(raid)
     for _, p in ipairs(PILLS) do
         local count = counts[p.id]
         local label = p.label
-        local lock = (p.id == lockedBucket) and LOCK_GLYPH or ""
+        local lock = lockedBuckets[p.id] and LOCK_GLYPH or ""
 
         if count and count.total > 0 then
             local hex
@@ -7887,6 +8300,8 @@ RefreshIdleList = function()
     local LEGEND_FONT_SIZE = 10
 
     local prev = nil  -- previous FontString, for anchor chaining
+    -- Running total of pixels the applied row gaps exceed ROW_GAP by.
+    local extraSpacerGapPx = 0
     -- Collect legend rows during the main pass; render them in a
     -- dedicated bottom-up pass below so they pin near the action
     -- row regardless of how short the raid list is.
@@ -7918,7 +8333,7 @@ RefreshIdleList = function()
             if row.kind == "expansionHeader" then
                 -- Indent with leading spaces to leave room for the
                 -- toggle button glyph anchored at LEFT.
-                fs:SetText(("    |cff00ffff%s|r"):format(row.exp))
+                fs:SetText(("    |cff00ffff%s|r"):format(RR.L[row.exp]))
             elseif row.kind == "wingHeader" then
                 -- Wing header: "WingName (n/N)", one level under the pill row.
                 -- Green when fully cleared, gray otherwise. An unmapped wing
@@ -7959,6 +8374,12 @@ RefreshIdleList = function()
             if prev then
                 local gap = prev._nextGap or ROW_GAP
                 prev._nextGap = nil
+                -- AutoSize reserves height assuming every row advances by
+                -- ROW_GAP. A spacer gap is wider, and spacers get no
+                -- FontString of their own, so the surplus is invisible to a
+                -- row count. Bank it here, where the gap is actually applied,
+                -- for AutoSize to add to its reserve.
+                extraSpacerGapPx = extraSpacerGapPx + (gap - ROW_GAP)
                 fs:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -gap)
             else
                 fs:SetPoint("TOPLEFT", panel.listHeader, "BOTTOMLEFT", 0, -8)
@@ -8020,7 +8441,7 @@ RefreshIdleList = function()
                 end
                 local mfs = panel._wingChevronMeasureFS
                 local ff, fsz, ffl = fs:GetFont()
-                if ff then mfs:SetFont(ff, fsz or fontSize, ffl or "") end
+                if ff then SafeSetFont(mfs, ff, fsz or fontSize, ffl or "") end
                 mfs:SetText(lfrPrefix)
                 local lfrW = mfs:GetStringWidth() or 0
 
@@ -8132,6 +8553,7 @@ RefreshIdleList = function()
         end
     end
 
+    panel._idleListExtraGapPx = extraSpacerGapPx
 
     -- Bottom-up legend pass. The legend pins to a fixed distance from
     -- the panel bottom (above the action button row) regardless of how
@@ -8401,7 +8823,7 @@ function UI.Update()
         if wing and wing.name then
             local rfFont, rfSize, rfFlags = panel.raid:GetFont()
             if rfFont and rfSize then
-                panel.wingLine:SetFont(rfFont, rfSize - 2, rfFlags)
+                SafeSetFont(panel.wingLine, rfFont, rfSize - 2, rfFlags)
             end
             local WING_ARROW = "|TInterface\\ChatFrame\\ChatFrameExpandArrow:10:10:0:0:32:32:0:32:0:32:242:89:199|t"
             local wingName = RR:GetCurrentWingName() or wing.name
@@ -8631,7 +9053,9 @@ function UI.Update()
             -- empty/unauthored route returns false, preserving the
             -- "not yet captured" state for in-development bring-ups.
             local routeComplete = RR.IsActiveRouteComplete and RR:IsActiveRouteComplete()
-            local isSkip = RR.state and RR.state.activeRouteVariant == "skip"
+            local isSkip = (RR.state and RR.state.activeRouteVariant == "skip")
+                or (RR.ActiveRouteSkippedOptionalBoss
+                    and RR:ActiveRouteSkippedOptionalBoss())
 
             -- Run-complete state: every boss in the active route cleared.
             -- Drops the Travel line, re-anchors listHeader under the exit
@@ -9243,15 +9667,18 @@ function UI._GetOrCreateLoadDialog()
     -- RETRORUNS wordmark, retro font, two-tone like the panel title.
     -- Larger than the raid name below it. Pulled in from the top border.
     local brand = loadDialog:CreateFontString(nil, "OVERLAY")
-    brand:SetFont(TITLE_FONT, 22, "OUTLINE")
+    SafeSetFont(brand, TITLE_FONT, 22, "OUTLINE")
     brand:SetPoint("TOP", loadDialog, "TOP", 0, -24)
     brand:SetText("|cffF259C7RETRO|r|cff4DCCFFRUNS|r")
     loadDialog.brand = brand
 
-    -- Raid name (replaces "Route data found for:"), retro font, smaller
-    -- than the wordmark above.
+    -- Raid name (replaces "Route data found for:"), smaller than the
+    -- wordmark above. Carries a localized string, so it takes the chrome
+    -- font here as well as in ShowLoadDialog -- the pixel face covers
+    -- ASCII only, and this font is what the frame renders with until the
+    -- first populate.
     local raidName = loadDialog:CreateFontString(nil, "OVERLAY")
-    raidName:SetFont(TITLE_FONT, 15, "")
+    SafeSetFont(raidName, RR:GetChromeFont(), 16, "")
     raidName:SetPoint("TOP", brand, "BOTTOM", 0, -14)
     raidName:SetWidth(300)
     raidName:SetWordWrap(true)
@@ -9259,10 +9686,28 @@ function UI._GetOrCreateLoadDialog()
     raidName:SetTextColor(1, 1, 0)
     loadDialog.raidName = raidName
 
-    -- SELECT ROUTE prompt in the retro font, centered.
+    -- Difficulty, on its own line under the raid name and a step smaller so
+    -- the name reads as the heading. A separate FontString rather than a
+    -- second line of the name: one FontString renders at one size, and these
+    -- two want different ones. Sits flush under the name (no extra offset),
+    -- so when no difficulty is showing its empty string collapses to zero
+    -- height and the spacing below matches a name-only title exactly.
+    -- Localized like the name, so it takes the chrome font here too.
+    local difficultyLine = loadDialog:CreateFontString(nil, "OVERLAY")
+    SafeSetFont(difficultyLine, RR:GetChromeFont(), 13, "")
+    difficultyLine:SetPoint("TOP", raidName, "BOTTOM", 0, 0)
+    difficultyLine:SetWidth(300)
+    difficultyLine:SetWordWrap(true)
+    difficultyLine:SetJustifyH("CENTER")
+    difficultyLine:SetTextColor(1, 1, 0)
+    loadDialog.difficultyLine = difficultyLine
+
+    -- SELECT ROUTE prompt, centered. Its text is a translated string and is
+    -- set right here at creation, so it must use the chrome font from the
+    -- start rather than the ASCII-only pixel face.
     local loading = loadDialog:CreateFontString(nil, "OVERLAY")
-    loading:SetFont(TITLE_FONT, 14, "")
-    loading:SetPoint("TOP", raidName, "BOTTOM", 0, -14)
+    SafeSetFont(loading, RR:GetChromeFont(), 14, "")
+    loading:SetPoint("TOP", difficultyLine, "BOTTOM", 0, -14)
     loading:SetJustifyH("CENTER")
     loading:SetText(LOAD_DIALOG_BASE)
     loadDialog.loading = loading
@@ -9315,7 +9760,7 @@ function UI._GetOrCreateLoadDialog()
         local translated = RR.L[englishWord]
         if translated == englishWord then return end
         local label = button:CreateFontString(nil, "OVERLAY")
-        label:SetFont(RR:GetChromeFont(), SUB_LABEL_SIZE, "")
+        SafeSetFont(label, RR:GetChromeFont(), SUB_LABEL_SIZE, "")
         if outerSide == "LEFT" then
             label:SetPoint("BOTTOMLEFT", button, "TOPLEFT", 4, SUB_LABEL_GAP)
         else
@@ -9323,6 +9768,13 @@ function UI._GetOrCreateLoadDialog()
         end
         label:SetText(("|c%s%s|r"):format(colorHex, translated))
         label:Hide()
+        -- The label occupies the band directly above the button, which is
+        -- where the SELECT ROUTE prompt lands on a two-line title. Reserve
+        -- its height in the frame so the two never share a line: the prompt
+        -- is anchored down from the title and the buttons up from the frame
+        -- bottom, so a taller frame is what separates them. Only locales
+        -- that translate the button words pay the extra height.
+        loadDialog.subLabelClearance = SUB_LABEL_SIZE + SUB_LABEL_GAP + 6
         -- Hover-only. Motion scripts stay live on a disabled button so a
         -- locked SKIP still reveals its translation on hover.
         button:SetMotionScriptsWhileDisabled(true)
@@ -9389,6 +9841,12 @@ function UI._GetOrCreateLoadDialog()
         self:SetScript("OnUpdate", nil)
     end)
 
+    -- CreateFrame yields a SHOWN frame. Without this the dialog appears the
+    -- instant it is built, before ShowLoadDialog has filled in the raid name
+    -- or re-fonted anything -- an empty name line above a prompt still in
+    -- whatever font creation left. ShowLoadDialog calls Show() itself.
+    loadDialog:Hide()
+
     UI._loadDialogFrame = loadDialog
     return loadDialog
 end
@@ -9419,18 +9877,37 @@ function UI.ShowLoadDialog(raidName)
     -- mark (ASCII by definition) and stays in the pixel font either way.
     -- Swapped per-populate, so both branches are always set.
     local titleName = raidName or (raid and RR:GetLocalizedRaidName(raid)) or "?"
-    dialog.raidName:SetFont(RR:GetChromeFont(), 15, "")
-    dialog.loading:SetFont(RR:GetChromeFont(), 14, "")
+    -- The difficulty renders on its own line, in its own smaller FontString,
+    -- rather than running on after the raid name where it used to wrap
+    -- mid-phrase ("Trial of the Crusader (10 / Player (Heroic))"). Taken from
+    -- the raid and live difficulty directly; the passed-in composite string
+    -- stays the fallback for the case where no raid is loaded yet.
+    local difficultyName = RR.state and RR.state.currentDifficultyName
+    if raid and difficultyName and difficultyName ~= "" then
+        titleName = RR:GetLocalizedRaidName(raid)
+    else
+        difficultyName = nil
+    end
+    SafeSetFont(dialog.raidName, RR:GetChromeFont(), 16, "")
+    SafeSetFont(dialog.difficultyLine, RR:GetChromeFont(), 13, "")
+    SafeSetFont(dialog.loading, RR:GetChromeFont(), 14, "")
     dialog.raidName:SetText(titleName)
+    dialog.difficultyLine:SetText(difficultyName or "")
     dialog.loading:SetText(dialog.loadBase)
 
-    -- Long raid names (difficulty suffix included) wrap to a second line.
-    -- The buttons anchor to the frame bottom, so a fixed height lets the
-    -- wrapped name shove the prompt into the button row. Grow the frame
-    -- by the overflow past one line so the vertical spacing holds.
+    -- A long raid name can wrap past one line, and the difficulty line adds
+    -- its own height when present. The buttons anchor to the frame bottom, so
+    -- a fixed height would let either push the prompt into the button row.
+    -- Grow the frame by the name's overflow past one line, whatever the
+    -- difficulty line occupies (zero when it is empty), and the hover
+    -- sub-label band on locales that translate the button words.
     local nameLineHeight = dialog.raidName:GetLineHeight() or 15
     local nameTextHeight = dialog.raidName:GetStringHeight() or nameLineHeight
-    dialog:SetHeight(dialog.baseHeight + math.max(0, nameTextHeight - nameLineHeight))
+    local difficultyHeight = dialog.difficultyLine:GetStringHeight() or 0
+    dialog:SetHeight(dialog.baseHeight
+        + math.max(0, nameTextHeight - nameLineHeight)
+        + difficultyHeight
+        + (dialog.subLabelClearance or 0))
 
     -- Resolve SKIP state. Gate on the chain the authored route targets:
     -- a raid with multiple skip chains (HFC: Iskar + Mannoroth) but one
@@ -9457,7 +9934,8 @@ function UI.ShowLoadDialog(raidName)
         -- When SKIP is the route being resumed, the footer becomes the
         -- "Continue?" hint (replacing the boss name) so it lands in the
         -- footer slot rather than stacking onto the frame border below it.
-        dialog.skipFooter:SetText(resumeIsSkip and RR.L["Continue?"] or (raid.skipToBoss or ""))
+        dialog.skipFooter:SetText(resumeIsSkip and RR.L["Continue?"]
+            or (RR:GetLocalizedSkipTargetName(raid) or ""))
     else
         dialog.SetButtonEnabled(dialog.skipBtn, false)
         if not hasRoute then
@@ -9528,44 +10006,56 @@ end
 --
 -- Row kinds:
 --   "glory"    -- raid-level Glory meta header. Fields: id, name, completed,
---                 done, total, rewardSpellID, rewardItemID, rewardName.
---                 Skipped when raid has no gloryMeta entry. Always first.
+--                 done, total, rewardSpellID, rewardItemID, rewardName,
+--                 rewardRemoved. One row per entry in the raid's gloryMetas
+--                 list (gloryMeta, singular, still reads as a one-entry
+--                 list). Always first, in list order.
 --   "spacer"   -- inserts a half-row of vertical space.
 --   "header"   -- column header row. Static labels.
---   "achRow"   -- one boss + one achievement. Fields: bossName,
---                 achievementID, achievementName, completed, soloable, meta.
---                 Bosses with N achievements produce N rows; the boss name
---                 repeats so the column stays easy to scan.
---   "naRow"    -- boss has zero achievements. Fields: bossName.
---                 Renders "N/A" in the achievement and status columns.
+--   "achRow"   -- one achievement, usually attached to a boss. Fields:
+--                 bossName, achievementID, achievementName, completed,
+--                 soloable, meta, raidWide. Bosses with N achievements
+--                 produce N rows; the boss name repeats so the column stays
+--                 easy to scan. Raid-wide achievements (the raid's
+--                 raidAchievements list) render after the boss rows with
+--                 raidWide = true and a dash in the boss column. Bosses
+--                 with zero achievements produce no rows.
 local function BuildAchievementRows(raid)
     local rows = {}
     if not raid then return rows end
 
-    -- 1. Glory meta header (when present)
-    local meta = raid.gloryMeta
-    if meta and meta.id then
-        local _, mName, _, mCompleted = GetAchievementInfo(meta.id)
-        local total = GetAchievementNumCriteria and GetAchievementNumCriteria(meta.id) or 0
-        local done  = 0
-        if total and total > 0 and GetAchievementCriteriaInfo then
-            for i = 1, total do
-                local _, _, critDone = GetAchievementCriteriaInfo(meta.id, i)
-                if critDone then done = done + 1 end
+    -- 1. Glory meta headers (when present). A raid carries either a
+    --    gloryMetas list (paired 10/25 glories) or a single gloryMeta.
+    local metas = raid.gloryMetas
+        or (raid.gloryMeta and { raid.gloryMeta })
+        or {}
+    for _, meta in ipairs(metas) do
+        if meta.id then
+            local _, mName, _, mCompleted = GetAchievementInfo(meta.id)
+            local total = GetAchievementNumCriteria and GetAchievementNumCriteria(meta.id) or 0
+            local done  = 0
+            if total and total > 0 and GetAchievementCriteriaInfo then
+                for i = 1, total do
+                    local _, _, critDone = GetAchievementCriteriaInfo(meta.id, i)
+                    if critDone then done = done + 1 end
+                end
             end
+            table.insert(rows, {
+                kind          = "glory",
+                id            = meta.id,
+                name          = mName or meta.name or (RR.L["Glory ID "] .. meta.id),
+                completed     = mCompleted,
+                done          = done,
+                total         = total,
+                rewardSpellID = meta.rewardMountSpellID,
+                rewardItemID  = meta.rewardItemID,
+                rewardName    = meta.rewardName,
+                rewardTitle   = meta.rewardTitle,
+                rewardRemoved = meta.rewardRemoved,
+            })
         end
-        table.insert(rows, {
-            kind          = "glory",
-            id            = meta.id,
-            name          = mName or meta.name or (RR.L["Glory ID "] .. meta.id),
-            completed     = mCompleted,
-            done          = done,
-            total         = total,
-            rewardSpellID = meta.rewardMountSpellID,
-            rewardItemID  = meta.rewardItemID,
-            rewardName    = meta.rewardName,
-            rewardTitle   = meta.rewardTitle,
-        })
+    end
+    if #rows > 0 then
         table.insert(rows, { kind = "spacer" })
     end
 
@@ -9574,27 +10064,39 @@ local function BuildAchievementRows(raid)
 
     -- 3. Per-boss rows in encounter order. Bosses with multiple achievements
     --    expand to multiple rows (one per achievement); bosses with none
-    --    produce a single naRow.
+    --    produce nothing.
     if raid.bosses then
         for _, boss in ipairs(raid.bosses) do
             local bossName = RR:GetLocalizedBossName(boss) or "?"
-            if not boss.achievements or #boss.achievements == 0 then
-                table.insert(rows, { kind = "naRow", bossName = bossName })
-            else
-                for _, ach in ipairs(boss.achievements) do
-                    local _, aName, _, aCompleted = GetAchievementInfo(ach.id)
-                    table.insert(rows, {
-                        kind            = "achRow",
-                        bossName        = bossName,
-                        achievementID   = ach.id,
-                        achievementName = aName or ach.name or ("ID " .. ach.id),
-                        completed       = aCompleted,
-                        soloable        = ach.soloable,
-                        meta            = ach.meta,
-                    })
-                end
+            for _, ach in ipairs(boss.achievements or {}) do
+                local _, aName, _, aCompleted = GetAchievementInfo(ach.id)
+                table.insert(rows, {
+                    kind            = "achRow",
+                    bossName        = bossName,
+                    achievementID   = ach.id,
+                    achievementName = aName or ach.name or ("ID " .. ach.id),
+                    completed       = aCompleted,
+                    soloable        = ach.soloable,
+                    meta            = ach.meta,
+                })
             end
         end
+    end
+
+    -- 4. Raid-wide achievements, after the boss rows. No boss attribution;
+    --    the boss column renders a dash.
+    for _, ach in ipairs(raid.raidAchievements or {}) do
+        local _, aName, _, aCompleted = GetAchievementInfo(ach.id)
+        table.insert(rows, {
+            kind            = "achRow",
+            bossName        = "-",
+            raidWide        = true,
+            achievementID   = ach.id,
+            achievementName = aName or ach.name or ("ID " .. ach.id),
+            completed       = aCompleted,
+            soloable        = ach.soloable,
+            meta            = ach.meta,
+        })
     end
 
     return rows
@@ -9641,8 +10143,6 @@ local function FingerprintAchRows(rows, currentBossName)
                 tostring(row.bossName), tostring(row.achievementID),
                 tostring(row.achievementName), tostring(row.completed),
                 tostring(row.soloable), tostring(row.meta))
-        elseif rowKind == "naRow" then
-            parts[i] = ("N|%s"):format(tostring(row.bossName))
         else
             -- spacer, header: no per-row state beyond kind
             parts[i] = rowKind
@@ -9747,7 +10247,6 @@ local ACH_ROW_BOTTOM_INSET = 5
 -- consistency.
 local ACH_CELL_DONE   = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
 local ACH_CELL_TODO   = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14|t"
-local ACH_CELL_NA     = "|cff666666N/A|r"
 
 -- Meta-Glory prefix textures. Both occupy the same width so non-meta
 -- rows visually align with meta rows in the achievement column.
@@ -9912,7 +10411,7 @@ GetOrCreateAchievementsWindow = function()
     local title = achFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 14, -10)
     title:SetText(RR.L["|cffF259C7RETRO|r|cff4DCCFFRUNS|r  Achievements"])
-    title:SetFont(RR:GetChromeFont(), 16, "")
+    SafeSetFont(title, RR:GetChromeFont(), 16, "")
     title:SetShadowOffset(1, -1)
     title:SetShadowColor(0, 0, 0, 1)
 
@@ -10013,38 +10512,108 @@ GetOrCreateAchievementsWindow = function()
         UIDropDownMenu_SetWidth(ddRaid, math.ceil(raidW) + ARROW_PAD)
     end
 
-    -- Glory header section (above the column-header row). Three FontStrings
-    -- repositioned by RefreshContent based on whether the raid has a
-    -- gloryMeta. titleLine renders only when the Glory rewards a title
-    -- (e.g. "the Tomb Raider"). Hidden entirely when there's no Glory.
-    achFrame.gloryLine = achFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    achFrame.gloryLine:SetJustifyH("LEFT")
-    achFrame.gloryLine:SetWordWrap(false)
+    -- Scrollable row region. Wrath-era raids carry enough achievements
+    -- (per-boss 10/25 pairs plus two glories) that the row table can
+    -- outgrow any screen-safe window height; rows render into a
+    -- ScrollFrame child so overflow scrolls instead of spilling past the
+    -- frame edge. The legend stays a fixed footer on the window itself.
+    -- Pattern mirrors the transmog popup's content scroll, including the
+    -- scrollbar guard against the template re-showing the bar at zero
+    -- range.
+    local rowScroll = CreateFrame("ScrollFrame", "RetroRunsAchScroll",
+                                  achFrame, "UIPanelScrollFrameTemplate")
+    rowScroll:SetPoint("TOPLEFT", achFrame, "TOPLEFT", 0, -1)
+    rowScroll:SetSize(10, 10)   -- real geometry set per layout pass
+    achFrame.rowScroll = rowScroll
 
-    achFrame.rewardLine = achFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    achFrame.rewardLine:SetJustifyH("LEFT")
-    achFrame.rewardLine:SetWordWrap(false)
+    local function ResolveAchScrollBar()
+        return rowScroll.ScrollBar or _G["RetroRunsAchScrollScrollBar"]
+    end
+    local achBarGuardInstalled = false
+    local function EnsureAchBarGuard()
+        if achBarGuardInstalled then return end
+        local bar = ResolveAchScrollBar()
+        if not bar then return end
+        bar:HookScript("OnShow", function(self)
+            local range = rowScroll:GetVerticalScrollRange() or 0
+            if not achFrame.rowsScrollable or range <= 1 then
+                self:Hide()
+            end
+        end)
+        achBarGuardInstalled = true
+    end
+    rowScroll:HookScript("OnScrollRangeChanged", function(self)
+        EnsureAchBarGuard()
+        local bar = ResolveAchScrollBar()
+        if not bar then return end
+        local range = self:GetVerticalScrollRange() or 0
+        if achFrame.rowsScrollable and range > 1 then
+            bar:Show()
+        else
+            bar:Hide()
+            if self.SetVerticalScroll then self:SetVerticalScroll(0) end
+        end
+    end)
 
-    achFrame.titleLine = achFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    achFrame.titleLine:SetJustifyH("LEFT")
-    achFrame.titleLine:SetWordWrap(false)
+    local rowContent = CreateFrame("Frame", "RetroRunsAchScrollChild", rowScroll)
+    rowContent:SetSize(10, 10)   -- real size set per layout pass
+    rowScroll:SetScrollChild(rowContent)
+    achFrame.rowContent = rowContent
+
+    -- Row content carries achievement/item links, so mirror the window's
+    -- hyperlink handlers on the scroll child; link mouse events fire on
+    -- the frame owning the FontString, which is now the child.
+    rowContent:SetHyperlinksEnabled(true)
+    rowContent:SetScript("OnHyperlinkClick", function(_, link, text, button)
+        SetItemRef(link, text, button)
+    end)
+    rowContent:SetScript("OnHyperlinkEnter", function(self, link)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetHyperlink(link)
+        GameTooltip:Show()
+    end)
+    rowContent:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
+
+    -- Glory header sections (above the column-header row), one slot per
+    -- glory in the raid's list. Each slot is a gloryLine (name + status),
+    -- a rewardLine, and a titleLine; slots are created lazily and reused
+    -- across raid switches. titleLine renders only when the Glory rewards
+    -- a title (e.g. "the Tomb Raider").
+    achFrame.gloryPool = {}
+    achFrame.GetGlorySlot = function(self, idx)
+        local pool = self.gloryPool
+        if pool[idx] then return pool[idx] end
+        local slot = {}
+        slot.gloryLine = rowContent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        slot.gloryLine:SetJustifyH("LEFT")
+        slot.gloryLine:SetWordWrap(false)
+        slot.rewardLine = rowContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        slot.rewardLine:SetJustifyH("LEFT")
+        slot.rewardLine:SetWordWrap(false)
+        slot.titleLine = rowContent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        slot.titleLine:SetJustifyH("LEFT")
+        slot.titleLine:SetWordWrap(false)
+        pool[idx] = slot
+        return slot
+    end
 
     -- Column-header FontStrings. Persistent (positioned by RefreshContent
-    -- based on whether Glory is present) and shown for every non-empty
-    -- raid render.
-    achFrame.hdrStatus = achFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    -- below the glory block) and shown for every non-empty raid render.
+    -- They live on the scroll child so long tables scroll them with the
+    -- rows.
+    achFrame.hdrStatus = rowContent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     achFrame.hdrStatus:SetJustifyH("CENTER")
     achFrame.hdrStatus:SetText(RR.L["|cff4DCCFFStatus|r"])
 
-    achFrame.hdrAch = achFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    achFrame.hdrAch = rowContent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     achFrame.hdrAch:SetJustifyH("LEFT")
     achFrame.hdrAch:SetText(RR.L["|cff4DCCFFAchievement|r"])
 
-    achFrame.hdrBoss = achFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    achFrame.hdrBoss = rowContent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     achFrame.hdrBoss:SetJustifyH("LEFT")
     achFrame.hdrBoss:SetText(RR.L["|cff4DCCFFBoss|r"])
 
-    achFrame.hdrWowhead = achFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    achFrame.hdrWowhead = rowContent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     achFrame.hdrWowhead:SetJustifyH("CENTER")
     achFrame.hdrWowhead:SetText(RR.L["|cffff8000Wowhead|r"])
 
@@ -10093,7 +10662,7 @@ GetOrCreateAchievementsWindow = function()
         UIDropDownMenu_Initialize(ddExp, function()
             for _, expName in ipairs(expList) do
                 local info = UIDropDownMenu_CreateInfo()
-                info.text    = expName
+                info.text    = RR.L[expName]
                 info.value   = expName
                 info.checked = (expName == achState.expansion)
                 info.func    = function()
@@ -10106,7 +10675,7 @@ GetOrCreateAchievementsWindow = function()
                 UIDropDownMenu_AddButton(info)
             end
         end)
-        UIDropDownMenu_SetText(ddExp, achState.expansion or "(none)")
+        UIDropDownMenu_SetText(ddExp, RR.L[achState.expansion or "(none)"])
 
         UIDropDownMenu_Initialize(ddRaid, function()
             local raids = byExp[achState.expansion] or {}
@@ -10177,9 +10746,11 @@ GetOrCreateAchievementsWindow = function()
         -- always for non-empty raids -- but if a future code path renders
         -- a raid with no rows, hiding here ensures the previous raid's
         -- headers don't leak through visually.
-        achFrame.gloryLine:Hide()
-        achFrame.rewardLine:Hide()
-        achFrame.titleLine:Hide()
+        for _, glorySlot in pairs(achFrame.gloryPool) do
+            glorySlot.gloryLine:Hide()
+            glorySlot.rewardLine:Hide()
+            glorySlot.titleLine:Hide()
+        end
         achFrame.hdrStatus:Hide()
         achFrame.hdrAch:Hide()
         achFrame.hdrBoss:Hide()
@@ -10229,10 +10800,6 @@ GetOrCreateAchievementsWindow = function()
 
                 local bossW = MeasureWidth(achFrame.measureFS, row.bossName)
                 if bossW > widestBoss then widestBoss = bossW end
-
-            elseif row.kind == "naRow" then
-                local bossW = MeasureWidth(achFrame.measureFS, row.bossName)
-                if bossW > widestBoss then widestBoss = bossW end
             end
         end
 
@@ -10260,23 +10827,45 @@ GetOrCreateAchievementsWindow = function()
         local colBossX = colNameX + colNameW + 6
 
         -- Window width: status column + ach column + boss column +
-        -- Wowhead column (button + inset on each side) + left margin.
-        -- The +20 right of the boss column accounts for the gap before
-        -- the Wowhead button starts.
+        -- Wowhead column (button + inset on each side) + left margin,
+        -- plus a permanently reserved scrollbar gutter on the right so
+        -- the column layout is identical whether or not the current
+        -- raid's rows overflow.
+        local ACH_SCROLLBAR_GUTTER = 28
         local wowheadColumnW = ACH_WOWHEAD_BTN_W + ACH_WOWHEAD_RIGHT_INSET + 20
         local windowW = colBossX + colBossW + wowheadColumnW
         windowW = math.max(windowW, ACH_WINDOW_WIDTH)
-        achFrame:SetWidth(windowW)
 
-        -- Vertical cursor starts below the dropdown stack. The two
-        -- dropdowns occupy ~64px below the title bar.
-        local DROPDOWNS_BOTTOM = 32 + 2 * 32  -- title + 2 dropdowns
-        local y = -DROPDOWNS_BOTTOM - 4
+        -- Width ratchets for the session: switching raids never narrows
+        -- the frame, it only widens when a raid's measured need exceeds
+        -- the current width. The transmog popup reads as stable because
+        -- its width is constant and only its bottom edge moves; a
+        -- measured layout can't fix one width for every raid and
+        -- locale, so monotone width is the equivalent. Content spans
+        -- the full ratcheted width (the Wowhead column keeps hugging
+        -- the right edge) since rows anchor to the row parent's edges.
+        achFrame.sessionMaxWidth = math.max(
+            achFrame.sessionMaxWidth or 0, windowW)
+        windowW = achFrame.sessionMaxWidth
+        achFrame:SetWidth(windowW + ACH_SCROLLBAR_GUTTER)
 
-        -- Glory header (two lines: header + reward). Hidden if absent.
+        -- The scroll viewport starts below the dropdown stack (title +
+        -- two dropdowns) and rows render into its child from y = 0; the
+        -- child is exactly windowW wide so every row anchor below sees
+        -- the same geometry the pre-scroll layout used.
+        local DROPDOWNS_BOTTOM = 32 + 2 * 32 + 4
+        local rowParent = achFrame.rowContent
+        rowParent:SetWidth(windowW)
+        local y = 0
+
+        -- Glory headers (name + reward line each), one block per glory
+        -- in the raid's list. Hidden if absent.
         local rowsStart = 1
-        if rows[1] and rows[1].kind == "glory" then
-            local gloryRow = rows[1]
+        local gloryIndex = 0
+        while rows[rowsStart] and rows[rowsStart].kind == "glory" do
+            local gloryRow = rows[rowsStart]
+            gloryIndex = gloryIndex + 1
+            local glorySlot = achFrame:GetGlorySlot(gloryIndex)
 
             -- Status fragment: "[ ✓ ]" if completed, "n/N" otherwise.
             -- Gold for the progress count to match the encounter section.
@@ -10292,18 +10881,19 @@ GetOrCreateAchievementsWindow = function()
                 link = link:gsub("^|cff%x%x%x%x%x%x", ""):gsub("|r$", "")
                 link = ("|cff888888%s|r"):format(link)
             end
-            SetBodyFont(achFrame.gloryLine, fontSize + 2, "")
-            achFrame.gloryLine:SetText(("%s   %s"):format(link, statusFrag))
-            achFrame.gloryLine:ClearAllPoints()
-            achFrame.gloryLine:SetPoint("TOPLEFT", achFrame, "TOPLEFT", 14, y)
-            achFrame.gloryLine:SetPoint("TOPRIGHT", achFrame, "TOPRIGHT", -14, y)
-            achFrame.gloryLine:Show()
+            SetBodyFont(glorySlot.gloryLine, fontSize + 2, "")
+            glorySlot.gloryLine:SetText(("%s   %s"):format(link, statusFrag))
+            glorySlot.gloryLine:ClearAllPoints()
+            glorySlot.gloryLine:SetPoint("TOPLEFT", rowParent, "TOPLEFT", 14, y)
+            glorySlot.gloryLine:SetPoint("TOPRIGHT", rowParent, "TOPRIGHT", -14, y)
+            glorySlot.gloryLine:Show()
             y = y - (fontSize + 6)
 
-            -- Reward line. The line shows a state glyph indicating whether
-            -- the player has collected the Glory's reward (mount or pet),
-            -- then the resolved spell/item link. Glyph vocabulary matches
-            -- Special Loot (green check for collected, plain X otherwise).
+            -- Reward line: the resolved spell/item link, or the plain
+            -- reward name. Rewards removed from the game (the Wrath glory
+            -- proto-drakes) carry the client's own "No Longer Available"
+            -- wording after the name, already localized. A glory with no
+            -- reward at all shows no reward line.
             local rewardText
             if gloryRow.rewardSpellID and C_Spell and C_Spell.GetSpellLink then
                 rewardText = C_Spell.GetSpellLink(gloryRow.rewardSpellID)
@@ -10312,19 +10902,26 @@ GetOrCreateAchievementsWindow = function()
                 local _, itemLink = GetItemInfo(gloryRow.rewardItemID)
                 rewardText = itemLink
             end
-            if not rewardText then
-                rewardText = gloryRow.rewardName
-                          and ("|cffffffff%s|r"):format(RR.L[gloryRow.rewardName])
-                          or  "|cffffffff" .. RR.L["(Reward)"] .. "|r"
+            if not rewardText and gloryRow.rewardName then
+                rewardText = ("|cffffffff%s|r"):format(RR.L[gloryRow.rewardName])
+            end
+            if rewardText and gloryRow.rewardRemoved then
+                rewardText = rewardText
+                    .. (" |cff9d9d9d(%s)|r"):format(NO_LONGER_AVAILABLE
+                        or "No Longer Available")
             end
 
-            SetBodyFont(achFrame.rewardLine, rowFontSize, "")
-            achFrame.rewardLine:SetText(("|cff9d9d9d" .. RR.L["Reward:"] .. "|r %s"):format(rewardText))
-            achFrame.rewardLine:ClearAllPoints()
-            achFrame.rewardLine:SetPoint("TOPLEFT", achFrame, "TOPLEFT", 14, y)
-            achFrame.rewardLine:SetPoint("TOPRIGHT", achFrame, "TOPRIGHT", -14, y)
-            achFrame.rewardLine:Show()
-            y = y - lineHeight
+            if rewardText then
+                SetBodyFont(glorySlot.rewardLine, rowFontSize, "")
+                glorySlot.rewardLine:SetText(("|cff9d9d9d" .. RR.L["Reward:"] .. "|r %s"):format(rewardText))
+                glorySlot.rewardLine:ClearAllPoints()
+                glorySlot.rewardLine:SetPoint("TOPLEFT", rowParent, "TOPLEFT", 14, y)
+                glorySlot.rewardLine:SetPoint("TOPRIGHT", rowParent, "TOPRIGHT", -14, y)
+                glorySlot.rewardLine:Show()
+                y = y - lineHeight
+            else
+                glorySlot.rewardLine:Hide()
+            end
 
             -- Title line. Some Glory metas (Tomb, etc.) award a character
             -- title in addition to the mount/pet. Rendered as a plain
@@ -10332,20 +10929,29 @@ GetOrCreateAchievementsWindow = function()
             -- query since the title-knowledge API surface is awkward and
             -- the value to the player is just knowing it exists.
             if gloryRow.rewardTitle then
-                SetBodyFont(achFrame.titleLine, rowFontSize, "")
-                achFrame.titleLine:SetText(("|cff9d9d9d" .. RR.L["Title:"] .. "|r |cffffffff%s|r"):format(RR.L[gloryRow.rewardTitle]))
-                achFrame.titleLine:ClearAllPoints()
-                achFrame.titleLine:SetPoint("TOPLEFT", achFrame, "TOPLEFT", 14, y)
-                achFrame.titleLine:SetPoint("TOPRIGHT", achFrame, "TOPRIGHT", -14, y)
-                achFrame.titleLine:Show()
+                SetBodyFont(glorySlot.titleLine, rowFontSize, "")
+                glorySlot.titleLine:SetText(("|cff9d9d9d" .. RR.L["Title:"] .. "|r |cffffffff%s|r"):format(RR.L[gloryRow.rewardTitle]))
+                glorySlot.titleLine:ClearAllPoints()
+                glorySlot.titleLine:SetPoint("TOPLEFT", rowParent, "TOPLEFT", 14, y)
+                glorySlot.titleLine:SetPoint("TOPRIGHT", rowParent, "TOPRIGHT", -14, y)
+                glorySlot.titleLine:Show()
                 y = y - lineHeight
             else
-                achFrame.titleLine:Hide()
+                glorySlot.titleLine:Hide()
             end
 
-            -- Skip the glory row in the data-row loop below; the spacer
-            -- row that follows still applies its half-line gap.
-            rowsStart = 2
+            -- Advance past this glory row; the spacer row that follows
+            -- the block still applies its half-line gap in the data-row
+            -- loop below.
+            rowsStart = rowsStart + 1
+        end
+        -- Hide glory slots beyond this raid's count (pool reuse across
+        -- raid switches).
+        for extraIndex = gloryIndex + 1, #achFrame.gloryPool do
+            local extraSlot = achFrame.gloryPool[extraIndex]
+            extraSlot.gloryLine:Hide()
+            extraSlot.rewardLine:Hide()
+            extraSlot.titleLine:Hide()
         end
 
         -- Walk remaining rows. The header row is always present (added
@@ -10362,30 +10968,30 @@ GetOrCreateAchievementsWindow = function()
                 -- Position the persistent column-header FontStrings.
                 SetBodyFont(achFrame.hdrStatus, rowFontSize, "")
                 achFrame.hdrStatus:ClearAllPoints()
-                achFrame.hdrStatus:SetPoint("TOP", achFrame, "TOPLEFT", ACH_COL_STATUS_X, y)
+                achFrame.hdrStatus:SetPoint("TOP", rowParent, "TOPLEFT", ACH_COL_STATUS_X, y)
                 achFrame.hdrStatus:Show()
 
                 SetBodyFont(achFrame.hdrAch, rowFontSize, "")
                 achFrame.hdrAch:ClearAllPoints()
-                achFrame.hdrAch:SetPoint("TOPLEFT", achFrame, "TOPLEFT", colNameX, y)
+                achFrame.hdrAch:SetPoint("TOPLEFT", rowParent, "TOPLEFT", colNameX, y)
                 achFrame.hdrAch:Show()
 
                 SetBodyFont(achFrame.hdrBoss, rowFontSize, "")
                 achFrame.hdrBoss:ClearAllPoints()
-                achFrame.hdrBoss:SetPoint("TOPLEFT", achFrame, "TOPLEFT", colBossX, y)
+                achFrame.hdrBoss:SetPoint("TOPLEFT", rowParent, "TOPLEFT", colBossX, y)
                 achFrame.hdrBoss:Show()
 
                 SetBodyFont(achFrame.hdrWowhead, rowFontSize, "")
                 achFrame.hdrWowhead:ClearAllPoints()
                 -- CENTER-anchor the header at the button center so the
                 -- label reads as a column header for the buttons below.
-                achFrame.hdrWowhead:SetPoint("TOP", achFrame, "TOPRIGHT", ACH_WOWHEAD_CENTER_X, y)
+                achFrame.hdrWowhead:SetPoint("TOP", rowParent, "TOPRIGHT", ACH_WOWHEAD_CENTER_X, y)
                 achFrame.hdrWowhead:Show()
 
                 y = y - lineHeight
 
             elseif row.kind == "achRow" then
-                local slot = GetAchRowSlot(achFrame, i)
+                local slot = GetAchRowSlot(rowParent, i)
 
                 -- Current-boss highlight + left accent bar. The textures
                 -- span from this row's top (y) down to the bottom of its
@@ -10398,13 +11004,13 @@ GetOrCreateAchievementsWindow = function()
                 -- behind the row's content.
                 if currentBossName and row.bossName == currentBossName then
                     slot.highlight:ClearAllPoints()
-                    slot.highlight:SetPoint("TOPLEFT",     achFrame, "TOPLEFT",  14, y + 1)
-                    slot.highlight:SetPoint("BOTTOMRIGHT", achFrame, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                    slot.highlight:SetPoint("TOPLEFT",     rowParent, "TOPLEFT",  14, y + 1)
+                    slot.highlight:SetPoint("BOTTOMRIGHT", rowParent, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
                     slot.highlight:Show()
 
                     slot.accent:ClearAllPoints()
-                    slot.accent:SetPoint("TOPLEFT",    achFrame, "TOPLEFT", 14, y + 1)
-                    slot.accent:SetPoint("BOTTOMLEFT", achFrame, "TOPLEFT", 14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                    slot.accent:SetPoint("TOPLEFT",    rowParent, "TOPLEFT", 14, y + 1)
+                    slot.accent:SetPoint("BOTTOMLEFT", rowParent, "TOPLEFT", 14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
                     slot.accent:Show()
                 end
 
@@ -10418,7 +11024,7 @@ GetOrCreateAchievementsWindow = function()
                 SetBodyFont(slot.status, rowFontSize, "")
                 slot.status:SetText(statusText)
                 slot.status:ClearAllPoints()
-                slot.status:SetPoint("TOP", achFrame, "TOPLEFT", ACH_COL_STATUS_X, y)
+                slot.status:SetPoint("TOP", rowParent, "TOPLEFT", ACH_COL_STATUS_X, y)
                 slot.status:Show()
 
                 -- Achievement cell: meta-prefix + link + soloable star.
@@ -10442,15 +11048,21 @@ GetOrCreateAchievementsWindow = function()
                 slot.ach:SetText(metaPrefix .. link .. soloStar)
                 slot.ach:SetWidth(colNameW)
                 slot.ach:ClearAllPoints()
-                slot.ach:SetPoint("TOPLEFT", achFrame, "TOPLEFT", colNameX, y)
+                slot.ach:SetPoint("TOPLEFT", rowParent, "TOPLEFT", colNameX, y)
                 slot.ach:Show()
 
                 -- Boss cell.
                 SetBodyFont(slot.boss, rowFontSize, "")
-                slot.boss:SetText(("|cffcccccc%s|r"):format(row.bossName))
+                -- Raid-wide achievements carry no boss; the cell shows a
+                -- dim dash instead of a name.
+                if row.raidWide then
+                    slot.boss:SetText("|cff777777-|r")
+                else
+                    slot.boss:SetText(("|cffcccccc%s|r"):format(row.bossName))
+                end
                 slot.boss:SetWidth(colBossW)
                 slot.boss:ClearAllPoints()
-                slot.boss:SetPoint("TOPLEFT", achFrame, "TOPLEFT", colBossX, y)
+                slot.boss:SetPoint("TOPLEFT", rowParent, "TOPLEFT", colBossX, y)
                 slot.boss:Show()
 
                 -- Wowhead button. Click handler captures achievement ID
@@ -10467,7 +11079,7 @@ GetOrCreateAchievementsWindow = function()
                 -- UIPanelButtonTemplate's chrome sits low in its SetSize box,
                 -- so the visible button reads bottom-heavy if anchored at y.
                 -- The +2 nudges it to the row's visual center.
-                slot.wowhead:SetPoint("TOPRIGHT", achFrame, "TOPRIGHT", -ACH_WOWHEAD_RIGHT_INSET, y + 2)
+                slot.wowhead:SetPoint("TOPRIGHT", rowParent, "TOPRIGHT", -ACH_WOWHEAD_RIGHT_INSET, y + 2)
                 slot.wowhead:Show()
 
                 -- Subtle row divider. Anchored using ACH_ROW_BOTTOM_INSET
@@ -10476,90 +11088,51 @@ GetOrCreateAchievementsWindow = function()
                 -- comment value (5px above nominal row bottom) is set
                 -- once at the constant; tune there.
                 slot.divider:ClearAllPoints()
-                slot.divider:SetPoint("TOPLEFT",  achFrame, "TOPLEFT",  14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
-                slot.divider:SetPoint("TOPRIGHT", achFrame, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
-                slot.divider:Show()
-
-                y = y - lineHeight
-
-            elseif row.kind == "naRow" then
-                local slot = GetAchRowSlot(achFrame, i)
-
-                -- Current-boss highlight (see achRow comment for layer
-                -- and inset rationale). naRow gets the same treatment so
-                -- a current boss with no achievements is still visually
-                -- marked as "where you are".
-                if currentBossName and row.bossName == currentBossName then
-                    slot.highlight:ClearAllPoints()
-                    slot.highlight:SetPoint("TOPLEFT",     achFrame, "TOPLEFT",  14, y + 1)
-                    slot.highlight:SetPoint("BOTTOMRIGHT", achFrame, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
-                    slot.highlight:Show()
-
-                    slot.accent:ClearAllPoints()
-                    slot.accent:SetPoint("TOPLEFT",    achFrame, "TOPLEFT", 14, y + 1)
-                    slot.accent:SetPoint("BOTTOMLEFT", achFrame, "TOPLEFT", 14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
-                    slot.accent:Show()
-                end
-
-                -- N/A in the status column, "N/A" in the achievement
-                -- column, boss name in the boss column, no Wowhead btn.
-                SetBodyFont(slot.status, rowFontSize, "")
-                slot.status:SetText(ACH_CELL_NA)
-                slot.status:ClearAllPoints()
-                slot.status:SetPoint("TOP", achFrame, "TOPLEFT", ACH_COL_STATUS_X, y)
-                slot.status:Show()
-
-                SetBodyFont(slot.ach, rowFontSize, "")
-                slot.ach:SetText(ACH_CELL_NA)
-                slot.ach:SetWidth(colNameW)
-                slot.ach:ClearAllPoints()
-                slot.ach:SetPoint("TOPLEFT", achFrame, "TOPLEFT", colNameX, y)
-                slot.ach:Show()
-
-                SetBodyFont(slot.boss, rowFontSize, "")
-                slot.boss:SetText(("|cffcccccc%s|r"):format(row.bossName))
-                slot.boss:SetWidth(colBossW)
-                slot.boss:ClearAllPoints()
-                slot.boss:SetPoint("TOPLEFT", achFrame, "TOPLEFT", colBossX, y)
-                slot.boss:Show()
-
-                -- Wowhead button slot stays hidden for naRow (no
-                -- achievement ID to link to).
-
-                -- Same row divider as achRow so visual rhythm is uniform.
-                slot.divider:ClearAllPoints()
-                slot.divider:SetPoint("TOPLEFT",  achFrame, "TOPLEFT",  14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
-                slot.divider:SetPoint("TOPRIGHT", achFrame, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                slot.divider:SetPoint("TOPLEFT",  rowParent, "TOPLEFT",  14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
+                slot.divider:SetPoint("TOPRIGHT", rowParent, "TOPRIGHT", -14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
                 slot.divider:Show()
 
                 y = y - lineHeight
             end
         end
 
-        -- Legend below the table. Two FontStrings on the same baseline:
-        -- left FontString anchored TOPLEFT, right FontString anchored
-        -- TOPRIGHT. Both at y - 6 (small gap below the last row's
-        -- divider).
+        -- Legend: a fixed footer on the window itself, pinned to the
+        -- frame bottom so it never scrolls out of view with a long
+        -- table. Two FontStrings on the same baseline.
         SetBodyFont(achFrame.legendLeft, fontSize - 1, "")
         achFrame.legendLeft:ClearAllPoints()
-        achFrame.legendLeft:SetPoint("TOPLEFT", achFrame, "TOPLEFT", 14, y - 6)
+        achFrame.legendLeft:SetPoint("BOTTOMLEFT", achFrame, "BOTTOMLEFT", 14, 12)
 
         SetBodyFont(achFrame.legendRight, fontSize - 1, "")
         achFrame.legendRight:ClearAllPoints()
-        achFrame.legendRight:SetPoint("TOPRIGHT", achFrame, "TOPRIGHT", -14, y - 6)
+        achFrame.legendRight:SetPoint("BOTTOMRIGHT", achFrame, "BOTTOMRIGHT", -14, 12)
 
-        -- Total height: |y| + legend height + bottom margin. Use the
-        -- taller of the two legend FontStrings (they're typically the
-        -- same height, but be defensive in case of font wrapping).
-        local lastY = math.abs(y)
         local legendH = math.max(
             achFrame.legendLeft:GetStringHeight()  or fontSize,
             achFrame.legendRight:GetStringHeight() or fontSize
         )
-        local desired = lastY + legendH + 16
+
+        -- Height: chrome (title + dropdowns) + rows + legend footer,
+        -- capped at the screen-safe maximum. When the rows outgrow the
+        -- cap they scroll inside the viewport instead of spilling past
+        -- the frame edge.
+        local contentH   = math.abs(y) + 4
+        local legendBand = legendH + 12 + 10
+        local desired = DROPDOWNS_BOTTOM + contentH + legendBand
         local clamped = math.max(ACH_WINDOW_MIN_HEIGHT,
                                  math.min(ACH_WINDOW_MAX_HEIGHT, desired))
         achFrame:SetHeight(clamped)
+
+        local viewportH = clamped - DROPDOWNS_BOTTOM - legendBand
+        rowParent:SetHeight(contentH)
+        local rowScroll = achFrame.rowScroll
+        rowScroll:ClearAllPoints()
+        rowScroll:SetPoint("TOPLEFT", achFrame, "TOPLEFT", 0, -DROPDOWNS_BOTTOM)
+        rowScroll:SetSize(windowW, viewportH)
+        achFrame.rowsScrollable = contentH > viewportH + 1
+        if not achFrame.rowsScrollable and rowScroll.SetVerticalScroll then
+            rowScroll:SetVerticalScroll(0)
+        end
     end
 
     achFrame.RefreshAll = function(self)

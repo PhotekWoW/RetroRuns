@@ -25,6 +25,48 @@
 local RR = RetroRuns
 RR.WhatsNew = {
     {
+        version  = "2.3.0",
+        date     = "2026-08-04",
+        sections = {
+            {
+                heading = "Added",
+                bullets = {
+                    "**The Wrath of the Lich King raids join RetroRuns.** All nine raids now have full routing and transmog tracking: Naxxramas, The Eye of Eternity, The Obsidian Sanctum, Onyxia's Lair, Vault of Archavon, Ulduar, Trial of the Crusader, Icecrown Citadel, and The Ruby Sanctum. Every raid carries step-by-step routing, boss progress, tier sets, special drops, achievements, and exit directions at every difficulty the raid offers. Icecrown Citadel is guided end to end across all twelve bosses for both factions, with the gunship and Deathbringer Saurfang approaches routed separately for Alliance and Horde. Valithria Dreamwalker is optional, and the guide follows players who run past her, picking up at Sindragosa; turn back for her and the route follows you back, and the run reads as complete once the Lich King falls either way. Ulduar offers guidance through each hard-mode available, along with hard-mode loot tracking in the transmog browser. Trial of the Crusader and Icecrown Citadel field a different encounter depending on your faction, and the boss list, route, and notes follow the one you actually fight.",
+                    "**Simplified Chinese (zhCN) localization.** The full interface, route notes, tips, and What's New now display in Simplified Chinese on Chinese clients.",
+                    "**The transmog browser tracks the other faction's drops.** Faction-locked items were hidden entirely, but the game grants the opposite faction's appearance when its counterpart drops for you, so they are collectible. They appear in their own block at the bottom of each boss's list, tagged with the faction they belong to, and light up as you collect them. The needed counts still cover only what your character can loot.",
+                },
+            },
+            {
+                heading = "Changed",
+                bullets = {
+                    "**The Volcanius marker in Vault of the Incarnates is a plain point of interest.** It was a pulsing ring of the kind that turns grey and ticks itself off once you pass it, but that kill cannot be detected, so the ring never resolved.",
+                    "**Expansion names display in the client's language.** The expansion headers and dropdowns follow what the game's own journal shows, which localizes them on some clients.",
+                    "**The Achievements section now appears for every boss.** Bosses with no tracked achievements show the section with \"None\" rather than hiding it; the row opens the Achievements window.",
+                    "**The Achievements window no longer changes width when switching raids.** It keeps the widest size it has needed so far and only its bottom edge moves, matching the transmog popup's behavior.",
+                    "**The Toaster settings click legend now reads \"Left-Click: Collections\"** (was \"Left-Click: Open in Collections\"), in all languages.",
+                    "**The Sun King's Salvation tip in Castle Nathria was removed.**",
+                },
+            },
+            {
+                heading = "Fixed",
+                bullets = {
+                    "**Raids that share one lockout across two difficulties now recognize the week's progress from either side.** Entering the other difficulty of a lockout you had already progressed showed a fresh run and asked you to pick a route again; the addon now resumes your route, counts the kills you already have, and shows the run as complete when the lockout is finished.",
+                    "**On translated clients, the word above the SKIP button could overlap the \"Select Route\" prompt.** Hovering FULL or SKIP shows that button's word in your language above it, and on a longer word it ran into the prompt line. The dialog now leaves room for it.",
+                    "**The skip route's target boss showed in English on translated clients.** The route picker's SKIP button names the boss the shortcut skips ahead to, and that name was printed from the addon's own English text rather than the game's. It now shows the name your client uses, on every raid with a skip route.",
+                    "**On non-English clients, the route-selection popup could show rows of empty squares with no raid name.** The popup could appear before its text was filled in, rendering its prompt in a font that lacks the client language's characters; it now stays hidden until fully populated and always uses a font that covers the client's language. If a font fails to load, which can happen with replaced game fonts, the addon falls back to the game's own font instead of leaving text unreadable.",
+                    "**The transmog browser could open filtered to another class.** A class chosen in the browser's dropdown, or reached by clicking a drop toast for gear your character cannot wear, was remembered permanently, so later visits kept showing that class, on that character and on every other one that shared its class. The choice now lasts only as long as the browser is open; opening it again shows the class you are playing.",
+                    "**Left-clicking a loot toast for gear your class cannot wear now shows the appearance.** The appearances browser opened to an empty page because its view is filtered to classes that can equip the item; it now switches the class filter to one that can view the drop, and switches it back when you close the window.",
+                    "**Clicking a loot toast could open the appearances window on an unrelated page.** Every drop now opens to its own page, including shields, bows, guns, and wands your class cannot use -- the browser switches to a class that can see them and switches back when you close it. Appearances locked to the other faction say so and point at the preview instead of opening.",
+                    "**The Firelands Glory reward rendered as plain text until the item cache primed.** The reward now resolves through the mount's spell link like every other Glory, so it links immediately.",
+                    "**The selected On/Off choice under \"Hide Blizzard Boss Banner:\" showed no underline.** The row's wide label pushed its buttons to a fractional pixel position where the hairline could vanish; positions now round to whole pixels and the underline uses the same pixel-grid handling as the dividers.",
+                    "**The divider above the routing legend crowded the lines above and below it.** With several expansions listed, the supported-raids list grew into the space reserved for the legend, leaving the divider and its gem overlapping the last raid row and the legend text.",
+                    "**Two boss names were spelled differently than the game spells them.** Tomb of Sargeras travel notes read \"Kil'Jaeden\" (the game uses \"Kil'jaeden\") and a Sanctum of Domination note read \"the Tarragrue\" mid-sentence where the boss is \"The Tarragrue\".",
+                },
+            },
+        },
+    },
+
+    {
         version  = "2.2.1",
         date     = "2026-07-21",
         sections = {
@@ -128,33 +170,6 @@ RR.WhatsNew = {
                     "**The SKIP button on the load dialog now stays locked until the specific shortcut its route uses is unlocked.** On raids with more than one skip (like Hellfire Citadel), it could previously light up as soon as any shortcut was unlocked, even one leading to a different boss.",
                     "**Picking FULL after previously choosing SKIP now correctly loads the full route.** If you'd selected SKIP earlier in a lockout, then reloaded and chose FULL, the addon could keep running the skip route. Your latest choice is now always honored.",
                     "**Corrected the portal marker on the Hellfire Citadel Mannoroth skip** so the waypoint sits on the Destructor's Rise portal.",
-                },
-            },
-        },
-    },
-
-    {
-        version  = "2.0.0",
-        date     = "2026-06-21",
-        sections = {
-            {
-                heading = "Added",
-                bullets = {
-                    "**Looking For Raid routing.** Queue into any LFR wing and RetroRuns lays out the path through that wing -- only the bosses you'll face, in the order you reach them, with the same walk-along directions, map lines, and waypoints as the full-raid routes. Wing progress and the per-difficulty pills track each wing on its own, so running a second wing of the same raid keeps its counts straight. This covers more than 80 wings across two dozen raids, spanning every expansion from Mists of Pandaria through Dragonflight. Expand any raid in the supported list to see its wings and per-wing progress at a glance.",
-                },
-            },
-            {
-                heading = "Changed",
-                bullets = {
-                    "**New travel icon, with a destination choice.** The travel icon beside each raid has a fresh look, and clicking it now lets you pick where to go: the raid entrance, or the Looking For Raid queue NPC.",
-                    "**Skip-availability stars no longer appear next to the raid name while you're on an active route.** They stay in the supported-raids list and the Skips window, where they help you choose a route; once you're running one, the choice is already made.",
-                    "**The Skips window difficulty columns read Normal, Heroic, Mythic from left to right** -- the traditional progression order, with Mythic on the right.",
-                },
-            },
-            {
-                heading = "Fixed",
-                bullets = {
-                    "**Continued refinement of routes and travel notes across raids** -- smoother paths and clearer directions in a number of places.",
                 },
             },
         },

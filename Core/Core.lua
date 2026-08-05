@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "2.2.1"
+local VERSION    = "2.3.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -33,6 +33,13 @@ RetroRuns = {
     -- Runtime state -- never written to SavedVariables
     state = {
         bossesKilled          = {},   -- [bossIndex] = true
+        -- [bossIndex] = true when the kill is known ONLY from the shared-
+        -- lockout pair sibling's saved row (never from the active
+        -- difficulty's own row or a live kill). These kills complete the
+        -- route but do not floor the active difficulty's pill, so the
+        -- pill row inside the raid matches the idle-list display: kills
+        -- on the size they were made, lock glyph on the other.
+        bossesKilledViaPairOnly = {},
         activeStep            = nil,
         testMode              = false,
         manualTargetBossIndex = nil,
@@ -49,7 +56,7 @@ RetroRuns = {
         currentDifficultyID   = nil,
         currentDifficultyName = nil,
         isReloadingUi         = false, -- captured from PLAYER_ENTERING_WORLD
-        zoneLog               = {},   -- ring buffer of zone-change debug lines, viewable via /rr diag
+        zoneLog               = {},   -- ring buffer of zone-change debug lines, shown by /rr diag
         -- Last mapID seen by the strict-activeSeg heartbeat poll. Kept in
         -- sync with the seeder so a step transition can't trigger a
         -- phantom advance on the next tick.
@@ -247,57 +254,6 @@ end
 function RR:GetRaidEntrance(raid)
     if not raid then return nil end
     return raid.entrance
-end
-
---- For a raid gated behind faction control of an outdoor zone (Baradin
---- Hold requires your faction to hold Tol Barad), reads the zone's
---- control state from the world-map area POI and reports whether the
---- player's faction currently has access.
----
---- The raid opts in with an `accessGate` table:
----     accessGate = { mapID = 244, areaPoiID = 2485, zoneName = "Tol Barad" }
---- mapID + areaPoiID identify the control POI (areaPoiID is stable across
---- locales; the POI's name and description are localized). The POI's
---- `description` reads "<Faction> Controlled" in the client locale, so the
---- controlling side is matched by testing whether that text contains the
---- player's own localized faction noun (FACTION_ALLIANCE / FACTION_HORDE)
---- rather than parsing the English string -- the comparison holds on any
---- locale because both sides come from the same localization.
----
---- Returns nil when the raid has no accessGate, or when the POI can't be
---- read yet (the control state isn't available to the client until the
---- player has loaded that continent's map data -- treat unknown as "don't
---- assert", never as a false "unavailable"). Otherwise returns:
----     { available = bool, controller = "Alliance"|"Horde"|nil,
----       zoneName = string }
---- controller is the player-relative side that holds the zone, resolved to
---- the canonical English token for callers; it is nil if the description
---- matched neither faction noun (defensive -- shouldn't happen).
-function RR:GetRaidAccessState(raid)
-    local gate = raid and raid.accessGate
-    if not gate or not gate.mapID or not gate.areaPoiID then return nil end
-    if not C_AreaPoiInfo or not C_AreaPoiInfo.GetAreaPOIInfo then return nil end
-
-    local info = C_AreaPoiInfo.GetAreaPOIInfo(gate.mapID, gate.areaPoiID)
-    local desc = info and info.description
-    if not desc or desc == "" then return nil end
-
-    local mine = UnitFactionGroup("player")
-    local allianceHeld = desc:find(FACTION_ALLIANCE, 1, true) ~= nil
-    local hordeHeld    = desc:find(FACTION_HORDE, 1, true) ~= nil
-
-    local controller
-    if allianceHeld then
-        controller = "Alliance"
-    elseif hordeHeld then
-        controller = "Horde"
-    end
-
-    return {
-        available  = (controller ~= nil and controller == mine),
-        controller = controller,
-        zoneName   = gate.zoneName,
-    }
 end
 
 --- Shared destination dispatch. Drops a waypoint at (mapID, x, y) across
@@ -731,7 +687,7 @@ local function CollectRaidDataIssues(scopeFilter)
             -- Build a set of valid boss indices for cross-checking,
             -- and validate specialLoot while we're at it.
             local validBossIndices = {}
-            local VALID_SPECIAL_KINDS = { mount = true, pet = true, toy = true, decor = true, manuscript = true, illusion = true }
+            local VALID_SPECIAL_KINDS = { mount = true, pet = true, toy = true, decor = true, manuscript = true, illusion = true, musicroll = true }
             for _, boss in ipairs(raid.bosses or {}) do
                 if not boss.index then
                     add("error", raidLabel, "boss missing index field")
@@ -754,10 +710,10 @@ local function CollectRaidDataIssues(scopeFilter)
                             end
                             if not item.kind then
                                 add("error", raidLabel,
-                                    bp .. " missing kind (mount|pet|toy|decor|manuscript|illusion)")
+                                    bp .. " missing kind (mount|pet|toy|decor|manuscript|illusion|musicroll)")
                             elseif not VALID_SPECIAL_KINDS[item.kind] then
                                 add("error", raidLabel,
-                                    bp .. (" unrecognized kind '%s' (expected mount|pet|toy|decor|manuscript|illusion)"):format(
+                                    bp .. (" unrecognized kind '%s' (expected mount|pet|toy|decor|manuscript|illusion|musicroll)"):format(
                                         tostring(item.kind)))
                             end
                             -- kind=illusion needs a sourceID for the
@@ -769,6 +725,15 @@ local function CollectRaidDataIssues(scopeFilter)
                             if item.kind == "illusion" and not item.sourceID then
                                 add("error", raidLabel,
                                     bp .. " kind=illusion requires sourceID field for transmog API validation")
+                            end
+                            -- Quest-flag collectibles resolve their
+                            -- collected state from the completed-quest
+                            -- flag, so a missing questID renders them
+                            -- permanently uncollected rather than erroring.
+                            if (item.kind == "manuscript" or item.kind == "musicroll")
+                               and not item.questID then
+                                add("error", raidLabel,
+                                    bp .. (" kind=%s requires questID field for collection tracking"):format(item.kind))
                             end
                         end
                     end
@@ -1096,6 +1061,12 @@ function RR:InitializeDB()
     -- Buffer cap of 1000 entries still enforced in RR:ZoneLog.
     RetroRunsDB.zoneLog = RetroRunsDB.zoneLog or {}
     self.state.zoneLog = RetroRunsDB.zoneLog
+
+    -- The transmog browser's class filter used to be saved here. It is
+    -- runtime state now, so any value left by an earlier version is dead
+    -- weight; drop it rather than leave it in the file forever.
+    RetroRunsDB.tmogClassFilter      = nil
+    RetroRunsDB.tmogClassFilterOwner = nil
 end
 
 function RR:RestorePanelPosition()
@@ -1177,6 +1148,36 @@ function RR:GetLocalizedBossName(boss)
         return localizedName
     end
     return boss.name
+end
+
+-- The skip target's boss name in the client's language. `skipToBoss` is an
+-- English key: it is compared against skip-chain labels in
+-- GetRouteTargetSkipCeiling, so the stored value stays English and only the
+-- display resolves. Matches the raid's own boss list, which carries the
+-- journalEncounterID the Encounter Journal localizes. A raid whose
+-- skipToBoss names the boss more briefly than the journal does (Nighthold's
+-- "Elisande" against "Grand Magistrix Elisande") resolves on a unique
+-- substring; anything ambiguous or unmatched renders the authored string.
+function RR:GetLocalizedSkipTargetName(raid)
+    if not raid or not raid.skipToBoss then return nil end
+    local target = raid.skipToBoss
+    if not raid.bosses then return target end
+    for _, boss in ipairs(raid.bosses) do
+        if boss.name == target then
+            return self:GetLocalizedBossName(boss) or target
+        end
+    end
+    local partialMatch, matchCount = nil, 0
+    for _, boss in ipairs(raid.bosses) do
+        if boss.name and boss.name:find(target, 1, true) then
+            partialMatch = boss
+            matchCount = matchCount + 1
+        end
+    end
+    if matchCount == 1 then
+        return self:GetLocalizedBossName(partialMatch) or target
+    end
+    return target
 end
 
 function RR:GetRaidDisplayName()
@@ -1367,8 +1368,55 @@ local DIFFICULTY_MODELS = {
         -- ids into the one Normal bucket; Vanilla/TBC raids report other
         -- raw ids (40-player, 20-player, etc.) -- add those to this fold at
         -- their bring-up, verified by a live kill test, not assumed.
-        fold    = { [3] = 14, [4] = 14 },
+        -- [14] = 14 covers Ulduar, which runs at difficulty 14 itself (one
+        -- merged size on live).
+        fold    = { [3] = 14, [4] = 14, [14] = 14 },
         buckets = { 14 },
+    },
+    sizes = {
+        -- Wrath-style raids where 10-player and 25-player are distinct
+        -- difficulties with distinct loot tables AND fully independent
+        -- weekly lockouts. No raid currently uses this; each 3/4-only
+        -- raid's lockout shape is settled by a live kill test at its
+        -- bring-up and lands here or on sizesShared accordingly.
+        fold    = { [3] = 3, [4] = 4 },
+        buckets = { 3, 4 },
+    },
+    sizesShared = {
+        -- Wrath raids without a Heroic mode (Naxxramas, The Eye of
+        -- Eternity): 10-player and 25-player are distinct difficulties
+        -- with distinct loot tables, so each size keeps its own display
+        -- bucket -- but the two sizes share ONE weekly lockout
+        -- (symmetric, live-verified both directions: killing on either
+        -- size locks the sibling until reset). The shared constraint is
+        -- surfaced by GetLockedOutBucket, not by folding; folding would
+        -- merge the two loot pools in the browser.
+        fold    = { [3] = 3, [4] = 4 },
+        buckets = { 3, 4 },
+    },
+    sizesHeroic = {
+        -- Wrath raids with Heroic modes: four size/heroic combinations,
+        -- each with its own loot table and its own display bucket, all
+        -- sharing ONE weekly lockout. Committing to any one difficulty
+        -- locks the other three until reset. The shared constraint is
+        -- surfaced by GetLockedOutBuckets, not by folding; folding would
+        -- merge the four loot pools in the browser.
+        fold    = { [3] = 3, [4] = 4, [5] = 5, [6] = 6 },
+        buckets = { 3, 4, 5, 6 },
+    },
+    difficultyLocked = {
+        -- Wrath raids with Heroic modes where the week locks to a
+        -- DIFFICULTY, not a size (live-verified on Icecrown Citadel):
+        -- the two Normal sizes share one live lockout the player can
+        -- switch between freely -- bosses die for both sizes at once,
+        -- and an unkilled boss pays the loot table of whichever size it
+        -- is killed at -- while both Heroic sizes refuse entry once the
+        -- Normal week has started. Four distinct loot tables and display
+        -- buckets as in sizesHeroic; the tier constraint is surfaced by
+        -- GetLockedOutBuckets and the within-tier kill mirroring in
+        -- GetPerDifficultyKillCountsForRaid.
+        fold    = { [3] = 3, [4] = 4, [5] = 5, [6] = 6 },
+        buckets = { 3, 4, 5, 6 },
     },
 }
 
@@ -1543,6 +1591,27 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
         table.insert(liveIdsForBucket[bucket], liveId)
     end
 
+    -- Tiered-lockout mirroring (difficultyLocked): a boss killed at any
+    -- bucket of a tier is dead for EVERY bucket of that tier -- the tier
+    -- is one live lockout the player moves between, so a 10 Player kill
+    -- must show on the 25 Player pill too. Extend each bucket's live-ID
+    -- check list with its tier siblings' live IDs.
+    for _, bucket in ipairs(self:GetDisplayBuckets(raid)) do
+        local tier = self:LockoutTierFor(raid, bucket)
+        if tier then
+            local merged, seen = {}, {}
+            for _, tierBucket in ipairs(tier) do
+                for _, liveId in ipairs(liveIdsForBucket[tierBucket] or {}) do
+                    if not seen[liveId] then
+                        seen[liveId] = true
+                        merged[#merged + 1] = liveId
+                    end
+                end
+            end
+            liveIdsForBucket[bucket] = merged
+        end
+    end
+
     for _, bucket in ipairs(self:GetDisplayBuckets(raid)) do
         local complete = 0
         local total    = 0
@@ -1586,18 +1655,29 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
     if self.currentRaid and raid == self.currentRaid then
         local activeBucket = self:FoldDifficulty(raid, self.state.currentDifficultyID)
         if activeBucket and result[activeBucket] then
-            local localCount = 0
-            for _, b in ipairs(raid.bosses or {}) do
-                -- Only count toward the active bucket if the boss exists
-                -- there -- mirrors the per-bucket total above so the floor
-                -- can't push complete past total.
-                if self.state.bossesKilled[b.index]
-                    and self:BossAvailableInBucket(b, activeBucket) then
-                    localCount = localCount + 1
+            -- Apply the floor to the active bucket and, on a tiered
+            -- lockout, its tier siblings -- a kill counts for the whole
+            -- tier at once, and the pills should agree before the async
+            -- instance cache catches up.
+            local floorBuckets = self:LockoutTierFor(raid, activeBucket)
+                or { activeBucket }
+            for _, floorBucket in ipairs(floorBuckets) do
+                if result[floorBucket] then
+                    local localCount = 0
+                    for _, b in ipairs(raid.bosses or {}) do
+                        -- Only count toward the bucket if the boss exists
+                        -- there -- mirrors the per-bucket total above so the
+                        -- floor can't push complete past total.
+                        if self.state.bossesKilled[b.index]
+                            and not self.state.bossesKilledViaPairOnly[b.index]
+                            and self:BossAvailableInBucket(b, floorBucket) then
+                            localCount = localCount + 1
+                        end
+                    end
+                    if localCount > result[floorBucket].complete then
+                        result[floorBucket].complete = localCount
+                    end
                 end
-            end
-            if localCount > result[activeBucket].complete then
-                result[activeBucket].complete = localCount
             end
         end
     end
@@ -1941,27 +2021,210 @@ end
 -- buckets, so the same count-based test serves both: the difficulty with no
 -- kills is the one locked out, once the other has a kill.
 --
--- Guard: only claim a lock when the raid actually offers BOTH difficulties.
--- Baradin Hold is shared-model but Normal-only (availableDifficulties =
--- {14}); its Heroic side doesn't exist, so nothing is ever locked. Without
--- this, a Normal kill there would wrongly report Heroic (15) as locked.
+-- Guard: only claim a lock when the raid actually offers MORE THAN ONE
+-- member of the group. Baradin Hold is shared-model but Normal-only
+-- (availableDifficulties = {14}); its Heroic side doesn't exist, so
+-- nothing is ever locked. Without this, a Normal kill there would wrongly
+-- report Heroic (15) as locked.
+--
+-- sizesShared applies the same rule to the Wrath 10/25 pair: one weekly
+-- lockout spans both sizes, so whichever size has kills locks the other.
+--
+-- sizesHeroic extends it to a group of FOUR. The Ruby Sanctum shares one
+-- weekly lockout across 10N/25N/10H/25H while keeping four distinct loot
+-- tables and four display buckets. Live-verified from a fresh character on
+-- 25 Heroic: before the first kill, changing difficulty logged "The Ruby
+-- Sanctum has been reset" and built a new instance; after "You are now
+-- saved to this instance", selecting 25N, 10H and 10N each returned the
+-- player to the saved 25 Heroic instance with no reset line. Note this is
+-- a MODERN RETAIL shape -- era and Classic references describe 10 and 25
+-- as separate lockouts, which no longer holds.
+local SHARED_LOCKOUT_GROUPS = {
+    sharedLfr   = { 14, 15 },
+    shared      = { 14, 15 },
+    sizesShared = { 3, 4 },
+    sizesHeroic = { 3, 4, 5, 6 },
+}
+
+-- Tiered lockout groups: the week locks to a TIER (list of buckets), not
+-- to a single difficulty. Buckets inside one tier share a live lockout
+-- the player moves between freely; kills in one tier lock every bucket
+-- of the OTHER tiers until reset. Verified on Icecrown Citadel: at 7/12
+-- on 10 Player, 25 Player admitted the player to the same lockout and an
+-- unkilled boss paid 25-player-exclusive loot, while both Heroic
+-- difficulties refused entry.
+local TIERED_LOCKOUT_GROUPS = {
+    difficultyLocked = { { 3, 4 }, { 5, 6 } },
+}
+
+-- The raid's tiers with each tier filtered to the buckets the raid
+-- actually offers (empty tiers dropped). Returns nil for raids without a
+-- tiered model.
+local function OfferedLockoutTiers(raid)
+    local tiers = TIERED_LOCKOUT_GROUPS[raid.difficultyModel or "independent"]
+    if not tiers then return nil end
+    local allowed = raid.availableDifficulties
+    local allowedSet
+    if allowed then
+        allowedSet = {}
+        for _, bucket in ipairs(allowed) do allowedSet[bucket] = true end
+    end
+    local offered = {}
+    for _, tier in ipairs(tiers) do
+        local kept = {}
+        for _, bucket in ipairs(tier) do
+            if not allowedSet or allowedSet[bucket] then
+                kept[#kept + 1] = bucket
+            end
+        end
+        if #kept > 0 then offered[#offered + 1] = kept end
+    end
+    if #offered == 0 then return nil end
+    return offered
+end
+
+-- The tier (bucket list) containing the given bucket, or nil. Exposed on
+-- RR for the kill-count mirroring in GetPerDifficultyKillCountsForRaid.
+function RR:LockoutTierFor(raid, bucket)
+    if not raid or not bucket then return nil end
+    local tiers = OfferedLockoutTiers(raid)
+    if not tiers then return nil end
+    for _, tier in ipairs(tiers) do
+        for _, member in ipairs(tier) do
+            if member == bucket then return tier end
+        end
+    end
+    return nil
+end
+
+-- Buckets of a shared-lockout group that the raid actually offers. Returns
+-- nil when the model isn't shared, or when fewer than two members exist
+-- (nothing can be locked by a group of one).
+local function OfferedGroupBuckets(raid)
+    local group = SHARED_LOCKOUT_GROUPS[raid.difficultyModel or "independent"]
+    if not group then return nil end
+
+    local offered = {}
+    local allowed = raid.availableDifficulties
+    for _, bucket in ipairs(group) do
+        local isOffered = true
+        if allowed then
+            isOffered = false
+            for _, allowedBucket in ipairs(allowed) do
+                if allowedBucket == bucket then isOffered = true break end
+            end
+        end
+        if isOffered then offered[#offered + 1] = bucket end
+    end
+    if #offered < 2 then return nil end
+    return offered
+end
+
 function RR:GetLockedOutBucket(raid, counts)
     if not raid or not counts then return nil end
-    local model = raid.difficultyModel or "independent"
-    if model ~= "sharedLfr" and model ~= "shared" then return nil end
+    local offered = OfferedGroupBuckets(raid)
+    if not offered then return nil end
 
-    local offersNormal, offersHeroic = false, false
-    for _, bucket in ipairs(raid.availableDifficulties or { 14, 15 }) do
-        if bucket == 14 then offersNormal = true end
-        if bucket == 15 then offersHeroic = true end
+    -- One member with kills locks every other offered member. Returns the
+    -- first such bucket; callers wanting the full set use
+    -- GetLockedOutBuckets below.
+    local locked = self:GetLockedOutBuckets(raid, counts)
+    return locked and locked[1] or nil
+end
+
+-- Every bucket the shared lockout currently blocks. Empty-safe: returns nil
+-- when nothing is locked, so callers can treat nil as "no lock" exactly as
+-- they did with the single-bucket form.
+--
+-- Two shapes:
+--   * Flat groups (SHARED_LOCKOUT_GROUPS): one lockout spans every member;
+--     any kill locks every member without kills.
+--   * Tiered groups (TIERED_LOCKOUT_GROUPS): buckets inside a tier never
+--     lock each other (the player moves between them freely inside one
+--     live lockout); kills anywhere in a tier lock every bucket of the
+--     OTHER tiers.
+function RR:GetLockedOutBuckets(raid, counts)
+    if not raid or not counts then return nil end
+
+    local tiers = OfferedLockoutTiers(raid)
+    if tiers then
+        local killTiers = {}
+        local anyKills = false
+        for tierIndex, tier in ipairs(tiers) do
+            for _, bucket in ipairs(tier) do
+                if counts[bucket] and counts[bucket].complete > 0 then
+                    killTiers[tierIndex] = true
+                    anyKills = true
+                    break
+                end
+            end
+        end
+        if not anyKills then return nil end
+        local locked = {}
+        for tierIndex, tier in ipairs(tiers) do
+            if not killTiers[tierIndex] then
+                for _, bucket in ipairs(tier) do
+                    locked[#locked + 1] = bucket
+                end
+            end
+        end
+        if #locked == 0 then return nil end
+        return locked
     end
-    if not (offersNormal and offersHeroic) then return nil end
 
-    local nDone = counts[14] and counts[14].complete > 0
-    local hDone = counts[15] and counts[15].complete > 0
-    if nDone and not hDone then return 15 end
-    if hDone and not nDone then return 14 end
-    return nil
+    local offered = OfferedGroupBuckets(raid)
+    if not offered then return nil end
+
+    local anyDone = false
+    for _, bucket in ipairs(offered) do
+        if counts[bucket] and counts[bucket].complete > 0 then
+            anyDone = true
+            break
+        end
+    end
+    if not anyDone then return nil end
+
+    local locked = {}
+    for _, bucket in ipairs(offered) do
+        local bucketDone = counts[bucket] and counts[bucket].complete > 0
+        if not bucketDone then locked[#locked + 1] = bucket end
+    end
+    if #locked == 0 then return nil end
+    return locked
+end
+
+-- On a shared-lockout raid, a saved-instance row stored under one member
+-- of the pair belongs to the other member's lockout as well: the game
+-- keeps one weekly lockout for both, stored under whichever difficulty
+-- was entered first. This resolves whether a saved row's difficulty
+-- belongs to the active difficulty's lockout, so state reads (kill sync,
+-- lockout id, kill counts) see the lockout from either side of the pair.
+function RR:SavedRowMatchesActiveLockout(savedDifficultyId)
+    if savedDifficultyId == self.state.currentDifficultyID then return true end
+    local raid = self.currentRaid
+    if not raid then return false end
+    local savedBucket  = self:FoldDifficulty(raid, savedDifficultyId)
+    local activeBucket = self:FoldDifficulty(raid, self.state.currentDifficultyID)
+    -- Tiered model: a saved row belongs to the active lockout only when
+    -- both buckets sit in the SAME tier -- the other tier's lockout is a
+    -- different (blocked) one, not this one.
+    local activeTier = self:LockoutTierFor(raid, activeBucket)
+    if activeTier then
+        for _, bucket in ipairs(activeTier) do
+            if bucket == savedBucket then return true end
+        end
+        return false
+    end
+    local group = SHARED_LOCKOUT_GROUPS[raid.difficultyModel or "independent"]
+    if not group then return false end
+    -- Any two members of the group share one lockout, so a saved row under
+    -- any member belongs to the active difficulty's lockout.
+    local savedInGroup, activeInGroup = false, false
+    for _, bucket in ipairs(group) do
+        if bucket == savedBucket  then savedInGroup  = true end
+        if bucket == activeBucket then activeInGroup = true end
+    end
+    return savedInGroup and activeInGroup
 end
 
 -- Diagnostic for stale-lockout contamination. Dumps GetSavedInstanceInfo
@@ -2530,6 +2793,107 @@ function RR:GetRaidByInstanceID(instanceID)
     return RetroRuns_Data and RetroRuns_Data[instanceID] or nil
 end
 
+-- Faction-variant encounter resolution. Some raids field one fight that
+-- the Encounter Journal splits into two per-faction encounters sharing a
+-- single lockout row (one DungeonEncounterID): Trial of the Crusader's
+-- Faction Champions and Icecrown Citadel's gunship battle. Rather than a
+-- parallel per-faction data file (the Battle of Dazar'alor pattern, which
+-- exists for a raid where routing, entrances and boss ORDER all differ),
+-- these bosses carry a `factionEncounters` table:
+--
+--     factionEncounters = {
+--         Alliance = { name = ..., journalEncounterID = ... },
+--         Horde    = { name = ..., journalEncounterID = ... },
+--     },
+--
+-- with the boss's own top-level name/journalEncounterID authored as the
+-- Alliance values. This pass overwrites those two fields in place from
+-- the player's faction's variant, once per session -- the faction cannot
+-- change without a relog. Neutral (Wandering Isle Pandaren) keeps the
+-- authored Alliance values, same fall-through GetSupportedRaid uses.
+--
+-- After resolution the boss carries the journalEncounterID the player's
+-- own Encounter Journal exposes, so the EJ-derived journal->dungeon map
+-- bridges ENCOUNTER_END kill registration exactly like any other boss,
+-- and the display name matches what the player fights.
+function RR:ResolveFactionEncounters()
+    local faction = UnitFactionGroup("player")
+    if faction ~= "Alliance" and faction ~= "Horde" then return end
+    -- Rewrite one authored string's caret tokens through the name map.
+    -- Only an EXACT caret match is substituted: a note can legitimately
+    -- name the other faction's ship or city in its prose, and a blanket
+    -- string replace would corrupt that. Titles are matched whole for the
+    -- same reason.
+    local function resolveTokens(text, nameMap)
+        if type(text) ~= "string" then return text end
+        return (text:gsub("%^([^%^]+)%^", function(token)
+            local resolved = nameMap[token]
+            return "^" .. (resolved or token) .. "^"
+        end))
+    end
+    local function applyToTable(dataTable)
+        if not dataTable then return end
+        for _, raid in pairs(dataTable) do
+            if raid.bosses then
+                -- Every name this encounter goes by, mapped to the one
+                -- this character actually fights. Built across all bosses
+                -- first, because a note for one step can reference another
+                -- step's boss (ToC's Twin Val'kyr note names the Champions).
+                local nameMap = {}
+                for _, boss in ipairs(raid.bosses) do
+                    local variant = boss.factionEncounters
+                        and boss.factionEncounters[faction]
+                    if variant then
+                        if variant.name then
+                            for _, other in pairs(boss.factionEncounters) do
+                                if other.name then
+                                    nameMap[other.name] = variant.name
+                                end
+                            end
+                            if boss.name then nameMap[boss.name] = variant.name end
+                            boss.name = variant.name
+                        end
+                        if variant.journalEncounterID then
+                            boss.journalEncounterID = variant.journalEncounterID
+                        end
+                    end
+                end
+                -- Routing carries the encounter name in its step title and
+                -- in the hand-authored travel notes. Without this the
+                -- dropdown would say "Champions of the Alliance" while the
+                -- note under it still said "Champions of the Horde".
+                if raid.routing then
+                    for _, step in ipairs(raid.routing) do
+                        -- A segment tagged with a faction belongs only to
+                        -- that faction's route (the ICC gunship approach:
+                        -- each faction boards its own ship from a
+                        -- different rampart path). Untagged segments are
+                        -- shared. Same field and semantics as loot rows.
+                        local segments = step.segments or {}
+                        for segIndex = #segments, 1, -1 do
+                            local seg = segments[segIndex]
+                            if seg.faction and seg.faction ~= faction then
+                                table.remove(segments, segIndex)
+                            end
+                        end
+                        if next(nameMap) then
+                            if step.title and nameMap[step.title] then
+                                step.title = nameMap[step.title]
+                            end
+                            for _, seg in ipairs(segments) do
+                                seg.note    = resolveTokens(seg.note, nameMap)
+                                seg.minNote = resolveTokens(seg.minNote, nameMap)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    applyToTable(RetroRuns_Data)
+    applyToTable(RetroRuns_DataHorde)
+end
+
 -------------------------------------------------------------------------------
 -- Raid load / unload
 -------------------------------------------------------------------------------
@@ -2546,17 +2910,23 @@ function RR:GetCurrentLockoutId()
     if not self.currentRaid then return nil end
     if not self.state.currentDifficultyID then return nil end
 
+    -- Prefer a row stored under the active difficulty; on a shared-lockout
+    -- raid, fall back to the pair sibling's row (same weekly lockout,
+    -- stored under whichever size was entered first).
+    local pairLockoutId = nil
     local numSaved = GetNumSavedInstances()
     for i = 1, numSaved do
         local _, lockoutId, _, difficultyId, _, _, _, isRaid,
               _, _, _, _, _, instanceID = GetSavedInstanceInfo(i)
-        if isRaid
-            and instanceID   == self.currentRaid.instanceID
-            and difficultyId == self.state.currentDifficultyID then
-            return lockoutId
+        if isRaid and instanceID == self.currentRaid.instanceID then
+            if difficultyId == self.state.currentDifficultyID then
+                return lockoutId
+            elseif self:SavedRowMatchesActiveLockout(difficultyId) then
+                pairLockoutId = pairLockoutId or lockoutId
+            end
         end
     end
-    return nil
+    return pairLockoutId
 end
 
 -- True if the player has killed at least one boss in the current raid's
@@ -2567,41 +2937,21 @@ function RR:HasAnyKillThisLockout()
     if not self.currentRaid or not self.currentRaid.instanceID then return false end
     if not self.state.currentDifficultyID then return false end
 
+    local pairHasKill = nil
     local numSaved = GetNumSavedInstances()
     for i = 1, numSaved do
         local _, _, _, difficultyId, _, _, _, isRaid,
               _, _, _, encounterProgress, _,
               instanceID = GetSavedInstanceInfo(i)
-        if isRaid
-            and instanceID   == self.currentRaid.instanceID
-            and difficultyId == self.state.currentDifficultyID then
-            return (encounterProgress or 0) > 0
+        if isRaid and instanceID == self.currentRaid.instanceID then
+            if difficultyId == self.state.currentDifficultyID then
+                return (encounterProgress or 0) > 0
+            elseif self:SavedRowMatchesActiveLockout(difficultyId) then
+                pairHasKill = pairHasKill or ((encounterProgress or 0) > 0)
+            end
         end
     end
-    return false
-end
-
--- Kill count for the current raid's active lockout, as killed, total.
--- Reads encounterProgress (12th) and numEncounters (11th) from
--- GetSavedInstanceInfo for the matching instanceID + difficulty. Returns
--- 0, 0 when the raid isn't saved (no lockout row yet). Used for the
--- "Lockout in Progress (n/N)" resume line.
-function RR:GetCurrentLockoutKillCount()
-    if not self.currentRaid or not self.currentRaid.instanceID then return 0, 0 end
-    if not self.state.currentDifficultyID then return 0, 0 end
-
-    local numSaved = GetNumSavedInstances()
-    for i = 1, numSaved do
-        local _, _, _, difficultyId, _, _, _, isRaid,
-              _, _, numEncounters, encounterProgress, _,
-              instanceID = GetSavedInstanceInfo(i)
-        if isRaid
-            and instanceID   == self.currentRaid.instanceID
-            and difficultyId == self.state.currentDifficultyID then
-            return (encounterProgress or 0), (numEncounters or 0)
-        end
-    end
-    return 0, 0
+    return pairHasKill or false
 end
 
 -- Single canonical "go to real raid state" routine. Wipes any test-mode
@@ -2745,6 +3095,26 @@ function RR:HandleLocationChange()
         self.state.lastPlayerMapID = currentMapID
     end
 
+    -- Optional-step cede: re-drive step selection on movement. Step
+    -- selection normally only runs on a kill (nothing else can change
+    -- which step is active), but an optional step yields based on where
+    -- the player IS -- so walking past the boss has to re-select, and
+    -- walking back has to restore. Gated on the ROUTE containing an
+    -- optional step rather than the active step being one, or the cede
+    -- would be one-way: once it moved on, the active step is no longer
+    -- optional and nothing would bring the pointer back. Every other
+    -- raid keeps the kill-driven behavior untouched. ComputeNextStep
+    -- fires OnActiveStepChanged and seeds progress itself; refresh the
+    -- UI only when the step really moved.
+    if self.currentRaid and self:ActiveRoutingHasOptionalStep() then
+        local before = self.state.activeStep
+        local after  = self:ComputeNextStep()
+        if after ~= before then
+            RR.UI.Update()
+            if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
+        end
+    end
+
     local supported = self:GetSupportedRaid()
     if supported then
         self.currentRaid                 = supported
@@ -2807,6 +3177,7 @@ function RR:HandleLocationChange()
             -- refuse to clear the stale data when the new raid's cache
             -- reports no kills.
             wipe(self.state.bossesKilled)
+            wipe(self.state.bossesKilledViaPairOnly)
             self.state.lastSeenRaidKey = key
 
             if self:HasPersistedProgressForCurrentLockout()
@@ -2818,7 +3189,7 @@ function RR:HandleLocationChange()
                 -- Confirm the resumed route in chat (no dialog showed it).
                 local saved = self:GetPersistedRouteVariant()
                 local routeWord = (saved == "skip") and RR.L["SKIP"] or RR.L["FULL"]
-                local killed, total = self:GetCurrentLockoutKillCount()
+                local killed, total = self:GetRaidProgressCounts()
                 self:PrintAfterBanner((RR.L["%s Lockout in Progress (%d/%d)."])
                     :format(self:GetRaidDisplayName()
                                 or self:GetLocalizedRaidName(supported),
@@ -2853,6 +3224,7 @@ function RR:HandleLocationChange()
         -- must be cleared when the player leaves so the next raid
         -- they enter starts with a clean baseline.
         wipe(self.state.bossesKilled)
+        wipe(self.state.bossesKilledViaPairOnly)
         self.currentRaid                 = nil
         self.state.loadedRaidKey         = nil
         self.state.instanceInfoSeen      = false
@@ -2932,7 +3304,15 @@ function RR:SimulateKillNext()
         self:ClearBossState()
         self:ComputeNextStep()
     end
-    local step = self.state.activeStep or self:ComputeNextStep()
+    -- Route order, NOT the position-aware active step. Step selection can
+    -- yield an optional boss to a later one when the PLAYER has walked past
+    -- her; a simulated kill hasn't walked anywhere, so inheriting that would
+    -- make the cycle jump a boss purely because of where the character
+    -- happens to be standing. The only legitimate way to skip a boss is
+    -- choosing a skip route at the load dialog, which gives the variant its
+    -- own routing table. GetAvailableSteps is already sorted by priority
+    -- then step number.
+    local step = self:GetAvailableSteps()[1]
     if not step then self:Print(RR.L["No available next step."]) ; return end
     local boss = self:GetBossByIndex(step.bossIndex)
     self:MarkBossKilled(boss)
@@ -2974,6 +3354,7 @@ function RR:ManualUnkill(input)
         return
     end
     self.state.bossesKilled[boss.index] = nil
+    self.state.bossesKilledViaPairOnly[boss.index] = nil
     self:ComputeNextStep()
     self:Print(("Marked alive: %s"):format(boss.name))
     RR.UI.Update()
@@ -3923,6 +4304,10 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                         or (sp.lfrOnly and " [LFR only]")
                         or (sp.normalHeroicOnly and " [Normal/Heroic only]")
                         or (sp.heroicOnly and " [Heroic only]")
+                        or (sp.heroic25Only and " [25 Player Heroic only]")
+                        or (sp.size10Only and " [10 Player only]")
+                        or (sp.size25Only and " [25 Player only]")
+                        or (sp.hardModeOnly and " [Hard mode only]")
                         or ""
                     if #findings == 0 then
                         if verbose then
@@ -4430,12 +4815,11 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- surfaces the wrong segment's note. Scoped to the current raid;
         -- other raids' persisted progress is preserved.
         --
-        -- Also clears the in-memory zonelog ring buffer. Resetting
-        -- progress is almost always done as part of a diagnostic
-        -- session, where the next thing the user wants to see is a
-        -- clean zonelog showing only the events triggered by the
-        -- post-reset walk -- not the stale entries from before the
-        -- reset. Wiping the zonelog here removes the manual mental
+        -- Also clears the in-memory zone log ring buffer. Resetting
+        -- progress is almost always done while diagnosing something,
+        -- where the next thing wanted is a clean log showing only the
+        -- events from the post-reset walk, not the stale entries from
+        -- before it. Wiping it here removes the manual mental
         -- timestamp-filtering step.
         if not RR.currentRaid then
             RR:Print(RR.L["No raid loaded. Zone into a supported raid first."])
@@ -4451,7 +4835,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             end
             RR.UI.Update()
             if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
-            RR:Print(("Routing progress cleared for %s. (zonelog also wiped)"):format(RR.currentRaid.name))
+            RR:Print(("Routing progress cleared for %s. (zone log also wiped)"):format(RR.currentRaid.name))
         end
 
     elseif cmd == "kill" then
@@ -5196,6 +5580,10 @@ SlashCmdList["RETRORUNS"] = function(input)
                             or (sp.lfrOnly and " [LFR only]")
                             or (sp.normalHeroicOnly and " [Normal/Heroic only]")
                             or (sp.heroicOnly and " [Heroic only]")
+                            or (sp.heroic25Only and " [25 Player Heroic only]")
+                            or (sp.size10Only and " [10 Player only]")
+                            or (sp.size25Only and " [25 Player only]")
+                            or (sp.hardModeOnly and " [Hard mode only]")
                             or ""
                         add(("  [%s]  %-7d  (%s) %s%s"):format(
                             ch, sp.id or 0, sp.kind or "?",
@@ -5634,6 +6022,8 @@ SlashCmdList["RETRORUNS"] = function(input)
         elseif sub == "clear" then RR:ToasterClearTrace()
         elseif sub == "probe" then
             if RR.ToastProbe then RR:ToastProbe(args[3], args[4]) end
+        elseif sub == "navharvest" then
+            if RR.ToastNavHarvest then RR:ToastNavHarvest() end
         else                       RR:ToggleToaster()
         end
 
@@ -5662,7 +6052,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print(RR.L["  /rr  record [start|stop|dump|reset|status|break|tp <dest>|note <text>]"])
             RR:Print(RR.L["  /rr  sessionlog [all]            (recorder session log; omit `all` for current-raid only)"])
             RR:Print(RR.L["  /rr  lintroute [raid name]       (structural lint of raid routing data)"])
-            RR:Print(RR.L["  /rr  diag                        (consolidated engine + zonelog + sessionlog)"])
+            RR:Print(RR.L["  /rr  diag                        (consolidated engine, zone and session logs)"])
             RR:Print(RR.L["  /rr  mapicons                    (dump exact coords of every Blizzard icon on the visible map)"])
             RR:Print(RR.L["  /rr  raidcapture                 (full new-raid tier + loot harvest)"])
             RR:Print(RR.L["  /rr  weaponharvest               (harvest CN weapon-token pools)"])
@@ -5713,6 +6103,11 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         end
 
     elseif event == "PLAYER_LOGIN" then
+        -- Apply faction-variant encounters before anything renders boss
+        -- names or builds EJ maps. PLAYER_LOGIN is the earliest point
+        -- where UnitFactionGroup is reliable on initial login.
+        RR:ResolveFactionEncounters()
+
         -- One-line load banner. Fires once per session (including /reload)
         -- after all addons have initialized. Useful for alpha testers:
         -- gives them the current build number for bug reports, and a
@@ -5874,11 +6269,34 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
                 if not RR:MarkBossKilledByEncounterID(encounterID) then
                     RR:MarkBossKilledByEncounterName(encounterName)
                 end
+                -- Also offer the kill to segment routing. Scripted fights
+                -- that end a leg of a route can have their own
+                -- DungeonEncounter row without being journal bosses (Ruby
+                -- Sanctum's lieutenants), so the two paths are independent:
+                -- the marker above ignores them, this advances past them.
+                -- Only segs declaring triggeredBy.encounter can act on it.
+                RR:AdvanceProgress("encounter-end", { encounterID = encounterID })
                 RR.UI.Update()
                 if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
             else
-                -- Wipe / reset: still re-render so the travel pane
-                -- snaps back to the live (non-frozen) text.
+                -- Not reported as a success. Usually a wipe or a reset,
+                -- but multi-stage encounters end each stage this way and
+                -- some never report a success at all: The Northrend
+                -- Beasts fires three times with success=0 (Gormok, the
+                -- worms, Icehowl) and never once with success=1, so the
+                -- ID path above can't register the kill and the only
+                -- source left is the saved-instance cache. Ask the
+                -- server for it now rather than waiting for its own next
+                -- push, which on a stationary player can be many seconds
+                -- and only arrived promptly in testing because an
+                -- incidental zone change forced a refresh. The reply
+                -- lands as UPDATE_INSTANCE_INFO, whose handler syncs and
+                -- re-renders only when the kill set actually changed --
+                -- so on a genuine wipe this costs one round trip and
+                -- changes nothing on screen.
+                if RequestRaidInfo then RequestRaidInfo() end
+                -- Re-render so the travel pane snaps back to the live
+                -- (non-frozen) text.
                 RR.UI.Update()
             end
         end

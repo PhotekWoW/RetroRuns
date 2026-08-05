@@ -410,7 +410,7 @@ RetroRuns_Data[2522] = {
             --
             -- Three segments, all on mapID 2119:
             --   1. dragon platform POI (red circle, "Talk to the 5 dragons")
-            --   2. Volcanius POI (red circle, label "Kill Volcanius")
+            --   2. Volcanius POI (marker, label "Kill Volcanius")
             --   3. arrow line from Volcanius up to Eranog
             segments  = {
                 {
@@ -430,8 +430,6 @@ RetroRuns_Data[2522] = {
                 {
                     when            = { mapID = 2119, subZone = "The Primal Bulwark" },
                     kind            = "poi",
-                    noMarker        = true,
-                    highlightCircle = true,
                     mapLabel        = "Kill Volcanius",
                     mapLabelPos     = "above",
                     note            = "After landing, follow the path to kill |cffF259C7(1)|r ^Volcanius^, then |cffF259C7(2)|r ^Eranog^.",
@@ -871,8 +869,6 @@ RetroRuns_Data[2522] = {
                         {
                             when            = { mapID = 2119, subZone = "The Primal Bulwark" },
                             kind            = "poi",
-                            noMarker        = true,
-                            highlightCircle = true,
                             mapLabel        = "Kill Volcanius",
                             mapLabelPos     = "above",
                             note            = "After landing, follow the path to kill |cffF259C7(1)|r ^Volcanius^, then |cffF259C7(2)|r ^Eranog^.",
@@ -1249,8 +1245,6 @@ RetroRuns_Data[2522] = {
                 {
                     when            = { mapID = 2119, subZone = "The Primal Bulwark" },
                     kind            = "poi",
-                    noMarker        = true,
-                    highlightCircle = true,
                     mapLabel        = "Kill Volcanius",
                     mapLabelPos     = "above",
                     note            = "After landing, follow the path to kill |cffF259C7(1)|r ^Volcanius^, then |cffF259C7(2)|r ^Eranog^.",

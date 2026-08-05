@@ -150,6 +150,7 @@ end
 function RR:MarkBossKilled(boss)
     if not boss then return end
     self.state.bossesKilled[boss.index] = true
+    self.state.bossesKilledViaPairOnly[boss.index] = nil
     if self.state.manualTargetBossIndex == boss.index then
         self.state.manualTargetBossIndex = nil
     end
@@ -181,6 +182,7 @@ end
 
 function RR:ClearBossState()
     wipe(self.state.bossesKilled)
+    wipe(self.state.bossesKilledViaPairOnly)
 end
 
 -------------------------------------------------------------------------------
@@ -239,13 +241,34 @@ function RR:IsActiveRouteComplete()
         local availableHere = (not activeBucket)
             or (not boss)
             or self:BossAvailableInBucket(boss, activeBucket)
+        -- Optional bosses don't hold the route open. A player who walked
+        -- past one has finished the run they set out to do, and the panel
+        -- owes them the end-of-run state and the exit note rather than a
+        -- pointer back to a boss they chose to leave. The boss list still
+        -- shows them unkilled, and they stay killable this lockout.
         if availableHere
             and step.bossIndex
+            and not step.optional
             and not self:IsBossKilled(step.bossIndex) then
             return false
         end
     end
     return true
+end
+
+-- True when the route is complete but an optional boss was left alive.
+-- Selects the "Skip Run Complete!" banner over the plain one, so the
+-- end-of-run state stays honest about what was left behind.
+function RR:ActiveRouteSkippedOptionalBoss()
+    local routing = self:GetActiveRouting()
+    if not routing then return false end
+    for _, step in ipairs(routing) do
+        if step.optional and step.bossIndex
+            and not self:IsBossKilled(step.bossIndex) then
+            return true
+        end
+    end
+    return false
 end
 
 function RR:GetAvailableSteps()
@@ -303,9 +326,56 @@ function RR:ComputeNextStep()
         self.state.manualTargetBossIndex = nil
     end
     if #available > 0 then
-        self.state.activeStep = available[1]
-        self:OnActiveStepChanged(prevStep, available[1])
-        return available[1]
+        -- A complete route has no active step, even when an optional
+        -- boss is still alive and therefore still "available". The panel,
+        -- the minimized bar and the overlay all treat "no active step" as
+        -- the run-complete state, so leaving the optional step active here
+        -- would keep pointing at a boss the player chose to walk past
+        -- instead of showing the completion banner and the exit note.
+        if self.IsActiveRouteComplete and self:IsActiveRouteComplete() then
+            self.state.activeStep = nil
+            self:OnActiveStepChanged(prevStep, nil)
+            return nil
+        end
+        local chosen = available[1]
+        -- Optional-step cede rule: a step flagged `optional` (a boss the
+        -- player may bypass, like Valithria Dreamwalker) yields to a later
+        -- available step once the player's position matches that later step
+        -- and no longer matches the optional one. The player never chooses
+        -- anything: kill the boss and the step advances on the kill as
+        -- always; walk past and the route follows. When nothing matches --
+        -- entrance, transit, unknown map -- the optional step keeps the
+        -- pointer, so a teleport or reload never silently skips it.
+        if chosen.optional then
+            local mapID = C_Map and C_Map.GetBestMapForUnit
+                and C_Map.GetBestMapForUnit("player") or nil
+            local subZone = (GetSubZoneText and GetSubZoneText()) or ""
+            -- Two questions, not one. WHERE the player is decides the
+            -- cede while the optional boss is still ahead of them. But
+            -- once a LATER boss is dead the player has demonstrably moved
+            -- past, and position alone stops being enough: Icecrown's
+            -- Upper Spire shares mapID 190 with Valithria's wing, so
+            -- teleporting there after Sindragosa would otherwise look
+            -- like standing at the optional step and hand the pointer
+            -- back. After that, later steps win wherever they match, and
+            -- the optional step holds only when nothing later does --
+            -- which is exactly the case where the player HAS returned for
+            -- it (her upper wing, mapID 191, matches no later step).
+            local movedOn = self:AnyLaterStepCompleted(chosen)
+            local cede = movedOn
+                or (mapID and not self:StepLocationMatches(chosen, mapID, subZone))
+            if cede then
+                for i = 2, #available do
+                    if self:StepLocationMatches(available[i], mapID, subZone) then
+                        chosen = available[i]
+                        break
+                    end
+                end
+            end
+        end
+        self.state.activeStep = chosen
+        self:OnActiveStepChanged(prevStep, chosen)
+        return chosen
     end
     self:OnActiveStepChanged(prevStep, nil)
     return nil
@@ -330,6 +400,47 @@ function RR:OnActiveStepChanged(prevStep, newStep)
     end
 end
 
+-- True when any step ordered after `step` in the active routing has its
+-- boss already dead. Proof the player has moved past `step`, used by the
+-- optional-step rule: an optional boss must not reclaim the pointer once
+-- a later boss is down, even where their maps overlap.
+function RR:AnyLaterStepCompleted(step)
+    if not step then return false end
+    local routing = self:GetActiveRouting()
+    if not routing then return false end
+    local seen = false
+    for _, candidate in ipairs(routing) do
+        if seen and candidate.bossIndex
+            and self:IsBossKilled(candidate.bossIndex) then
+            return true
+        end
+        if candidate == step then seen = true end
+    end
+    return false
+end
+
+-- True when the active routing contains any step flagged `optional`.
+-- Location changes re-drive step selection only for these routes, so
+-- every other raid keeps the kill-driven behavior untouched. Memoized
+-- per raid and variant, which together identify a routing table.
+function RR:ActiveRoutingHasOptionalStep()
+    local key = tostring(self.currentRaid and self.currentRaid.instanceID)
+        .. "|" .. tostring(self:ActiveVariantKey())
+    if self.state.optionalStepRouteKey == key then
+        return self.state.optionalStepRoutePresent == true
+    end
+    local present = false
+    local routing = self:GetActiveRouting()
+    if routing then
+        for _, step in ipairs(routing) do
+            if step.optional then present = true break end
+        end
+    end
+    self.state.optionalStepRouteKey     = key
+    self.state.optionalStepRoutePresent = present
+    return present
+end
+
 function RR:SetManualTarget(bossIndex)
     self.state.manualTargetBossIndex = bossIndex
     self:ComputeNextStep()
@@ -339,14 +450,27 @@ end
 -- Progress
 -------------------------------------------------------------------------------
 
--- Returns "X/Y" -- bosses killed over total. Available for
--- tooltips or alternate UI modes.
-function RR:GetProgressText()
-    if not self.currentRaid then return "0/0" end
+-- Bosses killed over total, as numbers, counted across the raid's OWN
+-- boss list. Deliberately not GetSavedInstanceInfo's numEncounters: the
+-- game's encounter count for a raid can exceed the boss list we present
+-- (Ulduar reports 16 against our 14), so a progress line built on the
+-- API's total contradicts the Boss Progress checklist the player is
+-- looking at. Kill state still originates from the saved-instance sync,
+-- so these numbers are the lockout's progress -- just expressed over the
+-- bosses we actually route.
+function RR:GetRaidProgressCounts()
+    if not self.currentRaid then return 0, 0 end
     local total, killed = #self.currentRaid.bosses, 0
     for _, boss in ipairs(self.currentRaid.bosses) do
         if self:IsBossKilled(boss.index) then killed = killed + 1 end
     end
+    return killed, total
+end
+
+-- Returns "X/Y" -- bosses killed over total. Available for
+-- tooltips or alternate UI modes.
+function RR:GetProgressText()
+    local killed, total = self:GetRaidProgressCounts()
     return ("%d/%d"):format(killed, total)
 end
 
@@ -685,8 +809,28 @@ local function DialogTriggerHandler(_, event, ...)
         local text   = args[2]   -- arg1 = dialog text
         local sender = args[3]   -- arg2 = speaker name
 
-        -- Secret-tainted (mid-encounter) payloads can't be compared.
-        if issecretvalue and (issecretvalue(text) or issecretvalue(sender)) then
+        -- Log BEFORE any guard. With the log placed after them, an event
+        -- that arrived and was dropped is indistinguishable from one that
+        -- never arrived, which makes a missing trigger undiagnosable from
+        -- a zone log. Every exit below states which guard fired. Secret
+        -- payloads are rendered as a placeholder rather than compared,
+        -- matching the dialog-debug capture.
+        local payloadIsSecret = issecretvalue
+            and (issecretvalue(text) or issecretvalue(sender)) or false
+        if RR.ZoneLog then
+            if payloadIsSecret then
+                RR:ZoneLog("[DialogTrigger] heard: (secret payload)")
+            else
+                local shown = tostring(text)
+                if #shown > 120 then shown = shown:sub(1, 120) .. "..." end
+                RR:ZoneLog(("[DialogTrigger] heard: npc=%q text=%q")
+                    :format(tostring(sender or ""), shown))
+            end
+        end
+
+        -- Secret-tainted payloads can't be compared.
+        if payloadIsSecret then
+            RR:ZoneLog("[DialogTrigger] dropped: secret payload")
             return
         end
         -- Require text; sender is optional. System-style emotes -- notably
@@ -696,22 +840,19 @@ local function DialogTriggerHandler(_, event, ...)
         -- gating on sender would drop them. TriggerMatches only consults
         -- npc when the trigger specifies one, so a nil sender is safe to
         -- pass through.
-        if not text then return end
+        if not text then
+            RR:ZoneLog("[DialogTrigger] dropped: no text")
+            return
+        end
 
         local step = RR.state and RR.state.activeStep
-        if not step or not step.segments then return end
-        local stepIndex = step.step or step.priority or 0
-
-        -- Log the raw dialog (sender + text) so a diag captures exactly what
-        -- was heard, whether or not it matched a trigger -- useful for
-        -- verifying faction-specific trigger strings. Text truncated to keep
-        -- the log line readable.
-        if RR.ZoneLog then
-            local shown = tostring(text)
-            if #shown > 120 then shown = shown:sub(1, 120) .. "..." end
-            RR:ZoneLog(("[DialogTrigger] heard: npc=%q text=%q")
-                :format(tostring(sender or ""), shown))
+        if not step or not step.segments then
+            RR:ZoneLog("[DialogTrigger] dropped: no active step with segments")
+            return
         end
+        local stepIndex = step.step or step.priority or 0
+        RR:ZoneLog(("[DialogTrigger] matching against step %d (%d segs)")
+            :format(stepIndex, #step.segments))
 
         RR:AdvanceProgress("npc-dialog", { npc = sender, text = text })
         RR.UI.Update()

@@ -338,11 +338,38 @@ function overlay:HideAll()
         v.flashState = nil
         v.flashBase  = nil
     end
-    for _, v in ipairs(self.rings)    do v:Hide() end
+    for _, v in ipairs(self.rings)    do
+        v:Hide()
+        -- Clear completion state so a recycled ring doesn't stay gray on
+        -- an incomplete seg the next time the pool is reused.
+        v.completeState = nil
+    end
     for _, v in ipairs(self.chevrons) do v:Hide() end
 end
 
+-- Is this seg already behind the step's progress? Segs are identified by
+-- identity within step.segments, since the seg table is what the caller
+-- holds. Used by both the completionCheck label and the highlightCircle
+-- ring so the two can never disagree about what "done" means.
+local function SegIsComplete(step, seg)
+    if not step or not step.segments then return false end
+    for i, candidate in ipairs(step.segments) do
+        if candidate == seg then
+            local stepIndex = step.step or step.priority or 0
+            return i < RR:GetProgress(stepIndex)
+        end
+    end
+    return false
+end
+
 function overlay:DrawSegmentsForMap(mapID)
+    -- A completed route draws nothing, even when a step is still active.
+    -- Skipping an optional boss leaves her step available (she stays
+    -- killable), so without this the panel would read complete while the
+    -- map still drew a path to her. Variant skip routes never hit this:
+    -- their routing table has no step for the skipped boss at all.
+    if RR.IsActiveRouteComplete and RR:IsActiveRouteComplete() then return end
+
     local step = RR.state.activeStep
     if not step then return end
 
@@ -480,18 +507,7 @@ function overlay:DrawSegmentsForMap(mapID)
                         PlaceLabel(label, seg.mapLabelPos, mark[1], mark[2], poiHalf)
 
                         if seg.completionCheck then
-                            -- Locate segIndex by identity in step.segments
-                            -- so we can query the engine's completion state.
-                            local segIndex
-                            for i, s in ipairs(step.segments) do
-                                if s == seg then segIndex = i; break end
-                            end
-                            local isComplete = false
-                            if segIndex then
-                                local stepIndex = step.step or step.priority or 0
-                                isComplete = segIndex < RR:GetProgress(stepIndex)
-                            end
-
+                            local isComplete = SegIsComplete(step, seg)
                             local labelText = RR.L[seg.mapLabel]
                             if isComplete then
                                 label:SetText("|cff9d9d9d" .. labelText
@@ -601,6 +617,18 @@ function overlay:DrawSegmentsForMap(mapID)
                 if ring then
                     local mark = seg.navPoint or pts[#pts]
                     PlaceAt(ring, self, mark[1], mark[2])
+                    -- A completed ring goes static gray and opts out of the
+                    -- red pulse, matching what completionCheck does to the
+                    -- label. Without the flag the ring ticker would repaint
+                    -- every shown ring red on its next 0.1s pass. Only segs
+                    -- that opted into completionCheck track completion; the
+                    -- rest keep the original always-red behaviour.
+                    if seg.completionCheck and SegIsComplete(step, seg) then
+                        ring.completeState = true
+                        ring:SetVertexColor(0.61, 0.61, 0.61, 1)
+                    else
+                        ring.completeState = nil
+                    end
                     ring:Show()
                     ringIdx = ringIdx + 1
                 end
@@ -731,7 +759,7 @@ C_Timer.NewTicker(0.1, function()
     if not RR.GetRingPulseRed then return end
     local pulseRed = RR:GetRingPulseRed()
     for _, ring in ipairs(overlay.rings) do
-        if ring:IsShown() then
+        if ring:IsShown() and not ring.completeState then
             ring:SetVertexColor(pulseRed, 0, 0, 1)
         end
     end

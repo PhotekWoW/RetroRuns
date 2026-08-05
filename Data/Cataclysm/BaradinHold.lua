@@ -25,15 +25,8 @@ RetroRuns_Data[757] = {
         y     = 0.4790,
     },
 
-    -- Baradin Hold can only be entered by the faction that currently holds
-    -- Tol Barad, the outdoor PvP zone it sits in. The control state reads
-    -- off the world-map area POI for the keep (areaPoiID 2485 on the Tol
-    -- Barad map, 244); its description names the controlling faction.
-    accessGate = {
-        mapID     = 244,
-        areaPoiID = 2485,
-        zoneName  = "Tol Barad",
-    },
+    -- Baradin Hold can only be entered by the faction that currently
+    -- holds Tol Barad, the outdoor PvP zone it sits in.
 
     -- mapID -> world-map dropdown label.
     maps = {

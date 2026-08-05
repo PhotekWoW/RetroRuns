@@ -31,6 +31,7 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
 
     if not self.currentRaid then
         wipe(self.state.bossesKilled)
+        wipe(self.state.bossesKilledViaPairOnly)
         self:ComputeNextStep()
         return false
     end
@@ -39,8 +40,13 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
         RequestRaidInfo()
     end
 
-    -- Build the new kill set in a temp table.
-    local newKilled = {}
+    -- Build the new kill set in a temp table. newFromExactRow tracks which
+    -- kills came from a row stored under the active difficulty itself, so
+    -- kills known only through the shared-lockout pair sibling can be
+    -- marked as such (they complete the route but don't floor the active
+    -- difficulty's pill).
+    local newKilled       = {}
+    local newFromExactRow = {}
     local numSaved  = GetNumSavedInstances()
     for i = 1, numSaved do
         local _, _, reset, difficultyId, locked, _, _, isRaid,
@@ -51,15 +57,25 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
         -- flags still set, so syncing from one credits last week's kills. An
         -- active lockout has locked=true and a positive reset; this mirrors
         -- the same guard the LFR pill applies in GetLFRLockoutCounts.
+        -- The difficulty match is lockout-pair-aware: on a shared-lockout
+        -- raid the one weekly lockout is stored under whichever member of
+        -- the pair was entered first, and its kills are real on both sides
+        -- (the game leaves those bosses absent in the sibling size).
         if isRaid
             and locked and (reset or 0) > 0
-            and instanceID   == self.currentRaid.instanceID
-            and difficultyId == self.state.currentDifficultyID then
+            and instanceID == self.currentRaid.instanceID
+            and self:SavedRowMatchesActiveLockout(difficultyId) then
+            local rowIsExact = (difficultyId == self.state.currentDifficultyID)
             for e = 1, numEncounters do
                 local bossName, _, isKilled = GetSavedInstanceEncounterInfo(i, e)
                 if bossName and isKilled then
                     local boss = self:ResolveBoss(bossName)
-                    if boss then newKilled[boss.index] = true end
+                    if boss then
+                        newKilled[boss.index] = true
+                        if rowIsExact then
+                            newFromExactRow[boss.index] = true
+                        end
+                    end
                 end
             end
         end
@@ -141,6 +157,15 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
     -- which could drop ENCOUNTER_END marks that beat the cache by a
     -- few hundred ms.)
     for k in pairs(newKilled) do
+        -- Provenance first, keyed off whether the kill was already known:
+        -- a kill seen from the active difficulty's own row (or already
+        -- marked live via ENCOUNTER_END) is never pair-only; a NEW kill
+        -- seen only through the pair sibling's row is.
+        if newFromExactRow[k] then
+            self.state.bossesKilledViaPairOnly[k] = nil
+        elseif not self.state.bossesKilled[k] then
+            self.state.bossesKilledViaPairOnly[k] = true
+        end
         self.state.bossesKilled[k] = true
     end
     -- Clear manualTargetBossIndex if the manually-targeted boss is now

@@ -185,6 +185,10 @@ local COIN_FINAL_SOUND      = "Interface\\AddOns\\RetroRuns\\Media\\Sounds\\coin
 local TITLE_FONT = "Interface\\AddOns\\RetroRuns\\Media\\Fonts\\04B_03.TTF"
 local C_PINK = { 0.95, 0.35, 0.78 }
 
+-- Click-hint text size. A step under the item name (20) so the hint reads as
+-- an aside rather than as a second headline.
+local HINT_FONT_SIZE = 19
+
 -- The colored "RR:" tag prepended to every line RetroRuns prints to chat.
 -- Kept as one constant so the loot-summary emitter and the AddMessage guard
 -- (which must recognize and never suppress RetroRuns' own lines) share it.
@@ -268,7 +272,7 @@ local function ConstructToastFrame(parent)
 
     -- Header: green pixel-font category label ("NEW APPEARANCE", "SPECIAL LOOT").
     toastFrame.header = toastFrame:CreateFontString(nil, "OVERLAY")
-    toastFrame.header:SetFont(TITLE_FONT, 16, "OUTLINE")
+    RR.SafeSetFont(toastFrame.header, TITLE_FONT, 16, "OUTLINE")
     toastFrame.header:SetPoint("TOPLEFT", toastFrame.icon, "TOPRIGHT", 9, -4)
     toastFrame.header:SetPoint("RIGHT", -8, 0)
     toastFrame.header:SetJustifyH("LEFT")
@@ -276,7 +280,7 @@ local function ConstructToastFrame(parent)
 
     -- Body: item name, quality-colored. Wraps to a second line, capped at 2.
     toastFrame.itemNameText = toastFrame:CreateFontString(nil, "OVERLAY")
-    toastFrame.itemNameText:SetFont(TITLE_FONT, 20, "OUTLINE")
+    RR.SafeSetFont(toastFrame.itemNameText, TITLE_FONT, 20, "OUTLINE")
     toastFrame.itemNameText:SetPoint("TOPLEFT", toastFrame.header, "BOTTOMLEFT", 0, -3)
     toastFrame.itemNameText:SetPoint("RIGHT", -8, 0)
     toastFrame.itemNameText:SetJustifyH("LEFT")
@@ -286,6 +290,22 @@ local function ConstructToastFrame(parent)
 
     toastFrame.count = toastFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     toastFrame.count:SetPoint("BOTTOMRIGHT", toastFrame.icon, "BOTTOMRIGHT", 1, 0)
+
+    -- Click hint, shown beside the toast when a left-click can't do what the
+    -- player expects. Anchored to the toast's right edge rather than to a
+    -- screen position, so it travels with the stack wherever the player has
+    -- dragged it. Takes the user's body font, the same as the header and
+    -- item name: the hint carries localized sentences, and the pixel face
+    -- both covers ASCII only and renders cleanly only at its native sizes.
+    -- Re-applied in ApplyContent so a font-setting change takes effect on a
+    -- pooled frame.
+    toastFrame.hint = toastFrame:CreateFontString(nil, "OVERLAY")
+    RR.SafeSetFont(toastFrame.hint,
+        (RR.GetBodyFont and RR:GetBodyFont()) or TITLE_FONT, HINT_FONT_SIZE, "OUTLINE")
+    toastFrame.hint:SetPoint("LEFT", toastFrame, "RIGHT", 10, 0)
+    toastFrame.hint:SetJustifyH("LEFT")
+    toastFrame.hint:SetTextColor(1, 0.82, 0)
+    toastFrame.hint:Hide()
 
     return toastFrame
 end
@@ -324,6 +344,10 @@ local function ReleaseFrame(toastFrame)
     toastFrame.petID = nil
     toastFrame.toyID = nil
     if toastFrame.glow then toastFrame.glow:Hide() end
+    -- Clear the click hint and invalidate any pending hide timer, so a
+    -- pooled frame doesn't reopen carrying the previous drop's hint.
+    if toastFrame.hint then toastFrame.hint:Hide() end
+    toastFrame.hintToken = (toastFrame.hintToken or 0) + 1
     Presenter.pool[#Presenter.pool + 1] = toastFrame
 end
 
@@ -537,14 +561,565 @@ end
 
 -- Open the collection journal at this drop. The journal is protected in
 -- combat, so the click is ignored there rather than erroring.
+-- Appearance collection is account-wide, but the wardrobe's browser view is
+-- still filtered to the classes that can equip the item's category. When a
+-- drop can't be worn by the current class -- a plate piece on a Monk, a
+-- polearm on a Priest -- opening the collection lands on the right slot but
+-- the appearance is filtered out, leaving the player on an empty page until
+-- they change the class dropdown by hand. These helpers retarget the class
+-- filter to a class that CAN view the drop before navigating, then restore
+-- the player's own class filter when they close the wardrobe.
+
+-- One-shot restore: the player's class filter is captured before a retarget
+-- and reapplied the first time the wardrobe hides after. Kept as file state
+-- (not per-toast) because the restore fires on the wardrobe, not the toast.
+local pendingClassFilterRestore = nil
+
+local function RestoreClassFilterOnHide()
+    if pendingClassFilterRestore == nil then return end
+    local restoreTo = pendingClassFilterRestore
+    pendingClassFilterRestore = nil
+    if C_TransmogCollection and C_TransmogCollection.SetClassFilter then
+        pcall(C_TransmogCollection.SetClassFilter, restoreTo)
+    end
+end
+
+-- The wardrobe's class dropdown does not redraw its label when the filter
+-- changes underneath it, so a filter switched while the frame is already
+-- open keeps showing the old class. GenerateMenu re-evaluates the
+-- selection from the live filter.
+local function RefreshClassDropdownLabel()
+    local dropdown = WardrobeCollectionFrame
+        and WardrobeCollectionFrame.ClassDropdown
+    if dropdown and dropdown.GenerateMenu
+        and WardrobeCollectionFrame:IsShown() then
+        pcall(dropdown.GenerateMenu, dropdown)
+    end
+end
+
+-- Hook the wardrobe's OnHide exactly once. The frame is load-on-demand, so
+-- this runs after the collection has been opened at least once.
+local classFilterHookInstalled = false
+local function EnsureClassFilterRestoreHook()
+    if classFilterHookInstalled then return end
+    local wardrobe = WardrobeCollectionFrame
+    if not wardrobe then return end
+    wardrobe:HookScript("OnHide", RestoreClassFilterOnHide)
+    classFilterHookInstalled = true
+end
+
+-- The appearance's visualID drives the per-class validity check. GetSourceInfo
+-- returns it under .visualID; the check itself takes the visualID, NOT the
+-- sourceID.
+local function VisualIDForSource(sourceID)
+    if not (C_TransmogCollection and C_TransmogCollection.GetSourceInfo) then
+        return nil
+    end
+    local info = C_TransmogCollection.GetSourceInfo(sourceID)
+    return info and info.visualID or nil
+end
+
+local function ClassCanViewVisual(visualID, classID)
+    if not (C_TransmogCollection
+        and C_TransmogCollection.GetValidAppearanceSourcesForClass) then
+        return true   -- can't check -> don't block the normal open
+    end
+    local ok, sources = pcall(
+        C_TransmogCollection.GetValidAppearanceSourcesForClass, visualID, classID)
+    if not ok then return true end   -- API changed -> fall back to normal open
+    return sources ~= nil and #sources > 0
+end
+
+-- If the current class can't view the drop, pick the lowest-numbered class
+-- that can and set the wardrobe filter to it, remembering the player's own
+-- filter for restore. No-op (and no restore scheduled) when the current class
+-- can already see it, or when the appearance can't be resolved.
+local NUM_CLASSES = 13
+
+-- False when the wardrobe cannot navigate to the drop for this character.
+-- Returns the reason alongside, so the click hint can name it: "faction"
+-- for a source locked to the other side, "class" for a weapon type this
+-- class cannot equip.
+--
+-- Two independent tests:
+--
+--   Faction -- isValidSourceForPlayer false with useErrorType 9 ("This
+--     appearance can't be used by your faction."). No dropdown change
+--     reaches it, so the click can never land.
+--
+--   The category-offering test. Hand-slot categories (weapon types,
+--     shields, held-in-off-hand) are offered PER CLASS FILTER, so a
+--     category no class is offered has no page to open. Asked of the
+--     client via GetCategoryInfo, never inferred from the item's class:
+--     inference refused wands, which a Priest filter browses fine.
+--
+-- Deliberately NOT a refusal: ordinary armor this class can't wear, nor a
+-- hand-slot type some other class is offered. Both are reachable once the
+-- filter is set to a class that can use them, which is what
+-- RetargetClassFilterForSource handles.
+--
+-- Anything unresolvable answers true, so the normal open still runs.
+local USE_ERROR_FACTION = 9
+
+-- Which classes can use the drop this sourceID belongs to, from OUR OWN
+-- raid data. Every class-restricted loot row carries the answer -- harvested
+-- from the game database at bring-up -- in `classes` (tier tokens) or
+-- `equipClasses` (class-locked gear such as the PvP sets).
+--
+-- This exists because C_TransmogCollection.GetValidAppearanceSourcesForClass
+-- is wrong for class-locked gear: asked about a Paladin-only PvP appearance
+-- it answers yes for a Death Knight, so the filter never moves and the
+-- wardrobe opens on an unrelated page. Our data says `equipClasses = { 2 }`
+-- and is right. Built once on first use and cached; sourceIDs are stable.
+local sourceClassIndex
+
+local function BuildSourceClassIndex()
+    sourceClassIndex = {}
+    for _, dataTable in ipairs({ RetroRuns_Data, RetroRuns_DataHorde }) do
+        if type(dataTable) == "table" then
+            for _, raid in pairs(dataTable) do
+                for _, boss in ipairs(raid.bosses or {}) do
+                    for _, item in ipairs(boss.loot or {}) do
+                        local classes = item.classes or item.equipClasses
+                        if classes and #classes > 0 and item.sources then
+                            for _, sourceID in pairs(item.sources) do
+                                sourceClassIndex[sourceID] = classes
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function DataClassesForSource(sourceID)
+    if not sourceClassIndex then
+        local ok = pcall(BuildSourceClassIndex)
+        if not ok then sourceClassIndex = {} end
+    end
+    return sourceClassIndex[sourceID]
+end
+
+-- Is this category offered under the CURRENT class filter? GetCategoryInfo
+-- answers it: an offered weapon-type category returns its name, one the
+-- filtered class has no proficiency for returns nothing -- name nil,
+-- isWeapon nil, every flag nil. An unoffered weapon type is therefore
+-- indistinguishable from an armor slot by its flags alone; only the name
+-- test separates them, and only inside the weapon-category ID range.
+--
+-- Mirrors WardrobeItemsCollectionMixin:IsValidWeaponCategoryForSlot, which
+-- likewise starts with `if name and ...`. Synchronous, unlike the
+-- appearance list.
+-- The TransmogLocation for a category, built the way Blizzard builds it:
+-- CollectionWardrobeUtil.GetSlotFromCategoryID gives the slot name, and
+-- GetTransmogLocation's third argument is the isSecondary BOOLEAN, not a
+-- modification enum. Getting either wrong yields no location at all.
+local FALLBACK_CATEGORY_SLOTS = {
+    [1] = "HEADSLOT",  [2] = "SHOULDERSLOT", [3] = "BACKSLOT",
+    [4] = "CHESTSLOT", [5] = "SHIRTSLOT",    [6] = "TABARDSLOT",
+    [7] = "WRISTSLOT", [8] = "HANDSSLOT",    [9] = "WAISTSLOT",
+    [10] = "LEGSSLOT", [11] = "FEETSLOT",
+}
+
+local function LocationForCategory(categoryID)
+    if not (TransmogUtil and TransmogUtil.GetTransmogLocation and Enum) then
+        return nil
+    end
+    local slot
+    if CollectionWardrobeUtil and CollectionWardrobeUtil.GetSlotFromCategoryID then
+        local okSlot, resolved = pcall(
+            CollectionWardrobeUtil.GetSlotFromCategoryID, categoryID)
+        if okSlot then slot = resolved end
+    end
+    slot = slot or FALLBACK_CATEGORY_SLOTS[categoryID]
+    -- Weapon-type categories (which GetSlotFromCategoryID does not cover)
+    -- resolve to a hand slot from the category's own flags. GetCategoryInfo
+    -- answers only under a class filter whose class can use the category,
+    -- so this is asked with such a filter already in effect. Shields report
+    -- false for BOTH hand flags, so anything not claiming the main hand
+    -- goes to the secondary slot rather than being refused.
+    if not slot then
+        local okInfo, name, isWeapon, _, canMainHand =
+            pcall(C_TransmogCollection.GetCategoryInfo, categoryID)
+        if okInfo and name and isWeapon then
+            slot = canMainHand and "MAINHANDSLOT" or "SECONDARYHANDSLOT"
+        end
+    end
+    if not slot then return nil end
+    local okLoc, location = pcall(TransmogUtil.GetTransmogLocation, slot,
+        Enum.TransmogType.Appearance, false)
+    if okLoc and location then return location end
+    return nil
+end
+
+-- Can this character's wardrobe navigate to this category through the
+-- standard jump?
+--
+-- Two kinds of category, and they answer differently:
+--
+--   ARMOR categories are always navigable -- every character has every
+--     armor slot. GetCategoryInfo does NOT name them: it names only weapon
+--     types, so the name test applies only inside the weapon-category
+--     range.
+--
+--   WEAPON-TYPE categories (which include Shields and Held-in-off-hand)
+--     are named only when the class filter's class can use them, and the
+--     standard jump follows the PLAYER, so this is asked with the player's
+--     own filter in effect. A category another class is offered but this
+--     character is not still fails the standard jump; those route through
+--     the direct navigation instead.
+--
+-- The range comes from the client's own constants, the same ones
+-- Blizzard's UpdateWeaponDropdown and SetActiveSlot iterate. Falling back
+-- to a literal only if they are absent.
+local function WeaponCategoryRange()
+    local first = FIRST_TRANSMOG_COLLECTION_WEAPON_TYPE
+    local last  = LAST_TRANSMOG_COLLECTION_WEAPON_TYPE
+    if type(first) == "number" and type(last) == "number" then
+        return first, last, true
+    end
+    return 12, 40, false
+end
+
+-- Mirrors WardrobeItemsCollectionMixin:IsValidWeaponCategoryForSlot for the
+-- weapon-type half. Blizzard's SetActiveSlot shows the cost of getting it
+-- wrong: an invalid category is nilled and replaced by the FIRST valid
+-- weapon category, which is the wrong-page landing, in their own code.
+local function CategoryNavigableForPlayer(categoryID)
+    if not C_TransmogCollection.GetCategoryInfo then return nil, "no API" end
+    local first, last, fromClient = WeaponCategoryRange()
+    if categoryID < first or categoryID > last then
+        return true, "armor slot"
+    end
+
+    local okInfo, name, isWeapon, _, canMainHand, canOffHand =
+        pcall(C_TransmogCollection.GetCategoryInfo, categoryID)
+    if not okInfo then return nil, "err" end
+    if name == nil or name == "" then
+        return false, ("unnamed%s"):format(fromClient and "" or " (range guessed)")
+    end
+    if not isWeapon then return true, name end
+
+    local location = LocationForCategory(categoryID)
+    if not location then return nil, "no location" end
+    local isMainHand = location.IsMainHand and location:IsMainHand()
+    local isOffHand  = location.IsOffHand  and location:IsOffHand()
+    if (isMainHand and canMainHand) or (isOffHand and canOffHand) then
+        return true, name
+    end
+    return false, ("%s: hand mismatch mh=%s/%s oh=%s/%s"):format(
+        name, tostring(isMainHand), tostring(canMainHand),
+        tostring(isOffHand), tostring(canOffHand))
+end
+
+-- Which class filter, if any, is offered this weapon-type category. Asked
+-- with each candidate filter in effect and the original restored by the
+-- caller. Synchronous: GetCategoryInfo answers immediately, unlike the
+-- appearance list.
+
+-- Set by the guard when a click's category is not offered to the player's
+-- own class. Carries the class filter and category the direct navigation
+-- will use.
+local navPlan = nil
+
+local function ClassOfferedCategory(categoryID, currentFilter)
+    for classID = 1, NUM_CLASSES do
+        if classID ~= currentFilter then
+            pcall(C_TransmogCollection.SetClassFilter, classID)
+            local okInfo, name = pcall(
+                C_TransmogCollection.GetCategoryInfo, categoryID)
+            if okInfo and name and name ~= "" then
+                T(("crossclass: category %d offered to class %d (%s)")
+                    :format(categoryID, classID, name))
+                return classID
+            end
+        end
+    end
+    return nil
+end
+
+local function CategoryForSource(sourceID)
+    if not C_TransmogCollection.GetAppearanceSourceInfo then return nil end
+    local okResolve, resolved = pcall(
+        C_TransmogCollection.GetAppearanceSourceInfo, sourceID)
+    if okResolve and resolved then return resolved.category end
+    return nil
+end
+
+local function PlayerCanBrowseSource(sourceID)
+    if C_TransmogCollection and C_TransmogCollection.GetSourceInfo then
+        local info = C_TransmogCollection.GetSourceInfo(sourceID)
+        T(("guard: src=%s item=%s vis=%s valid=%s err=%s"):format(
+            tostring(sourceID),
+            tostring(info and info.itemID), tostring(info and info.visualID),
+            tostring(info and info.isValidSourceForPlayer),
+            tostring(info and info.useErrorType)))
+        if info and info.isValidSourceForPlayer == false
+            and info.useErrorType == USE_ERROR_FACTION then
+            T("guard: refuse (faction)")
+            return false, "faction"
+        end
+    end
+    -- Hand-slot categories (weapon types, shields, held-in-off-hand) are
+    -- offered per class filter; armor slots always are. Asked of the
+    -- client, never inferred from the item's class.
+    local categoryID = CategoryForSource(sourceID)
+    if not categoryID then
+        T("guard: allow (no category resolved)")
+        return true
+    end
+    -- Decided against the PLAYER'S OWN class, not against any class: the
+    -- standard jump is bounded by the player's own character, so a
+    -- category the player is not offered has no page for them through
+    -- that jump, whoever else can see it. Changing the class filter
+    -- changes what GetCategoryInfo reports; it does not give this
+    -- character a slot it cannot use. Categories that fail here are
+    -- routed to the direct navigation below, not refused.
+    local _, _, playerClassID = UnitClass("player")
+    local okFilter, originalFilter = pcall(C_TransmogCollection.GetClassFilter)
+    if not okFilter or originalFilter == nil then
+        T("guard: allow (no class filter available)")
+        return true
+    end
+    local restoreNeeded = false
+    if playerClassID and originalFilter ~= playerClassID then
+        pcall(C_TransmogCollection.SetClassFilter, playerClassID)
+        restoreNeeded = true
+    end
+    local offered, detail = CategoryNavigableForPlayer(categoryID)
+    if restoreNeeded then
+        pcall(C_TransmogCollection.SetClassFilter, originalFilter)
+    end
+    T(("guard: category=%d ownClass=%s offered=%s (%s)"):format(
+        categoryID, tostring(playerClassID), tostring(offered),
+        tostring(detail)))
+    navPlan = nil
+    if offered ~= false then return true end   -- nil = could not ask
+
+    -- Not offered to this character. Blizzard's own jump would silently
+    -- substitute the category and land on an unrelated page, but the
+    -- wardrobe can still display it when navigated directly: GoToSourceID
+    -- takes the category's own transmog location and a force flag that
+    -- together bypass the substitution. All that's needed is a class
+    -- filter the category is offered under; a category no class is
+    -- offered has no page anywhere and is the only true refusal.
+    local target = ClassOfferedCategory(categoryID, originalFilter)
+    pcall(C_TransmogCollection.SetClassFilter, originalFilter)
+    if not target then
+        T(("guard: refuse (no class is offered category %d)"):format(categoryID))
+        return false, "class"
+    end
+    navPlan = { categoryID = categoryID, classID = target }
+    T(("guard: allow (direct navigation, category %d via class %d)")
+        :format(categoryID, target))
+    return true
+end
+
+-- The hint text for a refusal, naming why the wardrobe won't go there.
+-- The faction line names the faction that CAN browse it, which is always
+-- the one the player is not.
+local function HintTextForReason(reason)
+    if reason == "faction" then
+        local otherFaction = (UnitFactionGroup("player") == "Horde")
+            and (FACTION_ALLIANCE or RR.L["Alliance"])
+            or  (FACTION_HORDE or RR.L["Horde"])
+        return (RR.L["Browse locked to %s. Ctrl+Left Click for Preview"])
+            :format(otherFaction)
+    end
+    return RR.L["Browse locked to classes that can equip this. Ctrl+Left Click for Preview"]
+end
+
+-- How long a click hint stays up before hiding itself.
+local HINT_HOLD = 4
+
+-- Show the click hint beside a toast. The token guards the timer: a second
+-- click (or the frame being pooled) invalidates an earlier pending hide, so
+-- the hint never vanishes early or outlives its toast.
+local function ShowToastHint(toastFrame, text)
+    if not toastFrame.hint then return end
+    toastFrame.hint:SetText(text)
+    toastFrame.hint:Show()
+    toastFrame.hintToken = (toastFrame.hintToken or 0) + 1
+    local token = toastFrame.hintToken
+    C_Timer.After(HINT_HOLD, function()
+        if toastFrame.hintToken == token and toastFrame.hint then
+            toastFrame.hint:Hide()
+        end
+    end)
+end
+
+
+local function RetargetClassFilterForSource(sourceID)
+    if not (C_TransmogCollection
+        and C_TransmogCollection.GetClassFilter
+        and C_TransmogCollection.SetClassFilter) then
+        return
+    end
+    local visualID = VisualIDForSource(sourceID)
+    if not visualID then return end
+
+    local okFilter, currentFilter = pcall(C_TransmogCollection.GetClassFilter)
+    if not okFilter or currentFilter == nil then return end
+
+    -- Our data first, where it has an answer. A row listing the classes that
+    -- can use the drop settles which filter to browse under, and is trusted
+    -- over the capability API, which over-reports for class-locked gear.
+    local dataClasses = DataClassesForSource(sourceID)
+    if dataClasses then
+        for _, classID in ipairs(dataClasses) do
+            if classID == currentFilter then
+                T(("retarget: data says current filter %d already fits")
+                    :format(currentFilter))
+                return
+            end
+        end
+        local target = dataClasses[1]
+        T(("retarget: data classes -> filter %s (was %s)"):format(
+            tostring(target), tostring(currentFilter)))
+        if target then
+            -- Capture only the first un-restored filter: consecutive toast
+            -- clicks with the wardrobe still open must restore to the
+            -- filter the PLAYER had, not to an intermediate borrowed one.
+            if pendingClassFilterRestore == nil then
+                pendingClassFilterRestore = currentFilter
+            end
+            pcall(C_TransmogCollection.SetClassFilter, target)
+            RefreshClassDropdownLabel()
+        end
+        return
+    end
+
+    -- No row for this source (a drop we do not track): fall back to the
+    -- capability API, which is right for everything except class-locked
+    -- gear -- and class-locked gear is exactly what our data covers.
+    if ClassCanViewVisual(visualID, currentFilter) then
+        return   -- current class already sees it; leave the filter alone
+    end
+
+    for classID = 1, NUM_CLASSES do
+        if classID ~= currentFilter and ClassCanViewVisual(visualID, classID) then
+            if pendingClassFilterRestore == nil then
+                pendingClassFilterRestore = currentFilter
+            end
+            pcall(C_TransmogCollection.SetClassFilter, classID)
+            RefreshClassDropdownLabel()
+            return
+        end
+    end
+    -- No class can view it (nothing to do; the normal open still runs).
+end
+
 local function OpenToastInJournal(toastFrame)
-    if InCombatLockdown and InCombatLockdown() then return false end
+    if InCombatLockdown and InCombatLockdown() then
+        T("open: refused -- in combat lockdown")
+        return false
+    end
 
     if toastFrame.sourceID then
-        if TransmogUtil and TransmogUtil.OpenCollectionToItem then
-            TransmogUtil.OpenCollectionToItem(toastFrame.sourceID)
+        -- An appearance the wardrobe won't navigate to for this character
+        -- has no page to open, so a normal click would strand the player on
+        -- an unrelated default page. Say why instead, and point at the
+        -- preview, which works for any appearance.
+        local canBrowse, reason = PlayerCanBrowseSource(toastFrame.sourceID)
+        if not canBrowse then
+            -- hint is nil on a frame built without one; the hint would then
+            -- be silently dropped and the click would look like a no-op.
+            T(("open: hint reason=%s hintFrame=%s"):format(
+                tostring(reason), tostring(toastFrame.hint ~= nil)))
+            ShowToastHint(toastFrame, HintTextForReason(reason))
             return true
         end
+        if TransmogUtil and TransmogUtil.OpenCollectionToItem then
+            -- Load the wardrobe first so the OnHide restore hook can attach
+            -- before the filter is retargeted. It's load-on-demand, so on the
+            -- first appearance-toast click the frame otherwise wouldn't exist
+            -- yet when the retarget runs, and the changed filter would never
+            -- be restored.
+            if not CollectionsJournal and CollectionsJournal_LoadUI then
+                CollectionsJournal_LoadUI()
+            end
+            EnsureClassFilterRestoreHook()
+
+            -- A category the player's own class is not offered: Blizzard's
+            -- jump would substitute it, so navigate directly instead. Set
+            -- the filter the category is offered under, open the wardrobe,
+            -- and go to the source with its own transmog location and the
+            -- force flag, which together bypass the substitution. The
+            -- filter restores when the wardrobe closes, same as any other
+            -- retargeted open.
+            local plan = navPlan
+            navPlan = nil
+            if plan and classFilterHookInstalled then
+                local itemsFrame = WardrobeCollectionFrame
+                    and WardrobeCollectionFrame.ItemsCollectionFrame
+                if itemsFrame and itemsFrame.GoToSourceID then
+                    -- The filter switches before the location is built:
+                    -- weapon-category slots resolve from GetCategoryInfo,
+                    -- which only answers under a filter whose class can use
+                    -- the category.
+                    local okFilter, currentFilter =
+                        pcall(C_TransmogCollection.GetClassFilter)
+                    local filterSwitched = false
+                    if okFilter and currentFilter
+                        and currentFilter ~= plan.classID then
+                        if pendingClassFilterRestore == nil then
+                            pendingClassFilterRestore = currentFilter
+                        end
+                        pcall(C_TransmogCollection.SetClassFilter, plan.classID)
+                        filterSwitched = true
+                    end
+                    local location = LocationForCategory(plan.categoryID)
+                    if not location then
+                        -- Put the filter back; the plain open below runs on
+                        -- the player's own settings.
+                        if filterSwitched then
+                            RestoreClassFilterOnHide()
+                        end
+                        T(("open: no location for category %d, falling back "
+                            .. "to plain open"):format(plan.categoryID))
+                    else
+                        if CollectionsJournal
+                            and not CollectionsJournal:IsShown()
+                            and SetCollectionsJournalShown then
+                            SetCollectionsJournalShown(true,
+                                COLLECTIONS_JOURNAL_TAB_INDEX_APPEARANCES)
+                        end
+                        local sourceID = toastFrame.sourceID
+                        T(("open: direct GoToSourceID(%d) category %d via class %d")
+                            :format(sourceID, plan.categoryID, plan.classID))
+                        -- One frame's delay lets the filter change and the
+                        -- wardrobe's show settle before the jump.
+                        C_Timer.After(0.1, function()
+                            pcall(itemsFrame.GoToSourceID, itemsFrame,
+                                sourceID, location, true)
+                            RefreshClassDropdownLabel()
+                            T("open: direct navigation done")
+                        end)
+                        return true
+                    end
+                else
+                    T("open: direct navigation unavailable, falling back to plain open")
+                end
+            end
+
+            -- Only retarget if the restore hook is in place; a filter change
+            -- with no way to undo it would silently alter the player's
+            -- wardrobe. If the hook didn't install, fall through to a plain
+            -- open on the player's own filter.
+            if classFilterHookInstalled then
+                RetargetClassFilterForSource(toastFrame.sourceID)
+            end
+            T(("open: OpenCollectionToItem(%s) journalLoaded=%s hook=%s"):format(
+                tostring(toastFrame.sourceID),
+                tostring(CollectionsJournal ~= nil),
+                tostring(classFilterHookInstalled)))
+            TransmogUtil.OpenCollectionToItem(toastFrame.sourceID)
+            T("open: OpenCollectionToItem returned; journalShown="
+                .. tostring(CollectionsJournal and CollectionsJournal:IsShown()))
+            return true
+        end
+        T("open: no TransmogUtil.OpenCollectionToItem -- unhandled")
         return false
     end
 
@@ -574,15 +1149,27 @@ end
 
 -- Right-click dismisses in every mode. Left-click opens the drop in its
 -- collection journal, or previews it when the dress-up modifier is held.
+--
+-- Every click writes to the trace ring. A click that appears to do nothing
+-- is otherwise invisible after the fact -- the toast is gone, the journal
+-- never opened, and nothing was printed -- so /rr toasterdebug is the only
+-- way to see which branch ran and what the guard decided.
 local function ToastOnClick(toastFrame, button)
+    T(("click: button=%s src=%s mount=%s pet=%s toy=%s special=%s"):format(
+        tostring(button), tostring(toastFrame.sourceID),
+        tostring(toastFrame.mountID), tostring(toastFrame.petID),
+        tostring(toastFrame.toyID), tostring(toastFrame.specialKind)))
     if button == "RightButton" then
+        T("click: right -> dismiss")
         DismissToast(toastFrame)
         return
     end
     if IsModifiedClick and IsModifiedClick("DRESSUP") then
-        PreviewToastItem(toastFrame)
+        local previewed = PreviewToastItem(toastFrame)
+        T("click: dressup-modifier -> preview handled=" .. tostring(previewed))
     else
-        OpenToastInJournal(toastFrame)
+        local opened = OpenToastInJournal(toastFrame)
+        T("click: left -> journal handled=" .. tostring(opened))
     end
 end
 
@@ -703,8 +1290,11 @@ local function ShowOne(toast)
 
     -- Typeface follows bodyFontStyle; sizes fixed.
     local bodyFont = (RR.GetBodyFont and RR:GetBodyFont()) or TITLE_FONT
-    toastFrame.header:SetFont(bodyFont, 16, "OUTLINE")
-    toastFrame.itemNameText:SetFont(bodyFont, 20, "OUTLINE")
+    RR.SafeSetFont(toastFrame.header, bodyFont, 16, "OUTLINE")
+    RR.SafeSetFont(toastFrame.itemNameText, bodyFont, 20, "OUTLINE")
+    if toastFrame.hint then
+        RR.SafeSetFont(toastFrame.hint, bodyFont, HINT_FONT_SIZE, "OUTLINE")
+    end
 
     if toast.width then toastFrame:SetWidth(toast.width) end
     toastFrame.header:SetText(toast.header and RR.L[toast.header]:upper() or "RETRORUNS")
@@ -745,7 +1335,7 @@ local function FrameWidthFor(name, header)
         measureFS:Hide()
     end
     local bodyFont = (RR.GetBodyFont and RR:GetBodyFont()) or TITLE_FONT
-    measureFS:SetFont(bodyFont, 20, "OUTLINE")
+    RR.SafeSetFont(measureFS, bodyFont, 20, "OUTLINE")
     measureFS:SetText(name or "")
     local widest = measureFS:GetStringWidth()
     measureFS:SetText((header or ""):upper())
@@ -946,7 +1536,7 @@ local function BuildUnlockOverlay()
     -- Hint caption above the frame. Carries a translated string, so it takes
     -- the chrome font: the pixel face covers ASCII only.
     local label = overlay:CreateFontString(nil, "OVERLAY")
-    label:SetFont((RR.GetChromeFont and RR:GetChromeFont()) or TITLE_FONT, 12, "OUTLINE")
+    RR.SafeSetFont(label, (RR.GetChromeFont and RR:GetChromeFont()) or TITLE_FONT, 12, "OUTLINE")
     label:SetPoint("BOTTOMLEFT", overlay, "TOPLEFT", 0, 4)
     label:SetText(RR.L["Drag to move"])
     label:SetJustifyH("LEFT")
@@ -1959,8 +2549,8 @@ function RR:BuildPreviewBatch(parent)
         -- These previews skip the show path, so they take the typeface swap
         -- directly: the pixel face covers ASCII only.
         local previewFont = (RR.GetBodyFont and RR:GetBodyFont()) or TITLE_FONT
-        toastFrame.header:SetFont(previewFont, 16, "OUTLINE")
-        toastFrame.itemNameText:SetFont(previewFont, 20, "OUTLINE")
+        RR.SafeSetFont(toastFrame.header, previewFont, 16, "OUTLINE")
+        RR.SafeSetFont(toastFrame.itemNameText, previewFont, 20, "OUTLINE")
         toastFrame.header:SetText(RR.L[s.header]:upper())
         -- A sample with its own name mirrors a mount/pet row, whose live
         -- toast shows the journal name; the item id only supplies the icon.
@@ -2133,7 +2723,7 @@ function RR:BuildToasterMockup(parent, mockScale)
     titleBar:SetHeight(18 * MOCK_SCALE + 8)
 
     local titleTxt = pBox:CreateFontString(nil, "OVERLAY")
-    titleTxt:SetFont(TITLE_FONT, math.max(8, 12 * MOCK_SCALE + 2), "OUTLINE")
+    RR.SafeSetFont(titleTxt, TITLE_FONT, math.max(8, 12 * MOCK_SCALE + 2), "OUTLINE")
     titleTxt:SetPoint("LEFT", titleBar, "LEFT", 6, 0)
     titleTxt:SetText("|cffF259C7RETRO|r|cff4DCCFFRUNS|r")
 
@@ -2160,8 +2750,8 @@ function RR:BuildToasterMockup(parent, mockScale)
     -- the unlock-drag sample). The mock skips the show path, so it takes the
     -- typeface swap directly: the pixel face covers ASCII only.
     local mockFont = (RR.GetBodyFont and RR:GetBodyFont()) or TITLE_FONT
-    toast.header:SetFont(mockFont, 16, "OUTLINE")
-    toast.itemNameText:SetFont(mockFont, 20, "OUTLINE")
+    RR.SafeSetFont(toast.header, mockFont, 16, "OUTLINE")
+    RR.SafeSetFont(toast.itemNameText, mockFont, 20, "OUTLINE")
     toast.header:SetText(RR.L["New Appearance"])
     -- Static glow tint (the live pulse ticker doesn't run here).
     if toast.glowOn and toast.glow then

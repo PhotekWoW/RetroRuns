@@ -317,7 +317,7 @@ RetroRuns_Data[2450] = {
                 {
                     when   = { mapID = 1998 },
                     kind   = "path",
-                    note   = "Follow the map from the entrance to ^the Tarragrue^.",
+                    note   = "Follow the map from the entrance to ^The Tarragrue^.",
                     minNote = "Path to Tarragrue",
                     points = {
                         { 0.346, 0.785 },
@@ -642,7 +642,7 @@ RetroRuns_Data[2450] = {
                         {
                             when   = { mapID = 1998 },
                             kind   = "path",
-                            note   = "Follow the map from the entrance to ^the Tarragrue^.",
+                            note   = "Follow the map from the entrance to ^The Tarragrue^.",
                             minNote = "Path To Tarragrue",
                             points = {
                                 { 0.346, 0.785 },
@@ -957,7 +957,7 @@ RetroRuns_Data[2450] = {
                 {
                     when   = { mapID = 1998 },
                     kind   = "path",
-                    note   = "Follow the map from the entrance to ^the Tarragrue^.",
+                    note   = "Follow the map from the entrance to ^The Tarragrue^.",
                     minNote = "Path to Tarragrue",
                     points = {
                         { 0.346, 0.785 },

@@ -65,7 +65,7 @@ local controls = {}   -- every control, for refresh-on-show and reset
 
 -- ---- Title (RETRO + RUNS, brand two-tone) --------------------------------
 local titleRetro = panel:CreateFontString(nil, "ARTWORK")
-titleRetro:SetFont(RETRO_FONT, 22, "OUTLINE")
+RR.SafeSetFont(titleRetro, RETRO_FONT, 22, "OUTLINE")
 titleRetro:SetPoint("TOPLEFT", 24, -20)
 titleRetro:SetText("RETRO")
 titleRetro:SetTextColor(unpack(COLOR_PINK))
@@ -73,7 +73,7 @@ titleRetro:SetShadowOffset(1, -1)
 titleRetro:SetShadowColor(0, 0, 0, 1)
 
 local titleRuns = panel:CreateFontString(nil, "ARTWORK")
-titleRuns:SetFont(RETRO_FONT, 22, "OUTLINE")
+RR.SafeSetFont(titleRuns, RETRO_FONT, 22, "OUTLINE")
 titleRuns:SetPoint("LEFT", titleRetro, "RIGHT", 2, 0)
 titleRuns:SetText("RUNS")
 titleRuns:SetTextColor(unpack(COLOR_CYAN))
@@ -83,7 +83,7 @@ titleRuns:SetShadowColor(0, 0, 0, 1)
 -- "by Photek" credit trailing the wordmark, smaller and dim so it reads
 -- as a subtitle rather than competing with the brand.
 local titleBy = panel:CreateFontString(nil, "ARTWORK")
-titleBy:SetFont(CANVAS_FONT, 12, "")
+RR.SafeSetFont(titleBy, CANVAS_FONT, 12, "")
 titleBy:SetPoint("LEFT", titleRuns, "RIGHT", 6, -2)
 titleBy:SetText(RR.L["by Photek"])
 titleBy:SetTextColor(unpack(COLOR_DIM))
@@ -121,7 +121,7 @@ local function AddCheckbox(page, label, indent, getValue, setValue)
     cb.Text:SetText(label)
     -- Use the RetroRuns 04B_03 font so this matches the rest of the panel
     -- (the stock template font reads as generic Blizzard, out of place here).
-    cb.Text:SetFont(CANVAS_FONT, CONTROL_FONT_SIZE, "")
+    RR.SafeSetFont(cb.Text, CANVAS_FONT, CONTROL_FONT_SIZE, "")
     cb.Text:SetTextColor(unpack(COLOR_LABEL))
     cb.Text:SetShadowOffset(1, -1)
     cb.Text:SetShadowColor(0, 0, 0, 1)
@@ -138,7 +138,7 @@ local function AddSlider(page, label, minV, maxV, step, getValue, setValue, form
     container:SetPoint("TOPLEFT", 0, pageCursor[page])
 
     local title = container:CreateFontString(nil, "ARTWORK")
-    title:SetFont(CANVAS_FONT, CONTROL_FONT_SIZE, "")
+    RR.SafeSetFont(title, CANVAS_FONT, CONTROL_FONT_SIZE, "")
     title:SetPoint("TOPLEFT", 0, 0)
     title:SetTextColor(unpack(COLOR_LABEL))
     title:SetShadowOffset(1, -1)
@@ -177,7 +177,7 @@ local function AddDropdown(page, label, options, getValue, setValue)
     container:SetPoint("TOPLEFT", 0, pageCursor[page])
 
     local title = container:CreateFontString(nil, "ARTWORK")
-    title:SetFont(CANVAS_FONT, CONTROL_FONT_SIZE, "")
+    RR.SafeSetFont(title, CANVAS_FONT, CONTROL_FONT_SIZE, "")
     title:SetPoint("TOPLEFT", 4, 0)
     title:SetText(label)
     title:SetTextColor(unpack(COLOR_LABEL))
@@ -322,7 +322,7 @@ local VALUE_X = 240   -- page-relative x for the value column. Sized to clear
 -- Tagline header for the Toaster tab.
 do
     local tagline = pageToaster:CreateFontString(nil, "ARTWORK")
-    tagline:SetFont(CANVAS_FONT, 17, "")
+    RR.SafeSetFont(tagline, CANVAS_FONT, 17, "")
     tagline:SetPoint("TOPLEFT", 0, pageCursor[pageToaster])
     -- Clamped to the page width so long translations wrap instead of
     -- running past the frame edge; the cursor advances by the rendered
@@ -336,7 +336,7 @@ do
         - (math.max(17, math.ceil(tagline:GetStringHeight())) + 8)
 
     local subline = pageToaster:CreateFontString(nil, "ARTWORK")
-    subline:SetFont(CANVAS_FONT, 12, "")
+    RR.SafeSetFont(subline, CANVAS_FONT, 12, "")
     subline:SetPoint("TOPLEFT", 0, pageCursor[pageToaster])
     subline:SetWidth(CONTENT_W)
     subline:SetJustifyH("LEFT")
@@ -375,7 +375,7 @@ local statusArrow, statusValue
 local ARROW_TEX = "Interface\\AddOns\\RetroRuns\\Media\\ArrowDown"
 do
     local lbl = pageToaster:CreateFontString(nil, "ARTWORK")
-    lbl:SetFont(CANVAS_FONT, SEG_FONT_SIZE, "")
+    RR.SafeSetFont(lbl, CANVAS_FONT, SEG_FONT_SIZE, "")
     lbl:SetPoint("TOPLEFT", 0, pageCursor[pageToaster])
     lbl:SetText(RR.L["Active Status:"])
     lbl:SetTextColor(unpack(COLOR_LABEL))
@@ -391,7 +391,7 @@ do
 
     -- Status text stays in the retro font to match the rest of the panel.
     statusValue = pageToaster:CreateFontString(nil, "ARTWORK")
-    statusValue:SetFont(CANVAS_FONT, SEG_FONT_SIZE, "")
+    RR.SafeSetFont(statusValue, CANVAS_FONT, SEG_FONT_SIZE, "")
     statusValue:SetPoint("LEFT", statusArrow, "RIGHT", 5, 0)
     statusValue:SetShadowOffset(1, -1); statusValue:SetShadowColor(0, 0, 0, 1)
 
@@ -406,7 +406,7 @@ local function AddButtonPair(label, indent, trueLabel, falseLabel, getValue, set
     local rowY = pageCursor[pageToaster]
 
     local lbl = pageToaster:CreateFontString(nil, "ARTWORK")
-    lbl:SetFont(CANVAS_FONT, SEG_FONT_SIZE, "")
+    RR.SafeSetFont(lbl, CANVAS_FONT, SEG_FONT_SIZE, "")
     lbl:SetPoint("TOPLEFT", indent or 0, rowY)
     lbl:SetText(label)
     lbl:SetTextColor(unpack(COLOR_LABEL))
@@ -415,7 +415,7 @@ local function AddButtonPair(label, indent, trueLabel, falseLabel, getValue, set
     local function MakeBtn(text, value)
         local btn = CreateFrame("Button", nil, pageToaster)
         local fs = btn:CreateFontString(nil, "ARTWORK")
-        fs:SetFont(CANVAS_FONT, SEG_FONT_SIZE, "")
+        RR.SafeSetFont(fs, CANVAS_FONT, SEG_FONT_SIZE, "")
         fs:SetText(text)
         fs:SetShadowOffset(1, -1); fs:SetShadowColor(0, 0, 0, 1)
         btn.fs = fs
@@ -429,6 +429,12 @@ local function AddButtonPair(label, indent, trueLabel, falseLabel, getValue, set
         local ul = btn:CreateTexture(nil, "ARTWORK")
         ul:SetColorTexture(COLOR_CYAN[1], COLOR_CYAN[2], COLOR_CYAN[3], 1)
         ul:SetHeight(1)
+        -- Same 1px-texture hardening the dividers use; without it a
+        -- hairline at a fractional coordinate can round to nothing.
+        if ul.SetTexelSnappingBias then
+            ul:SetTexelSnappingBias(0)
+            ul:SetSnapToPixelGrid(false)
+        end
         ul:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -2)
         ul:SetPoint("TOPRIGHT", fs, "BOTTOMRIGHT", 0, -2)
         ul:Hide()
@@ -440,11 +446,15 @@ local function AddButtonPair(label, indent, trueLabel, falseLabel, getValue, set
     local trueBtn = MakeBtn(trueLabel, true)
     -- The value column is a minimum: rows whose localized label runs past
     -- it push their buttons right instead of being overdrawn.
-    local valueX = math.max(VALUE_X, (indent or 0) + lbl:GetStringWidth() + 12)
+    -- Ceil to a whole pixel: string widths are fractional, and a row whose
+    -- label pushes its buttons past the shared column would otherwise land
+    -- on a fractional x, where the 1px underline can fall between pixels
+    -- and vanish at some UI scales.
+    local valueX = math.ceil(math.max(VALUE_X, (indent or 0) + lbl:GetStringWidth() + 12))
     trueBtn:SetPoint("TOPLEFT", pageToaster, "TOPLEFT", valueX, rowY)
 
     local sep = pageToaster:CreateFontString(nil, "ARTWORK")
-    sep:SetFont(CANVAS_FONT, SEG_FONT_SIZE, "")
+    RR.SafeSetFont(sep, CANVAS_FONT, SEG_FONT_SIZE, "")
     sep:SetText("|")
     sep:SetPoint("LEFT", trueBtn, "RIGHT", 6, 0)
     sep:SetTextColor(unpack(COLOR_DIM))
@@ -556,7 +566,7 @@ do
     local cy = 0   -- container-local cursor (descends from the top)
 
     local lbl = container:CreateFontString(nil, "ARTWORK")
-    lbl:SetFont(CANVAS_FONT, CONTROL_FONT_SIZE, "")
+    RR.SafeSetFont(lbl, CANVAS_FONT, CONTROL_FONT_SIZE, "")
     lbl:SetPoint("TOPLEFT", 0, cy)
     lbl:SetText(RR.L["Toaster Preview"])
     lbl:SetTextColor(unpack(COLOR_LABEL))
@@ -605,7 +615,7 @@ do
         -- it to a few lines beside the toast stack.
         local noteTop = cy - 30
         local note = container:CreateFontString(nil, "ARTWORK")
-        note:SetFont(CANVAS_FONT, 16, "")
+        RR.SafeSetFont(note, CANVAS_FONT, 16, "")
         note:SetPoint("TOPLEFT", RIGHT_X, noteTop)
         note:SetWidth(NOTE_W)
         note:SetJustifyH("LEFT")
@@ -627,7 +637,7 @@ do
         -- bottom, whatever line count the locale produced.
         local note2Top = noteTop - blockHeight(note, 16) - 14
         local note2 = container:CreateFontString(nil, "ARTWORK")
-        note2:SetFont(CANVAS_FONT, 16, "")
+        RR.SafeSetFont(note2, CANVAS_FONT, 16, "")
         note2:SetPoint("TOPLEFT", RIGHT_X, note2Top)
         note2:SetWidth(NOTE_W)
         note2:SetJustifyH("LEFT")
@@ -648,13 +658,13 @@ do
         end
         local legendTop = toastTop - stackH - 10
         local legend = container:CreateFontString(nil, "ARTWORK")
-        legend:SetFont(CANVAS_FONT, 16, "")
+        RR.SafeSetFont(legend, CANVAS_FONT, 16, "")
         legend:SetPoint("TOPLEFT", 8, legendTop)
         legend:SetWidth(NOTE_W + 28)
         legend:SetJustifyH("LEFT")
         legend:SetSpacing(4)
         legend:SetText(StyleGestureLine(RR.L["Ctrl+Left: Preview"]) .. "\n"
-            .. StyleGestureLine(RR.L["Left-Click: Open in Collections"]) .. "\n"
+            .. StyleGestureLine(RR.L["Left-Click: Collections"]) .. "\n"
             .. StyleGestureLine(RR.L["Right-Click: Dismiss"]))
         legend:SetTextColor(unpack(COLOR_LABEL))
         legend:SetShadowOffset(1, -1); legend:SetShadowColor(0, 0, 0, 1)
@@ -662,7 +672,7 @@ do
         -- Loot summary preview flows below the second note.
         local summaryTop = note2Top - blockHeight(note2, 16) - 16
         local summaryHdr = container:CreateFontString(nil, "ARTWORK")
-        summaryHdr:SetFont(CANVAS_FONT, CONTROL_FONT_SIZE, "")
+        RR.SafeSetFont(summaryHdr, CANVAS_FONT, CONTROL_FONT_SIZE, "")
         summaryHdr:SetPoint("TOPLEFT", RIGHT_X, summaryTop)
         summaryHdr:SetWidth(CONTENT_W / PREVIEW_SCALE - RIGHT_X)
         summaryHdr:SetJustifyH("LEFT")
@@ -785,7 +795,7 @@ end
 -- caution rather than a dismissable notice.
 do
     local disclaimer = panel:CreateFontString(nil, "ARTWORK")
-    disclaimer:SetFont(CANVAS_FONT, 12, "")
+    RR.SafeSetFont(disclaimer, CANVAS_FONT, 12, "")
     -- Confined to the right content pane, bottom-aligned to the footer icon
     -- baseline so long text wraps upward within the footer band.
     disclaimer:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", CONTENT_X + 16, 16)
@@ -797,7 +807,7 @@ do
 
     -- [!] rides the top line of the disclaimer, in the gutter.
     local flash = panel:CreateFontString(nil, "ARTWORK")
-    flash:SetFont(CANVAS_FONT, 14, "")
+    RR.SafeSetFont(flash, CANVAS_FONT, 14, "")
     flash:SetPoint("TOPRIGHT", disclaimer, "TOPLEFT", -4, 0)
     flash:SetText("[!]")
     flash:SetTextColor(1, 1, 0)
@@ -821,7 +831,7 @@ end
 -- put as more controls are added above it.
 do
     local tagline = pageCustomize:CreateFontString(nil, "ARTWORK")
-    tagline:SetFont(CANVAS_FONT, 17, "")
+    RR.SafeSetFont(tagline, CANVAS_FONT, 17, "")
     tagline:SetPoint("TOPLEFT", 0, pageCursor[pageCustomize])
     tagline:SetText(RR.L["Customize Toaster"])
     tagline:SetTextColor(unpack(COLOR_CYAN))
@@ -829,7 +839,7 @@ do
     pageCursor[pageCustomize] = pageCursor[pageCustomize] - (17 + 8)
 
     local subline = pageCustomize:CreateFontString(nil, "ARTWORK")
-    subline:SetFont(CANVAS_FONT, 12, "")
+    RR.SafeSetFont(subline, CANVAS_FONT, 12, "")
     subline:SetPoint("TOPLEFT", 0, pageCursor[pageCustomize])
     subline:SetText(RR.L["Size, Position & Preview"])
     subline:SetTextColor(unpack(COLOR_PINK))
@@ -905,7 +915,7 @@ do
         RR._toasterMock = mock   -- handle for live updates as controls change
 
         local lbl = pageCustomize:CreateFontString(nil, "ARTWORK")
-        lbl:SetFont(CANVAS_FONT, CONTROL_FONT_SIZE, "")
+        RR.SafeSetFont(lbl, CANVAS_FONT, CONTROL_FONT_SIZE, "")
         lbl:SetPoint("BOTTOMLEFT", mock.frame, "TOPLEFT", -8, 6)
         lbl:SetText(RR.L["Live Preview:"])
         lbl:SetTextColor(unpack(COLOR_LABEL))
@@ -919,7 +929,7 @@ end
 -- the full last-N release set fits regardless of length.
 do
     local tagline = pageWhatsNew:CreateFontString(nil, "ARTWORK")
-    tagline:SetFont(CANVAS_FONT, 17, "")
+    RR.SafeSetFont(tagline, CANVAS_FONT, 17, "")
     tagline:SetPoint("TOPLEFT", 0, pageCursor[pageWhatsNew])
     tagline:SetText(RR.L["What's New"])
     tagline:SetTextColor(unpack(COLOR_CYAN))
@@ -971,7 +981,7 @@ end
 -- the GitHub / CurseForge links (same copy-URL popups as the footer icons).
 do
     local tagline = pageHelp:CreateFontString(nil, "ARTWORK")
-    tagline:SetFont(CANVAS_FONT, 17, "")
+    RR.SafeSetFont(tagline, CANVAS_FONT, 17, "")
     tagline:SetPoint("TOPLEFT", 0, pageCursor[pageHelp])
     tagline:SetText(RR.L["Help"])
     tagline:SetTextColor(unpack(COLOR_CYAN))
@@ -987,14 +997,14 @@ do
 
     -- Author credit + Discord, at the top of the page.
     local credit = pageHelp:CreateFontString(nil, "ARTWORK")
-    credit:SetFont(CANVAS_FONT, 12, "")
+    RR.SafeSetFont(credit, CANVAS_FONT, 12, "")
     credit:SetPoint("TOPLEFT", 0, pageCursor[pageHelp])
     credit:SetText(RR.L["|cffF259C7Author:|r |cffffffffPhotek|r"])
     credit:SetShadowOffset(1, -1); credit:SetShadowColor(0, 0, 0, 1)
     pageCursor[pageHelp] = pageCursor[pageHelp] - (12 + 6)
 
     local hangout = pageHelp:CreateFontString(nil, "ARTWORK")
-    hangout:SetFont(CANVAS_FONT, 12, "")
+    RR.SafeSetFont(hangout, CANVAS_FONT, 12, "")
     hangout:SetPoint("TOPLEFT", 8, pageCursor[pageHelp])
     hangout:SetText(RR.L["Known Hangout:"])
     hangout:SetTextColor(unpack(COLOR_CYAN))
@@ -1003,7 +1013,7 @@ do
     -- Clickable URL: white text with a Button overlay (FontStrings can't
     -- take clicks). Click opens the copy-URL popup, same as the link rows.
     local urlFS = pageHelp:CreateFontString(nil, "ARTWORK")
-    urlFS:SetFont(CANVAS_FONT, 12, "")
+    RR.SafeSetFont(urlFS, CANVAS_FONT, 12, "")
     urlFS:SetPoint("LEFT", hangout, "RIGHT", 6, 0)
     urlFS:SetText(URL_DISCORD)
     urlFS:SetTextColor(1, 1, 1)
@@ -1029,7 +1039,7 @@ do
 
     -- Section: Commands -----------------------------------------------------
     local cmdHeader = pageHelp:CreateFontString(nil, "ARTWORK")
-    cmdHeader:SetFont(CANVAS_FONT, 13, "")
+    RR.SafeSetFont(cmdHeader, CANVAS_FONT, 13, "")
     cmdHeader:SetPoint("TOPLEFT", 0, pageCursor[pageHelp])
     cmdHeader:SetText(RR.L["Commands"])
     cmdHeader:SetTextColor(unpack(COLOR_PINK))
@@ -1051,14 +1061,14 @@ do
     }
     for _, entry in ipairs(commands) do
         local cmd = pageHelp:CreateFontString(nil, "ARTWORK")
-        cmd:SetFont(CANVAS_FONT, 12, "")
+        RR.SafeSetFont(cmd, CANVAS_FONT, 12, "")
         cmd:SetPoint("TOPLEFT", 8, pageCursor[pageHelp])
         cmd:SetText(entry[1])
         cmd:SetTextColor(unpack(COLOR_CYAN))
         cmd:SetShadowOffset(1, -1); cmd:SetShadowColor(0, 0, 0, 1)
 
         local desc = pageHelp:CreateFontString(nil, "ARTWORK")
-        desc:SetFont(CANVAS_FONT, 12, "")
+        RR.SafeSetFont(desc, CANVAS_FONT, 12, "")
         desc:SetPoint("TOPLEFT", 8 + CMD_COL, pageCursor[pageHelp])
         desc:SetText(entry[2])
         desc:SetTextColor(unpack(COLOR_DIM))
@@ -1071,7 +1081,7 @@ do
 
     -- Section: Links --------------------------------------------------------
     local linkHeader = pageHelp:CreateFontString(nil, "ARTWORK")
-    linkHeader:SetFont(CANVAS_FONT, 13, "")
+    RR.SafeSetFont(linkHeader, CANVAS_FONT, 13, "")
     linkHeader:SetPoint("TOPLEFT", 0, pageCursor[pageHelp])
     linkHeader:SetText(RR.L["Links"])
     linkHeader:SetTextColor(unpack(COLOR_PINK))
@@ -1098,7 +1108,7 @@ do
         if hl then hl:SetVertexColor(color[1], color[2], color[3]); hl:SetAlpha(0.4) end
 
         local fs = pageHelp:CreateFontString(nil, "ARTWORK")
-        fs:SetFont(CANVAS_FONT, 13, "")
+        RR.SafeSetFont(fs, CANVAS_FONT, 13, "")
         -- Vertically center the label against the icon (icon spans rowY down
         -- to rowY-LINK_ICON; the label baseline sits at the icon's middle).
         fs:SetPoint("LEFT", icon, "RIGHT", 12, 0)
@@ -1165,7 +1175,7 @@ local function MakeTab(index, text, page, withStatusDot, indented, yOffset)
     tab:SetPoint("TOPLEFT", 16, NAV_TOP - (index - 1) * (TAB_H + TAB_GAP) + (yOffset or 0))
 
     local label = tab:CreateFontString(nil, "ARTWORK")
-    label:SetFont(CANVAS_FONT, 13, "")
+    RR.SafeSetFont(label, CANVAS_FONT, 13, "")
     -- Submenu entries are indented so they read as a child of the tab above.
     label:SetPoint("LEFT", indented and 22 or 8, 0)
     label:SetText(text)
@@ -1299,7 +1309,7 @@ resetButton:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -24, -20)
 local lockCheck = CreateFrame("CheckButton", nil, pageCustomize, "InterfaceOptionsCheckButtonTemplate")
 lockCheck:SetPoint("TOPRIGHT", pageCustomize, "TOPRIGHT", -8, -4)
 lockCheck.Text:SetText(RR.L["Lock toasts"])
-lockCheck.Text:SetFont(CANVAS_FONT, CONTROL_FONT_SIZE, "")
+RR.SafeSetFont(lockCheck.Text, CANVAS_FONT, CONTROL_FONT_SIZE, "")
 lockCheck.Text:SetTextColor(unpack(COLOR_LABEL))
 lockCheck.Text:SetShadowOffset(1, -1)
 lockCheck.Text:SetShadowColor(0, 0, 0, 1)
