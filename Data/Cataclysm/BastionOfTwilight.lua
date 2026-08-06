@@ -101,7 +101,7 @@ RetroRuns_Data[671] = {
             index              = 2,
             name               = "Theralion and Valiona",
             journalEncounterID = 157,
-            aliases            = {},
+            aliases            = { "Valiona and Theralion" },
             achievements       = {
                 { id = 4852, name = "Double Dragon", meta = true, soloable = "yes" },
                 { id = 5117, name = "Heroic: Valiona and Theralion", meta = true, soloable = "yes" },
@@ -123,7 +123,7 @@ RetroRuns_Data[671] = {
             index              = 3,
             name               = "Ascendant Council",
             journalEncounterID = 158,
-            aliases            = {},
+            aliases            = { "Ascendant Council (lockout)" },
             achievements       = {
                 { id = 5311, name = "Elementary", meta = true, soloable = "yes" },
                 { id = 5119, name = "Heroic: Ascendant Council", meta = true, soloable = "yes" },

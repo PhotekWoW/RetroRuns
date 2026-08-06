@@ -566,11 +566,11 @@ RetroRuns_Data[649] = {
             index              = 3,
             name               = "Champions of the Horde",
             journalEncounterID = 1621,
+            aliases            = { "Faction Champions" },
             factionEncounters  = {
                 Alliance = { name = "Champions of the Horde", journalEncounterID = 1621 },
                 Horde    = { name = "Champions of the Alliance", journalEncounterID = 1620 },
             },
-            aliases            = { "Faction Champions" },
             achievements       = {
                 -- The 25-player twin of this achievement no longer exists
                 -- in the game's tables; only the 10-player version remains.

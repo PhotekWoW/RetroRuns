@@ -52,7 +52,7 @@ RetroRuns_Data[1008] = {
             index              = 1,
             name               = "The Stone Guard",
             journalEncounterID = 679,
-            aliases            = {},
+            aliases            = { "The Stone Guard (lockout)" },
             achievements       = {
                 { id = 6823, name = "Must Love Dogs", meta = true, soloable = "yes" },
                 { id = 6719, name = "Heroic: Stone Guard", meta = true, soloable = "yes" },

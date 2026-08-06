@@ -2519,6 +2519,25 @@ function RR:ToasterClearTrace()
     RR:Print(RR.L["Toaster trace cleared."])
 end
 
+-- Font setter for the SETTINGS SAMPLE toasts (preview stack + customize
+-- mockup). The samples always use the client's standard font, in every
+-- language -- they never take the pixel face, regardless of the body font
+-- setting (live toasts keep following it via the show path). Two reasons:
+-- built at file-load time, SetFont on a font FILE can silently not apply
+-- (reports success, keeps the prior face -- tofu on non-Latin clients,
+-- invisible headers), while a font OBJECT cannot no-op and is always
+-- correct for the client's language; and the standard face is simply the
+-- readable choice for a settings page. Object floor first, then the sized
+-- standard font on top; worst case is correct glyphs at the object's size
+-- until a later refresh lands the size. Must run AFTER ApplyContent on a
+-- sample: ApplyContent re-fonts for the live path and would clobber this.
+local function SetSampleToastFont(fontString, size)
+    if not fontString then return end
+    fontString:SetFontObject("GameFontNormal")
+    local standardFont = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+    RR.SafeSetFont(fontString, standardFont, size, "OUTLINE")
+end
+
 function RR:BuildPreviewBatch(parent)
     -- Real itemIDs so name and icon resolve from the same source. The mount
     -- itemID matches the Loot Summary Preview's special-loot sample.
@@ -2546,11 +2565,6 @@ function RR:BuildPreviewBatch(parent)
         toastFrame.glow:SetPoint("TOPLEFT", -90, 28)
         toastFrame.glow:SetPoint("BOTTOMRIGHT", 90, -28)
 
-        -- These previews skip the show path, so they take the typeface swap
-        -- directly: the pixel face covers ASCII only.
-        local previewFont = (RR.GetBodyFont and RR:GetBodyFont()) or TITLE_FONT
-        RR.SafeSetFont(toastFrame.header, previewFont, 16, "OUTLINE")
-        RR.SafeSetFont(toastFrame.itemNameText, previewFont, 20, "OUTLINE")
         toastFrame.header:SetText(RR.L[s.header]:upper())
         -- A sample with its own name mirrors a mount/pet row, whose live
         -- toast shows the journal name; the item id only supplies the icon.
@@ -2560,6 +2574,12 @@ function RR:BuildPreviewBatch(parent)
             icon = s.icon, name = nm, quality = s.quality, glowColor = s.glowColor,
             isAppearance = s.appearance, isSpecial = (not s.appearance),
         })
+        -- Sample fonts go on AFTER ApplyContent: it re-fonts for the live
+        -- path and would clobber them (this ordering bug is exactly how the
+        -- preview stack kept the pixel face while the mockup, which fonts
+        -- after its ApplyContent, rendered correctly).
+        SetSampleToastFont(toastFrame.header, 16)
+        SetSampleToastFont(toastFrame.itemNameText, 20)
         -- Banner toasts use the fixed art-ratio width.
         if toastFrame.useBanner then toastFrame:SetWidth(TOAST_W_FIXED) end
 
@@ -2609,6 +2629,21 @@ function RR:BuildPreviewBatch(parent)
 
     -- Group handle with a staggered reveal across all frames.
     local group = { frames = frames, stackHeight = stackHeight }
+
+    -- Re-resolve the sample toasts' typeface from the current bodyFontStyle
+    -- setting. Built at file-load time, before SavedVariables exist and
+    -- while client font loading can transiently fail, so the font baked in
+    -- at construction cannot be trusted; callers re-font once the world is
+    -- up and again whenever the font setting changes.
+    function group:RefreshFonts()
+        for _, toastFrame in ipairs(self.frames) do
+            SetSampleToastFont(toastFrame.header, 16)
+            SetSampleToastFont(toastFrame.itemNameText, 20)
+            if toastFrame.hint then
+                SetSampleToastFont(toastFrame.hint, HINT_FONT_SIZE)
+            end
+        end
+    end
     function group:PlayReveal()
         local soundOn = RR:GetSetting("toasterSound", true) ~= false
         local frameCount = #self.frames
@@ -2749,9 +2784,8 @@ function RR:BuildToasterMockup(parent, mockScale)
     -- ApplyContent doesn't set the header; set it here (no :upper(), matching
     -- the unlock-drag sample). The mock skips the show path, so it takes the
     -- typeface swap directly: the pixel face covers ASCII only.
-    local mockFont = (RR.GetBodyFont and RR:GetBodyFont()) or TITLE_FONT
-    RR.SafeSetFont(toast.header, mockFont, 16, "OUTLINE")
-    RR.SafeSetFont(toast.itemNameText, mockFont, 20, "OUTLINE")
+    SetSampleToastFont(toast.header, 16)
+    SetSampleToastFont(toast.itemNameText, 20)
     toast.header:SetText(RR.L["New Appearance"])
     -- Static glow tint (the live pulse ticker doesn't run here).
     if toast.glowOn and toast.glow then
@@ -2769,6 +2803,19 @@ function RR:BuildToasterMockup(parent, mockScale)
     end
 
     local handle = { frame = mock, panel = pBox, toast = toast, mockScale = MOCK_SCALE }
+
+    -- Re-resolve the sample toast's typeface from the current bodyFontStyle
+    -- setting. The mockup is built at file-load time, before SavedVariables
+    -- exist and while client font loading can transiently fail, so the font
+    -- baked in at construction cannot be trusted; callers re-font once the
+    -- world is up and again whenever the font setting changes.
+    function handle:RefreshFonts()
+        SetSampleToastFont(self.toast.header, 16)
+        SetSampleToastFont(self.toast.itemNameText, 20)
+        if self.toast.hint then
+            SetSampleToastFont(self.toast.hint, HINT_FONT_SIZE)
+        end
+    end
 
     -- Apply the user's toast scale (mock factor * user scale), anchored to the
     -- stand-in's top-right.

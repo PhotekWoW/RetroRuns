@@ -25,6 +25,33 @@
 local RR = RetroRuns
 RR.WhatsNew = {
     {
+        version  = "2.3.1",
+        date     = "2026-08-05",
+        sections = {
+            {
+                heading = "Added",
+                bullets = {
+                    "**Brazilian Portuguese (ptBR), Traditional Chinese (zhTW), Korean (koKR), and Italian (itIT) localization.** The full interface, route notes, tips, achievements, and What's New now display in each of these languages on the matching client. With Spanish, German, French, Russian, and Simplified Chinese already supported, RetroRuns now speaks every language the game client offers.",
+                },
+            },
+            {
+                heading = "Fixed",
+                bullets = {
+                    "**Boss kills could vanish from Boss Progress after a reload.** Kills of certain bosses -- Blood Prince Council, Oregorger, Kromog, the Northrend Beasts, and a few dozen more -- unchecked themselves on the next login, sending the route back to a boss already dead for the week. Those kills now stay counted.",
+                    "**Sample toasts on the settings pages could show boxes instead of text, or no title at all.** They now always use the game's standard typeface.",
+                    "**Teleporter destinations in the Skips details read in English on translated clients.** They now show the game's own names for those places.",
+                    "**Item names in the transmog browser could flash in English before switching to your language.** They now render in your client's language right away.",
+                },
+            },
+            {
+                heading = "Changed",
+                bullets = {
+                    "**\"Toaster\" stays in English in every language.** It is the feature's name, like RetroRuns itself.",
+                },
+            },
+        },
+    },
+    {
         version  = "2.3.0",
         date     = "2026-08-04",
         sections = {
@@ -146,30 +173,6 @@ RR.WhatsNew = {
                     "**Picking FULL after previously choosing SKIP now correctly loads the full route.** If you'd selected SKIP earlier in a lockout, then reloaded and chose FULL, the addon could keep running the skip route. Your latest choice is now always honored.",
                     "**Corrected the portal marker on the Hellfire Citadel Mannoroth skip** so the waypoint sits on the Destructor's Rise portal.",
                     "**The transmog summary and browser now agree on collected items.** An appearance you owned through one difficulty could be tallied as still-needed in the main-panel summary while the browser correctly showed it collected; the two now count it the same way.",
-                },
-            },
-        },
-    },
-    {
-        version  = "2.0.1",
-        date     = "2026-06-26",
-        sections = {
-            {
-                heading = "Changed",
-                bullets = {
-                    "**The load dialog was refreshed.** The prompt now reads \"Select Route,\" the route name is larger, and the route buttons are styled neon FULL and SKIP graphics, centered as a pair. The old Cancel button is replaced by a close [X] in the corner matching the rest of the UI.",
-                    "**The route line in the footer reads \"Route: Full\"** for the full-clear route (previously \"Standard\").",
-                    "**Choosing a route is no longer locked in until you kill a boss.** If you reload or step out and back in before your first kill, the route picker reappears so you can still switch between Full and Skip -- with a \"Continue?\" hint marking the route you'd picked. Once you've killed a boss, reloading quietly resumes that route and prints a one-line reminder of which route you're on and your progress, instead of re-asking.",
-                    "**The minimap button and the /rr command both always open the full panel**, regardless of your \"On Login Show RetroRuns\" preference. That setting now applies only to how the panel appears when you log in outside a raid.",
-                    "**Removed the \"What's New?\" label from the footer.** The version number stays, and the \"!\" still appears beside it when there's an update you haven't viewed.",
-                },
-            },
-            {
-                heading = "Fixed",
-                bullets = {
-                    "**The SKIP button on the load dialog now stays locked until the specific shortcut its route uses is unlocked.** On raids with more than one skip (like Hellfire Citadel), it could previously light up as soon as any shortcut was unlocked, even one leading to a different boss.",
-                    "**Picking FULL after previously choosing SKIP now correctly loads the full route.** If you'd selected SKIP earlier in a lockout, then reloaded and chose FULL, the addon could keep running the skip route. Your latest choice is now always honored.",
-                    "**Corrected the portal marker on the Hellfire Citadel Mannoroth skip** so the waypoint sits on the Destructor's Rise portal.",
                 },
             },
         },

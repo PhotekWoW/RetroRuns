@@ -181,7 +181,7 @@ RetroRuns_Data[2522] = {
             index              = 4,
             name               = "Sennarth, the Cold Breath",
             journalEncounterID = 2482,
-            aliases            = { "Sennarth" },
+            aliases            = { "Sennarth", "Sennarth, The Cold Breath" },
             -- Wing: Caverns of Infusion (with Terros, Kurog Grimtotem).
             achievements = {
                 { id = 16419, name = "I Was Saving That For Later", meta = true, soloable = "yes" },

@@ -89,7 +89,7 @@ RetroRuns_Data[1228] = {
             index              = 2,
             name               = "The Butcher",
             journalEncounterID = 971,
-            aliases            = {},
+            aliases            = { "The Butcher (lockout)" },
             achievements       = {
                 { id = 8947, name = "Hurry Up, Maggot!", meta = true, soloable = "kinda" },
             },
@@ -171,7 +171,7 @@ RetroRuns_Data[1228] = {
             index              = 5,
             name               = "Twin Ogron",
             journalEncounterID = 1148,
-            aliases            = {},
+            aliases            = { "Twin Ogron (lockout)" },
             achievements       = {
                 { id = 8958, name = "Brothers in Arms", meta = true, soloable = "yes" },
             },

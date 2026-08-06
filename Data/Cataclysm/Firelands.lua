@@ -246,7 +246,7 @@ RetroRuns_Data[720] = {
             index              = 5,
             name               = "Baleroc, the Gatekeeper",
             journalEncounterID = 196,
-            aliases            = { "Baleroc" },
+            aliases            = { "Baleroc", "Baleroc, the Gatekeeper (lockout)" },
             achievements       = {
                 { id = 5805, name = "Heroic: Baleroc", meta = true, soloable = "yes" },
                 { id = 5830, name = "Share the Pain", meta = true, soloable = "yes" },

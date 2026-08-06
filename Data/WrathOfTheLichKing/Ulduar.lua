@@ -248,7 +248,7 @@ RetroRuns_Data[603] = {
             name               = "The Assembly of Iron",
             journalEncounterID = 1641,
             soloTip            = "|cffF259C7HARD MODE:|r Kill Steelbreaker last.",
-            aliases            = {},
+            aliases            = { "The Assembly of Iron (lockout)" },
             achievements       = {
                 { id = 12334, name = "I Choose You, Steelbreaker", meta = true, soloable = "yes" },
                 { id = 12332, name = "I Choose You, Runemaster Molgeim", meta = false, soloable = "yes" },

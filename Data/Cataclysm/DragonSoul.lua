@@ -218,7 +218,7 @@ RetroRuns_Data[967] = {
             index              = 2,
             name               = "Warlord Zon'ozz",
             journalEncounterID = 324,
-            aliases            = {},
+            aliases            = { "Warlord Zon'ozz (lockout)" },
             achievements       = {
                 { id = 6128, name = "Ping Pong Champion", meta = true, soloable = "yes" },
                 { id = 6110, name = "Heroic: Warlord Zon'ozz", meta = true, soloable = "yes" },
@@ -330,7 +330,7 @@ RetroRuns_Data[967] = {
             index              = 3,
             name               = "Yor'sahj the Unsleeping",
             journalEncounterID = 325,
-            aliases            = {},
+            aliases            = { "Yor'sahj the Unsleeping (lockout)" },
             achievements       = {
                 { id = 6129, name = "Taste the Rainbow!", meta = true, soloable = "yes" },
                 { id = 6111, name = "Heroic: Yor'sahj the Unsleeping", meta = true, soloable = "yes" },
@@ -444,7 +444,7 @@ RetroRuns_Data[967] = {
             index              = 4,
             name               = "Hagara the Stormbinder",
             journalEncounterID = 317,
-            aliases            = { "Hagara" },
+            aliases            = { "Hagara", "Hagara the Stormbinder (lockout)" },
             achievements       = {
                 { id = 6175, name = "Holding Hands", meta = false, soloable = "yes" },
                 { id = 6112, name = "Heroic: Hagara the Stormbinder", meta = true, soloable = "yes" },
@@ -670,7 +670,7 @@ RetroRuns_Data[967] = {
             index              = 6,
             name               = "Warmaster Blackhorn",
             journalEncounterID = 332,
-            aliases            = {},
+            aliases            = { "Warmaster Blackhorn (lockout)" },
             achievements       = {
                 { id = 6105, name = "Deck Defender", meta = true, soloable = "yes" },
                 { id = 6114, name = "Heroic: Warmaster Blackhorn", meta = true, soloable = "yes" },

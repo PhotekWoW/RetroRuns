@@ -99,9 +99,9 @@ RR.LocaleTables.esES = {
     ["Right-click for settings"] = "Clic derecho para abrir las opciones",
 
     -- Toaster
-    ["Customize Toaster"] = "Personalizar notificaciones",
-    ["Toaster Preview"] = "Vista previa de notificaciones",
-    ["Toaster:"] = "Notificaciones:",
+    ["Customize Toaster"] = "Personalizar Toaster",
+    ["Toaster Preview"] = "Vista previa del Toaster",
+    ["Toaster:"] = "Toaster:",
     ["Toast what matters. Silence everything else."] = "Notifica lo que importa. Silencia todo lo demás.",
     ["Toasts only pop for new appearances or special loot."] = "Solo se notifican apariencias nuevas o botín especial.",
     ["Filter Blizzard Native Loot / Tmog Notifications"] = "Filtrar las notificaciones nativas de botín y transfiguración de Blizzard",
@@ -138,7 +138,7 @@ RR.LocaleTables.esES = {
     -- Settings navigation tabs
     ["General"]    = "General",
     ["Appearance"] = "Apariencia",
-    ["Toaster"]    = "Notificaciones",
+    ["Toaster"]    = "Toaster",
     ["Customize"]  = "Personalizar",
 
     -- Active-panel section headers
@@ -361,6 +361,34 @@ RR.LocaleTables.esES = {
     ["Sarkareth also drops {item}, which starts the quest chain that rewards Nasz'uro, the Unbound Legacy (Evoker only)."] = "Sarkareth también deja caer {item}, que inicia la cadena de misiones que recompensa con el legendario de evocador Nasz'uro (solo evocadores).",
 
     -- Translated interface, names and release notes
+    ["**The route line in the footer reads \"Route: Full\"** for the full-clear route (previously \"Standard\")."] = "**La línea de ruta del pie de ventana dice \"Ruta: Completa\"** para la ruta de limpieza completa (antes \"Estándar\").",
+    ["**The minimap button and the /rr command both always open the full panel**, regardless of your \"On Login Show RetroRuns\" preference. That setting now applies only to how the panel appears when you log in outside a raid."] = "**El botón del minimapa y el comando /rr abren siempre el panel completo**, sin importar tu preferencia \"Al iniciar sesión, mostrar RetroRuns\". Ese ajuste ahora solo afecta a cómo aparece el panel al iniciar sesión fuera de una banda.",
+    ["**Removed the \"What's New?\" label from the footer.** The version number stays, and the \"!\" still appears beside it when there's an update you haven't viewed."] = "**Se ha quitado la etiqueta \"What's New?\" del pie de ventana.** El número de versión se mantiene, y el \"!\" sigue apareciendo a su lado cuando hay una novedad que no has visto.",
+    ["**The SKIP button on the load dialog now stays locked until the specific shortcut its route uses is unlocked.** On raids with more than one skip (like Hellfire Citadel), it could previously light up as soon as any shortcut was unlocked, even one leading to a different boss."] = "**El botón SKIP del diálogo de carga permanece bloqueado hasta que se desbloquea el atajo concreto que usa su ruta.** En bandas con más de un atajo (como Ciudadela del Fuego Infernal), antes podía iluminarse en cuanto se desbloqueaba cualquier atajo, incluso uno que llevara a otro jefe.",
+    ["**Picking FULL after previously choosing SKIP now correctly loads the full route.** If you'd selected SKIP earlier in a lockout, then reloaded and chose FULL, the addon could keep running the skip route. Your latest choice is now always honored."] = "**Elegir FULL después de haber elegido SKIP carga correctamente la ruta completa.** Si habías elegido SKIP antes en un bloqueo y luego recargabas y elegías FULL, el addon podía seguir con la ruta de atajo. Ahora siempre se respeta tu última elección.",
+    ["**Corrected the portal marker on the Hellfire Citadel Mannoroth skip** so the waypoint sits on the Destructor's Rise portal."] = "**Corregido el marcador de portal del atajo de Mannoroth en Ciudadela del Fuego Infernal**, de modo que el punto de ruta queda sobre el portal de Ascenso del Destructor.",
+    ["**Brazilian Portuguese (ptBR), Traditional Chinese (zhTW), Korean (koKR), and Italian (itIT) localization.** The full interface, route notes, tips, achievements, and What's New now display in each of these languages on the matching client. With Spanish, German, French, Russian, and Simplified Chinese already supported, RetroRuns now speaks every language the game client offers."] = "**Localización al portugués de Brasil (ptBR), chino tradicional (zhTW), coreano (koKR) e italiano (itIT).** La interfaz completa, las notas de ruta, los consejos, los logros y las novedades se muestran ahora en cada uno de estos idiomas en el cliente correspondiente. Con el español, el alemán, el francés, el ruso y el chino simplificado ya disponibles, RetroRuns habla ya todos los idiomas que ofrece el cliente del juego.",
+    ["**Boss kills could vanish from Boss Progress after a reload.** Kills of certain bosses -- Blood Prince Council, Oregorger, Kromog, the Northrend Beasts, and a few dozen more -- unchecked themselves on the next login, sending the route back to a boss already dead for the week. Those kills now stay counted."] = "**Las muertes de jefes podían desaparecer del Progreso de jefes tras recargar.** Las muertes de ciertos jefes -- el Consejo de Príncipes de Sangre, Comeminerales, Kromog, las Bestias de Rasganorte y unas cuantas docenas más -- se desmarcaban al iniciar sesión de nuevo, devolviendo la ruta a un jefe que ya llevaba muerto toda la semana. Esas muertes ahora se mantienen contabilizadas.",
+    ["**Sample toasts on the settings pages could show boxes instead of text, or no title at all.** They now always use the game's standard typeface."] = "**Las notificaciones de muestra de las páginas de ajustes podían mostrar cuadrados en lugar de texto, o ningún título.** Ahora usan siempre la tipografía estándar del juego.",
+    ["**Teleporter destinations in the Skips details read in English on translated clients.** They now show the game's own names for those places."] = "**Los destinos de los teletransportadores en los detalles de Atajos aparecían en inglés en clientes traducidos.** Ahora muestran los nombres que el propio juego da a esos lugares.",
+    ["**Item names in the transmog browser could flash in English before switching to your language.** They now render in your client's language right away."] = "**Los nombres de objetos del navegador de transfiguración podían aparecer un instante en inglés antes de cambiar a tu idioma.** Ahora se muestran directamente en el idioma de tu cliente.",
+    ["**\"Toaster\" stays in English in every language.** It is the feature's name, like RetroRuns itself."] = "**\"Toaster\" se mantiene en inglés en todos los idiomas.** Es el nombre de la función, como RetroRuns.",
+    ["Ascendant Council (lockout)"] = "Consejo de ascendientes Crepusculares",
+    ["Blast Furnace"] = "Horno de Fundición",
+    ["Blood Council"] = "Consejo de Sangre",
+    ["Council of Dreams (lockout)"] = "El Consejo de los Sueños",
+    ["Faction Champions"] = "Campeones de la facción",
+    ["Fallen Protectors"] = "Protectores caídos",
+    ["Kromog, Legend of the Mountain"] = "Kromog, la Leyenda de la Montaña",
+    ["Nefarian's End (lockout)"] = "El Final de Nefarian",
+    ["Northrend Beasts"] = "Bestias de Rasganorte",
+    ["Oregorger the Devourer"] = "Tragamenas el Devorador",
+    ["Prophet Skitra"] = "Profeta Skitra",
+    ["Queen Lana'thel"] = "Reina Lana'thel",
+    ["Sennarth, The Cold Breath"] = "Sennarth, El Frío Aliento",
+    ["Tectus, The Living Mountain"] = "Tectus, la Montaña Viviente",
+    ["The Conclave of Wind (lockout)"] = "Cónclave del Viento",
+    ["The Defense of Eonar"] = "La Defensa de Eonar",
     ["(none)"] = "(ninguno)",
     ["**Expansion names display in the client's language.** The expansion headers and dropdowns follow what the game's own journal shows, which localizes them on some clients."] = "**Los nombres de las expansiones se muestran en el idioma del cliente.** Los encabezados y menús desplegables usan ahora los nombres que muestra la guía del juego, que los localiza en algunos clientes.",
     ["**Left-clicking a loot toast for gear your class cannot wear now shows the appearance.** The appearances browser opened to an empty page because its view is filtered to classes that can equip the item; it now switches the class filter to one that can view the drop, and switches it back when you close the window."] = "**Al hacer clic izquierdo en un aviso de botín de equipo que tu clase no puede usar, ahora se muestra la apariencia.** El explorador de apariencias se abría en una página vacía porque su vista filtra las clases que pueden equipar el objeto. Ahora cambia temporalmente a una clase que pueda ver el botín y restaura el filtro al cerrar la ventana.",
@@ -1511,6 +1539,12 @@ RR.LocaleTables.esES = {
     ["|cffF259C7Phase 1:|r Run through clouds to spawn Guardians. Kill them near Sara. |cffF259C7Phase 2:|r Kill adds until portals appear. Click one to go inside Yogg. |cffF259C7Phase 3:|r Kill all of the tentacles to open the path to Yogg's brain. Kill it to be returned to the outside where you can now attack Yogg directly.\n\n|cffF259C7HARD MODE:|r Kill the boss without accepting help from the keepers. Zero keepers is required for ^Mimiron's Head^."] = "|cffF259C7Fase 1:|r Corre por las nubes para hacer aparecer guardianes. Mátalos cerca de Sara. |cffF259C7Fase 2:|r Mata enemigos hasta que aparezcan portales. Haz clic en uno para entrar en Yogg. |cffF259C7Fase 3:|r Mata todos los tentáculos para abrir el camino al cerebro de Yogg. Mátalo para volver al exterior, donde ya puedes atacar directamente a Yogg.\n\n|cffF259C7MODO DIFÍCIL:|r Mata al jefe sin aceptar ayuda de los guardianes. Para conseguir ^Mimiron's Head^ no puede ayudarte ningún guardián.",
     -- End route content translations
 
+    -- Expansion name as shown in the game's own Encounter Journal
+    -- (JournalTier). The Spanish client names the Classic tier
+    -- "World of Warcraft"; every other expansion keeps its English
+    -- title there, so this is the only entry.
+    ["Classic"] = "World of Warcraft",
+
     -- Sub-zone names. Values must match the area name the game
     -- reports on a Spanish client exactly, so these are the game's
     -- own strings, not free translations.
@@ -2163,16 +2197,8 @@ RR.LocaleTables.esES = {
     ["**A new minimap button icon**, the neon mirrored-RR mark on a dark disc."] = "**Un nuevo icono para el botón del minimapa**, la marca RR reflejada en neón sobre un disco oscuro.",
     ["**The load dialog was refreshed.** The prompt now reads \"Select Route,\" the route name is larger, and the route buttons are styled neon FULL and SKIP graphics, centered as a pair. The old Cancel button is replaced by a close button in the top-right corner matching the rest of the UI."] = "**El diálogo de carga se ha renovado.** El mensaje ahora dice \"Seleccionar ruta\", el nombre de la ruta es más grande y los botones de ruta son gráficos de neón FULL y SKIP, centrados como pareja. El antiguo botón de cancelar se sustituye por un botón de cierre en la esquina superior derecha, a juego con el resto de la interfaz.",
     ["**The transmog browser dropdowns are relabeled and resized.** Each dropdown now carries a label (Exp, Raid, Boss, Class), the bars are sized to fit their contents instead of leaving empty space, and they cascade in a slight left-to-right stagger."] = "**Los desplegables de la ventana de transfiguración tienen nuevas etiquetas y tamaños.** Cada desplegable lleva ahora una etiqueta (Exp, Banda, Jefe, Clase), las barras se ajustan a su contenido en lugar de dejar espacio vacío y caen en una ligera escalera de izquierda a derecha.",
-    ["**The route line in the footer reads \"Route: Full\"** for the full-clear route (previously \"Standard\")."] = "**La línea de ruta del pie de ventana dice \"Ruta: Completa\"** para la ruta de limpieza completa (antes \"Estándar\").",
     ["**Choosing a route is no longer locked in until you kill a boss.** If you reload or step out and back in before your first kill, the route picker reappears so you can still switch between Full and Skip, with a \"Continue?\" hint marking the route you'd picked. Once you've killed a boss, reloading quietly resumes that route and prints a one-line reminder of which route you're on and your progress."] = "**Elegir una ruta ya no queda fijado hasta que matas a un jefe.** Si recargas o sales y vuelves a entrar antes de tu primera muerte, el selector de ruta reaparece para que aún puedas cambiar entre Completa y Atajo, con un aviso de \"¿Continuar?\" que marca la ruta que habías elegido. Una vez matas a un jefe, recargar retoma esa ruta en silencio e imprime un recordatorio de una línea con la ruta en la que estás y tu progreso.",
-    ["**The minimap button and the /rr command both always open the full panel**, regardless of your \"On Login Show RetroRuns\" preference. That setting now applies only to how the panel appears when you log in outside a raid."] = "**El botón del minimapa y el comando /rr abren siempre el panel completo**, sin importar tu preferencia \"Al iniciar sesión, mostrar RetroRuns\". Ese ajuste ahora solo afecta a cómo aparece el panel al iniciar sesión fuera de una banda.",
-    ["**Removed the \"What's New?\" label from the footer.** The version number stays, and the \"!\" still appears beside it when there's an update you haven't viewed."] = "**Se ha quitado la etiqueta \"What's New?\" del pie de ventana.** El número de versión se mantiene, y el \"!\" sigue apareciendo a su lado cuando hay una novedad que no has visto.",
-    ["**The SKIP button on the load dialog now stays locked until the specific shortcut its route uses is unlocked.** On raids with more than one skip (like Hellfire Citadel), it could previously light up as soon as any shortcut was unlocked, even one leading to a different boss."] = "**El botón SKIP del diálogo de carga permanece bloqueado hasta que se desbloquea el atajo concreto que usa su ruta.** En bandas con más de un atajo (como Ciudadela del Fuego Infernal), antes podía iluminarse en cuanto se desbloqueaba cualquier atajo, incluso uno que llevara a otro jefe.",
-    ["**Picking FULL after previously choosing SKIP now correctly loads the full route.** If you'd selected SKIP earlier in a lockout, then reloaded and chose FULL, the addon could keep running the skip route. Your latest choice is now always honored."] = "**Elegir FULL después de haber elegido SKIP carga correctamente la ruta completa.** Si habías elegido SKIP antes en un bloqueo y luego recargabas y elegías FULL, el addon podía seguir con la ruta de atajo. Ahora siempre se respeta tu última elección.",
-    ["**Corrected the portal marker on the Hellfire Citadel Mannoroth skip** so the waypoint sits on the Destructor's Rise portal."] = "**Corregido el marcador de portal del atajo de Mannoroth en Ciudadela del Fuego Infernal**, de modo que el punto de ruta queda sobre el portal de Ascenso del Destructor.",
     ["**The transmog summary and browser now agree on collected items.** An appearance you owned through one difficulty could be tallied as still-needed in the main-panel summary while the browser correctly showed it collected; the two now count it the same way."] = "**El resumen de transfiguración y la ventana de transfiguración ahora coinciden en los objetos conseguidos.** Una apariencia que ya tenías por una dificultad podía contarse como pendiente en el resumen del panel principal mientras la ventana la mostraba correctamente como conseguida; ahora ambos la cuentan igual.",
-    ["**The load dialog was refreshed.** The prompt now reads \"Select Route,\" the route name is larger, and the route buttons are styled neon FULL and SKIP graphics, centered as a pair. The old Cancel button is replaced by a close [X] in the corner matching the rest of the UI."] = "**El diálogo de carga se ha renovado.** El mensaje ahora dice \"Seleccionar ruta\", el nombre de la ruta es más grande y los botones de ruta son gráficos de neón FULL y SKIP, centrados como pareja. El antiguo botón de cancelar se sustituye por una [X] de cierre en la esquina, a juego con el resto de la interfaz.",
-    ["**Choosing a route is no longer locked in until you kill a boss.** If you reload or step out and back in before your first kill, the route picker reappears so you can still switch between Full and Skip -- with a \"Continue?\" hint marking the route you'd picked. Once you've killed a boss, reloading quietly resumes that route and prints a one-line reminder of which route you're on and your progress, instead of re-asking."] = "**Elegir una ruta ya no queda fijado hasta que matas a un jefe.** Si recargas o sales y vuelves a entrar antes de tu primera muerte, el selector de ruta reaparece para que aún puedas cambiar entre Completa y Atajo -- con un aviso de \"¿Continuar?\" que marca la ruta que habías elegido. Una vez matas a un jefe, recargar retoma esa ruta en silencio e imprime un recordatorio de una línea con la ruta en la que estás y tu progreso, en lugar de volver a preguntar.",
 
     -- Minimized-bar notes (Cataclysm, Battle for Azeroth, Shadowlands,
     -- and Dragonflight raids).

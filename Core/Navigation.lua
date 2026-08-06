@@ -822,7 +822,7 @@ local function DialogTriggerHandler(_, event, ...)
                 RR:ZoneLog("[DialogTrigger] heard: (secret payload)")
             else
                 local shown = tostring(text)
-                if #shown > 120 then shown = shown:sub(1, 120) .. "..." end
+                if #shown > 120 then shown = RR.Utf8SafeTruncate(shown, 120) .. "..." end
                 RR:ZoneLog(("[DialogTrigger] heard: npc=%q text=%q")
                     :format(tostring(sender or ""), shown))
             end

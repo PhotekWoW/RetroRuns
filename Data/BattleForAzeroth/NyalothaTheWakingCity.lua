@@ -149,7 +149,7 @@ RetroRuns_Data[2217] = {
             index              = 5,
             name               = "The Hivemind",
             journalEncounterID = 2372,
-            aliases            = { "Hivemind" },
+            aliases            = { "Hivemind", "The Hivemind (lockout)" },
             achievements       = {
                 { id = 14023, name = "Realizing Your Potential", meta = true, soloable = "yes" },
             },

@@ -175,7 +175,7 @@ RetroRuns_Data[1861] = {
             index              = 7,
             name               = "Mythrax the Unraveler",
             journalEncounterID = 2194,
-            aliases            = { "Mythrax" },
+            aliases            = { "Mythrax", "Mythrax the Unraveler (lockout)" },
             achievements       = {
                 { id = 12836, name = "Existential Crisis", meta = true, soloable = "yes" },
             },

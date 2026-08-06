@@ -60,7 +60,7 @@ RetroRuns_Data[754] = {
             index              = 1,
             name               = "The Conclave of Wind",
             journalEncounterID = 154,
-            aliases            = { "Conclave of Wind" },
+            aliases            = { "Conclave of Wind", "The Conclave of Wind (lockout)" },
             achievements       = {
                 { id = 5122, name = "Heroic: Conclave of Wind", meta = true, soloable = "yes" },
                 { id = 5304, name = "Stay Chill", meta = true, soloable = "yes" },

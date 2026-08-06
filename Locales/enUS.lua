@@ -20,6 +20,7 @@ function RR:ApplyLocale()
         or GetLocale()
     if localeCode == "esMX" then localeCode = "esES" end
     RR.activeLocaleCode = localeCode
+
     local translations = self.LocaleTables[localeCode]
     if not translations then return end
     for englishKey, translatedText in pairs(translations) do

@@ -299,6 +299,12 @@ AddDropdown(pageAppearance, RR.L["Body Font"], {
         if UI.InvalidateAchievementsCache then UI.InvalidateAchievementsCache() end
         ApplyPanel()
         if UI.RefreshTmogWindowIfShown then UI.RefreshTmogWindowIfShown() end
+        if RR._toasterPreviewGroup and RR._toasterPreviewGroup.RefreshFonts then
+            RR._toasterPreviewGroup:RefreshFonts()
+        end
+        if RR._toasterMock and RR._toasterMock.RefreshFonts then
+            RR._toasterMock:RefreshFonts()
+        end
     end)
 
 -- Toaster
@@ -579,6 +585,7 @@ do
 
     if RR.BuildPreviewBatch then
         local group = RR:BuildPreviewBatch(host)
+        RR._toasterPreviewGroup = group   -- handle for post-load font refresh
 
         -- Play button sits just right of the preview label. Both the label
         -- and the button text vary a lot by language, so the button sizes to
@@ -1147,8 +1154,18 @@ end
 local tabs = {}
 local selectedIndex = 1
 
+local RefreshSampleToastFontsRef   -- forward declaration; assigned below
+
 local function SelectTab(index)
     selectedIndex = index
+    -- Re-font the sample toasts on every tab selection. This runs on every
+    -- settings open (programmatic and click paths both route through here),
+    -- at a time when the world is up and font application is reliable --
+    -- unlike the panel's OnShow, whose first-display firing on a Settings
+    -- canvas is not certain, and unlike login-time attempts, which can
+    -- silently not apply on a cold client start (worst after a client
+    -- locale switch).
+    if RefreshSampleToastFontsRef then RefreshSampleToastFontsRef() end
     for i, tab in ipairs(tabs) do
         local isSel = (i == index)
         pages[i]:SetShown(isSel)
@@ -1330,10 +1347,64 @@ end)
 lockCheck.RR_Refresh = function(self) self:SetChecked(RR:GetSetting("toasterLocked", true)) end
 controls[#controls + 1] = lockCheck
 
+-- The sample toasts (Toaster page stack, Customize page mockup) baked their
+-- typeface in at file-load time, before SavedVariables existed and while
+-- client font loading can transiently fail. Re-resolve from the live setting
+-- once the world is up.
+local function RefreshSampleToastFonts()
+    if RR._toasterPreviewGroup and RR._toasterPreviewGroup.RefreshFonts then
+        RR._toasterPreviewGroup:RefreshFonts()
+    end
+    if RR._toasterMock and RR._toasterMock.RefreshFonts then
+        RR._toasterMock:RefreshFonts()
+    end
+end
+RefreshSampleToastFontsRef = RefreshSampleToastFonts
+
 panel:SetScript("OnShow", function()
     RefreshAllControls()
     SelectTab(selectedIndex)
+    -- Covers font-file loads that resolve after login and any path where the
+    -- login-time refresh could not take.
+    RefreshSampleToastFonts()
 end)
+
+-- The samples must render correctly the FIRST time the panel is displayed.
+-- Measured ground truth (koKR/zhTW cold starts): during the login window,
+-- SetFont on a font FILE can silently not apply -- pcall reports success
+-- while the string keeps its prior face -- so no error-based fallback and
+-- no fixed number of blind retries can guarantee the swap. The samples are
+-- therefore built on a font OBJECT floor (see Toaster.lua's
+-- SetSampleToastFont), which cannot no-op, making first paint legible in
+-- every language; this loop then keeps re-attempting the sized body font
+-- until GetFont on the live frame confirms it landed, so the intended face
+-- and size arrive as soon as the client accepts them.
+local function SampleToastFontsApplied()
+    local mock = RR._toasterMock
+    if not (mock and mock.toast and mock.toast.header) then return true end
+    -- Samples are pinned to the client standard font in every language
+    -- (Toaster.lua SetSampleToastFont); verify against that, not the body
+    -- font setting the live toasts follow.
+    local wantFont = STANDARD_TEXT_FONT
+    if not wantFont then return true end
+    local heldFont = mock.toast.header:GetFont()
+    return heldFont ~= nil and heldFont:lower() == wantFont:lower()
+end
+
+-- Bounded backoff so a client that can never load the file (bad install)
+-- does not retry forever; the SafeSetFont floor still renders in that case.
+local sampleFontRetriesLeft = 8
+local function RefreshSampleToastFontsUntilApplied()
+    RefreshSampleToastFonts()
+    if SampleToastFontsApplied() then return end
+    if sampleFontRetriesLeft <= 0 then return end
+    sampleFontRetriesLeft = sampleFontRetriesLeft - 1
+    C_Timer.After(1, RefreshSampleToastFontsUntilApplied)
+end
+
+local sampleFontEventFrame = CreateFrame("Frame")
+sampleFontEventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+sampleFontEventFrame:SetScript("OnEvent", RefreshSampleToastFontsUntilApplied)
 
 -- Public hook: re-evaluate the Toaster control state. Called from the
 -- lifecycle reconcile so that if settings is open when the player enters or

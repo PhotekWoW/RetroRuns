@@ -61,7 +61,7 @@ RetroRuns_Data[669] = {
             index              = 1,
             name               = "Omnotron Defense System",
             journalEncounterID = 169,
-            aliases            = {},
+            aliases            = { "Omnotron Defense System (lockout)" },
             achievements       = {
                 { id = 5307, name = "Achieve-a-tron", meta = true, soloable = "yes" },
                 { id = 5107, name = "Heroic: Omnotron Defense System", meta = true, soloable = "yes" },
@@ -150,7 +150,7 @@ RetroRuns_Data[669] = {
             index              = 4,
             name               = "Chimaeron",
             journalEncounterID = 172,
-            aliases            = {},
+            aliases            = { "Chimaeron (lockout)" },
             achievements       = {
                 { id = 5309, name = "Full of Sound and Fury", meta = true, soloable = "yes" },
                 { id = 5115, name = "Heroic: Chimaeron", meta = true, soloable = "yes" },
@@ -217,7 +217,7 @@ RetroRuns_Data[669] = {
             index              = 6,
             name               = "Nefarian's End",
             journalEncounterID = 174,
-            aliases            = {},
+            aliases            = { "Nefarian's End (lockout)" },
             achievements       = {
                 { id = 4849, name = "Keeping it in the Family", meta = true, soloable = "yes" },
                 { id = 5116, name = "Heroic: Nefarian", meta = true, soloable = "yes" },

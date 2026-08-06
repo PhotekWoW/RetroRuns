@@ -1,4 +1,4 @@
-## Interface: 120005, 120007
+## Interface: 120007, 120100
 ## Title: RetroRuns
 ## Title-esES: RetroRuns
 ## Title-esMX: RetroRuns
@@ -13,8 +13,12 @@
 ## Notes-frFR: Navigateur de raids d'antan en solo : itinéraires, conseils et suivi des hauts faits
 ## Notes-ruRU: Навигатор по старым рейдам для игры соло: маршруты, советы и отслеживание достижений
 ## Notes-zhCN: 旧版团队副本单刷导航器：路线指引、技巧与成就追踪
+## Notes-ptBR: Navegador solo de raides antigos: rotas, dicas e acompanhamento de conquistas
+## Notes-zhTW: 單人舊版團隊副本導覽：路線、提示與成就追蹤
+## Notes-koKR: 옛 공격대 솔로 탐색기: 경로 안내, 팁 및 업적 추적
+## Notes-itIT: Navigatore per bande legacy in solitaria: percorsi, consigli e monitoraggio delle imprese
 ## Author: Photek
-## Version: 2.3.0
+## Version: 2.3.1
 ## X-License: MIT
 ## SavedVariables: RetroRunsDB, RetroRunsDebug
 ## IconTexture: Interface\AddOns\RetroRuns\Media\MinimapIcon
@@ -70,6 +74,10 @@ Locales\deDE.lua
 Locales\frFR.lua
 Locales\ruRU.lua
 Locales\zhCN.lua
+Locales\ptBR.lua
+Locales\zhTW.lua
+Locales\koKR.lua
+Locales\itIT.lua
 Locales\Apply.lua
 Core\Navigation.lua
 Core\Engine.lua

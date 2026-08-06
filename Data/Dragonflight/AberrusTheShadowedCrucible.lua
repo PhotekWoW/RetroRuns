@@ -124,7 +124,7 @@ RetroRuns_Data[2569] = {
             index              = 2,
             name               = "The Amalgamation Chamber",
             journalEncounterID = 2529,
-            aliases            = { "Amalgamation Chamber" },
+            aliases            = { "Amalgamation Chamber", "The Amalgamation Chamber (lockout)" },
             achievements = {
                 { id = 18168, name = "I'll Make My Own Shadowflame", meta = true, soloable = "yes" },
             },

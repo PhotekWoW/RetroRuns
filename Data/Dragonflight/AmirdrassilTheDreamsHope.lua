@@ -197,7 +197,7 @@ RetroRuns_Data[2549] = {
             index              = 4,
             name               = "Council of Dreams",
             journalEncounterID = 2555,
-            aliases            = { "Council" },
+            aliases            = { "Council", "Council of Dreams (lockout)" },
             achievements = {
                 { id = 19193, name = "Ducks In A Row", meta = true, soloable = "yes" },
             },
@@ -285,6 +285,7 @@ RetroRuns_Data[2549] = {
             index              = 7,
             name               = "Smolderon",
             journalEncounterID = 2563,
+            aliases            = { "Smolderon (lockout)" },
             achievements = {
                 { id = 19319, name = "Haven't We Done This Before?", meta = true, soloable = "no" },
             },

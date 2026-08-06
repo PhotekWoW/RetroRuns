@@ -2,6 +2,26 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [2.3.1] - 2026-08-05
+
+### Added
+
+- **Brazilian Portuguese (ptBR), Traditional Chinese (zhTW), Korean (koKR), and Italian (itIT) localization.** The full interface, route notes, tips, achievements, and What's New now display in each of these languages on the matching client. With Spanish, German, French, Russian, and Simplified Chinese already supported, RetroRuns now speaks every language the game client offers.
+
+### Fixed
+
+- **Boss kills could vanish from Boss Progress after a reload.** Kills of certain bosses -- Blood Prince Council, Oregorger, Kromog, the Northrend Beasts, and a few dozen more -- unchecked themselves on the next login, sending the route back to a boss already dead for the week. Those kills now stay counted.
+
+- **Sample toasts on the settings pages could show boxes instead of text, or no title at all.** They now always use the game's standard typeface.
+
+- **Teleporter destinations in the Skips details read in English on translated clients.** They now show the game's own names for those places.
+
+- **Item names in the transmog browser could flash in English before switching to your language.** They now render in your client's language right away.
+
+### Changed
+
+- **"Toaster" stays in English in every language.** It is the feature's name, like RetroRuns itself.
+
 ## [2.3.0] - 2026-08-04
 
 ### Added

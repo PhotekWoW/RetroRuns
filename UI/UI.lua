@@ -59,14 +59,23 @@ local LATIN_LOCALES = {
 }
 
 -- True when the given bodyFontStyle can render every character the
--- client's language uses.
+-- addon will ask it to draw. Two languages are in play: addon text
+-- renders in the Text Language setting (RR.activeLocaleCode), while
+-- item, boss, and place names arrive in the client's language -- so the
+-- font must cover BOTH. Checking only GetLocale() let the ASCII pixel
+-- font pass on an English client with Text Language set to a locale
+-- with accents, drawing tofu squares.
 local function FontStyleSupportsLocale(style)
     local charset = BODY_FONT_INFO[style] and BODY_FONT_INFO[style].charset
     if not charset then return true end   -- standard font: always
-    local locale = GetLocale()
-    if charset == "ascii" then return ASCII_LOCALES[locale] == true end
-    if charset == "latin" then return LATIN_LOCALES[locale] == true end
-    return false
+    local function covers(locale)
+        if not locale then return true end
+        if charset == "ascii" then return ASCII_LOCALES[locale] == true end
+        if charset == "latin" then return LATIN_LOCALES[locale] == true end
+        return false
+    end
+    return covers(GetLocale())
+        and covers(RetroRuns and RetroRuns.activeLocaleCode)
 end
 
 -- Exposed for the settings canvas (graying out incompatible choices).
@@ -3369,7 +3378,7 @@ local function BuildTravelText(step)
             -- enough that the vast majority of notes fit in full.
             local stripped = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
             if #stripped > 200 then
-                stripped = stripped:sub(1, 197) .. "..."
+                stripped = RR.Utf8SafeTruncate(stripped, 197) .. "..."
             end
             RR:LogRecorderSession("PickerOutput", {
                 playerMapID    = playerMapID,
@@ -5130,10 +5139,16 @@ BuildTransmogDetail = function(stepOrCtx)
     -- consistent regardless of shape.
     local function FormatItemRow(item)
         -- The item's name in the client's own language, from the item cache.
-        -- GetItemInfo is async: a cold cache returns nil on the first render,
-        -- so the stored data name covers the gap until a refresh. On English
-        -- clients the two are the same string.
+        -- GetItemInfo is async: a cold cache returns nil on the first render.
+        -- On English clients the stored data name covers the gap (same
+        -- string). On translated clients the English name would flash for a
+        -- frame before the refresh swaps it, so the gap shows a neutral
+        -- ellipsis instead.
         local itemDisplayName = item.name
+        local activeLocale = RR.activeLocaleCode or GetLocale()
+        if activeLocale and activeLocale:sub(1, 2) ~= "en" then
+            itemDisplayName = "..."
+        end
         if item.id and GetItemInfo then
             local clientName = GetItemInfo(item.id)
             if clientName and clientName ~= "" then

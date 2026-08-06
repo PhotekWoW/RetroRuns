@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "2.3.0"
+local VERSION    = "2.3.1"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -571,11 +571,43 @@ function RR:NormalizeName(name)
     if not name then return nil end
     name = name:lower()
     name = name:gsub("[\226\128\152\226\128\153'\96]", "") -- curly + straight apostrophes
-    name = name:gsub("[^%w%s%-]", "")
-    name = name:gsub("%s+", " ")
-    name = name:match("^%s*(.-)%s*$")
-    if name == "" then return nil end
-    return name
+    -- Primary fold: ASCII alphanumerics, spaces, and hyphens survive;
+    -- everything else -- punctuation AND all non-ASCII bytes -- is stripped.
+    -- Deliberately aggressive for Latin scripts: the saved-instance lockout
+    -- and the Encounter Journal can disagree on accents for the same boss,
+    -- and stripping accented characters from both sides lets those match.
+    local primary = name:gsub("[^%w%s%-]", "")
+    primary = primary:gsub("%s+", " ")
+    primary = primary:match("^%s*(.-)%s*$")
+    if primary ~= "" then return primary end
+    -- Fallback fold, reached only when the primary strip destroyed the whole
+    -- string -- names written entirely in non-Latin scripts (Hangul, CJK,
+    -- Cyrillic), where %w matches nothing because Lua character classes are
+    -- ASCII-only. These previously folded to nil, so no comparison involving
+    -- them could ever match and localized lockout rows silently failed to
+    -- resolve. Keep bytes >= 128 along with the ASCII survivors; the fold
+    -- stays symmetric, so equality still means the same name.
+    local fallback = name:gsub("[^%w%s%-\128-\255]", "")
+    fallback = fallback:gsub("%s+", " ")
+    fallback = fallback:match("^%s*(.-)%s*$")
+    if fallback == "" then return nil end
+    return fallback
+end
+
+--- Truncate to at most maxBytes without slicing a multibyte UTF-8
+--- character. A plain :sub(1, N) on localized text can cut mid-sequence,
+--- and one invalid byte in a log line makes the whole containing EditBox
+--- render blank. Backs the cut up past any continuation bytes so the last
+--- included character is always complete.
+function RR.Utf8SafeTruncate(text, maxBytes)
+    if type(text) ~= "string" or #text <= maxBytes then return text end
+    local cut = maxBytes
+    while cut > 0 do
+        local nextByte = text:byte(cut + 1)
+        if not nextByte or nextByte < 0x80 or nextByte > 0xBF then break end
+        cut = cut - 1
+    end
+    return text:sub(1, cut)
 end
 
 --- Safe field accessor -- returns nil instead of erroring on bad data.
@@ -6355,17 +6387,14 @@ RR.frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 -------------------------------------------------------------------------------
 
 -- UI heartbeat. Fires once per second while in a loaded raid; calls
--- UI.Update unconditionally. Heartbeat is logged to ZoneLog only when
--- explicitly requested via /rr debug -- otherwise it would flood the
--- log buffer (60 entries per minute) and push useful entries out.
+-- UI.Update unconditionally. The tick itself is never logged to ZoneLog,
+-- even in debug mode: a once-per-second constant line floods the ring
+-- buffer (60 entries per minute) and evicts the entries that matter.
 local heartbeatTicks = 0
 C_Timer.NewTicker(1.0, function()
     if RR.currentRaid
         and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
         heartbeatTicks = heartbeatTicks + 1
-        if RR:GetSetting("debug") then
-            RR:ZoneLog(("HEARTBEAT tick #%d: calling UI.Update"):format(heartbeatTicks))
-        end
         RR.UI.Update()
         if WorldMapFrame and WorldMapFrame:IsShown() and RetroRunsMapOverlay then
             RetroRunsMapOverlay:Refresh()

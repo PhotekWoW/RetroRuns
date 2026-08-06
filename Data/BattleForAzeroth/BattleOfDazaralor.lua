@@ -117,7 +117,7 @@ RetroRuns_Data[2070] = {
             index              = 3,
             name               = "Grong, the Revenant",
             journalEncounterID = 2340,
-            aliases            = { "Grong" },
+            aliases            = { "Grong", "Grong the Revenant" },
             achievements       = {
                 { id = 13383, name = "Barrel of Monkeys", meta = true, soloable = "yes" },
             },
