@@ -178,6 +178,19 @@ RetroRuns_Data[1136] = {
         rewardName         = "Reins of Galakras",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 105743, slot = "Chest", name = "Kor'kron Dark Shaman Vestment", sources = { [14]=57075, [15]=57075, [16]=57075, [17]=57075 }, bind = "BoP" },
+        { id = 105742, slot = "Feet", name = "Kor'kron Dark Shaman Treads", sources = { [14]=57074, [15]=57074, [16]=57074, [17]=57074 }, bind = "BoP" },
+        { id = 105744, slot = "Hands", name = "Kor'kron Dark Shaman Gloves", sources = { [14]=57076, [15]=57076, [16]=57076, [17]=57076 }, bind = "BoP" },
+        { id = 105745, slot = "Head", name = "Kor'kron Dark Shaman Cowl", sources = { [14]=57077, [15]=57077, [16]=57077, [17]=57077 }, bind = "BoP" },
+        { id = 105746, slot = "Legs", name = "Kor'kron Dark Shaman Kilt", sources = { [14]=57078, [15]=57078, [16]=57078, [17]=57078 }, bind = "BoP" },
+        { id = 105747, slot = "Shoulder", name = "Kor'kron Dark Shaman Shoulder", sources = { [14]=57079, [15]=57079, [16]=57079, [17]=57079 }, bind = "BoP" },
+        { id = 105741, slot = "Waist", name = "Kor'kron Dark Shaman Belt", sources = { [14]=57073, [15]=57073, [16]=57073, [17]=57073 }, bind = "BoP" },
+        { id = 105748, slot = "Wrist", name = "Kor'kron Dark Shaman Bracers", sources = { [14]=57080, [15]=57080, [16]=57080, [17]=57080 }, bind = "BoP" },
+    },
     bosses = {
         {
             index              = 1,

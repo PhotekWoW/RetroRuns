@@ -100,6 +100,20 @@ RetroRuns_Data[2481] = {
         rewardName         = "Shimmering Aurelid",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 190334, slot = "Back", name = "Origin", sources = { [14]=168413, [15]=168415, [16]=168416, [17]=168414 }, bind = "BoE" },
+        { id = 190629, slot = "Feet", name = "Cartel's Larcenous Toecaps", sources = { [14]=168905, [15]=168907, [16]=168908, [17]=168906 }, bind = "BoE" },
+        { id = 190624, slot = "Hands", name = "Gauntlets of the End", sources = { [14]=168893, [15]=168895, [16]=168896, [17]=168894 }, bind = "BoE" },
+        { id = 190631, slot = "Hands", name = "Vandalized Ephemera Mitts", sources = { [14]=168913, [15]=168915, [16]=168916, [17]=168914 }, bind = "BoE" },
+        { id = 190626, slot = "Head", name = "Hood of Empty Eternities", sources = { [14]=168885, [15]=168887, [16]=168888, [17]=168886 }, bind = "BoE" },
+        { id = 190628, slot = "Head", name = "Lupine's Synthetic Headgear", sources = { [14]=168901, [15]=168903, [16]=168904, [17]=168902 }, bind = "BoE" },
+        { id = 190627, slot = "Legs", name = "Subversive Lord's Leggings", sources = { [14]=168889, [15]=168891, [16]=168892, [17]=168890 }, bind = "BoE" },
+        { id = 190630, slot = "Shoulder", name = "Devouring Pellicle Shoulderpads", sources = { [14]=168909, [15]=168911, [16]=168912, [17]=168910 }, bind = "BoE" },
+        { id = 190625, slot = "Shoulder", name = "Pauldrons of Possible Afterlives", sources = { [14]=168897, [15]=168899, [16]=168900, [17]=168898 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

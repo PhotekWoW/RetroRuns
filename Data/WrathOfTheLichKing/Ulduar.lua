@@ -84,6 +84,29 @@ RetroRuns_Data[603] = {
         },
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 46347, slot = "Back", name = "Cloak of the Dormant Blaze", sources = { [14]=22450 }, bind = "BoP" },
+        { id = 46341, slot = "Back", name = "Drape of the Spellweaver", sources = { [14]=22445 }, bind = "BoP" },
+        { id = 45541, slot = "Back", name = "Shroud of Alteration", sources = { [14]=21970 }, bind = "BoP" },
+        { id = 46346, slot = "Feet", name = "Boots of Unsettled Prey", sources = { [14]=22449 }, bind = "BoP" },
+        { id = 45542, slot = "Feet", name = "Greaves of the Stonewarder", sources = { [14]=21971 }, bind = "BoP" },
+        { id = 46340, slot = "Hands", name = "Adamant Handguards", sources = { [14]=22444 }, bind = "BoP" },
+        { id = 45544, slot = "Legs", name = "Leggings of the Tortured Earth", sources = { [14]=21973 }, bind = "BoP" },
+        { id = 46342, slot = "Ranged", name = "Golemheart Longbow", sources = { [14]=22446 }, bind = "BoP" },
+        { id = 46339, slot = "Ranged", name = "Mimiron's Repeater", sources = { [14]=22443 }, bind = "BoP" },
+        { id = 46344, slot = "Shoulder", name = "Iceshear Mantle", sources = { [14]=22447 }, bind = "BoP" },
+        { id = 45543, slot = "Shoulder", name = "Shoulders of Misfortune", sources = { [14]=21972 }, bind = "BoP" },
+        { id = 46350, slot = "Two-Hand", name = "Pillar of Fortitude", sources = { [14]=22452 }, bind = "BoP" },
+        { id = 45548, slot = "Waist", name = "Belt of the Sleeper", sources = { [14]=21975 }, bind = "BoP" },
+        { id = 45547, slot = "Waist", name = "Relic Hunter's Cord", sources = { [14]=21974 }, bind = "BoP" },
+        { id = 46351, slot = "Weapon", name = "Bloodcrush Cudgel", sources = { [14]=22453 }, bind = "BoP" },
+        { id = 45605, slot = "Weapon", name = "Daschal's Bite", sources = { [14]=22011 }, bind = "BoP" },
+        { id = 46345, slot = "Wrist", name = "Bracers of Righteous Reformation", sources = { [14]=22448 }, bind = "BoP" },
+        { id = 45549, slot = "Wrist", name = "Grips of Chaos", sources = { [14]=21976 }, bind = "BoP" },
+    },
     bosses = {
         {
             index              = 1,

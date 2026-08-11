@@ -68,6 +68,23 @@ RetroRuns_Data[1676] = {
         rewardTitle        = "the Tomb Raider",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 147044, slot = "Chest", name = "Soul-Rattle Ribcage", sources = { [14]=86548, [15]=86549, [16]=86550, [17]=86547 }, bind = "BoE" },
+        { id = 147422, slot = "Feet", name = "Acolyte's Abandoned Footwraps", sources = { [14]=86596, [15]=86597, [16]=86598, [17]=86595 }, bind = "BoE" },
+        { id = 147428, slot = "Feet", name = "Spiked Terrorwake Greatboots", sources = { [14]=86516, [15]=86517, [16]=86518, [17]=86515 }, bind = "BoE" },
+        { id = 147426, slot = "Feet", name = "Treads of Panicked Escape", sources = { [14]=86580, [15]=86581, [16]=86582, [17]=86579 }, bind = "BoE" },
+        { id = 147424, slot = "Feet", name = "Treads of Violent Intrusion", sources = { [14]=86612, [15]=86613, [16]=86614, [17]=86611 }, bind = "BoE" },
+        { id = 146989, slot = "Hands", name = "Fel-Flecked Grips", sources = { [14]=86652, [15]=86653, [16]=86654, [17]=86651 }, bind = "BoE" },
+        { id = 147064, slot = "Head", name = "Diadem of the Highborne", sources = { [14]=86628, [15]=86629, [16]=86630, [17]=86627 }, bind = "BoE" },
+        { id = 147038, slot = "Shoulder", name = "Wakening Horror Spaulders", sources = { [14]=86524, [15]=86525, [16]=86526, [17]=86523 }, bind = "BoE" },
+        { id = 147425, slot = "Waist", name = "Cord of Pilfered Rosaries", sources = { [14]=86616, [15]=86617, [16]=86618, [17]=86615 }, bind = "BoE" },
+        { id = 147429, slot = "Waist", name = "Girdle of the Crumbling Sanctum", sources = { [14]=86784, [15]=86785, [16]=86786, [17]=86783 }, bind = "BoE" },
+        { id = 147427, slot = "Waist", name = "Pristine Moon-Wrought Clasp", sources = { [14]=86736, [15]=86737, [16]=86738, [17]=86735 }, bind = "BoE" },
+        { id = 147423, slot = "Waist", name = "Sash of the Unredeemed", sources = { [14]=86672, [15]=86673, [16]=86674, [17]=86671 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

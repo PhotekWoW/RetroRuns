@@ -85,6 +85,15 @@ RetroRuns_Data[1520] = {
     -- (Ysondre, Lethon, Taerar, Emeriss) are alive simultaneously,
     -- modeled as a single encounter (journalEncounterID 1704) covering
     -- the room as a whole.
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 141694, slot = "Hands", name = "Gauntlets of Fractured Dreams", sources = { [14]=82935, [15]=82936, [16]=82937, [17]=82938 }, bind = "BoP" },
+        { id = 140993, slot = "Hands", name = "Gloves of Murmured Promises", sources = { [14]=82030, [15]=82031, [16]=82032, [17]=82033 }, bind = "BoP" },
+        { id = 140996, slot = "Hands", name = "Grips of Silent Screams", sources = { [14]=82042, [15]=82043, [16]=82044, [17]=82045 }, bind = "BoP" },
+        { id = 141695, slot = "Hands", name = "Tarnished Dreamkeeper's Gauntlets", sources = { [14]=82939, [15]=82940, [16]=82941, [17]=82942 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

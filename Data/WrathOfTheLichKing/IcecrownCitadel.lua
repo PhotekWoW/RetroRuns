@@ -74,6 +74,15 @@ RetroRuns_Data[631] = {
         },
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 50450, slot = "Legs", name = "Leggings of Dubious Charms", sources = { [3]=24727, [4]=24727, [5]=24727, [6]=24727 }, bind = "BoE" },
+        { id = 50444, slot = "Ranged", name = "Rowan's Rifle of Silver Bullets", sources = { [3]=24725, [4]=24725, [5]=24725, [6]=24725 }, bind = "BoE" },
+        { id = 50449, slot = "Shoulder", name = "Stiffened Corpse Shoulderpads", sources = { [3]=24726, [4]=24726, [5]=24726, [6]=24726 }, bind = "BoE" },
+        { id = 50451, slot = "Waist", name = "Belt of the Lonely Noble", sources = { [3]=24728, [4]=24728, [5]=24728, [6]=24728 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

@@ -75,6 +75,19 @@ RetroRuns_Data[1530] = {
         rewardName         = "Grove Defiler",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 144399, slot = "Back", name = "Aristocrat's Winter Drape", sources = { [14]=84544, [15]=84545, [16]=84546, [17]=84547 }, bind = "BoE" },
+        { id = 144401, slot = "Back", name = "Cloak of Multitudinous Sheaths", sources = { [14]=84552, [15]=84553, [16]=84554, [17]=84555 }, bind = "BoE" },
+        { id = 144403, slot = "Back", name = "Fashionable Autumn Cloak", sources = { [14]=84556, [15]=84557, [16]=84558, [17]=84559 }, bind = "BoE" },
+        { id = 144400, slot = "Back", name = "Feathermane Feather Cloak", sources = { [14]=84548, [15]=84549, [16]=84550, [17]=84551 }, bind = "BoE" },
+        { id = 144407, slot = "Waist", name = "Gleaming Celestial Waistguard", sources = { [14]=84572, [15]=84573, [16]=84574, [17]=84575 }, bind = "BoE" },
+        { id = 144404, slot = "Waist", name = "Mana-Cord of Deception", sources = { [14]=84560, [15]=84561, [16]=84562, [17]=84563 }, bind = "BoE" },
+        { id = 144406, slot = "Waist", name = "Vintage Duskwatch Cinch", sources = { [14]=84568, [15]=84569, [16]=84570, [17]=84571 }, bind = "BoE" },
+        { id = 144405, slot = "Waist", name = "Waistclasp of Unethical Power", sources = { [14]=84564, [15]=84565, [16]=84566, [17]=84567 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

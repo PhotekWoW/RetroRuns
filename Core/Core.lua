@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "2.3.1"
+local VERSION    = "2.4.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -15,13 +15,8 @@ RetroRuns = {
     VERSION = VERSION,
     frame   = CreateFrame("Frame"),
 
-    -- Localized-string lookup, live from the first line of the addon so
-    -- file-scope constructors in ANY later file (StaticPopup text, label
-    -- tables) can use it. RR.L["Some English text"] returns the active
-    -- locale's translation, or the English key itself when none exists.
-    -- Populated by ApplyLocale (Locales/enUS.lua): once at the end of the
-    -- Locales block for the client locale, again at ADDON_LOADED for the
-    -- devLocale override.
+    -- Localized-string lookup. Returns the English key when no translation
+    -- exists.
     L = setmetatable({}, { __index = function(_, key) return key end }),
 
     -- Per-locale translation tables, keyed by locale code. Each locale
@@ -33,24 +28,15 @@ RetroRuns = {
     -- Runtime state -- never written to SavedVariables
     state = {
         bossesKilled          = {},   -- [bossIndex] = true
-        -- [bossIndex] = true when the kill is known ONLY from the shared-
-        -- lockout pair sibling's saved row (never from the active
-        -- difficulty's own row or a live kill). These kills complete the
-        -- route but do not floor the active difficulty's pill, so the
-        -- pill row inside the raid matches the idle-list display: kills
-        -- on the size they were made, lock glyph on the other.
+        -- Kills known only from the shared-lockout sibling's saved row.
         bossesKilledViaPairOnly = {},
         activeStep            = nil,
         testMode              = false,
         manualTargetBossIndex = nil,
         loadedRaidKey         = nil,
         lastSeenRaidKey       = nil,
-        -- Set true once UPDATE_INSTANCE_INFO has fired, meaning the async
-        -- saved-instance data (GetSavedInstanceInfo / GetCurrentLockoutId)
-        -- has been delivered at least once. The load decision defers only
-        -- while this is false; after the data has had its chance to arrive,
-        -- a still-nil lockout is treated as a genuinely fresh lockout and
-        -- the dialog is shown rather than deferring forever.
+        -- True once UPDATE_INSTANCE_INFO has fired. The load decision defers
+        -- only until then.
         instanceInfoSeen      = false,
         lastUnsupportedRaid   = nil,
         currentDifficultyID   = nil,
@@ -256,24 +242,11 @@ function RR:GetRaidEntrance(raid)
     return raid.entrance
 end
 
---- Shared destination dispatch. Drops a waypoint at (mapID, x, y) across
---- the full provider stack and returns a struct describing which slot(s)
---- fired:
----     { planner = "awp"|"zygor"|"mapzeroth"|nil,
----       arrow   = "tomtom"|"blizzard"|nil,
----       overlays = { ... } }
---- Roles:
+--- Drops a waypoint across the provider stack, returning which slots fired.
 ---   PLANNER: AWP-with-backend > Zygor > Mapzeroth (one wins).
 ---   ARROW:   TomTom > Blizzard (suppressed if a planner fired).
 ---   OVERLAY: AWP-without-backend + WUI (both can layer).
---- routeContext is stashed onto state.activeRoute so a later cancel can
---- tear the right thing down; pass the raid for entrance/sanctum routes,
---- or nil for destinations with no raid association (e.g. a city NPC).
---- Returns nil (and prints) when no provider produced any UI.
----
---- This is the single dispatch core for NavigateToEntrance,
---- NavigateToSanctum, and NavigateToLFRNPC -- previously each of those
---- carried its own copy of this ~120-line block.
+--- Nil when no provider produced any UI.
 function RR:NavigateToDestination(mapID, x, y, title, routeContext)
     if not mapID or not x or not y then
         self:Print(RR.L["Destination data is incomplete."])
@@ -425,22 +398,8 @@ function RR:NavigateToSanctum(raid, covID)
     return self:NavigateToDestination(vendor.vendorMapID, vendor.x, vendor.y, title, raid)
 end
 
---- Per-expansion Raid Finder queueing NPCs. After an expansion passes,
---- Blizzard adds a dedicated NPC whose gossip places a solo-eligible LFR
---- queue request; talking to that NPC is the only way to queue legacy LFR
---- solo (the Group Finder won't fill the wing otherwise). This table maps
---- each supported expansion to its NPC so the idle list can route the
---- player there. Keyed by the canonical expansion names used in raid
---- data (raid.expansion) and EXPANSION_ORDER_NEWEST_FIRST.
----
---- Battle for Azeroth has a faction split (Kiku for Alliance, Eppu for
---- Horde); that entry carries an alliance/horde sub-table and the nav
---- picks by UnitFactionGroup. All others are faction-neutral.
----
---- COORDINATE STATUS: most entries carry in-game-verified coords. Any
---- entry still pending a capture pass keeps an `unverified = true` flag,
---- read by the nav so it routes to the right zone center but warns it's
---- approximate. Do not treat unverified coords as final.
+--- The NPC whose gossip queues legacy LFR solo, keyed by raid.expansion.
+--- Battle for Azeroth splits by faction. `unverified` coords are approximate.
 RR.LFR_QUEUE_NPCS = {
     ["Dragonflight"] = {
         npcName = "Luka Ferad",
@@ -580,13 +539,9 @@ function RR:NormalizeName(name)
     primary = primary:gsub("%s+", " ")
     primary = primary:match("^%s*(.-)%s*$")
     if primary ~= "" then return primary end
-    -- Fallback fold, reached only when the primary strip destroyed the whole
-    -- string -- names written entirely in non-Latin scripts (Hangul, CJK,
-    -- Cyrillic), where %w matches nothing because Lua character classes are
-    -- ASCII-only. These previously folded to nil, so no comparison involving
-    -- them could ever match and localized lockout rows silently failed to
-    -- resolve. Keep bytes >= 128 along with the ASCII survivors; the fold
-    -- stays symmetric, so equality still means the same name.
+    -- Lua character classes are ASCII-only, so %w destroys a name written
+    -- entirely in Hangul, CJK or Cyrillic. Keeping bytes >= 128 stays
+    -- symmetric.
     local fallback = name:gsub("[^%w%s%-\128-\255]", "")
     fallback = fallback:gsub("%s+", " ")
     fallback = fallback:match("^%s*(.-)%s*$")
@@ -748,12 +703,7 @@ local function CollectRaidDataIssues(scopeFilter)
                                     bp .. (" unrecognized kind '%s' (expected mount|pet|toy|decor|manuscript|illusion|musicroll)"):format(
                                         tostring(item.kind)))
                             end
-                            -- kind=illusion needs a sourceID for the
-                            -- C_TransmogCollection.GetIllusionSourceInfo
-                            -- lookup (item.id is the itemID, separate
-                            -- from the illusion's visual sourceID).
-                            -- Lint the missing-sourceID case so author
-                            -- doesn't ship without the validation hook.
+                            -- Illusions need their own sourceID.
                             if item.kind == "illusion" and not item.sourceID then
                                 add("error", raidLabel,
                                     bp .. " kind=illusion requires sourceID field for transmog API validation")
@@ -923,12 +873,7 @@ local function CollectRaidDataIssues(scopeFilter)
                             end
                         end
 
-                        -- Consecutive-duplicate mapID check: two segs
-                        -- in a row with the same mapID is almost
-                        -- always a copy-paste oversight. Legitimate
-                        -- cases exist (a path that crosses an area,
-                        -- exits, then re-enters) but are rare enough
-                        -- that flagging gives signal worth checking.
+                        -- Usually a copy-paste slip, though not always.
                         if segMapID and prevMapID == segMapID then
                             add("warn", raidLabel,
                                 sp .. (" segments %d and %d have the same mapID %d (intentional? or copy-paste?)"):format(
@@ -948,13 +893,7 @@ local function CollectRaidDataIssues(scopeFilter)
     return issues
 end
 
--- Wrapper preserving the old load-time API: walk all raids, surface
--- only ERROR-severity issues via RR:Debug (chat output gated by
--- /rr debug). Warnings (unverified maps, subZone-not-in-maps,
--- duplicate-consecutive mapIDs) are intentionally omitted here --
--- they're not malformed data, just things worth checking, and they
--- belong in /rr lintroute output where they can be reviewed
--- deliberately rather than every login.
+-- Load-time walk: errors only. Warnings live in the on-demand linter.
 local function ValidateRaidData()
     local issues = CollectRaidDataIssues(nil)
     for _, issue in ipairs(issues) do
@@ -964,12 +903,7 @@ local function ValidateRaidData()
     end
 end
 
---- Public on-demand linter. Walks all raid data, formats every
---- issue (errors AND warnings) as a categorized report, and opens
---- a copy window. With an optional scope substring (e.g. "Aberrus"),
---- limits the report to raids whose name contains that substring
---- (case-insensitive).
----
+--- On-demand linter: every issue, errors and warnings, in a copy window.
 --- @param scopeFilter string?  Optional raid-name substring filter.
 function RR:LintRoute(scopeFilter)
     local issues = CollectRaidDataIssues(scopeFilter)
@@ -1029,15 +963,8 @@ function RR:InitializeDB()
     RetroRunsDB = RetroRunsDB or {}
     MergeDefaults(RetroRunsDB, self.defaults)
 
-    -- Apply launchMode to set the panel's load-time visibility. Three
-    -- modes, see defaults.launchMode for full rationale:
-    --   "hidden"    -> panel closed
-    --   "minimized" -> panel open, in minimized title-bar mode
-    --   "full"      -> panel open, fully expanded
-    -- Anything unrecognized falls through to "minimized" (the default).
-    -- This replaces the pre-1.10.2 unconditional force-to-hidden behavior;
-    -- existing users get "minimized" on first load post-upgrade via the
-    -- MergeDefaults call above seeding launchMode for the first time.
+    -- launchMode sets load-time visibility: hidden, minimized, or full.
+    -- Anything unrecognized falls through to minimized.
     local launchMode = RetroRunsDB.launchMode
     if launchMode == "hidden" then
         RetroRunsDB.showPanel = false
@@ -1049,18 +976,8 @@ function RR:InitializeDB()
         RetroRunsDB.minimized = true
     end
 
-    -- Restore recorder session log from persistent storage so /reload
-    -- mid-recording doesn't lose diagnostic context. Recorder state
-    -- itself (active, current, segments, stampLog) intentionally does
-    -- NOT survive reload -- those are per-session-attempt and should
-    -- start clean on each addon load. Only the long-lived log is
-    -- restored for cross-reload diagnostic continuity.
-    --
-    -- Scoped per character: each character has its own bucket so an
-    -- alt's debug session doesn't pollute the main's diagnostic view.
-    -- Old single-flat-list shape (pre per-character) is discarded on
-    -- first load -- the array marker is RetroRunsDB.recorderSessionLog[1]
-    -- being a non-nil table; character keys never index as integers.
+    -- Only the long-lived log survives /reload, bucketed per character. An
+    -- integer index means the old flat-list shape and is discarded.
     if RetroRunsDB.recorderSessionLog
         and RetroRunsDB.recorderSessionLog[1] ~= nil then
         RetroRunsDB.recorderSessionLog = nil
@@ -1072,25 +989,14 @@ function RR:InitializeDB()
             self.recorder.sessionLog = bucket
         end
     end
-    -- Restore pending auto-stamp event (queued ENCOUNTER_END or
-    -- PLAYER_CONTROL_GAINED that fired while recording was inactive).
-    -- Persisted in QueuePendingEvent; cleared in ConsumePendingEvent
-    -- and ResetRecording. Survives /reload so a queued event isn't
-    -- silently lost when the user reloads between queue and the next
-    -- StartRecording. Stored as time() epoch seconds, so the staleness
-    -- check in ConsumePendingEvent stays valid across reloads.
+    -- A queued auto-stamp event that fired while recording was inactive.
+    -- Stored as epoch seconds so the staleness check survives /reload.
     if RetroRunsDB.recorderPendingEvent and self.recorder then
         self.recorder.pendingEvent = RetroRunsDB.recorderPendingEvent
     end
 
-    -- Persist zone log across /reload. RR.state.zoneLog is aliased to
-    -- RetroRunsDB.zoneLog so existing read/write paths continue to
-    -- work unchanged; the underlying storage is now SavedVariable-
-    -- backed. This survives /reload (critical for diagnosing reload-
-    -- related bugs where the events leading up to the reload are
-    -- exactly what you need to see) and gets wiped on initial login
-    -- via the PEW handler.
-    -- Buffer cap of 1000 entries still enforced in RR:ZoneLog.
+    -- RR.state.zoneLog aliases RetroRunsDB.zoneLog, so it survives /reload.
+    -- Wiped on initial login; the entry cap lives in RR:ZoneLog.
     RetroRunsDB.zoneLog = RetroRunsDB.zoneLog or {}
     self.state.zoneLog = RetroRunsDB.zoneLog
 
@@ -1135,12 +1041,7 @@ function RR:GetRaidContextKey(raid, info)
            .. ":" .. tostring(info.difficultyID or 0)
 end
 
--- Raid name for display. The Encounter Journal returns instance names in
--- the client's language, so prefer it when the raid carries a
--- journalInstanceID; fall back to the data file's name when the lookup
--- fails. On English clients the two are identical. Memoized per journal
--- instance for the session; display-only -- comparisons and keys elsewhere
--- stay on the data name.
+-- Raid name for display only; comparisons and keys stay on the data name.
 local localizedRaidNameCache = {}
 function RR:GetLocalizedRaidName(raid)
     raid = raid or self.currentRaid
@@ -1159,12 +1060,8 @@ function RR:GetLocalizedRaidName(raid)
     return cached
 end
 
--- Client-localized boss name from the Encounter Journal, keyed by the boss's
--- journalEncounterID. Same shape as GetLocalizedRaidName: the journal returns
--- the name in the client's own language, so non-English clients see their
--- language for free; the authored data name is the fallback. Only successful
--- lookups are cached -- the journal can return nil before its data loads, and
--- caching that miss would pin the English fallback for the whole session.
+-- Localized boss name from the journal, falling back to the authored name.
+-- Only successful lookups are cached.
 local localizedBossNameCache = {}
 function RR:GetLocalizedBossName(boss)
     if not boss then return nil end
@@ -1182,14 +1079,8 @@ function RR:GetLocalizedBossName(boss)
     return boss.name
 end
 
--- The skip target's boss name in the client's language. `skipToBoss` is an
--- English key: it is compared against skip-chain labels in
--- GetRouteTargetSkipCeiling, so the stored value stays English and only the
--- display resolves. Matches the raid's own boss list, which carries the
--- journalEncounterID the Encounter Journal localizes. A raid whose
--- skipToBoss names the boss more briefly than the journal does (Nighthold's
--- "Elisande" against "Grand Magistrix Elisande") resolves on a unique
--- substring; anything ambiguous or unmatched renders the authored string.
+-- The skip target's boss name, localized for display only. Resolves a shorter
+-- authored name on a unique substring; anything ambiguous renders as authored.
 function RR:GetLocalizedSkipTargetName(raid)
     if not raid or not raid.skipToBoss then return nil end
     local target = raid.skipToBoss
@@ -1293,13 +1184,8 @@ local function GetEJMapForJournalInstance(journalInstanceID)
         return walked
     end
 
-    -- Walk at difficulty 14 (Normal), which every modern raid exposes.
-    -- MoP raids do not expose 14 (their difficulties are the legacy sizes
-    -- 3/4/5/6/7), so the walk sees zero rows there; in that case fall
-    -- through the legacy ids until one yields encounters. The
-    -- journalEncounterID -> dungeonEncounterID and name maps are the same
-    -- at any difficulty, so whichever difficulty returns rows builds the
-    -- same map.
+    -- MoP raids expose only the legacy sizes, so fall through until one
+    -- yields rows.
     local count = walkAtDifficulty(14)
     if count == 0 then
         for _, legacyDifficulty in ipairs({ 15, 5, 6, 3, 4, 17, 7 }) do
@@ -1346,28 +1232,8 @@ function RR:GetEJNameMapForJournalInstance(journalInstanceID)
     return ejNameMapCache[journalInstanceID]
 end
 
--- Difficulty models.
---
--- Most raids RetroRuns covers use the independent scheme: one difficulty ID
--- per tier, Normal/Heroic/Mythic plus Raid Finder, and the loot data
--- keys its sources by those same IDs (14/15/16/17). For those raids the
--- bucket IDs and the live difficulty IDs are one and the same.
---
--- Mists-of-Pandaria raids -- and Dragon Soul, which shares their
--- difficulty layout -- are different. They predate Mythic and split
--- Normal and Heroic by raid size, so the game hands back four separate
--- raid difficulties -- 10-player Normal (3), 25-player Normal (4),
--- 10-player Heroic (5), 25-player Heroic (6) -- plus Raid Finder (7).
--- The loot and appearances are identical across size, so we fold the
--- two sizes into a single Normal and a single Heroic. Each model below
--- lists the live difficulty IDs the game can report and the display
--- bucket each one folds into. Display buckets reuse the independent
--- scheme's IDs
--- (17=LFR, 14=Normal, 15=Heroic) so the loot browser and source data
--- speak one language regardless of era.
---
--- A raid opts into a model with `difficultyModel` in its data file;
--- absent means "independent".
+-- Live difficulty IDs and the display bucket each folds into. Buckets are
+-- 17=LFR, 14=Normal, 15=Heroic, 16=Mythic. Raids opt in with `difficultyModel`.
 local DIFFICULTY_MODELS = {
     independent = {
         -- live id -> display bucket (identity)
@@ -1381,27 +1247,12 @@ local DIFFICULTY_MODELS = {
         buckets = { 17, 14, 15 },
     },
     shared = {
-        -- Cataclysm raids (WotLK-style shared lockout): Normal and Heroic
-        -- share ONE weekly lockout -- committing to either difficulty locks
-        -- the sibling until reset (symmetric, live-verified both directions).
-        -- Displayed as TWO pills (like the Mists fold) with a lock glyph on
-        -- the committed-out side; the shared-lockout constraint is surfaced
-        -- by GetLockedOutBucket, not by collapsing the buckets. Folding is
-        -- therefore identical to sharedLfr minus LFR: 3=10N, 4=25N -> Normal
-        -- (14); 5=10H, 6=25H -> Heroic (15). Dragon Soul, the one Cataclysm
-        -- raid with Raid Finder, uses sharedLfr instead.
+        -- Cataclysm. Dragon Soul uses sharedLfr instead.
         fold    = { [3] = 14, [4] = 14, [5] = 15, [6] = 15 },
         buckets = { 14, 15 },
     },
     single = {
-        -- Raids that exist at exactly one difficulty: Baradin Hold (10/25
-        -- Normal only), and the Vanilla/TBC raids when they arrive. One
-        -- bucket, one pill, nothing to lock. Folds the 10/25 Normal size
-        -- ids into the one Normal bucket; Vanilla/TBC raids report other
-        -- raw ids (40-player, 20-player, etc.) -- add those to this fold at
-        -- their bring-up, verified by a live kill test, not assumed.
-        -- [14] = 14 covers Ulduar, which runs at difficulty 14 itself (one
-        -- merged size on live).
+        -- One difficulty: Baradin Hold, Ulduar, the TBC raids.
         fold    = { [3] = 14, [4] = 14, [14] = 14 },
         buckets = { 14 },
     },
@@ -1415,38 +1266,17 @@ local DIFFICULTY_MODELS = {
         buckets = { 3, 4 },
     },
     sizesShared = {
-        -- Wrath raids without a Heroic mode (Naxxramas, The Eye of
-        -- Eternity): 10-player and 25-player are distinct difficulties
-        -- with distinct loot tables, so each size keeps its own display
-        -- bucket -- but the two sizes share ONE weekly lockout
-        -- (symmetric, live-verified both directions: killing on either
-        -- size locks the sibling until reset). The shared constraint is
-        -- surfaced by GetLockedOutBucket, not by folding; folding would
-        -- merge the two loot pools in the browser.
+        -- Wrath, no Heroic. Distinct loot per size, one shared lockout.
         fold    = { [3] = 3, [4] = 4 },
         buckets = { 3, 4 },
     },
     sizesHeroic = {
-        -- Wrath raids with Heroic modes: four size/heroic combinations,
-        -- each with its own loot table and its own display bucket, all
-        -- sharing ONE weekly lockout. Committing to any one difficulty
-        -- locks the other three until reset. The shared constraint is
-        -- surfaced by GetLockedOutBuckets, not by folding; folding would
-        -- merge the four loot pools in the browser.
+        -- Four size/heroic combinations, one shared lockout.
         fold    = { [3] = 3, [4] = 4, [5] = 5, [6] = 6 },
         buckets = { 3, 4, 5, 6 },
     },
     difficultyLocked = {
-        -- Wrath raids with Heroic modes where the week locks to a
-        -- DIFFICULTY, not a size (live-verified on Icecrown Citadel):
-        -- the two Normal sizes share one live lockout the player can
-        -- switch between freely -- bosses die for both sizes at once,
-        -- and an unkilled boss pays the loot table of whichever size it
-        -- is killed at -- while both Heroic sizes refuse entry once the
-        -- Normal week has started. Four distinct loot tables and display
-        -- buckets as in sizesHeroic; the tier constraint is surfaced by
-        -- GetLockedOutBuckets and the within-tier kill mirroring in
-        -- GetPerDifficultyKillCountsForRaid.
+        -- The week locks to a difficulty rather than a size.
         fold    = { [3] = 3, [4] = 4, [5] = 5, [6] = 6 },
         buckets = { 3, 4, 5, 6 },
     },
@@ -1458,15 +1288,7 @@ function RR:GetDifficultyModel(raid)
     return DIFFICULTY_MODELS[key] or DIFFICULTY_MODELS.independent
 end
 
--- The display buckets to show for a raid, in pill / browser order.
---
--- Defaults to the full bucket list of the raid's model. A raid that
--- doesn't offer every difficulty its model defines (e.g. Baradin Hold
--- exists only at 10/25 Normal, never Heroic) declares a raid-level
--- `availableDifficulties` list of the display buckets it actually has;
--- this filters the model's full list down to those, preserving order, so
--- the missing buckets never render as empty 0/0 pills. Absent the field,
--- every model bucket is shown.
+-- The buckets to show, in pill order. `availableDifficulties` filters them.
 function RR:GetDisplayBuckets(raid)
     local model = self:GetDifficultyModel(raid)
     local allowed = raid and raid.availableDifficulties
@@ -1489,12 +1311,7 @@ function RR:FoldDifficulty(raid, liveDifficultyID)
     return model.fold[liveDifficultyID] or liveDifficultyID
 end
 
--- True when a raw saved-instance difficulty is a Raid Finder difficulty.
--- GetSavedInstanceInfo reports the raw live id, so modern LFR shows 17 but
--- Mists LFR shows 7. The all-saved-instances scans (lockout-bit reads, the
--- idle pill counts) key by raid name and have no raid object at the compare
--- point, so they can't fold per-raid -- this accepts any raw id that folds to
--- 17 under some model. A raw `== 17` test misses Mists LFR lockouts entirely.
+-- True for any raw difficulty that folds to LFR under some model.
 local LFR_SAVED_DIFFICULTIES
 function RR:IsLFRSavedDifficulty(rawDifficultyID)
     if not rawDifficultyID then return false end
@@ -1509,12 +1326,8 @@ function RR:IsLFRSavedDifficulty(rawDifficultyID)
     return LFR_SAVED_DIFFICULTIES[rawDifficultyID] == true
 end
 
--- True when the player is in a Raid Finder instance of the current raid.
--- Folds the live difficulty to a display bucket first, so it catches both
--- the modern LFR id (17) and the Mists-era LFR id (7, which folds to 17).
--- A raw `== 17` test misses Mists LFR and would let the full N/H/M route
--- render in an LFR wing (wrong boss subset, wrong path). Use this everywhere
--- LFR needs gating -- the load popup and the panel render both rely on it.
+-- True in a Raid Finder instance of the current raid. Use everywhere LFR
+-- needs gating.
 function RR:IsInLFR()
     local diff = self.state and self.state.currentDifficultyID
     if not diff then return false end
@@ -1545,13 +1358,8 @@ function RR:GetCurrentWingName()
     return nil
 end
 
--- Resolve the lfrWings entry for the wing the player is currently in, or nil.
--- Each wing route is keyed by lfgDungeonID under raid.lfrWings. A wing can be
--- queueable under more than one lfgDungeonID (e.g. size/seasonal variants of
--- the same physical wing); the duplicates are stored as { aliasOf = <id> }
--- and dereferenced here so one authored route serves every id that points at
--- it. Returns nil when not in LFR, the raid has no lfrWings, or no entry
--- matches the current id -- callers then fall back to the unsupported message.
+-- The lfrWings entry for the wing the player is in, or nil. `aliasOf` entries
+-- are dereferenced here.
 function RR:GetActiveWing()
     local raid = self.currentRaid
     if not raid or not raid.lfrWings then return nil end
@@ -1566,16 +1374,8 @@ function RR:GetActiveWing()
     return wing
 end
 
--- Is a boss available at a given DISPLAY bucket (14/15/16/17)?
---
--- Most bosses exist at every difficulty their raid offers, so the default
--- (no `availableDifficulties` field) is "available everywhere" -> true.
--- A boss that only exists at certain difficulties (e.g. Ra-den in Throne
--- of Thunder is Heroic-only) declares `availableDifficulties = { 15 }`;
--- this returns true only when the queried bucket is in that list.
---
--- bucket is a display bucket, not a live difficulty ID -- callers that
--- hold a live ID should FoldDifficulty it first.
+-- Takes a display bucket, not a live ID. No `availableDifficulties` field
+-- means available everywhere.
 function RR:BossAvailableInBucket(boss, bucket)
     if not boss then return false end
     local allowed = boss.availableDifficulties
@@ -1586,20 +1386,8 @@ function RR:BossAvailableInBucket(boss, bucket)
     return false
 end
 
--- Compute per-difficulty kill counts for ANY raid (not just the
--- currently-loaded one). Used by both the in-raid pill row and the
--- idle-state supported-raids list.
---
--- For the currently-loaded raid (active difficulty in particular), the
--- caller is responsible for the MAX-with-bossesKilled trick that lets
--- ENCOUNTER_END register kills before the saved-instance cache catches
--- up. This function reads PURELY from cache; no live state.
---
--- Results are keyed by DISPLAY bucket (17/14/15/16), not by the live
--- difficulty IDs. Under the Mists model, a boss counts as cleared on a
--- bucket if it was killed at EITHER size that folds into it -- killing
--- Stone Guard at 10-player Normal marks the Normal bucket complete even
--- if you never touched 25-player.
+-- Per-difficulty kill counts for any raid, keyed by display bucket. Reads
+-- purely from cache; the caller owns the bossesKilled floor.
 function RR:GetPerDifficultyKillCountsForRaid(raid)
     if not raid then return nil end
     if not C_RaidLocks or not C_RaidLocks.IsEncounterComplete then return nil end
@@ -1648,22 +1436,10 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
         local complete = 0
         local total    = 0
         for _, b in ipairs(raid.bosses or {}) do
-            -- A boss counts toward a bucket's TOTAL if it exists at that
-            -- difficulty (BossAvailableInBucket) -- independent of whether
-            -- the Encounter Journal exposes a dungeonEncounterID for it.
-            -- This matters for hidden bonus bosses: Ra-den is a real Heroic
-            -- encounter but the EJ doesn't index him, so journalToDungeonEnc
-            -- has no entry. Gating the total on the ID (as before) silently
-            -- dropped him from the Heroic denominator, showing H 12 instead
-            -- of 13.
+            -- Availability alone, never whether the journal exposes an ID.
             if self:BossAvailableInBucket(b, bucket) then
                 total = total + 1
-                -- Completion is checked through the lockout API, which
-                -- needs the dungeonEncounterID. When the EJ doesn't expose
-                -- one (hidden boss), use an explicit dungeonEncounterID from
-                -- the data if present (Ra-den), so lockout-based completion
-                -- still resolves on the idle list. Failing both, the
-                -- in-memory bossesKilled floor below credits the active run.
+                -- Falls back to the data file's ID when the journal has none.
                 local dungeonEncID = journalToDungeonEnc[b.journalEncounterID]
                     or b.dungeonEncounterID
                 if dungeonEncID then
@@ -1722,28 +1498,11 @@ function RR:GetPerDifficultyKillCounts()
     return self:GetPerDifficultyKillCountsForRaid(self.currentRaid)
 end
 
--- LFR kill count for a raid, as { complete = n, total = N }, or nil if the
--- raid has no LFR wing data. Unlike the Normal/Heroic/Mythic buckets (which
--- read C_RaidLocks.IsEncounterComplete), LFR completion is not exposed by that
--- API for legacy raids -- the reliable source is the per-boss bitfield encoded
--- in the LFR lockout hyperlink. It is read by calling
--- RequestRaidInfo, finding this raid's difficulty-17 saved instance, pulling the
--- bitfield from GetSavedInstanceChatLink, and count set bits (each = one boss
--- looted this lockout). The denominator N is the number of distinct bosses
--- across all of the raid's LFR wings.
+-- LFR kill count as { complete, total }, read from the lockout hyperlink's
+-- per-boss bitfield. Nil without wing data.
 
--- Build (and briefly cache) a map of normalized-raid-name -> set-bit count for
--- every difficulty-17 (LFR) saved instance. One saved-instance scan covers all
--- LFR lockouts at once, so the idle list (which asks per raid, for many raids)
--- pays a single scan per refresh rather than one per raid. The scan runs
--- RequestRaidInfo + a GetNumSavedInstances walk, too heavy for every render
--- tick, so the result is cached for a few seconds; kills still surface within
--- that short window.
---
--- The cache stores BOTH the set-bit count (byName) and the set-bit POSITIONS
--- (posByName, a { [pos]=true } set per raid) so the per-wing progress expander
--- can mask a wing's lockoutBits against the live positions without a second
--- scan. byName is kept as a convenience for callers that only need the total.
+-- Normalized raid name -> LFR set-bit count and positions, from one scan of
+-- every LFR lockout. Cached for a few seconds.
 function RR:GetLFRLockoutCounts()
     local now = GetTime and GetTime() or 0
     local cache = self._lfrCountCache
@@ -1757,13 +1516,7 @@ function RR:GetLFRLockoutCounts()
     local nSaved = GetNumSavedInstances and GetNumSavedInstances() or 0
     for i = 1, nSaved do
         local sName, _, sReset, sDiff, sLocked = GetSavedInstanceInfo(i)
-        -- Only count ACTIVE lockouts. GetSavedInstanceInfo keeps expired
-        -- entries in the table after a weekly reset with their old kill bits
-        -- intact (locked=false, reset=0), so parsing the bitfield blindly
-        -- reports last week's kills forever. The N/H/M pills avoid this by
-        -- reading C_RaidLocks (which correctly reports not-locked post-reset);
-        -- the LFR pill reads this bitfield, so it must drop dead lockouts
-        -- itself. An active lockout has locked=true and a positive reset.
+        -- Active lockouts only: locked, with a positive reset.
         if self:IsLFRSavedDifficulty(sDiff) and sLocked and (sReset or 0) > 0 then
             local link = GetSavedInstanceChatLink and GetSavedInstanceChatLink(i)
             local bits = link and tonumber(link:match(":(%d+)|h"))
@@ -1799,13 +1552,7 @@ function RR:GetLFRKillCountForRaid(raid)
     end
     if total == 0 then return nil end
 
-    -- n: distinct bosses killed, summed from the per-wing progress (which
-    -- bit-tests each boss individually). This avoids double-counting raids
-    -- whose lockout sets more than one bit per boss -- e.g. Battle of
-    -- Dazar'alor's faction-mirrored encounters set two bits each, so a raw
-    -- set-bit count would over-report. Summing per-boss kills keeps this
-    -- count consistent with the per-wing expander. Absent a lockout (not
-    -- saved this week) every wing reports 0, a valid "0/N" state.
+    -- Summed per wing, not counted raw -- some raids set two bits per boss.
     local complete = 0
     local wings = self:GetWingProgressForRaid(raid)
     if wings then
@@ -1822,23 +1569,12 @@ function RR:GetLFRKillCount()
     return self:GetLFRKillCountForRaid(self.currentRaid)
 end
 
--- Per-wing LFR progress for the idle-list wing expander. Returns an ordered
--- list of wings, each:
---   {
---     key       = lfgDungeonID,
---     name      = wing name,
---     complete  = bosses killed in this wing,
---     total     = bosses in this wing,
---     unmapped  = true when the wing's per-boss bits aren't known (only its
---                 bit-SET as a group is) -- count is real, per-boss state is not,
---     bosses    = { { index, name, killed (bool or nil if unmapped) }, ... },
---   }
--- For a mapped wing (lockoutBits present) each boss's killed state comes from
--- testing its bit against the live set positions. For an unmapped wing
--- (lockoutBitSet present instead -- the group of bits without per-boss
--- assignment), the wing-level count is the number of those group bits currently
--- set (a real number), but per-boss killed is left nil so the UI can render the
--- names neutrally and flag the wing as pending a capture.
+-- Per-wing LFR progress for the idle-list expander. Each entry:
+--   { key, name, complete, total, unmapped, bosses = { { index, name, killed } } }
+-- A mapped wing (lockoutBits) tests each boss's bit against the live set. An
+-- unmapped wing (lockoutBitSet -- the group without per-boss assignment) gets
+-- a real count but leaves each `killed` nil, so the UI can render the names
+-- neutrally and flag the wing as pending a capture.
 -- Returns nil if the raid has no lfrWings.
 function RR:GetWingProgressForRaid(raid)
     if not raid or not raid.lfrWings then return nil end
@@ -1954,31 +1690,17 @@ function RR:GetLFRSetBits(raid)
     return nil
 end
 
--- Per-boss LFR lockout-bit capture (dev aid for S7). When an LFR boss is
--- killed, the raid's lockout bitfield gains exactly one set bit -- the bit that
--- identifies that boss. The bit order is its own id space (not boss index, not
--- encounter-API order), so the only way to learn boss->bit is to watch which
--- bit appears per kill. This records that automatically on each LFR kill so the
--- mapping can be gathered during normal farming without manual probing, and
--- survives /reload (stored in RetroRunsDebug).
---
--- The lockout API lags the kill by a second or two, so the read is deferred.
--- Each entry: { raid, boss, bit, t }. Diffing is against the prior reading we
--- recorded, so two kills before a refresh would show two new bits on the second
--- read -- run is best with one kill registering at a time, which a normal clear
--- naturally produces.
+-- Records which lockout bit each LFR boss sets, gathered during normal farming
+-- rather than by manual probing. The bit order is its own id space, so watching
+-- one kill at a time is the only way to learn it. The lockout API lags the kill
+-- by a second or two, so the read is deferred.
 function RR:CaptureLFRBitForKill(encounterName)
     local raid = self.currentRaid
     if not raid or not self:IsInLFR() then return end
 
-    -- Read the lockout and try to attribute exactly one newly-set bit to this
-    -- kill. The bit can register late when a boss dies very fast (or bugs), so
-    -- a single fixed-delay read sometimes sees no new bit yet -- and if we
-    -- logged that "none" AND snapshotted the (still-stale) set, the late bit
-    -- would later show up lumped with the NEXT kill's bit as "ambiguous".
-    -- Instead, retry the read a few times on a "none" result and only commit a
-    -- log entry + snapshot once a bit appears (or we genuinely exhaust the
-    -- retries). attempt counts up; delays are spaced to cover a slow push.
+    -- Retry on a "none" result rather than logging it: a fast kill can register
+    -- its bit late, and committing the miss plus a stale snapshot would make
+    -- that bit turn up lumped with the next kill's as ambiguous.
     local DELAYS = { 2.5, 1.5, 2.0, 3.0 }   -- cumulative ~9s of retry budget
 
     local function tryCapture(attempt)
@@ -2034,43 +1756,8 @@ function RR:CaptureLFRBitForKill(encounterName)
     C_Timer.After(DELAYS[1], function() tryCapture(1) end)
 end
 
--- Shared-lockout raids commit the week's difficulty at the first kill, so
--- one mode can render the other unreachable until reset. Given the
--- per-bucket counts, return the display bucket that is locked OUT this
--- lockout, or nil when nothing is committed (or no lock applies). Callers
--- use this to mark the locked pill and arm its tooltip; it does not change
--- counts or gate anything. Two shared-lockout models qualify:
---
--- sharedLfr (the Mists raids and Dragon Soul): killing on one mode locks
--- the Normal/Heroic sibling,
--- symmetrically -- whichever side has kills locks the other.
---
--- shared (the remaining Cataclysm raids) behaves IDENTICALLY: Normal and
--- Heroic share one
--- weekly lockout, committing to either locks the sibling until reset
--- (symmetric, live-verified both directions -- a Normal kill blocks Heroic
--- entry, and a Heroic kill blocks Normal re-entry). Both models display two
--- buckets, so the same count-based test serves both: the difficulty with no
--- kills is the one locked out, once the other has a kill.
---
--- Guard: only claim a lock when the raid actually offers MORE THAN ONE
--- member of the group. Baradin Hold is shared-model but Normal-only
--- (availableDifficulties = {14}); its Heroic side doesn't exist, so
--- nothing is ever locked. Without this, a Normal kill there would wrongly
--- report Heroic (15) as locked.
---
--- sizesShared applies the same rule to the Wrath 10/25 pair: one weekly
--- lockout spans both sizes, so whichever size has kills locks the other.
---
--- sizesHeroic extends it to a group of FOUR. The Ruby Sanctum shares one
--- weekly lockout across 10N/25N/10H/25H while keeping four distinct loot
--- tables and four display buckets. Live-verified from a fresh character on
--- 25 Heroic: before the first kill, changing difficulty logged "The Ruby
--- Sanctum has been reset" and built a new instance; after "You are now
--- saved to this instance", selecting 25N, 10H and 10N each returned the
--- player to the saved 25 Heroic instance with no reset line. Note this is
--- a MODERN RETAIL shape -- era and Classic references describe 10 and 25
--- as separate lockouts, which no longer holds.
+-- Buckets sharing one weekly lockout. Whichever member has kills locks the
+-- others. Only applies when the raid offers more than one member.
 local SHARED_LOCKOUT_GROUPS = {
     sharedLfr   = { 14, 15 },
     shared      = { 14, 15 },
@@ -2078,13 +1765,7 @@ local SHARED_LOCKOUT_GROUPS = {
     sizesHeroic = { 3, 4, 5, 6 },
 }
 
--- Tiered lockout groups: the week locks to a TIER (list of buckets), not
--- to a single difficulty. Buckets inside one tier share a live lockout
--- the player moves between freely; kills in one tier lock every bucket
--- of the OTHER tiers until reset. Verified on Icecrown Citadel: at 7/12
--- on 10 Player, 25 Player admitted the player to the same lockout and an
--- unkilled boss paid 25-player-exclusive loot, while both Heroic
--- difficulties refused entry.
+-- Buckets inside a tier share a lockout; kills in one tier lock the others.
 local TIERED_LOCKOUT_GROUPS = {
     difficultyLocked = { { 3, 4 }, { 5, 6 } },
 }
@@ -2164,17 +1845,7 @@ function RR:GetLockedOutBucket(raid, counts)
     return locked and locked[1] or nil
 end
 
--- Every bucket the shared lockout currently blocks. Empty-safe: returns nil
--- when nothing is locked, so callers can treat nil as "no lock" exactly as
--- they did with the single-bucket form.
---
--- Two shapes:
---   * Flat groups (SHARED_LOCKOUT_GROUPS): one lockout spans every member;
---     any kill locks every member without kills.
---   * Tiered groups (TIERED_LOCKOUT_GROUPS): buckets inside a tier never
---     lock each other (the player moves between them freely inside one
---     live lockout); kills anywhere in a tier lock every bucket of the
---     OTHER tiers.
+-- Every bucket the shared lockout currently blocks, or nil when nothing is.
 function RR:GetLockedOutBuckets(raid, counts)
     if not raid or not counts then return nil end
 
@@ -2225,12 +1896,8 @@ function RR:GetLockedOutBuckets(raid, counts)
     return locked
 end
 
--- On a shared-lockout raid, a saved-instance row stored under one member
--- of the pair belongs to the other member's lockout as well: the game
--- keeps one weekly lockout for both, stored under whichever difficulty
--- was entered first. This resolves whether a saved row's difficulty
--- belongs to the active difficulty's lockout, so state reads (kill sync,
--- lockout id, kill counts) see the lockout from either side of the pair.
+-- A shared lockout is stored under whichever difficulty was entered first, so
+-- either member's row resolves to it.
 function RR:SavedRowMatchesActiveLockout(savedDifficultyId)
     if savedDifficultyId == self.state.currentDifficultyID then return true end
     local raid = self.currentRaid
@@ -2259,12 +1926,9 @@ function RR:SavedRowMatchesActiveLockout(savedDifficultyId)
     return savedInGroup and activeInGroup
 end
 
--- Diagnostic for stale-lockout contamination. Dumps GetSavedInstanceInfo
--- for every saved instance, with C_RaidLocks.IsEncounterComplete probed
--- per encounter for any raids we have data for. Looking for: expired
--- entries (locked=false) where C_RaidLocks still returns true, which
--- would mean the API surface is letting stale data leak into pill
--- displays and bossesKilled.
+-- Dumps every saved instance with IsEncounterComplete probed per encounter.
+-- Looking for expired entries where C_RaidLocks still returns true, which
+-- would mean stale data is leaking into the pills.
 function RR:LockProbe()
     if RequestRaidInfo then RequestRaidInfo() end
 
@@ -2345,17 +2009,10 @@ function RR:LockProbe()
                 end
             end
 
-            -- Cross-difficulty completion matrix. For each boss, probe
-            -- IsEncounterComplete against every legacy size/difficulty id
-            -- (3=10N, 4=25N, 5=10H, 6=25H) plus the display buckets
-            -- (14=N, 15=H) and LFR (7, 17). Resolves whether a kill on one
-            -- difficulty reads complete under the others: if a single kill
-            -- lights up only its own id, difficulties are independent and a
-            -- per-bucket pill split is honest; if it lights up siblings too,
-            -- the kill is one-per-boss across difficulties and those
-            -- difficulties must fold to a single bucket. Uses the data-file
-            -- dungeonEncounterID as a fallback so it still resolves when the
-            -- journal map is empty.
+            -- Probes each boss against every legacy size id plus the display
+            -- buckets and LFR. A kill lighting up only its own id means the
+            -- difficulties are independent; lighting up siblings means they
+            -- must fold to one bucket. This is how a model gets decided.
             local matrixIds = { 3, 4, 5, 6, 14, 15, 7, 17 }
             add("    cross-difficulty matrix [3=10N 4=25N 5=10H 6=25H 14=N 15=H 7=LFRlegacy 17=LFR]:")
             for _, b in ipairs(raid.bosses or {}) do
@@ -2385,37 +2042,11 @@ function RR:LockProbe()
     self:ShowCopyWindow("LockProbe", table.concat(lines, "\n"))
 end
 
--- Raid-skip unlock detection. Skip quests are account-wide as of
--- Patch 11.0.5 (use IsQuestFlaggedCompletedOnAccount, not the
--- per-character flag). Quest flags don't backfill -- completing the
--- Mythic skip sets the Mythic flag true but leaves Heroic/Normal
--- false. The in-game cascade lets a higher-difficulty unlock be used
--- at lower difficulties, so the highest flag-true difficulty is the
--- ceiling.
--- The walk from highest to lowest gives us the ceiling directly.
+-- Skip quests are account-wide and don't backfill, so the highest flag-true
+-- difficulty is the ceiling.
 
--- Normalize raid.skipQuests into an array of chain descriptors. Returns
--- nil if the raid has no skipQuests configured.
---
--- The schema supports two shapes:
---
---   Single-chain (legacy, most raids):
---     skipQuests = { normal = N, heroic = H, mythic = M }
---
---   Multi-chain (Antorus and any future raid with parallel skip chains):
---     skipQuests = {
---         { label = "Imonar",   normal = N1, heroic = H1, mythic = M1 },
---         { label = "Aggramar", normal = N2, heroic = H2, mythic = M2 },
---     }
---
--- This helper detects which shape is in use and returns the multi-chain
--- form in both cases -- the legacy single-chain raids are wrapped as a
--- one-element array with no label. Downstream consumers always iterate
--- the array and can assume the normalized shape.
---
--- Shape detection: in the multi-chain shape, indices [1] / [2] / ...
--- exist and are tables. In the legacy shape, raid.skipQuests.normal /
--- heroic / mythic exist directly.
+-- Normalizes raid.skipQuests to an array of chain descriptors. Nil when the
+-- raid has none.
 local function NormalizeSkipChains(raid)
     if not raid or not raid.skipQuests then return nil end
     local sq = raid.skipQuests
@@ -2589,6 +2220,11 @@ end
 function RR:GetRaidSkipUnlockedCeiling(raid)
     if not raid then return nil end
 
+    -- Ungated (Burning Crusade): nothing to unlock, so the ceiling is the
+    -- top of the range and the cascade below makes it available at every
+    -- difficulty the raid offers.
+    if self:RaidSkipIsUngated(raid) then return 16 end
+
     -- Standard quest-flag cascade.
     if raid.skipQuests then
         local perChain = self:GetSkipChainCeilings(raid)
@@ -2613,13 +2249,7 @@ function RR:GetRaidSkipUnlockedCeiling(raid)
         return nil
     end
 
-    -- Siege of Orgrimmar's "Scroll of Past Deeds" skip. Per-difficulty
-    -- state lives in GarroshSkipStates; for the single-value ceiling
-    -- consumers (idle-list marker, IsRaidSkipAvailableAtDifficulty) we
-    -- collapse to a ceiling: the highest difficulty whose cell is a
-    -- confirmed unlock. "?" (unknown) does not count as unlocked here --
-    -- the marker should reflect what we can prove, and availability
-    -- checks shouldn't assert a skip we haven't confirmed.
+    -- Collapses GarroshSkipStates to a ceiling. "?" doesn't count as unlocked.
     if raid.skipGarrosh then
         local m, h, n = GarroshSkipStates(raid.skipGarrosh)
         if m == true then return 16 end
@@ -2646,6 +2276,9 @@ end
 -- achievement-gated skips, which only unlock the exact difficulty named.
 function RR:RaidSkipIsCascading(raid)
     if not raid then return false end
+    -- Ungated skips apply at every difficulty the raid offers, so the
+    -- downward cascade from the ceiling is the correct model.
+    if self:RaidSkipIsUngated(raid) then return true end
     if raid.skipQuests then return true end
     if raid.skipAchievement then return false end
     -- Garrosh scroll: once unlocked it applies at every difficulty the
@@ -2655,6 +2288,17 @@ function RR:RaidSkipIsCascading(raid)
     return false
 end
 
+-- A skip route with no unlock mechanism declared, so it is always offered.
+-- The Burning Crusade raids are the case: their gates were deleted, not
+-- replaced with a flag.
+function RR:RaidSkipIsUngated(raid)
+    if not raid then return false end
+    if not raid.skipRoute then return false end
+    return raid.skipQuests == nil
+        and raid.skipAchievement == nil
+        and raid.skipGarrosh == nil
+end
+
 -- True iff the raid has any skip mechanic configured (regardless of
 -- whether it's currently unlocked). Single gate for the UI sites that
 -- decide whether to surface the skip column / detail row at all, so a
@@ -2662,6 +2306,10 @@ end
 -- site.
 function RR:RaidHasSkipMechanic(raid)
     if not raid then return false end
+    -- Ungated routes are deliberately NOT counted here. The Skips window
+    -- tracks unlock progress, and an ungated skip has no progress to
+    -- track -- it would render as a permanently-unlocked row that tells
+    -- the player nothing. It is offered on the load dialog instead.
     return (raid.skipQuests ~= nil)
         or (raid.skipAchievement ~= nil)
         or (raid.skipGarrosh ~= nil)
@@ -2683,6 +2331,8 @@ end
 -- non-skip-eligible difficulty, returns false.
 function RR:IsRaidSkipAvailableAtDifficulty(raid, difficultyID)
     if not difficultyID then return false end
+    -- Callers pass the RAW live difficulty, so fold before range-checking.
+    difficultyID = self:FoldDifficulty(raid, difficultyID)
     -- Skip system is Normal/Heroic/Mythic only.
     if difficultyID < 14 or difficultyID > 16 then return false end
     local ceiling = self:GetRaidSkipUnlockedCeiling(raid)
@@ -2729,6 +2379,11 @@ end
 -- unlocked chain. Used by the load dialog's single SKIP button.
 function RR:IsRouteTargetSkipAvailableAtDifficulty(raid, difficultyID)
     if not difficultyID then return false end
+    -- Fold the RAW live difficulty before range-checking, exactly as
+    -- IsRaidSkipAvailableAtDifficulty does. These two are near-duplicates
+    -- and the load dialog calls THIS one, so a fix applied only to the
+    -- sibling changes nothing the player sees.
+    difficultyID = self:FoldDifficulty(raid, difficultyID)
     if difficultyID < 14 or difficultyID > 16 then return false end
     local ceiling = self:GetRouteTargetSkipCeiling(raid)
     if not ceiling then return false end
@@ -2747,25 +2402,8 @@ function RR:HasRaidSkipUnlocked(raid)
     return self:GetRaidSkipUnlockedCeiling(raid) ~= nil
 end
 
--- Looks up the data table for the raid the player is currently inside.
--- For most raids (faction-symmetric) the data lives at
--- RetroRuns_Data[instanceID] and that's all there is to it.
---
--- BfD is faction-asymmetric: bosses 1-3 differ in journalEncounterIDs
--- and display names, the boss-2/3 order is swapped, the entrance is in a
--- different city/zone, and the routing path through the raid is entirely
--- different. Rather than parameterizing every field, we ship Horde data
--- as a parallel file (`BattleOfDazaralorHorde.lua`) that registers under
--- a separate global `RetroRuns_DataHorde[instanceID]`. This lookup
--- consults that table first when the player is Horde, falling through to
--- the shared `RetroRuns_Data` table when no Horde-specific data exists
--- (the case for the other 9 raids and for Alliance / Neutral characters).
---
--- Faction read per-call via UnitFactionGroup; cheap C-side string lookup,
--- no caching needed. Pandaren on Wandering Isle return "Neutral" -- they
--- can't enter the raid anyway, but the fall-through to RetroRuns_Data
--- means the panel still surfaces the Alliance-side data so they're not
--- looking at an empty panel pre-faction-pick.
+-- The data table for the raid the player is inside. Horde reads
+-- RetroRuns_DataHorde first, falling through to the shared table.
 function RR:GetSupportedRaid()
     local info = self:GetCurrentInstanceInfo()
     if info.instanceType ~= "raid" then return nil end
@@ -2825,29 +2463,9 @@ function RR:GetRaidByInstanceID(instanceID)
     return RetroRuns_Data and RetroRuns_Data[instanceID] or nil
 end
 
--- Faction-variant encounter resolution. Some raids field one fight that
--- the Encounter Journal splits into two per-faction encounters sharing a
--- single lockout row (one DungeonEncounterID): Trial of the Crusader's
--- Faction Champions and Icecrown Citadel's gunship battle. Rather than a
--- parallel per-faction data file (the Battle of Dazar'alor pattern, which
--- exists for a raid where routing, entrances and boss ORDER all differ),
--- these bosses carry a `factionEncounters` table:
---
---     factionEncounters = {
---         Alliance = { name = ..., journalEncounterID = ... },
---         Horde    = { name = ..., journalEncounterID = ... },
---     },
---
--- with the boss's own top-level name/journalEncounterID authored as the
--- Alliance values. This pass overwrites those two fields in place from
--- the player's faction's variant, once per session -- the faction cannot
--- change without a relog. Neutral (Wandering Isle Pandaren) keeps the
--- authored Alliance values, same fall-through GetSupportedRaid uses.
---
--- After resolution the boss carries the journalEncounterID the player's
--- own Encounter Journal exposes, so the EJ-derived journal->dungeon map
--- bridges ENCOUNTER_END kill registration exactly like any other boss,
--- and the display name matches what the player fights.
+-- Overwrites name and journalEncounterID in place from a boss's
+-- `factionEncounters` table. Once per session; Neutral keeps the authored
+-- Alliance values.
 function RR:ResolveFactionEncounters()
     local faction = UnitFactionGroup("player")
     if faction ~= "Alliance" and faction ~= "Horde" then return end
@@ -2930,14 +2548,8 @@ end
 -- Raid load / unload
 -------------------------------------------------------------------------------
 
--- Walk GetNumSavedInstances and return the lockoutId for the currently-
--- loaded raid (matching instanceID + active difficulty). Returns nil if no
--- saved instance matches -- usually means a fresh lockout with no kills yet.
---
--- The lockoutId is unique per-lockout: when the weekly reset rolls a new
--- lockout, the lockoutId changes, even if instanceID and difficulty are
--- the same. That's what makes it the right key for invalidating persisted
--- per-lockout state (like routingProgress) on lockout reset.
+-- The lockoutId for the loaded raid, or nil on a fresh lockout. Changes at
+-- every weekly reset, so it keys persisted-progress invalidation.
 function RR:GetCurrentLockoutId()
     if not self.currentRaid then return nil end
     if not self.state.currentDifficultyID then return nil end
@@ -2986,14 +2598,8 @@ function RR:HasAnyKillThisLockout()
     return pairHasKill or false
 end
 
--- Single canonical "go to real raid state" routine. Wipes any test-mode
--- or stale state, syncs bossesKilled from the saved-instance cache,
--- restores persisted segments (if the lockout still matches), recomputes
--- the active step, and fires a UI refresh.
---
--- Called from LoadCurrentRaid (after raid context change) and from
--- DisableTestMode (after exiting /rr test). Both contexts need exactly
--- the same state-rebuild sequence.
+-- Wipes test/stale state, syncs kills, restores persisted segments, recomputes
+-- the step, refreshes.
 function RR:RestoreRealRaidState()
     self:ClearBossState()
     self:SyncFromSavedRaidInfo(true)   -- request fresh server data
@@ -3027,14 +2633,7 @@ function RR:LoadCurrentRaid(variant)
         self:PersistRouteVariant(self.state.activeRouteVariant)
     end
 
-    -- Force the panel to fully-expanded mode (visible + un-minimized)
-    -- regardless of the user's launchMode setting. Clicking "Load" on
-    -- the in-raid popup is an explicit engagement signal -- the user
-    -- wants to see the navigation surface for this raid, not a tiny
-    -- title-bar or a hidden panel. SetSetting writes showPanel/minimized
-    -- to the saved variable; SetMinimized additionally triggers a full
-    -- UI.Update so body-content visibility flips synchronously rather
-    -- than waiting for the next heartbeat tick.
+    -- Force fully open regardless of launchMode.
     self:SetSetting("showPanel", true)
     if RR.UI and RR.UI.SetMinimized then
         RR.UI.SetMinimized(false)
@@ -3074,18 +2673,8 @@ function RR:HandleLocationChange()
         return
     end
 
-    -- Zone-change segment completion. When the player leaves a mapID, mark
-    -- the earliest incomplete segment of the active step that matches the
-    -- mapID they just left as complete. This is the only segment-completion
-    -- mechanism that works inside raid instances, since Blizzard restricts
-    -- C_Map.GetPlayerMapPosition to nil there (see Recorder.lua's preamble).
-    -- Disambiguates the case where a step has multiple segments on the
-    -- same mapID separated by a detour through another mapID -- e.g.
-    -- Terros's path traverses Vault Approach (2122) twice with a Primal
-    -- Convergence (2124) crossing in between. Without this, the renderer's
-    -- earliest-incomplete-on-current-mapID picker would surface seg 2
-    -- ("toward Convergence") even after the player has come back through
-    -- Convergence and is heading toward seg 4 ("to Terros").
+    -- Leaving a mapID completes the earliest incomplete segment on it -- the
+    -- only completion mechanism available inside a raid.
     local currentMapID = C_Map and C_Map.GetBestMapForUnit and
                          C_Map.GetBestMapForUnit("player")
     local previousMapID = self.state.lastPlayerMapID
@@ -3110,15 +2699,8 @@ function RR:HandleLocationChange()
         self:AdvanceProgress("zone")
     end
 
-    -- Same-mapID subZone change. The RetroEngine handles segs gated on
-    -- when.subZone (EP step 3 seg 2 "Halls of the Chosen" is the
-    -- canonical case): player /reloads on mapID 1513 with the parent
-    -- subZone, then the subZone updates to "Halls of the Chosen"
-    -- without a mapID change. Without this call, the seeder's
-    -- location-match-at-seed time misses the gate and progress stays
-    -- stuck at the pre-gate seg. Self-gated internally (no-op if no
-    -- advance is computed), so cheap for raids whose segs never use
-    -- when.subZone gating.
+    -- A subZone can change without the mapID changing. No-op when no advance
+    -- is computed.
     if currentMapID and previousMapID and currentMapID == previousMapID then
         self:AdvanceProgress("zone")
     end
@@ -3127,17 +2709,8 @@ function RR:HandleLocationChange()
         self.state.lastPlayerMapID = currentMapID
     end
 
-    -- Optional-step cede: re-drive step selection on movement. Step
-    -- selection normally only runs on a kill (nothing else can change
-    -- which step is active), but an optional step yields based on where
-    -- the player IS -- so walking past the boss has to re-select, and
-    -- walking back has to restore. Gated on the ROUTE containing an
-    -- optional step rather than the active step being one, or the cede
-    -- would be one-way: once it moved on, the active step is no longer
-    -- optional and nothing would bring the pointer back. Every other
-    -- raid keeps the kill-driven behavior untouched. ComputeNextStep
-    -- fires OnActiveStepChanged and seeds progress itself; refresh the
-    -- UI only when the step really moved.
+    -- An optional step yields on position, so movement re-selects. Gated on
+    -- the ROUTE holding one, not the active step, so the cede is reversible.
     if self.currentRaid and self:ActiveRoutingHasOptionalStep() then
         local before = self.state.activeStep
         local after  = self:ComputeNextStep()
@@ -3153,18 +2726,8 @@ function RR:HandleLocationChange()
         self.state.currentDifficultyID   = info.difficultyID
         self.state.currentDifficultyName = info.difficultyName
 
-        -- Warm GetItemInfo cache for every loot item in this raid.
-        -- Cheap one-shot pass (~150 items per raid). Each call is
-        -- async: if the item isn't cached, GetItemInfo returns nil
-        -- but queues a fetch; the second call for the same itemID
-        -- returns the cached record. The tmog browser's legendary-
-        -- quality detection (UI.lua FormatItemRow) reads
-        -- GetItemInfo's quality field, which on first cold-cache
-        -- access returns nil -- causing legendary items to render
-        -- white the first time the popup opens. Warming here
-        -- ensures quality is populated by the time the user opens
-        -- the popup. Also primes other paths that read item info
-        -- (special-loot rendering, slash-command status output).
+        -- Warms the GetItemInfo cache so the browser's quality read resolves
+        -- on first open.
         if GetItemInfo and supported.bosses then
             for _, boss in ipairs(supported.bosses) do
                 if boss.loot then
@@ -3182,32 +2745,17 @@ function RR:HandleLocationChange()
 
         local key = self:GetRaidContextKey(supported, info)
         if self.state.lastSeenRaidKey ~= key then
-            -- Saved-instance data (GetSavedInstanceInfo) arrives async after
-            -- RequestRaidInfo. On a fresh zone-in HandleLocationChange can
-            -- run before it's ready, so GetCurrentLockoutId() returns nil and
-            -- HasPersistedProgressForCurrentLockout() can't see a committed
-            -- run -- which would wrongly show the load dialog for a raid the
-            -- player already loaded this lockout. If we have a saved progress
-            -- store for this raid+faction but can't yet confirm the lockout,
-            -- defer: don't set lastSeenRaidKey, don't prompt. UPDATE_INSTANCE_
-            -- INFO re-drives HandleLocationChange once the data lands, and we
-            -- decide then with a valid lockout. A raid with no saved store is
-            -- genuinely fresh -- prompt immediately, nothing to defer for.
+            -- A store with no confirmed lockout means the async data hasn't
+            -- landed: defer, and UPDATE_INSTANCE_INFO re-drives this. No store
+            -- is genuinely fresh, so prompt now.
             if self:HasSavedRouteStore()
                 and not self:GetCurrentLockoutId()
                 and not self.state.instanceInfoSeen then
                 return
             end
 
-            -- New raid context (different raid, or same raid but
-            -- different difficulty). Wipe in-memory bossesKilled before
-            -- showing the load popup, otherwise the new raid would
-            -- inherit kill marks from the previous raid -- bossIndex-
-            -- keyed without raid scoping, so they collide.
-            -- SyncFromSavedRaidInfo's removal-rejection guard (defeats
-            -- saved-instance cache hiccups mid-session) would otherwise
-            -- refuse to clear the stale data when the new raid's cache
-            -- reports no kills.
+            -- bossesKilled is bossIndex-keyed with no raid scoping, so a new
+            -- context has to wipe it.
             wipe(self.state.bossesKilled)
             wipe(self.state.bossesKilledViaPairOnly)
             self.state.lastSeenRaidKey = key
@@ -3228,13 +2776,7 @@ function RR:HandleLocationChange()
                             killed, total))
                 self:PrintAfterBanner((RR.L["Resuming %s route."]):format(routeWord))
             elseif self:IsInLFR() then
-                -- LFR has no supported route -- neither variant applies, since
-                -- the routing data is authored for the full N/H/M layout and
-                -- LFR splits the raid into wings. Skip the standard/skip
-                -- variant dialog (asking the player to choose between two
-                -- routes that both resolve to "unsupported" is backwards) and
-                -- load the panel directly. The panel's LFR guard then shows the
-                -- "routing not supported for LFR" message in place of routing.
+                -- Neither route variant applies in LFR, so load directly.
                 self.state.loadedRaidKey = key
                 self:LoadCurrentRaid()
             else
@@ -3287,14 +2829,7 @@ function RR:RefreshAll()
     if self.currentRaid then
         local changed = self:SyncFromSavedRaidInfo(true)   -- request fresh server data
         self:ZoneLog(("RefreshAll: changed=%s"):format(tostring(changed)))
-        -- If the sync detected no kill-state change, skip the UI.Update
-        -- and MapOverlay refresh -- there is nothing new to render. This
-        -- avoids panel-flicker on every zone-change event in raid
-        -- instances where most events don't represent meaningful state
-        -- transitions (sub-zone toggles, periodic UPDATE_INSTANCE_INFO,
-        -- etc.). When real state changes happen (boss kill via
-        -- ENCOUNTER_END, saved-instance reset between sessions, etc.)
-        -- the sync returns true and the UI updates normally.
+        -- No kill-state change means nothing new to render.
         if changed == false then return end
     else
         self.state.activeStep = nil
@@ -3336,14 +2871,7 @@ function RR:SimulateKillNext()
         self:ClearBossState()
         self:ComputeNextStep()
     end
-    -- Route order, NOT the position-aware active step. Step selection can
-    -- yield an optional boss to a later one when the PLAYER has walked past
-    -- her; a simulated kill hasn't walked anywhere, so inheriting that would
-    -- make the cycle jump a boss purely because of where the character
-    -- happens to be standing. The only legitimate way to skip a boss is
-    -- choosing a skip route at the load dialog, which gives the variant its
-    -- own routing table. GetAvailableSteps is already sorted by priority
-    -- then step number.
+    -- Route order, not the position-aware active step.
     local step = self:GetAvailableSteps()[1]
     if not step then self:Print(RR.L["No available next step."]) ; return end
     local boss = self:GetBossByIndex(step.bossIndex)
@@ -3484,13 +3012,7 @@ function RR:PrintStatus()
     end
     add(idLine)
 
-    -- Live map(s). Shows both the player's resolved mapID and -- if
-    -- different -- the world-map-frame's current selection. Prefers
-    -- the raid.maps hand-authored sub-zone name, since Blizzard's
-    -- GetMapInfo API returns the parent raid name for sub-zones in
-    -- raids like Sanctum and isn't useful here. Flags any mapID not
-    -- yet in raid.maps so we know which sub-zones still need to be
-    -- declared as routes get recorded.
+    -- Prefers raid.maps over GetMapInfo. Flags any mapID not yet declared.
     local function FormatMapLine(label, mapID)
         local info     = C_Map.GetMapInfo(mapID)
         local apiName  = (info and info.name) or "?"
@@ -3557,22 +3079,8 @@ function RR:PrintStatus()
 end
 
 -------------------------------------------------------------------------------
--- Dialog-debug diagnostic (dev-only; not user-facing)
---
--- One-shot capture tool for designing dialog-trigger framework data.
--- Encounter scripts often emit chat-channel events (CHAT_MSG_MONSTER_YELL,
--- CHAT_MSG_MONSTER_SAY, CHAT_MSG_RAID_BOSS_EMOTE) at gating moments --
--- e.g. after the player clicks an Eternal Palace orb, an NPC speaks a
--- voiceline that's the only reliable signal the gate has been opened.
--- This module captures every such event (across all three channels) into
--- a dedicated buffer for later paste-back, with real-time chat
--- confirmation so the player sees the capture happen the moment the
--- event fires (one-shot mechanics like the Ashvane orbs only emit their
--- dialog once per reset, so silent failure would mean re-clearing the raid).
---
--- Lifecycle: explicitly armed via /rr dialogdebug start (zero perf cost
--- otherwise -- events are only registered while armed). Disarmed via
--- /rr dialogdebug stop, which dumps to a copy window for paste-back.
+-- Dialog-debug capture. Records every monster yell/say/emote into a buffer,
+-- confirming each one in chat. Events are registered only while armed.
 -------------------------------------------------------------------------------
 
 local dialogDebug = {
@@ -3581,32 +3089,15 @@ local dialogDebug = {
     buffer = nil,        -- session-fresh table, never evicted while active
 }
 
---- Format an event capture as a human-readable multi-line block. All
---- chat-message events deliver up to 13 args (text, playerName, lang,
---- channel, target, flags, ..., guid). We capture every non-nil arg
---- so the postprocess step can pick which fields the framework needs.
----
---- Patch 12.0.0 (Midnight) introduced "secret values" -- chat payloads
---- from inside active boss encounters can be secret-tainted, in which
---- case tainted code (us) cannot perform comparisons (`v ~= ""`) or
---- boolean tests on them without crashing. We use issecretvalue() to
---- skip secret args entirely; they get a "(secret)" placeholder in
---- the dump so the player still sees that something fired but knows
---- the content was protected by the engagement-script taint system.
+--- Formats a capture as a readable block, keeping every non-nil arg.
+--- Secret-tainted args render as a placeholder.
 local function FormatDialogCapture(event, ...)
     local lines = {}
     table.insert(lines, ("[%s] %s"):format(date("%H:%M:%S"), tostring(event)))
     local args = { ... }
     for i = 1, select("#", ...) do
         local arg = args[i]
-        -- Secret-tainted values cannot be compared or boolean-tested
-        -- by tainted code (Patch 12.0.0). Check with issecretvalue()
-        -- BEFORE any comparison; if secret, render as a placeholder
-        -- and skip the empty-string check entirely. The global
-        -- `issecretvalue` exists from 12.0.0 onward; guard with a
-        -- nil check for back-compat with older client versions
-        -- (which don't have secret values, so the v ~= "" path is
-        -- still safe there).
+        -- Check issecretvalue BEFORE any comparison or boolean test.
         if issecretvalue and issecretvalue(arg) then
             table.insert(lines, "  arg" .. i .. " = (secret -- protected by encounter-script taint)")
         elseif arg ~= nil and arg ~= "" then
@@ -3616,22 +3107,8 @@ local function FormatDialogCapture(event, ...)
     return table.concat(lines, "\n")
 end
 
---- Brief one-line in-chat confirmation. Critical reliability signal:
---- if this line doesn't appear in chat within ~1s of the orb click,
---- the player knows the capture failed and can stop / restart before
---- continuing the run. Without this, we'd only know at end-of-session
---- via the dump -- by which point the one-shot mechanic is spent.
----
---- Built with concatenation rather than :format() because dialog text
---- (especially boss flavor lines and rendered spell names) can contain
---- literal `%` characters that would be misinterpreted as format
---- specifiers and crash. Concatenation with tostring() is bulletproof
---- for arbitrary input.
----
---- Same secret-value handling as FormatDialogCapture: if speaker or
---- text is secret-tainted (mid-encounter chat from boss scripts), we
---- substitute a "(secret)" placeholder so the line still surfaces in
---- chat without doing forbidden comparison ops.
+--- One-line chat confirmation, so a failed capture is visible immediately.
+--- Concatenated rather than formatted: dialog text can contain a literal `%`.
 local function PrintDialogConfirmation(event, text, speaker)
     local ev = tostring(event):gsub("^CHAT_MSG_", "")
     local speakerStr = (issecretvalue and issecretvalue(speaker)) and "(secret)" or tostring(speaker or "?")
@@ -3644,15 +3121,8 @@ end
 local function DialogEventHandler(_, event, ...)
     if not dialogDebug.active then return end
     if not dialogDebug.buffer then return end  -- defensive; shouldn't happen
-    -- pcall wrap: chat-event payloads include arbitrary text from any
-    -- NPC in earshot, including special characters that historically
-    -- caused issues with formatters. A crash here would interrupt the
-    -- player's run with WoW's error frame, which is especially bad
-    -- during one-shot mechanics. Log any failure to ZoneLog for later
-    -- diagnosis, then move on. The buffer + chat-confirmation paths
-    -- below are the only places that touch arbitrary input; if they
-    -- fail, the whole capture for THIS event is lost but DialogDebug
-    -- stays armed and ready for the next one.
+    -- Payloads carry arbitrary text from any NPC in earshot. A failure loses
+    -- this capture and leaves the tool armed.
     local args = { event, ... }
     local ok, err = pcall(function()
         table.insert(dialogDebug.buffer, FormatDialogCapture(unpack(args)))
@@ -3713,19 +3183,8 @@ function RR:IsDialogDebugActive()
 end
 
 -------------------------------------------------------------------------------
--- LootProbe: discovery tool for the Toaster intercept feature.
---
--- The native loot popups (the center-screen "you received" toasts) are driven
--- by a set of events the AlertFrame listens for. Which event fires depends on
--- the TYPE of drop (regular gear vs mount vs pet vs transmog source), not on
--- the expansion of the raid -- legacy solo drops come through the current
--- client's delivery path regardless of which raid they're from. This probe
--- arms a listener on the candidate event set and logs every fire with its
--- full payload, so the suppress/replace lists can be built against what the
--- live client actually emits rather than guessed.
---
--- Arm with /rr lootprobe start, loot a mix of drops in a legacy raid, then
--- /rr lootprobe stop to dump the capture to a copy window.
+-- LootProbe: logs every candidate loot event with its payload. Which event
+-- fires depends on the TYPE of drop, not the raid's era.
 local lootProbe = { active = false, frame = nil, buffer = nil }
 
 -- Candidate events: the delivery/notification events that produce a native
@@ -3813,23 +3272,10 @@ function RR:IsLootProbeActive()
 end
 
 -------------------------------------------------------------------------------
--- VerifyOneRaid: run the loot-verification pipeline (E1-E7 + special-loot
--- checks + async EJ-driven coverage pass) on a single raid table. Async because
--- the coverage pass requires driving the EJ at each difficulty per boss.
---
--- Parameters:
---   raid    : a raid entry from RetroRuns_Data (must have .bosses, .journalInstanceID)
---   opts    : {
---       verbose = bool,  -- emit per-boss + per-item [OK]/[ERR] rows (default true)
---       banner  = bool,  -- emit "warming..." / "starting coverage..." Print() lines
---                          to chat (default true; turn off in batch mode to keep
---                          chat quiet across a multi-raid run)
---   }
---   onDone  : function(lines, T) callback. lines is the accumulated output
---             text (array of strings ready for table.concat). T is the counter
---             table tallying findings.
---
--- See the docblock above the dispatcher for the per-check semantics.
+-- Runs the loot-verification pipeline on one raid. Async.
+--   opts.verbose  per-boss and per-item rows (default true)
+--   opts.banner   progress Print()s (default true)
+--   onDone(lines, T)  accumulated output, and the findings counters
 -------------------------------------------------------------------------------
 function RR:VerifyOneRaid(raid, opts, onDone)
     opts = opts or {}
@@ -3890,6 +3336,9 @@ function RR:VerifyOneRaid(raid, opts, onDone)
         local DIFFS = isSharedLfr and { 17, 14, 15 } or { 17, 14, 15, 16 }
         local DIFF_NAME = { [17]="LFR", [14]="N", [15]="H", [16]="M" }
 
+        -- The shape analysis compares against this, never a literal 2.
+        local declaredBucketCount = #(RR:GetDisplayBuckets(raid) or DIFFS)
+
         if verbose then add(("tmogverify: raid=%s"):format(tostring(raid.name or "?"))) end
         if verbose then add("Data-integrity check: every sourceID in the data file is") end
         if verbose then add("validated against the live Blizzard API.") end
@@ -3900,6 +3349,295 @@ function RR:VerifyOneRaid(raid, opts, onDone)
         if verbose then add("  [--] informational (shape/structure notes)") end
         add("")
 
+        -- Per-row integrity walk (E1-E4). Shared by boss loot and by the
+        -- raid's trash drops: trash rows carry sourceIDs like any other row,
+        -- and a wrong one paints a dead dot just the same. Nothing in here
+        -- reads the boss -- it only ever needs the row itself.
+        local function VerifyLootRows(lootList)
+            -- Sort alphabetically so the dump is stable across
+            -- runs (matches tmogaudit's ordering).
+            local sorted = {}
+            for _, it in ipairs(lootList) do
+                table.insert(sorted, it)
+            end
+            table.sort(sorted, function(a, b)
+                return (a.name or "") < (b.name or "")
+            end)
+
+            for _, item in ipairs(sorted) do
+                local findings = {}
+
+                -- Walk each difficulty bucket. Collect the
+                -- sourceID, the API's reported itemID, and the
+                -- resolved visualID for each. Fan out into per-
+                -- bucket checks first; shape/dedup checks happen
+                -- once we have all 4.
+                local perBucket = {}  -- [diffID] = {src, apiItemID, visualID, apiNil}
+                for _, diffID in ipairs(DIFFS) do
+                    local src = item.sources and item.sources[diffID]
+                    if src then
+                        local info = C_TransmogCollection.GetSourceInfo(src)
+                        local apiItemID, visualID, apiNil
+                        if info then
+                            apiItemID = info.itemID
+                        end
+                        -- Resolve visualID via the proven
+                        -- GetAppearanceInfoBySource path (the
+                        -- struct field on GetSourceInfo is
+                        -- unreliable on retail -- UI.lua notes
+                        -- this in detail).
+                        if C_TransmogCollection.GetAppearanceInfoBySource then
+                            local ai = C_TransmogCollection.GetAppearanceInfoBySource(src)
+                            if ai then visualID = ai.appearanceID end
+                        end
+                        -- Fallback: GetAppearanceSourceInfo
+                        -- positional (2nd return = visualID).
+                        -- Useful for cross-class tier where
+                        -- GetAppearanceInfoBySource sometimes
+                        -- returns nil but the positional API
+                        -- still resolves.
+                        if not visualID and C_TransmogCollection.GetAppearanceSourceInfo then
+                            local _, v = C_TransmogCollection.GetAppearanceSourceInfo(src)
+                            visualID = v
+                        end
+                        apiNil = (not info) and (not visualID)
+                        perBucket[diffID] = {
+                            src = src, apiItemID = apiItemID,
+                            visualID = visualID, apiNil = apiNil,
+                        }
+                    end
+                end
+
+                -- The row's canonical appearanceID, used below to recognise
+                -- items sharing one visual.
+                local rowAppearanceID
+                if C_TransmogCollection and C_TransmogCollection.GetItemInfo then
+                    rowAppearanceID = C_TransmogCollection.GetItemInfo(item.id)
+                end
+
+                -- [E1] Fatal-nil per bucket.
+                for _, diffID in ipairs(DIFFS) do
+                    local bucket = perBucket[diffID]
+                    if bucket and bucket.apiNil then
+                        table.insert(findings, ("[ERR] %s src=%d: API returned nil (invalid sourceID?)"):format(
+                            DIFF_NAME[diffID], bucket.src))
+                        T.fatal_nil = T.fatal_nil + 1
+                    end
+                end
+
+                -- [E2] itemID mismatch per bucket. Only flags when the itemID
+                -- AND the visualID both diverge.
+                for _, diffID in ipairs(DIFFS) do
+                    local bucket = perBucket[diffID]
+                    if bucket and bucket.apiItemID and bucket.apiItemID ~= item.id then
+                        -- Under the Mists model a bucket source can belong to
+                        -- the tier sibling's itemID.
+                        local sharedAppearance =
+                            rowAppearanceID and bucket.visualID
+                            and bucket.visualID == rowAppearanceID
+                        if not sharedAppearance and not isSharedLfr then
+                            table.insert(findings, ("[ERR] %s src=%d: API itemID=%d, expected %d"):format(
+                                DIFF_NAME[diffID], bucket.src, bucket.apiItemID, item.id))
+                            T.item_mismatch = T.item_mismatch + 1
+                        end
+                    end
+                end
+
+                -- [E4] Source-duplication shape analysis. Full duplication is
+                -- the single-variant encoding; partial duplication warns.
+                local srcCounts = {}  -- src -> count
+                local visualSet = {}  -- visualID -> true (for same-visual detection)
+                local uniqueCount = 0
+                local uniqueVisualCount = 0
+                local totalBuckets = 0
+                for _, diffID in ipairs(DIFFS) do
+                    local bucket = perBucket[diffID]
+                    if bucket then
+                        totalBuckets = totalBuckets + 1
+                        if not srcCounts[bucket.src] then
+                            srcCounts[bucket.src] = 0
+                            uniqueCount = uniqueCount + 1
+                        end
+                        srcCounts[bucket.src] = srcCounts[bucket.src] + 1
+                        if bucket.visualID and not visualSet[bucket.visualID] then
+                            visualSet[bucket.visualID] = true
+                            uniqueVisualCount = uniqueVisualCount + 1
+                        end
+                    end
+                end
+
+                local shapeTag
+                if totalBuckets == 0 then
+                    -- No sources at all. Handled by E1 already.
+                    shapeTag = "empty"
+                elseif uniqueCount == 1 and totalBuckets >= 2 then
+                    -- Binary shape: one source cloned across
+                    -- buckets. Intentional; the UI renders this
+                    -- as a single bracketed indicator.
+                    shapeTag = "binary"
+                    T.shape_binary = (T.shape_binary or 0) + 1
+                elseif uniqueVisualCount == 1 and totalBuckets >= 2 then
+                    -- Different sources, one visual: several acquisition
+                    -- paths to a single appearance.
+                    shapeTag = "binary"
+                    T.shape_binary = (T.shape_binary or 0) + 1
+                elseif uniqueCount == 1
+                       and totalBuckets == declaredBucketCount then
+                    -- One source in the one bucket the raid offers.
+                    shapeTag = "binary"
+                    T.shape_binary = (T.shape_binary or 0) + 1
+                elseif raid.splitLootTables and totalBuckets == 3
+                       and perBucket[14] and perBucket[15]
+                       and perBucket[16]
+                       and uniqueCount == 3 then
+                    -- WoD N/H/M pool. MUST sit above the generic perdiff
+                    -- branch, which these rows also satisfy.
+                    shapeTag = "nhm-pool"
+                    T.shape_perdiff = (T.shape_perdiff or 0) + 1
+                elseif uniqueCount == totalBuckets and totalBuckets >= 2 then
+                    -- Full per-difficulty shape.
+                    shapeTag = "perdiff"
+                    T.shape_perdiff = (T.shape_perdiff or 0) + 1
+                elseif raid.splitLootTables and totalBuckets == 1 and perBucket[17] then
+                    -- WoD LFR pool: only [17] populated. Renders as
+                    -- a single "[ LFR ]" bracket.
+                    shapeTag = "lfr-pool"
+                    T.shape_perdiff = (T.shape_perdiff or 0) + 1
+                elseif totalBuckets == 4
+                       and perBucket[14] and perBucket[15]
+                       and perBucket[16] and perBucket[17]
+                       and uniqueCount == 3
+                       and perBucket[14].src == perBucket[15].src then
+                    -- Siege-era: four buckets, three sources, 14 and 15
+                    -- sharing one appearance.
+                    shapeTag = "nh-shared"
+                    T.shape_perdiff = (T.shape_perdiff or 0) + 1
+                else
+                    -- Partial: 2 or 3 unique sources. Suspicious.
+                    shapeTag = "partial"
+                    T.shape_partial = (T.shape_partial or 0) + 1
+                    -- Build a compact description of which
+                    -- buckets share which source.
+                    local clusters = {}  -- src -> list of diff names
+                    for _, diffID in ipairs(DIFFS) do
+                        local bucket = perBucket[diffID]
+                        if bucket then
+                            clusters[bucket.src] = clusters[bucket.src] or {}
+                            table.insert(clusters[bucket.src], DIFF_NAME[diffID])
+                        end
+                    end
+                    local parts = {}
+                    for src, diffs in pairs(clusters) do
+                        table.insert(parts, ("src=%d->{%s}"):format(
+                            src, table.concat(diffs, ",")))
+                    end
+                    table.sort(parts)
+                    table.insert(findings, ("[WRN] partial source duplication (%d unique across %d buckets): %s"):format(
+                        uniqueCount, totalBuckets, table.concat(parts, " ")))
+                end
+
+                -- [E3] visualID shape analysis.
+                -- Count visualID frequencies across buckets. Use
+                -- only buckets we have data for (all 4 if item
+                -- has full sources; fewer otherwise).
+                local vCounts = {}       -- visualID -> count
+                local vDistinct = 0       -- number of unique visualIDs
+                local vTotal = 0         -- number of buckets with a visualID
+                local vMissing = 0       -- buckets with src but no resolvable visual
+                for _, diffID in ipairs(DIFFS) do
+                    local bucket = perBucket[diffID]
+                    if bucket then
+                        if bucket.visualID then
+                            if not vCounts[bucket.visualID] then
+                                vDistinct = vDistinct + 1
+                                vCounts[bucket.visualID] = 0
+                            end
+                            vCounts[bucket.visualID] = vCounts[bucket.visualID] + 1
+                            vTotal = vTotal + 1
+                        else
+                            vMissing = vMissing + 1
+                        end
+                    end
+                end
+
+                if vMissing > 0 then
+                    table.insert(findings, ("[WRN] %d bucket(s) have a sourceID but no resolvable visualID"):format(vMissing))
+                    T.no_visual = T.no_visual + vMissing
+                end
+
+                -- Describe the shape.
+                if vTotal >= 2 then
+                    if vDistinct == 1 then
+                        -- All buckets share one visualID (Sepulcher-shape). Clean.
+                    elseif vDistinct == vTotal then
+                        -- All buckets have distinct visualIDs (Sanctum-shape). Clean.
+                    else
+                        -- Mixed. Figure out the pattern.
+                        -- Common suspicious case: 3 match + 1 odd one out.
+                        local maxCount = 0
+                        local maxVisual
+                        for v, c in pairs(vCounts) do
+                            if c > maxCount then
+                                maxCount = c
+                                maxVisual = v
+                            end
+                        end
+                        if vTotal == 4 and maxCount == 3 then
+                            -- Find the outlier bucket.
+                            local outlier
+                            for _, diffID in ipairs(DIFFS) do
+                                local bucket = perBucket[diffID]
+                                if bucket and bucket.visualID and bucket.visualID ~= maxVisual then
+                                    outlier = diffID
+                                    break
+                                end
+                            end
+                            table.insert(findings, ("[WRN] shape outlier: 3 buckets visualID=%d, %s bucket differs (visualID=%d)"):format(
+                                maxVisual,
+                                outlier and DIFF_NAME[outlier] or "?",
+                                outlier and perBucket[outlier].visualID or 0))
+                            T.shape_outlier = T.shape_outlier + 1
+                        else
+                            -- Tiers pair up under the Mists model, and
+                            -- nh-shared shares by design.
+                            if not isSharedLfr and shapeTag ~= "nh-shared" then
+                                -- Build a compact "visualID=count" summary.
+                                local parts = {}
+                                for v, c in pairs(vCounts) do
+                                    table.insert(parts, ("%d=%dx"):format(v, c))
+                                end
+                                table.sort(parts)
+                                table.insert(findings, ("[WRN] shape mixed (%d unique visualIDs across %d buckets): %s"):format(
+                                    vDistinct, vTotal, table.concat(parts, " ")))
+                                T.shape_mixed = T.shape_mixed + 1
+                            end
+                        end
+                    end
+                end
+
+                -- Per-item row. Always emit one line so the
+                -- output is greppable by itemID, even for
+                -- clean items.
+                local classTag = ""
+                if item.classes and item.classes[1] then
+                    classTag = (" (tier classID=%d)"):format(item.classes[1])
+                end
+                if #findings == 0 then
+                    if verbose then
+                        add(("  [OK]  %-7d  %s%s"):format(
+                        item.id, item.name or "?", classTag))
+                    end
+                    T.ok = T.ok + 1
+                else
+                    add(("        %-7d  %s%s"):format(
+                        item.id, item.name or "?", classTag))
+                    for _, f in ipairs(findings) do
+                        add(("           %s"):format(f))
+                    end
+                end
+            end
+        end
+
         for _, boss in ipairs(raid.bosses) do
             if verbose then
                 add(("=== Boss %d: %s ==="):format(
@@ -3908,358 +3646,7 @@ function RR:VerifyOneRaid(raid, opts, onDone)
 
             -- Regular loot
             if boss.loot and #boss.loot > 0 then
-                -- Sort alphabetically so the dump is stable across
-                -- runs (matches tmogaudit's ordering).
-                local sorted = {}
-                for _, it in ipairs(boss.loot) do
-                    table.insert(sorted, it)
-                end
-                table.sort(sorted, function(a, b)
-                    return (a.name or "") < (b.name or "")
-                end)
-
-                for _, item in ipairs(sorted) do
-                    local findings = {}
-
-                    -- Walk each difficulty bucket. Collect the
-                    -- sourceID, the API's reported itemID, and the
-                    -- resolved visualID for each. Fan out into per-
-                    -- bucket checks first; shape/dedup checks happen
-                    -- once we have all 4.
-                    local perBucket = {}  -- [diffID] = {src, apiItemID, visualID, apiNil}
-                    for _, diffID in ipairs(DIFFS) do
-                        local src = item.sources and item.sources[diffID]
-                        if src then
-                            local info = C_TransmogCollection.GetSourceInfo(src)
-                            local apiItemID, visualID, apiNil
-                            if info then
-                                apiItemID = info.itemID
-                            end
-                            -- Resolve visualID via the proven
-                            -- GetAppearanceInfoBySource path (the
-                            -- struct field on GetSourceInfo is
-                            -- unreliable on retail -- UI.lua notes
-                            -- this in detail).
-                            if C_TransmogCollection.GetAppearanceInfoBySource then
-                                local ai = C_TransmogCollection.GetAppearanceInfoBySource(src)
-                                if ai then visualID = ai.appearanceID end
-                            end
-                            -- Fallback: GetAppearanceSourceInfo
-                            -- positional (2nd return = visualID).
-                            -- Useful for cross-class tier where
-                            -- GetAppearanceInfoBySource sometimes
-                            -- returns nil but the positional API
-                            -- still resolves.
-                            if not visualID and C_TransmogCollection.GetAppearanceSourceInfo then
-                                local _, v = C_TransmogCollection.GetAppearanceSourceInfo(src)
-                                visualID = v
-                            end
-                            apiNil = (not info) and (not visualID)
-                            perBucket[diffID] = {
-                                src = src, apiItemID = apiItemID,
-                                visualID = visualID, apiNil = apiNil,
-                            }
-                        end
-                    end
-
-                    -- Resolve the row's canonical appearanceID via
-                    -- GetItemInfo. Used by [E2] below to recognize the
-                    -- shared-appearance case (multiple items pointing at the
-                    -- same visual). WoD-era loot routinely shares one
-                    -- appearanceID across 5+ items via per-difficulty modIDs
-                    -- and LFR-only shared pieces. The runtime appearance check
-                    -- the Tmog browser uses treats all sources of an appearance
-                    -- as interchangeable, so match that here rather than
-                    -- requiring the bucket's source to own the row's itemID.
-                    local rowAppearanceID
-                    if C_TransmogCollection and C_TransmogCollection.GetItemInfo then
-                        rowAppearanceID = C_TransmogCollection.GetItemInfo(item.id)
-                    end
-
-                    -- [E1] Fatal-nil per bucket.
-                    for _, diffID in ipairs(DIFFS) do
-                        local bucket = perBucket[diffID]
-                        if bucket and bucket.apiNil then
-                            table.insert(findings, ("[ERR] %s src=%d: API returned nil (invalid sourceID?)"):format(
-                                DIFF_NAME[diffID], bucket.src))
-                            T.fatal_nil = T.fatal_nil + 1
-                        end
-                    end
-
-                    -- [E2] itemID mismatch per bucket.
-                    -- apiItemID==nil while visualID is non-nil is
-                    -- tolerable (GetSourceInfo can be nil for cross-
-                    -- class items while the positional API still
-                    -- works). Only flag when we got an apiItemID
-                    -- and it's wrong.
-                    --
-                    -- Shared-appearance exception: if the source's
-                    -- visualID matches the row's canonical
-                    -- appearanceID, the source IS a valid source for
-                    -- this row's appearance even though the API says
-                    -- it "belongs to" a different itemID. This shape
-                    -- shows up routinely in WoD raids (one appearance
-                    -- spans several items via per-difficulty modIDs +
-                    -- LFR shared cloaks) and the runtime
-                    -- appearance-collection check considers all such
-                    -- sources interchangeable. Only flag when the
-                    -- itemID AND the visualID both diverge.
-                    for _, diffID in ipairs(DIFFS) do
-                        local bucket = perBucket[diffID]
-                        if bucket and bucket.apiItemID and bucket.apiItemID ~= item.id then
-                            -- Mists model: a piece exists as three
-                            -- separate itemIDs (Normal / Heroic / LFR),
-                            -- and the row deliberately carries only the
-                            -- Normal itemID while storing each tier's
-                            -- own sourceID. So a bucket source belonging
-                            -- to a different itemID is EXPECTED here --
-                            -- it's the tier-sibling item, not a wrong
-                            -- source. db2 cross-reference (the loot
-                            -- audit) already confirms these per tier;
-                            -- the live check that still matters is E1
-                            -- (does the source resolve at all), which
-                            -- runs above. So skip the equality assertion
-                            -- for sharedLfr raids.
-                            local sharedAppearance =
-                                rowAppearanceID and bucket.visualID
-                                and bucket.visualID == rowAppearanceID
-                            if not sharedAppearance and not isSharedLfr then
-                                table.insert(findings, ("[ERR] %s src=%d: API itemID=%d, expected %d"):format(
-                                    DIFF_NAME[diffID], bucket.src, bucket.apiItemID, item.id))
-                                T.item_mismatch = T.item_mismatch + 1
-                            end
-                        end
-                    end
-
-                    -- [E4] Source-duplication shape analysis.
-                    --
-                    -- Duplicate sourceIDs across difficulty buckets
-                    -- are NOT automatically a bug -- they're the
-                    -- established encoding for single-variant items
-                    -- (binary shape in UI.lua terms). UI.lua's
-                    -- BuildDotRow detects 1-unique-source items via
-                    -- CountUniqueSources and renders them as a single
-                    -- bracketed `[ check ]` indicator rather than a
-                    -- 4-dot strip. So an item with `{L=X, N=X, H=X,
-                    -- M=X}` is intentional, not broken.
-                    --
-                    -- The real red flag is PARTIAL duplication: 2 or 3 unique
-                    -- sources across 4 buckets. One known case is Rae'shalare,
-                    -- {L=new, N=old, H=old, M=old}, where ATT stores it as
-                    -- bonusID variants. Flag as WRN for manual review; most are
-                    -- legitimate documented exceptions, but new ones deserve a
-                    -- look.
-                    local srcCounts = {}  -- src -> count
-                    local visualSet = {}  -- visualID -> true (for same-visual detection)
-                    local uniqueCount = 0
-                    local uniqueVisualCount = 0
-                    local totalBuckets = 0
-                    for _, diffID in ipairs(DIFFS) do
-                        local bucket = perBucket[diffID]
-                        if bucket then
-                            totalBuckets = totalBuckets + 1
-                            if not srcCounts[bucket.src] then
-                                srcCounts[bucket.src] = 0
-                                uniqueCount = uniqueCount + 1
-                            end
-                            srcCounts[bucket.src] = srcCounts[bucket.src] + 1
-                            if bucket.visualID and not visualSet[bucket.visualID] then
-                                visualSet[bucket.visualID] = true
-                                uniqueVisualCount = uniqueVisualCount + 1
-                            end
-                        end
-                    end
-
-                    local shapeTag
-                    if totalBuckets == 0 then
-                        -- No sources at all. Handled by E1 already.
-                        shapeTag = "empty"
-                    elseif uniqueCount == 1 and totalBuckets >= 2 then
-                        -- Binary shape: one source cloned across
-                        -- buckets. Intentional; the UI renders this
-                        -- as a single bracketed indicator.
-                        shapeTag = "binary"
-                        T.shape_binary = (T.shape_binary or 0) + 1
-                    elseif uniqueVisualCount == 1 and totalBuckets >= 2 then
-                        -- Binary-by-visual: different sourceIDs across
-                        -- buckets, but they all resolve to the same
-                        -- visualID (Blackrock Foundry's "The Black Hand"
-                        -- pattern: sourceIDs 62893/62895 both -> visual
-                        -- 23383). From the player's perspective this is
-                        -- a single appearance; from the API's it's
-                        -- multiple acquisition paths. The UI's
-                        -- CollectionStateForSource handles the
-                        -- equivalence correctly (any-known check), so
-                        -- we recognize it here too instead of flagging
-                        -- a spurious "partial source duplication" WRN.
-                        shapeTag = "binary"
-                        T.shape_binary = (T.shape_binary or 0) + 1
-                    elseif uniqueCount == totalBuckets and totalBuckets >= 2 then
-                        -- Full per-difficulty shape.
-                        shapeTag = "perdiff"
-                        T.shape_perdiff = (T.shape_perdiff or 0) + 1
-                    elseif raid.splitLootTables and totalBuckets == 1 and perBucket[17] then
-                        -- WoD LFR pool: only [17] populated. Renders as
-                        -- a single "[ LFR ]" bracket.
-                        shapeTag = "lfr-pool"
-                        T.shape_perdiff = (T.shape_perdiff or 0) + 1
-                    elseif raid.splitLootTables and totalBuckets == 3
-                           and perBucket[14] and perBucket[15] and perBucket[16]
-                           and uniqueCount == 3 then
-                        -- WoD N/H/M pool: [14],[15],[16] populated with
-                        -- distinct per-difficulty sources. Renders as
-                        -- "[ N | H | M ]".
-                        shapeTag = "nhm-pool"
-                        T.shape_perdiff = (T.shape_perdiff or 0) + 1
-                    elseif totalBuckets == 4
-                           and perBucket[14] and perBucket[15]
-                           and perBucket[16] and perBucket[17]
-                           and uniqueCount == 3
-                           and perBucket[14].src == perBucket[15].src then
-                        -- Normal+Heroic shared-appearance shape. Siege of
-                        -- Orgrimmar-era gear carries one appearance at modID 0
-                        -- that covers BOTH Normal and Heroic, with distinct
-                        -- Mythic (modID 3) and LFR (modID 4) appearances. That
-                        -- yields four populated buckets but only three unique
-                        -- sources, with [14] and [15] sharing. The UI's
-                        -- collection check handles the shared source correctly;
-                        -- this is the intended encoding, not a partial gap.
-                        shapeTag = "nh-shared"
-                        T.shape_perdiff = (T.shape_perdiff or 0) + 1
-                    else
-                        -- Partial: 2 or 3 unique sources. Suspicious.
-                        shapeTag = "partial"
-                        T.shape_partial = (T.shape_partial or 0) + 1
-                        -- Build a compact description of which
-                        -- buckets share which source.
-                        local clusters = {}  -- src -> list of diff names
-                        for _, diffID in ipairs(DIFFS) do
-                            local bucket = perBucket[diffID]
-                            if bucket then
-                                clusters[bucket.src] = clusters[bucket.src] or {}
-                                table.insert(clusters[bucket.src], DIFF_NAME[diffID])
-                            end
-                        end
-                        local parts = {}
-                        for src, diffs in pairs(clusters) do
-                            table.insert(parts, ("src=%d->{%s}"):format(
-                                src, table.concat(diffs, ",")))
-                        end
-                        table.sort(parts)
-                        table.insert(findings, ("[WRN] partial source duplication (%d unique across %d buckets): %s"):format(
-                            uniqueCount, totalBuckets, table.concat(parts, " ")))
-                    end
-
-                    -- [E3] visualID shape analysis.
-                    -- Count visualID frequencies across buckets. Use
-                    -- only buckets we have data for (all 4 if item
-                    -- has full sources; fewer otherwise).
-                    local vCounts = {}       -- visualID -> count
-                    local vDistinct = 0       -- number of unique visualIDs
-                    local vTotal = 0         -- number of buckets with a visualID
-                    local vMissing = 0       -- buckets with src but no resolvable visual
-                    for _, diffID in ipairs(DIFFS) do
-                        local bucket = perBucket[diffID]
-                        if bucket then
-                            if bucket.visualID then
-                                if not vCounts[bucket.visualID] then
-                                    vDistinct = vDistinct + 1
-                                    vCounts[bucket.visualID] = 0
-                                end
-                                vCounts[bucket.visualID] = vCounts[bucket.visualID] + 1
-                                vTotal = vTotal + 1
-                            else
-                                vMissing = vMissing + 1
-                            end
-                        end
-                    end
-
-                    if vMissing > 0 then
-                        table.insert(findings, ("[WRN] %d bucket(s) have a sourceID but no resolvable visualID"):format(vMissing))
-                        T.no_visual = T.no_visual + vMissing
-                    end
-
-                    -- Describe the shape.
-                    if vTotal >= 2 then
-                        if vDistinct == 1 then
-                            -- All buckets share one visualID (Sepulcher-shape). Clean.
-                        elseif vDistinct == vTotal then
-                            -- All buckets have distinct visualIDs (Sanctum-shape). Clean.
-                        else
-                            -- Mixed. Figure out the pattern.
-                            -- Common suspicious case: 3 match + 1 odd one out.
-                            local maxCount = 0
-                            local maxVisual
-                            for v, c in pairs(vCounts) do
-                                if c > maxCount then
-                                    maxCount = c
-                                    maxVisual = v
-                                end
-                            end
-                            if vTotal == 4 and maxCount == 3 then
-                                -- Find the outlier bucket.
-                                local outlier
-                                for _, diffID in ipairs(DIFFS) do
-                                    local bucket = perBucket[diffID]
-                                    if bucket and bucket.visualID and bucket.visualID ~= maxVisual then
-                                        outlier = diffID
-                                        break
-                                    end
-                                end
-                                table.insert(findings, ("[WRN] shape outlier: 3 buckets visualID=%d, %s bucket differs (visualID=%d)"):format(
-                                    maxVisual,
-                                    outlier and DIFF_NAME[outlier] or "?",
-                                    outlier and perBucket[outlier].visualID or 0))
-                                T.shape_outlier = T.shape_outlier + 1
-                            else
-                                -- Mists model: each tier (Normal /
-                                -- Heroic / LFR) is its own appearance,
-                                -- and tiers often pair up (e.g. Normal
-                                -- and LFR share one visual while Heroic
-                                -- differs), giving "2 visuals across 3
-                                -- buckets". That's the expected shape
-                                -- for this era, not a half-resolved
-                                -- outlier, so don't warn for sharedLfr
-                                -- raids.
-                                -- The nh-shared shape (Siege-era N+H
-                                -- sharing one appearance) is likewise
-                                -- expected, not a defect.
-                                if not isSharedLfr and shapeTag ~= "nh-shared" then
-                                    -- Build a compact "visualID=count" summary.
-                                    local parts = {}
-                                    for v, c in pairs(vCounts) do
-                                        table.insert(parts, ("%d=%dx"):format(v, c))
-                                    end
-                                    table.sort(parts)
-                                    table.insert(findings, ("[WRN] shape mixed (%d unique visualIDs across %d buckets): %s"):format(
-                                        vDistinct, vTotal, table.concat(parts, " ")))
-                                    T.shape_mixed = T.shape_mixed + 1
-                                end
-                            end
-                        end
-                    end
-
-                    -- Per-item row. Always emit one line so the
-                    -- output is greppable by itemID, even for
-                    -- clean items.
-                    local classTag = ""
-                    if item.classes and item.classes[1] then
-                        classTag = (" (tier classID=%d)"):format(item.classes[1])
-                    end
-                    if #findings == 0 then
-                        if verbose then
-                            add(("  [OK]  %-7d  %s%s"):format(
-                            item.id, item.name or "?", classTag))
-                        end
-                        T.ok = T.ok + 1
-                    else
-                        add(("        %-7d  %s%s"):format(
-                            item.id, item.name or "?", classTag))
-                        for _, f in ipairs(findings) do
-                            add(("           %s"):format(f))
-                        end
-                    end
-                end
+                VerifyLootRows(boss.loot)
             else
                 if verbose then add("  (no regular loot)") end
             end
@@ -4309,15 +3696,8 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                             T.special_kind_mismatch = T.special_kind_mismatch + 1
                         end
                     elseif sp.kind == "illusion" then
-                        -- For illusions, item.id is the itemID
-                        -- (used by GetItemInfo for name/icon)
-                        -- and item.sourceID is the illusion's
-                        -- visual source identifier (separate
-                        -- ID space). Validate against
-                        -- C_TransmogCollection.GetIllusionInfo
-                        -- which takes sourceID and returns the
-                        -- TransmogIllusionInfo struct (visualID,
-                        -- isCollected, sourceID, icon, etc.).
+                        -- item.sourceID is the illusion's visual source, a
+                        -- separate ID space from item.id.
                         if not sp.sourceID then
                             table.insert(findings, "[ERR] kind=illusion missing sourceID field")
                             T.special_kind_mismatch = T.special_kind_mismatch + 1
@@ -4360,13 +3740,18 @@ function RR:VerifyOneRaid(raid, opts, onDone)
             add("")
         end
 
-        -- ---------------------------------------------------------
-        -- Coverage pass (E6 / E7): drive the EJ at each difficulty
-        -- per boss, compare the EJ-exposed sourceIDs and items
-        -- against what we shipped. Async because each
-        -- EJ_SelectEncounter requires a settle wait. See the
-        -- E6/E7 entries in the docblock above for full rationale.
-        -- ---------------------------------------------------------
+        -- Raid trash belongs to no encounter: per-row checks only, never the
+        -- coverage pass.
+        if raid.trashLoot and #raid.trashLoot > 0 then
+            if verbose then
+                add(("=== Trash Drops (%d) ==="):format(#raid.trashLoot))
+            end
+            VerifyLootRows(raid.trashLoot)
+            add("")
+        end
+
+        -- Coverage pass (E6 / E7): drives the journal at each difficulty per
+        -- boss and compares against what we shipped.
         if verbose then
             add("=== Coverage Pass (E6 / E7) ===")
             add("Driving the live journal at each difficulty and comparing")
@@ -4377,22 +3762,8 @@ function RR:VerifyOneRaid(raid, opts, onDone)
             add("")
         end
 
-        -- Coverage pass drives the live Encounter Journal at each
-        -- difficulty and reads back the loot it exposes. Two distinct
-        -- ID spaces are in play:
-        --   * DIFFS_LIST  -- the DISPLAY buckets we compare against
-        --                    (what the data file keys sources by).
-        --   * ejDriveIDs  -- the LIVE difficulty IDs we actually set on
-        --                    the journal via EJ_SetDifficulty.
-        -- For independent-model raids these coincide (14/15/16/17 are both the live
-        -- IDs and the buckets). For Mists they don't: the live journal
-        -- only responds to 3/4/5/6/7, and each folds into a bucket
-        -- (3,4 -> 14 Normal; 5,6 -> 15 Heroic; 7 -> 17 LFR). Driving the
-        -- independent-scheme IDs against a MoP raid exposed nothing AND timed out on
-        -- the non-existent Mythic pass -- the cause of the apparent hang.
-        -- Any non-independent model (Mists, Cataclysm) responds only to its own
-        -- live fold-key IDs and keys sources by its own buckets, so drive
-        -- both from the model rather than a per-era literal.
+        -- DIFFS_LIST is the display buckets; ejDriveIDs is what
+        -- EJ_SetDifficulty takes. Both come from the model.
         local model      = RR:GetDifficultyModel(raid)
         local isIndependent = (raid.difficultyModel or "independent") == "independent"
         local DIFFS_LIST
@@ -4582,7 +3953,24 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                                 local pairedCovered = paired
                                     and ejSrcByBucket[paired]
                                     and ejSrcByBucket[paired][shSrc]
-                                if not pairedCovered then
+                                -- Token-redeemed tier: eras where tier drops
+                                -- as a TOKEN put the token in the journal and
+                                -- the redeemed armour nowhere -- none of the
+                                -- Burning Crusade tier piece itemIDs appear in
+                                -- JournalEncounterItem at all. The EJ can
+                                -- therefore never expose these sources, so the
+                                -- comparison has nothing to match against and
+                                -- every class row warns. That is ~34 lines per
+                                -- raid across eight raids, enough to bury a
+                                -- real finding. A row carrying `classes` is
+                                -- exactly the token-gated shape, and the raid
+                                -- declaring tokens is the corroborating
+                                -- signal; skip those rather than warn.
+                                local tokenRedeemed = it.classes
+                                    and raid.tierSets
+                                    and raid.tierSets.tokenSources
+                                    and next(raid.tierSets.tokenSources) ~= nil
+                                if not pairedCovered and not tokenRedeemed then
                                     table.insert(bossFindings, ("[WRN] E6 %s %s: we ship src=%d but EJ didn't expose it in this bucket"):format(
                                         DIFF_NAME[d] or tostring(d), it.name or "?", shSrc))
                                 -- Counted as a soft coverage note, not a
@@ -5664,6 +5052,11 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- visualID it resolves to, modID if the API reports it) against
         -- what we expect from its position in the data.
         --
+        -- Scope: every boss's `loot`, plus the raid's `trashLoot` if it has
+        -- one. Trash rows carry sourceIDs like any other row, so the per-
+        -- sourceID checks below apply to them unchanged. The coverage checks
+        -- do NOT -- see the note on them.
+        --
         -- Checks per sourceID:
         --   [E1] GetSourceInfo(src) returns non-nil. Nil can mean
         --        class-restricted visibility (expected for cross-class tier)
@@ -5705,7 +5098,11 @@ SlashCmdList["RETRORUNS"] = function(input)
         --        when a misbucketed variant has a different visual.
         --
         -- Coverage checks (require driving the EJ at each difficulty;
-        -- async pass that runs after the per-row metadata checks):
+        -- async pass that runs after the per-row metadata checks). These
+        -- run over BOSS loot only. The Encounter Journal indexes boss
+        -- encounters and nothing else, so it exposes no trash drops to
+        -- compare against; running trash rows through E6/E7 would report
+        -- every one of them as an appearance the journal never showed.
         --   [E6] Coverage gap: EJ exposes more sourceIDs for this item at
         --        this difficulty than the data file ships. Without this check,
         --        E1-E4 all pass on valid binary data even when the items

@@ -49,6 +49,19 @@ RetroRuns_Data[1861] = {
         rewardName         = "Bloodgorged Crawg",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 161075, slot = "Hands", name = "Antiseptic Specimen Handlers", sources = { [14]=97012, [15]=98920, [16]=98921, [17]=98919 }, bind = "BoE" },
+        { id = 161077, slot = "Hands", name = "Fluid-Resistant Specimen Handlers", sources = { [14]=97016, [15]=97017, [16]=97018, [17]=98999 }, bind = "BoE" },
+        { id = 161076, slot = "Hands", name = "Iron-Grip Specimen Handlers", sources = { [14]=97013, [15]=97014, [16]=97015, [17]=98966 }, bind = "BoE" },
+        { id = 160612, slot = "Hands", name = "Spellbound Specimen Handlers", sources = { [14]=96539, [15]=96540, [16]=96541, [17]=98855 }, bind = "BoE" },
+        { id = 161071, slot = "Wrist", name = "Bloody Experimenter's Wraps", sources = { [14]=97002, [15]=97003, [16]=97004, [17]=98873 }, bind = "BoE" },
+        { id = 161074, slot = "Wrist", name = "Crushproof Vambraces", sources = { [14]=97009, [15]=97010, [16]=97011, [17]=98998 }, bind = "BoE" },
+        { id = 161073, slot = "Wrist", name = "Reinforced Test Subject Shackles", sources = { [14]=97008, [15]=98964, [16]=98965, [17]=98963 }, bind = "BoE" },
+        { id = 161072, slot = "Wrist", name = "Splatterguards", sources = { [14]=97005, [15]=97006, [16]=97007, [17]=98918 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

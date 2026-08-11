@@ -90,6 +90,17 @@ RetroRuns_Data[533] = {
         { id = 579, name = "The Dedicated Few (25 player)", meta = true, soloable = "yes" },
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 40410, slot = "Back", name = "Shadow of the Ghoul", sources = { [3]=19403, [4]=19403 }, bind = "BoP" },
+        { id = 40409, slot = "Feet", name = "Boots of the Escaped Captive", sources = { [3]=19402, [4]=19402 }, bind = "BoP" },
+        { id = 40414, slot = "Shoulder", name = "Shoulderguards of the Undaunted", sources = { [3]=19404, [4]=19404 }, bind = "BoP" },
+        { id = 40406, slot = "Two-Hand", name = "Inevitable Defeat", sources = { [3]=19399, [4]=19399 }, bind = "BoP" },
+        { id = 40408, slot = "Weapon", name = "Haunting Call", sources = { [3]=19401, [4]=19401 }, bind = "BoP" },
+        { id = 40407, slot = "Weapon", name = "Silent Crusader", sources = { [3]=19400, [4]=19400 }, bind = "BoP" },
+    },
     bosses = {
         {
             index              = 1,

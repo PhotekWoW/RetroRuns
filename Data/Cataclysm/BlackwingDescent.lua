@@ -56,6 +56,22 @@ RetroRuns_Data[669] = {
         rewardName         = "Reins of the Drake of the East Wind",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 59466, slot = "Back", name = "Ironstar's Impenetrable Cover", sources = { [14]=29689, [15]=29689 }, bind = "BoE" },
+        { id = 59468, slot = "Chest", name = "Shadowforge's Lightbound Smock", sources = { [14]=29691, [15]=29691 }, bind = "BoE" },
+        { id = 59464, slot = "Feet", name = "Treads of Savage Beatings", sources = { [14]=29687, [15]=29687 }, bind = "BoE" },
+        { id = 59460, slot = "Ranged", name = "Theresa's Booklight", sources = { [14]=29684, [15]=29684 }, bind = "BoE" },
+        { id = 59467, slot = "Shoulder", name = "Hide of Chromaggus", sources = { [14]=29690, [15]=29690 }, bind = "BoE" },
+        { id = 59465, slot = "Waist", name = "Corehammer's Riveted Girdle", sources = { [14]=29688, [15]=29688 }, bind = "BoE" },
+        { id = 63538, slot = "Weapon", name = "Claws of Agony", sources = { [14]=31867, [15]=31867 }, bind = "BoE" },
+        { id = 63537, slot = "Weapon", name = "Claws of Torment", sources = { [14]=31866, [15]=31866 }, bind = "BoE" },
+        { id = 59462, slot = "Weapon", name = "Maimgor's Bite", sources = { [14]=29685, [15]=29685 }, bind = "BoE" },
+        { id = 59463, slot = "Weapon", name = "Maldo's Sword Cane", sources = { [14]=29686, [15]=29686 }, bind = "BoE" },
+        { id = 68601, slot = "Weapon", name = "Scaleslicer", sources = { [14]=35132, [15]=35132 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

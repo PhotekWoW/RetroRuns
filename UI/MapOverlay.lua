@@ -13,14 +13,11 @@ local MAX_LINES    = 80
 local MAX_ICONS    = 30
 local MAX_DOTS     = 80
 local MAX_LABELS   = 30
--- Highlight rings: a few per map at most (one per seg opting in via
--- highlightCircle). 10 is comfortable headroom for any single render.
 local MAX_RINGS    = 10
--- Direction-of-travel chevrons placed along route polylines at a fixed
--- pixel stride. Sized for the tightest current stride (35px) across the
--- largest current routes -- multi-segment renders like Eranog produce
--- the highest counts. 200 leaves comfortable headroom.
 local MAX_CHEVRONS = 200
+-- Always-on global POIs (vendors, doors/tunnels, hand-authored markers) draw
+-- from their own pool so their indices never collide with the step segments'.
+local MAX_GLOBAL_POI = 12
 
 local overlay = CreateFrame(
     "Frame", "RetroRunsMapOverlay",
@@ -33,6 +30,8 @@ overlay.dots     = {}
 overlay.labels   = {}
 overlay.rings    = {}
 overlay.chevrons = {}
+overlay.poiIcons  = {}   -- always-on global-POI markers
+overlay.poiLabels = {}   -- always-on global-POI labels
 
 local function MakeLine(parent)
     local ln = parent:CreateLine(nil, "ARTWORK")
@@ -65,18 +64,7 @@ local function MakeLabel(parent)
     return fs
 end
 
--- Direction-of-travel chevron. Uses our own asset Media/Chevron.tga --
--- a 32x32 white-on-transparent "V" pointing DOWN at native rotation 0.
--- Authored white-on-transparent specifically so SetVertexColor can tint
--- it freely to any color. Cyan {0.30, 0.80, 1.00} matches UI.lua C_BLUE
--- for the RETRORUNS color scheme.
---
--- The asset's "tip points down" orientation matches the placement
--- helper's atan2(dx, dy) rotation formula so swapping the asset
--- doesn't require any geometry changes.
---
--- Drawn at OVERLAY (above the ARTWORK lines) so chevrons sit on top of
--- the polyline rather than being painted over by it.
+-- Direction-of-travel chevron. The asset points down at rotation 0.
 local function MakeChevron(parent)
     local tx = parent:CreateTexture(nil, "OVERLAY")
     tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Chevron")
@@ -86,16 +74,7 @@ local function MakeChevron(parent)
     return tx
 end
 
--- Highlight ring. Uses Media/RingCircle.tga -- a 64x64 anti-aliased
--- white ring on transparent background, band radius 24..28 in texture
--- space (so the ring sits at ~75-88% of the texture extent and scales
--- predictably with SetSize). Authored white so SetVertexColor's red
--- channel cleanly drives the displayed red intensity for the pulse.
---
--- Drawn at OVERLAY so the ring sits above native Blizzard map icons
--- (exit arrows, NPC dots) -- the whole point of the ring is to draw
--- the eye to one of those native icons, so we want to surround it
--- visually rather than be painted over.
+-- Attention ring, drawn above native Blizzard map icons so it can surround one.
 local function MakeRing(parent)
     local tx = parent:CreateTexture(nil, "OVERLAY")
     tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\RingCircle")
@@ -109,8 +88,10 @@ for i = 1, MAX_LINES    do overlay.lines[i]    = MakeLine(overlay)    end
 for i = 1, MAX_ICONS    do overlay.icons[i]    = MakeIcon(overlay)    end
 for i = 1, MAX_DOTS     do overlay.dots[i]     = MakeDot(overlay)     end
 for i = 1, MAX_LABELS   do overlay.labels[i]   = MakeLabel(overlay)   end
-for i = 1, MAX_RINGS    do overlay.rings[i]    = MakeRing(overlay)    end
-for i = 1, MAX_CHEVRONS do overlay.chevrons[i] = MakeChevron(overlay) end
+for i = 1, MAX_RINGS      do overlay.rings[i]     = MakeRing(overlay)  end
+for i = 1, MAX_CHEVRONS   do overlay.chevrons[i]  = MakeChevron(overlay) end
+for i = 1, MAX_GLOBAL_POI do overlay.poiIcons[i]  = MakeIcon(overlay)  end
+for i = 1, MAX_GLOBAL_POI do overlay.poiLabels[i] = MakeLabel(overlay) end
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -129,32 +110,14 @@ local function ApplyIconStyle(icon, kind)
         icon:SetTexture("Interface\\MINIMAP\\TempleofKotmogu_ball_cyan")
         icon:SetVertexColor(0.2, 1.0, 1.0, 1.0)
         icon:SetSize(14, 14)
-        -- Reset rotation and draw layer in case this icon was previously
-        -- used as an end marker (which sets a non-zero rotation and bumps
-        -- the layer to OVERLAY). The cyan ball texture is rotation-
-        -- invariant visually, but cleaner to keep state predictable.
+        -- Pooled icons carry rotation and layer over from a previous use.
         icon:SetRotation(0)
         icon:SetDrawLayer("ARTWORK")
     end
 end
 
 -------------------------------------------------------------------------------
--- End marker
---
--- Place the destination marker at the end of a route. Uses our own
--- Media/EndTriangle.tga -- a 32x32 white-on-transparent solid triangle
--- pointing DOWN at native rotation 0. Same color (cyan) and rotation
--- math as the trail chevrons so the visual flow lands cleanly on a
--- single shape pointing at the boss.
---
--- Rotation points toward `dest` from the previous polyline point, NOT
--- along the last polyline segment. This matters when navPoint is set
--- (boss icon offset from the polyline end) -- the marker should point
--- at the actual destination, not along the recorded path's tail.
---
--- For single-point segments (#pts == 1) where there's no direction
--- to compute, the marker renders un-rotated (tip pointing down) --
--- visually fine since there's no path leading into it.
+-- End marker. Aims at `dest` from the second-to-last polyline point.
 -------------------------------------------------------------------------------
 
 local function PlaceEndMarker(self, icon, pts, dest, W, H, endpointKind)
@@ -180,32 +143,15 @@ local function PlaceEndMarker(self, icon, pts, dest, W, H, endpointKind)
     end
 
     icon:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\EndTriangle")
-    -- Cyan fill and pink border are baked into the asset (vertex tint
-    -- is global to the texture so we can't tint fill and border
-    -- independently at runtime). White tint = no-op so the baked
-    -- colors render as authored.
+    -- White tint is a no-op, so the asset's baked colours render as authored.
     icon:SetVertexColor(1.0, 1.0, 1.0, 1.0)
-    -- 24x24 (vs the trail chevrons' 18x18) -- a filled triangle reads
-    -- as smaller-presence than an open V-chevron at the same pixel
-    -- size because there's no negative space carrying the shape's
-    -- visual extent outward. Going up to 24 matches the trail's weight.
     icon:SetSize(24, 24)
-    -- Bump to OVERLAY so the triangle sits above the polyline. The icon
-    -- pool is created at ARTWORK (same layer as the lines), and on this
-    -- platform the lines were winning the draw order. Start-dot and POI
-    -- styling reset back to ARTWORK so the bump doesn't leak across
-    -- pool reuse.
     icon:SetDrawLayer("OVERLAY")
 
-    -- Position at dest (normalized coords -> pixels).
     icon:ClearAllPoints()
     icon:SetPoint("CENTER", self, "TOPLEFT",
         dest[1] * W, -dest[2] * H)
 
-    -- Rotation: from the second-to-last polyline point toward dest.
-    -- Same texture-orientation assumption as the chevron asset (tip
-    -- points down at rotation 0), so atan2(dx, dy) aligns the tip
-    -- with the destination direction in screen coords (+y is down).
     if pts and #pts >= 2 then
         local prev = pts[#pts - 1]
         local dx = (dest[1] - prev[1]) * W
@@ -221,29 +167,13 @@ local function PlaceEndMarker(self, icon, pts, dest, W, H, endpointKind)
 end
 
 -------------------------------------------------------------------------------
--- Direction-of-travel chevrons
---
--- Place chevron textures along a polyline at a fixed pixel stride, each
--- rotated to face along the local segment direction. The raid-target
--- triangle texture's "forward" axis points DOWN (south, +y on screen)
--- at rotation 0 (WoW's raid-target icon orientation isn't documented, so
--- this is from observed behavior). WoW SetRotation uses
--- counter-clockwise radians, so rotation = atan2(dx, dy) aligns the
--- triangle's tip with the screen-space travel direction.
---
--- Skips chevrons placed within END_PADDING px of the start or end of the
--- path so they don't crowd the start dot or end-X icon. Returns the
--- number of chevrons consumed from the pool starting at startChevronIdx.
+-- Chevrons along a polyline at a fixed pixel stride, each rotated to face
+-- along its segment. Returns how many were consumed from the pool.
 -------------------------------------------------------------------------------
 
 local CHEVRON_STRIDE_PX  = 25   -- distance between chevrons in pixels
 local CHEVRON_END_PAD_PX = 10   -- skip placement within this many px of either endpoint
--- Paths shorter than this skip chevrons entirely. The start dot + end
--- triangle alone make the route's direction clear at short distances;
--- chevrons in between just crowd the visual. 70px lines up roughly with
--- "could fit at least 2 chevrons comfortably given the stride" -- below
--- that, chevron placement starts looking sparse and pointless.
-local CHEVRON_MIN_PATH_PX = 70
+local CHEVRON_MIN_PATH_PX = 70  -- shorter paths skip chevrons entirely
 
 local function PlaceChevronsAlongPath(self, pts, W, H, startChevronIdx)
     -- Need at least 2 points to define a direction.
@@ -279,10 +209,7 @@ local function PlaceChevronsAlongPath(self, pts, W, H, startChevronIdx)
     local target = CHEVRON_STRIDE_PX
     if target < CHEVRON_END_PAD_PX then target = CHEVRON_END_PAD_PX end
 
-    -- Walk the polyline accumulating arc length. When the accumulator
-    -- crosses each `target`, interpolate within the current segment to
-    -- find the chevron position, compute rotation from that segment's
-    -- direction, place the chevron, and advance target by the stride.
+    -- Accumulate arc length, placing a chevron at each stride target.
     local accum = 0
     for i = 1, #segLens do
         local segLen = segLens[i]
@@ -290,12 +217,6 @@ local function PlaceChevronsAlongPath(self, pts, W, H, startChevronIdx)
         local segEnd = accum + segLen
         local p, c = screenPts[i], screenPts[i+1]
         local dx, dy = c[1] - p[1], c[2] - p[2]
-        -- Rotation: the raid-target triangle texture's "forward" axis
-        -- points DOWN (south, +y in screen coords) at rotation 0, from
-        -- observed behavior. WoW's SetRotation uses counter-clockwise
-        -- radians. atan2(dx, dy) maps the screen-space travel direction
-        -- (dx, dy where +y is DOWN) to the rotation needed to align the
-        -- triangle's tip with travel direction.
         local rot = math.atan2(dx, dy)
 
         while target <= segEnd and target <= total - CHEVRON_END_PAD_PX do
@@ -345,12 +266,11 @@ function overlay:HideAll()
         v.completeState = nil
     end
     for _, v in ipairs(self.chevrons) do v:Hide() end
+    for _, v in ipairs(self.poiIcons)  do v:Hide() end
+    for _, v in ipairs(self.poiLabels) do v:Hide() end
 end
 
--- Is this seg already behind the step's progress? Segs are identified by
--- identity within step.segments, since the seg table is what the caller
--- holds. Used by both the completionCheck label and the highlightCircle
--- ring so the two can never disagree about what "done" means.
+-- Is this seg already behind the step's progress?
 local function SegIsComplete(step, seg)
     if not step or not step.segments then return false end
     for i, candidate in ipairs(step.segments) do
@@ -362,12 +282,90 @@ local function SegIsComplete(step, seg)
     return false
 end
 
+-- Place a text label adjacent to an endpoint icon. Used for opt-in map
+-- labels (seg.mapLabel / poi.mapLabel). pos selects one of 9 placements:
+-- 4 cardinal (above/below/left/right), 4 diagonal (upper-left/upper-right/
+-- lower-left/lower-right), or "middle" (centered ON the coord). Default
+-- "below". iconHalf = half the icon's dimension in px (icons are square),
+-- for the icon-to-label gap. Diagonal placements anchor the label's inner
+-- corner to the icon's outer corner; "middle" sits the label on the coord
+-- itself (pair with noMarker to label a point that has no marker).
+function overlay:PlaceLabel(label, pos, nx, ny, iconHalf)
+    local W, H = self:GetWidth(), self:GetHeight()
+    label:ClearAllPoints()
+    local gap = iconHalf + 2
+    local cx, cy = nx * W, -ny * H
+    if pos == "above" then
+        label:SetPoint("BOTTOM", self, "TOPLEFT", cx, cy + gap)
+    elseif pos == "left" then
+        label:SetPoint("RIGHT", self, "TOPLEFT", cx - gap, cy)
+    elseif pos == "right" then
+        label:SetPoint("LEFT", self, "TOPLEFT", cx + gap, cy)
+    elseif pos == "upper-left" then
+        label:SetPoint("BOTTOMRIGHT", self, "TOPLEFT", cx - gap, cy + gap)
+    elseif pos == "upper-right" then
+        label:SetPoint("BOTTOMLEFT", self, "TOPLEFT", cx + gap, cy + gap)
+    elseif pos == "lower-left" then
+        label:SetPoint("TOPRIGHT", self, "TOPLEFT", cx - gap, cy - gap)
+    elseif pos == "lower-right" then
+        label:SetPoint("TOPLEFT", self, "TOPLEFT", cx + gap, cy - gap)
+    elseif pos == "middle" then
+        label:SetPoint("CENTER", self, "TOPLEFT", cx, cy)
+    else  -- "below" or nil
+        label:SetPoint("TOP", self, "TOPLEFT", cx, cy - gap)
+    end
+end
+
+-- Always-on global POIs: raid-level fixtures (vendors, doors/tunnels,
+-- hand-authored markers) that show regardless of the current step, unlike
+-- the objective POIs the route drives. Icon per poi.poiKind; a plain marker
+-- for anything unlisted. Static (no pulse/completion) so they read as
+-- reference points, not the current objective.
+local GLOBAL_POI_TEXTURES = {
+    vendor    = "Interface\\AddOns\\RetroRuns\\Media\\CoinStack",
+    repair    = "Interface\\GossipFrame\\VendorRepairGossipIcon",
+    innkeeper = "Interface\\GossipFrame\\BinderGossipIcon",
+}
+local GLOBAL_POI_DEFAULT = "Interface\\GossipFrame\\GossipGossipIcon"
+
+function overlay:DrawGlobalPOIsForMap(mapID)
+    local raid = RR.currentRaid
+    if not raid or not raid.pois then return end
+    local iconIdx, labelIdx = 1, 1
+    for _, poi in ipairs(raid.pois) do
+        if poi.mapID == mapID and poi.points and #poi.points > 0
+            and iconIdx <= MAX_GLOBAL_POI then
+            local mark = poi.navPoint or poi.points[#poi.points]
+            if not poi.noMarker then
+                local icon = self.poiIcons[iconIdx]
+                if icon then
+                    PlaceAt(icon, self, mark[1], mark[2])
+                    icon:SetTexture(GLOBAL_POI_TEXTURES[poi.poiKind]
+                                    or GLOBAL_POI_DEFAULT)
+                    icon:SetVertexColor(1, 1, 1, 1)
+                    icon:SetRotation(0)
+                    icon:SetDrawLayer("ARTWORK")
+                    icon:SetSize(poi.poiSize or 26, poi.poiSize or 26)
+                    icon:Show()
+                    iconIdx = iconIdx + 1
+                end
+            end
+            if poi.mapLabel then
+                local label = self.poiLabels[labelIdx]
+                if label then
+                    self:PlaceLabel(label, poi.mapLabelPos, mark[1], mark[2],
+                        (poi.poiSize or 26) / 2)
+                    label:SetText(RR.L[poi.mapLabel])
+                    label:Show()
+                    labelIdx = labelIdx + 1
+                end
+            end
+        end
+    end
+end
+
 function overlay:DrawSegmentsForMap(mapID)
-    -- A completed route draws nothing, even when a step is still active.
-    -- Skipping an optional boss leaves her step available (she stays
-    -- killable), so without this the panel would read complete while the
-    -- map still drew a path to her. Variant skip routes never hit this:
-    -- their routing table has no step for the skipped boss at all.
+    -- A completed route draws nothing.
     if RR.IsActiveRouteComplete and RR:IsActiveRouteComplete() then return end
 
     local step = RR.state.activeStep
@@ -383,94 +381,24 @@ function overlay:DrawSegmentsForMap(mapID)
     local ringIdx    = 1
     local chevronIdx = 1
 
-    -- Place a text label adjacent to an endpoint icon. Used for
-    -- opt-in per-seg map labels (seg.mapLabel = "Console", etc.).
-    -- pos selects one of 9 placements: 4 cardinal (above/below/left/
-    -- right), 4 diagonal (upper-left/upper-right/lower-left/lower-
-    -- right), or "middle" (centered ON the coord with no gap).
-    -- Default "below" preserves the original behavior.
-    -- iconHalf = half the icon's dimension in pixels (icons are
-    -- square), used to compute the gap between icon and label.
-    --
-    -- Cardinal placements align the label's far edge with the
-    -- icon's center axis. Diagonal placements anchor the label's
-    -- inner corner to the icon's outer corner, giving the label a
-    -- 45-degree offset clear of both axes -- useful when adjacent
-    -- segments leave both vertical and horizontal space around
-    -- the icon partially obstructed. "middle" centers the label on
-    -- the coord itself; paired with noMarker=true it lets the label
-    -- sit directly over a fixed reference point (e.g. an interactable
-    -- located underneath a boss icon, where any cardinal offset
-    -- would push the label off the object).
-    local function PlaceLabel(label, pos, nx, ny, iconHalf)
-        label:ClearAllPoints()
-        local gap = iconHalf + 2
-        local cx, cy = nx * W, -ny * H
-        if pos == "above" then
-            label:SetPoint("BOTTOM", self, "TOPLEFT", cx, cy + gap)
-        elseif pos == "left" then
-            label:SetPoint("RIGHT", self, "TOPLEFT", cx - gap, cy)
-        elseif pos == "right" then
-            label:SetPoint("LEFT", self, "TOPLEFT", cx + gap, cy)
-        elseif pos == "upper-left" then
-            label:SetPoint("BOTTOMRIGHT", self, "TOPLEFT", cx - gap, cy + gap)
-        elseif pos == "upper-right" then
-            label:SetPoint("BOTTOMLEFT", self, "TOPLEFT", cx + gap, cy + gap)
-        elseif pos == "lower-left" then
-            label:SetPoint("TOPRIGHT", self, "TOPLEFT", cx - gap, cy - gap)
-        elseif pos == "lower-right" then
-            label:SetPoint("TOPLEFT", self, "TOPLEFT", cx + gap, cy - gap)
-        elseif pos == "middle" then
-            label:SetPoint("CENTER", self, "TOPLEFT", cx, cy)
-        else  -- "below" or nil
-            label:SetPoint("TOP", self, "TOPLEFT", cx, cy - gap)
-        end
-    end
-
     for _, seg in ipairs(segments) do
         local pts = seg.points
         if pts and #pts > 0 then
 
-            -- Point-of-interest segment: a single marker showing the
-            -- player approximately where to find an interactable.
-            -- Used when the start position is unpredictable (e.g. after
-            -- a boss kill where the kill location varies) but the
-            -- target location is fixed. Renders only the end-icon
-            -- (red X) at the segment's last point. No start dot, no
-            -- lines -- the segment isn't a path, it's a "go here" pin.
+            -- A "go here" pin rather than a path. noMarker suppresses even
+            -- the marker, leaving a note-only seg.
             if seg.kind == "poi" then
-                -- noMarker=true on a poi segment suppresses the World Map
-                -- icon entirely. Used for "step needs to exist structurally
-                -- (carries a note for the panel travel pane) but the
-                -- player doesn't need a map marker because they're
-                -- already at the destination" cases. N'Zoth (Ny'alotha)
-                -- is the canonical example: after killing Carapace, the
-                -- player auto-spawns directly in front of the boss --
-                -- no walking, no clicking, no decision about where to go.
                 if not seg.noMarker then
                 local mark    = seg.navPoint or pts[#pts]
                 local poiIcon = self.icons[iconIdx]
                 if poiIcon then
                     PlaceAt(poiIcon, self, mark[1], mark[2])
-                    -- POI uses a distinctive bold marker so it reads
-                    -- as a search-area indicator at parent-zoom-out
-                    -- map scale, distinct from the standard end-of-
-                    -- path cyan triangle. Star raid-target icon is
-                    -- semantically familiar to players ("look here")
-                    -- and sized large enough to read clearly when
-                    -- the world map is zoomed to a parent map view.
                     poiIcon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_1")
                     poiIcon:SetVertexColor(1.0, 1.0, 1.0, 1.0)
-                    -- Reset rotation and draw layer in case this icon was
-                    -- previously used as an end marker. The star is
-                    -- rotation-invariant visually but cleaner to keep
-                    -- state predictable.
+                    -- Pooled icons carry state over from a previous use.
                     poiIcon:SetRotation(0)
                     poiIcon:SetDrawLayer("ARTWORK")
-                    -- Default 35 is the standard sub-zone-map size used
-                    -- across the shipped raids. Outliers on world-scale
-                    -- maps (Fyrakk's portal on Amirdrassil) override
-                    -- via per-segment poiSize for proportional rendering.
+                    -- 35 suits a sub-zone map; world-scale maps override it.
                     local size = seg.poiSize or 35
                     poiIcon:SetSize(size, size)
                     poiIcon:Show()
@@ -478,33 +406,14 @@ function overlay:DrawSegmentsForMap(mapID)
                 end
                 end -- end "if not seg.noMarker"
 
-                -- Optional opt-in map label. POI uses the star's
-                -- half-size for the gap so the label sits adjacent
-                -- to the star regardless of poiSize. Segments whose
-                -- icon sits close to adjacent path lines or other
-                -- icons can choose a non-default placement via
-                -- seg.mapLabelPos = "above" | "below" | "left" |
-                -- "right" | "upper-left" | "upper-right" |
-                -- "lower-left" | "lower-right" | "middle". Default
-                -- is "below". "middle" centers the label on the
-                -- coord with no gap, useful for noMarker segs where
-                -- the coord is the visual anchor.
-                --
-                -- seg.completionCheck = true opts the label into a
-                -- two-state visual: while the seg is incomplete the
-                -- text breathes in the same yellow pulse as the
-                -- encounter [!] glyph; once the seg completes, the
-                -- text goes static gray with a green checkmark
-                -- appended. The pulse retint happens on a 0.1s
-                -- ticker at the bottom of this file; the static
-                -- complete state is set once here and persists
-                -- until the next label-pool recycle.
+                -- mapLabelPos: above/below/left/right, the four diagonals, or
+                -- middle. Default below.
                 if seg.mapLabel then
                     local label = self.labels[labelIdx]
                     if label then
                         local mark = seg.navPoint or pts[#pts]
                         local poiHalf = (seg.poiSize or 35) / 2
-                        PlaceLabel(label, seg.mapLabelPos, mark[1], mark[2], poiHalf)
+                        self:PlaceLabel(label, seg.mapLabelPos, mark[1], mark[2], poiHalf)
 
                         if seg.completionCheck then
                             local isComplete = SegIsComplete(step, seg)
@@ -521,13 +430,7 @@ function overlay:DrawSegmentsForMap(mapID)
                                 label.flashBase  = labelText
                             end
                         elseif seg.mapLabelPulse then
-                            -- Always-pulse mode: no completion tracking, no
-                            -- gray/checkmark end-state. Used when the seg
-                            -- represents an interactable with no detectable
-                            -- completion signal (e.g. clicking an object
-                            -- that fires no event the addon can hook). The
-                            -- label breathes yellow on the same shared phase
-                            -- counter as completionCheck pulses.
+                            -- Pulses forever, with no completion state.
                             local color = (RR.GetLabelPulseColor and RR:GetLabelPulseColor())
                                 or "|cffffffff"
                             label:SetText(color .. RR.L[seg.mapLabel] .. "|r")
@@ -592,7 +495,7 @@ function overlay:DrawSegmentsForMap(mapID)
             if seg.mapLabel then
                 local label = self.labels[labelIdx]
                 if label then
-                    PlaceLabel(label, seg.mapLabelPos, dest[1], dest[2], 12)
+                    self:PlaceLabel(label, seg.mapLabelPos, dest[1], dest[2], 12)
                     label:SetText(seg.mapLabel)
                     label:Show()
                     labelIdx = labelIdx + 1
@@ -601,28 +504,13 @@ function overlay:DrawSegmentsForMap(mapID)
 
             end -- end "if seg.kind == poi else"
 
-            -- Optional opt-in attention ring. Renders a pulsing red
-            -- ring at the seg's navPoint (or final point) on top of
-            -- whatever the seg drew above. Drawn at OVERLAY layer so
-            -- it sits above any native Blizzard map icon at that
-            -- coord (exit arrows, NPC dots) -- the point of the ring
-            -- is to surround such a native icon visually, drawing
-            -- the eye to it without obscuring it.
-            --
-            -- Pulse via the ring ticker at the bottom of this file:
-            -- 0.1s cadence, red-brightness modulated in sync with
-            -- the label and yellow [!] pulses (shared phase counter).
+            -- Pulsing red ring at the seg's navPoint.
             if seg.highlightCircle then
                 local ring = self.rings[ringIdx]
                 if ring then
                     local mark = seg.navPoint or pts[#pts]
                     PlaceAt(ring, self, mark[1], mark[2])
-                    -- A completed ring goes static gray and opts out of the
-                    -- red pulse, matching what completionCheck does to the
-                    -- label. Without the flag the ring ticker would repaint
-                    -- every shown ring red on its next 0.1s pass. Only segs
-                    -- that opted into completionCheck track completion; the
-                    -- rest keep the original always-red behaviour.
+                    -- Stops the ring ticker repainting this one red.
                     if seg.completionCheck and SegIsComplete(step, seg) then
                         ring.completeState = true
                         ring:SetVertexColor(0.61, 0.61, 0.61, 1)
@@ -694,6 +582,10 @@ function overlay:Refresh()
 
     if RR.currentRaid
         and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
+        -- Global POIs first (drawn on every step, between steps, and after
+        -- the route is complete -- independent of DrawSegmentsForMap's
+        -- active-step and route-complete gates), then the step objectives.
+        self:DrawGlobalPOIsForMap(mapID)
         self:DrawSegmentsForMap(mapID)
     end
 
@@ -728,13 +620,7 @@ C_Timer.NewTicker(1.0, function()
     end
 end)
 
--- Per-label pulse ticker for opt-in completionCheck labels. Runs at
--- 0.1s (same cadence as the UI's encounter [!] and What's New? [!]
--- pulses) and re-tints labels whose flashState == "pulsing" so the
--- "click this" attention-grabber breathes while the seg remains
--- incomplete. Completed labels are static (gray + checkmark) and
--- skipped. Cheap: bails entirely when the world map isn't visible,
--- and iterates only the labels pool (typically <10 entries).
+-- Re-tints pulsing labels. Same 0.1s cadence as the panel's [!] glyphs.
 C_Timer.NewTicker(0.1, function()
     if not WorldMapFrame or not WorldMapFrame:IsShown() then return end
     if not RR.GetLabelPulseColor then return end
@@ -749,11 +635,7 @@ C_Timer.NewTicker(0.1, function()
     end
 end)
 
--- Per-ring pulse ticker for highlightCircle rings. Same 0.1s cadence
--- as the label and yellow [!] pulses (shared phase counter via the
--- RR:GetRingPulseRed accessor), but modulates the red channel only
--- so the ring breathes bright-red to dim-red and back. Same bail-out
--- guard as the label ticker; rings pool is small (MAX_RINGS=10).
+-- Breathes the rings by modulating red only, on the same shared phase.
 C_Timer.NewTicker(0.1, function()
     if not WorldMapFrame or not WorldMapFrame:IsShown() then return end
     if not RR.GetRingPulseRed then return end

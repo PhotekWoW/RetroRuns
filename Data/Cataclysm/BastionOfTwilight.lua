@@ -55,6 +55,18 @@ RetroRuns_Data[671] = {
         rewardName         = "Reins of the Drake of the East Wind",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 60202, slot = "Head", name = "Tsanga's Helm", sources = { [14]=29973, [15]=29973 }, bind = "BoE" },
+        { id = 60201, slot = "Legs", name = "Phase-Twister Leggings", sources = { [14]=29972, [15]=29972 }, bind = "BoE" },
+        { id = 60210, slot = "Ranged", name = "Crossfire Carbine", sources = { [14]=29976, [15]=29976 }, bind = "BoE" },
+        { id = 59901, slot = "Shoulder", name = "Heaving Plates of Protection", sources = { [14]=29971, [15]=29971 }, bind = "BoE" },
+        { id = 59525, slot = "Two-Hand", name = "Chelley's Staff of Dark Mending", sources = { [14]=29724, [15]=29724 }, bind = "BoE" },
+        { id = 59521, slot = "Weapon", name = "Soul Blade", sources = { [14]=29723, [15]=29723 }, bind = "BoE" },
+        { id = 60211, slot = "Wrist", name = "Bracers of the Dark Pool", sources = { [14]=29977, [15]=29977 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

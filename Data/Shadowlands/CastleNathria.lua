@@ -330,6 +330,20 @@ RetroRuns_Data[2296] = {
         },
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 184778, slot = "Back", name = "Decadent Nathrian Shawl", sources = { [14]=115850, [15]=115852, [16]=115853, [17]=115851 }, bind = "BoE" },
+        { id = 182990, slot = "Feet", name = "Legionnaire's Bloodstained Sabatons", sources = { [14]=114503, [15]=115201, [16]=115202, [17]=115200 }, bind = "BoE" },
+        { id = 183010, slot = "Feet", name = "Stud-Scarred Footwear", sources = { [14]=114523, [15]=115168, [16]=115169, [17]=115167 }, bind = "BoE" },
+        { id = 183013, slot = "Hands", name = "Fallen Templar's Gauntlets", sources = { [14]=114526, [15]=115252, [16]=115253, [17]=115251 }, bind = "BoE" },
+        { id = 183008, slot = "Hands", name = "Supple Supplicant's Gloves", sources = { [14]=114521, [15]=115114, [16]=115135, [17]=115113 }, bind = "BoE" },
+        { id = 183017, slot = "Wrist", name = "Acolyte's Velvet Bindings", sources = { [14]=114530, [15]=115118, [16]=115137, [17]=115117 }, bind = "BoE" },
+        { id = 182978, slot = "Wrist", name = "Barkweave Wristwraps", sources = { [14]=114491, [15]=115144, [16]=115145, [17]=115143 }, bind = "BoE" },
+        { id = 183031, slot = "Wrist", name = "Soldier's Stoneband Wristguards", sources = { [14]=114544, [15]=115267, [16]=115268, [17]=115266 }, bind = "BoE" },
+        { id = 182982, slot = "Wrist", name = "Watchful Arbelist's Bracers", sources = { [14]=114495, [15]=115192, [16]=115193, [17]=115191 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

@@ -78,6 +78,21 @@ RetroRuns_Data[1009] = {
         rewardName         = "Reins of the Heavenly Crimson Cloud Serpent",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 86192, slot = "Wrist", name = "Darting Damselfly Cuffs", sources = { [14]=44329, [15]=44329 }, bind = "BoE" },
+        { id = 86186, slot = "Wrist", name = "Gleaming Moth Cuffs", sources = { [14]=44323, [15]=44323 }, bind = "BoE" },
+        { id = 86188, slot = "Wrist", name = "Inlaid Cricket Bracers", sources = { [14]=44325, [15]=44325 }, bind = "BoE" },
+        { id = 86189, slot = "Wrist", name = "Jagged Hornet Bracers", sources = { [14]=44326, [15]=44326 }, bind = "BoE" },
+        { id = 86184, slot = "Wrist", name = "Luminescent Firefly Wristguards", sources = { [14]=44321, [15]=44321 }, bind = "BoE" },
+        { id = 86187, slot = "Wrist", name = "Pearlescent Butterfly Wristbands", sources = { [14]=44324, [15]=44324 }, bind = "BoE" },
+        { id = 86191, slot = "Wrist", name = "Plated Locust Bracers", sources = { [14]=44328, [15]=44328 }, bind = "BoE" },
+        { id = 86190, slot = "Wrist", name = "Serrated Wasp Bracers", sources = { [14]=44327, [15]=44327 }, bind = "BoE" },
+        { id = 86183, slot = "Wrist", name = "Shining Cicada Bracers", sources = { [14]=44320, [15]=44320 }, bind = "BoE" },
+        { id = 86185, slot = "Wrist", name = "Smooth Beetle Wristbands", sources = { [14]=44322, [15]=44322 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

@@ -40,12 +40,7 @@ end
 function RR:ResolveBoss(name)
     local boss = self:GetBossByName(name) or self:GetBossByNormalizedName(name)
     if boss then return boss end
-    -- Locale fallback: on non-English clients, callers like the saved-instance
-    -- lockout sync hand us Blizzard-localized boss names, which never match the
-    -- English boss.name/aliases above. The Encounter Journal returns names in
-    -- the client's language, so translate localized name -> journalEncounterID
-    -- via the memoized EJ walk, then find the boss carrying that id. Costs
-    -- nothing on English clients (the direct paths above already matched).
+    -- Non-English clients: resolve through the EJ walk.
     if not (self.currentRaid and self.currentRaid.journalInstanceID) then return nil end
     local nameMap = self:GetEJNameMapForJournalInstance(self.currentRaid.journalInstanceID)
     local journalEncID = nameMap and nameMap[name]
@@ -56,16 +51,7 @@ function RR:ResolveBoss(name)
             end
         end
     end
-    -- The saved-instance lockout names its encounters from a different
-    -- Blizzard table than the Encounter Journal, and the two tables can
-    -- disagree on a boss's localized name (Mogu'shan Vaults boss 3 in
-    -- Spanish: the lockout says "Gara'jal el Vinculador de Espíritus",
-    -- the journal just "Gara'jal"). When the journal lookup misses,
-    -- compare against the addon's own translation of each boss name and
-    -- alias, folded through NormalizeName so casing and accent
-    -- differences between the two Spanish locales cannot break the
-    -- match. On English clients every translation is the identity, so
-    -- the guard skips all comparisons.
+    -- Last resort: compare against our own translations.
     local needle = self:NormalizeName(name)
     if needle then
         for _, candidate in ipairs(self.currentRaid.bosses) do
@@ -197,21 +183,11 @@ function RR:RequirementsMet(requirements)
     return true
 end
 
--- Returns the active routing array for the current raid: the skip route
--- when the player loaded the skip variant and one is authored, otherwise
--- the standard route. The engine reads navigation steps through this so a
--- skip run follows a different step array (different order, skipped
--- bosses) without mutating the shared raid data. Cross-raid validation
--- and the idle/Skips lists still read raid.routing (the standard route)
--- directly -- those are not variant-sensitive.
+-- The routing array in force: LFR wing, then skip route, then standard.
 function RR:GetActiveRouting()
     local raid = self.currentRaid
     if not raid then return nil end
-    -- LFR: if the player is in a wing we have routing for, that wing's route
-    -- wins. Each wing covers only its own boss subset, so completion and step
-    -- selection (which read through this function) scope to the wing. When in
-    -- LFR but no wing entry matches, GetActiveWing returns nil and we fall
-    -- through -- the panel's LFR guard then shows the unsupported message.
+    -- A wing covers only its own boss subset.
     local wing = self:GetActiveWing()
     if wing and wing.routing then
         return wing.routing
@@ -222,16 +198,8 @@ function RR:GetActiveRouting()
     return raid.routing
 end
 
--- True when every boss in the active route has been killed -- the run is
--- complete for whichever variant is loaded. Keys off actual boss kills
--- rather than comparing step count to total boss count, so a skip route
--- (fewer steps than bosses) completes correctly when its final boss dies
--- instead of never reaching "complete." Difficulty-excluded bosses (a
--- step whose boss doesn't exist at the current difficulty) don't block
--- completion, matching the same filter GetAvailableSteps applies, so the
--- run can complete after the last boss that's actually killable here.
--- Returns false if the active route has no steps (nothing authored yet),
--- so an uncaptured raid stays distinguishable from a finished one.
+-- True when the active route's bosses are all dead. Bosses unavailable at the
+-- current difficulty don't hold it open. False when no steps are authored.
 function RR:IsActiveRouteComplete()
     local routing = self:GetActiveRouting()
     if not routing or #routing == 0 then return false end
@@ -241,11 +209,7 @@ function RR:IsActiveRouteComplete()
         local availableHere = (not activeBucket)
             or (not boss)
             or self:BossAvailableInBucket(boss, activeBucket)
-        -- Optional bosses don't hold the route open. A player who walked
-        -- past one has finished the run they set out to do, and the panel
-        -- owes them the end-of-run state and the exit note rather than a
-        -- pointer back to a boss they chose to leave. The boss list still
-        -- shows them unkilled, and they stay killable this lockout.
+        -- Optional bosses don't hold the route open.
         if availableHere
             and step.bossIndex
             and not step.optional
@@ -275,12 +239,7 @@ function RR:GetAvailableSteps()
     local results = {}
     local routing = self:GetActiveRouting()
     if not routing then return results end
-    -- Current difficulty as a display bucket, so a step whose boss doesn't
-    -- exist at this difficulty (e.g. Heroic-only Ra-den while on Normal) is
-    -- excluded from the route -- the panel then reaches run-complete after
-    -- the last reachable boss instead of pointing at an unkillable one.
-    -- When difficulty is unknown (not yet detected), don't filter -- better
-    -- to show the step than to hide it on a transient nil.
+    -- A nil bucket (not yet detected) filters nothing.
     local activeBucket = self:FoldDifficulty(self.currentRaid, self.state.currentDifficultyID)
     for _, step in ipairs(routing) do
         local boss = self:GetBossByIndex(step.bossIndex)
@@ -300,13 +259,8 @@ function RR:GetAvailableSteps()
 end
 
 function RR:ComputeNextStep()
-    -- If the active routing variant has changed since progress was last
-    -- loaded (e.g. the player walked from one LFR wing into another, or
-    -- switched routes, without a raid reload), the in-memory progress still
-    -- reflects the previous variant -- and since variants number their steps
-    -- from 1, stale values would be read against the new variant's steps.
-    -- Reload from the correct namespace first. RestorePersistedProgress
-    -- updates progressVariantKey, so this is a no-op once aligned.
+    -- Every variant numbers its steps from 1, so stale progress reads against
+    -- the wrong steps.
     if self.state.progressVariantKey ~= self:ActiveVariantKey() then
         self:RestorePersistedProgress()
     end
@@ -326,41 +280,21 @@ function RR:ComputeNextStep()
         self.state.manualTargetBossIndex = nil
     end
     if #available > 0 then
-        -- A complete route has no active step, even when an optional
-        -- boss is still alive and therefore still "available". The panel,
-        -- the minimized bar and the overlay all treat "no active step" as
-        -- the run-complete state, so leaving the optional step active here
-        -- would keep pointing at a boss the player chose to walk past
-        -- instead of showing the completion banner and the exit note.
+        -- Every surface reads "no active step" as run-complete.
         if self.IsActiveRouteComplete and self:IsActiveRouteComplete() then
             self.state.activeStep = nil
             self:OnActiveStepChanged(prevStep, nil)
             return nil
         end
         local chosen = available[1]
-        -- Optional-step cede rule: a step flagged `optional` (a boss the
-        -- player may bypass, like Valithria Dreamwalker) yields to a later
-        -- available step once the player's position matches that later step
-        -- and no longer matches the optional one. The player never chooses
-        -- anything: kill the boss and the step advances on the kill as
-        -- always; walk past and the route follows. When nothing matches --
-        -- entrance, transit, unknown map -- the optional step keeps the
-        -- pointer, so a teleport or reload never silently skips it.
+        -- An optional step yields to a later one the player's position
+        -- matches. When nothing matches, it keeps the pointer.
         if chosen.optional then
             local mapID = C_Map and C_Map.GetBestMapForUnit
                 and C_Map.GetBestMapForUnit("player") or nil
             local subZone = (GetSubZoneText and GetSubZoneText()) or ""
-            -- Two questions, not one. WHERE the player is decides the
-            -- cede while the optional boss is still ahead of them. But
-            -- once a LATER boss is dead the player has demonstrably moved
-            -- past, and position alone stops being enough: Icecrown's
-            -- Upper Spire shares mapID 190 with Valithria's wing, so
-            -- teleporting there after Sindragosa would otherwise look
-            -- like standing at the optional step and hand the pointer
-            -- back. After that, later steps win wherever they match, and
-            -- the optional step holds only when nothing later does --
-            -- which is exactly the case where the player HAS returned for
-            -- it (her upper wing, mapID 191, matches no later step).
+            -- Position decides the cede only while the optional boss is
+            -- still ahead.
             local movedOn = self:AnyLaterStepCompleted(chosen)
             local cede = movedOn
                 or (mapID and not self:StepLocationMatches(chosen, mapID, subZone))
@@ -450,14 +384,8 @@ end
 -- Progress
 -------------------------------------------------------------------------------
 
--- Bosses killed over total, as numbers, counted across the raid's OWN
--- boss list. Deliberately not GetSavedInstanceInfo's numEncounters: the
--- game's encounter count for a raid can exceed the boss list we present
--- (Ulduar reports 16 against our 14), so a progress line built on the
--- API's total contradicts the Boss Progress checklist the player is
--- looking at. Kill state still originates from the saved-instance sync,
--- so these numbers are the lockout's progress -- just expressed over the
--- bosses we actually route.
+-- Bosses killed over total, counted across our own boss list rather than
+-- GetSavedInstanceInfo's numEncounters.
 function RR:GetRaidProgressCounts()
     if not self.currentRaid then return 0, 0 end
     local total, killed = #self.currentRaid.bosses, 0
@@ -474,13 +402,7 @@ function RR:GetProgressText()
     return ("%d/%d"):format(killed, total)
 end
 
--- Progress scoped to the ACTIVE route rather than the whole raid. In an LFR
--- wing GetActiveRouting returns only that wing's steps, so the count reflects
--- the wing's own bosses (3/4) instead of the full raid (which GetProgressText
--- reports). On Normal/Heroic the active route is the full raid, so this
--- matches GetProgressText there. Steps are deduped by bossIndex because a
--- boss can span several routing steps (multi-segment approaches), which would
--- otherwise inflate the total. Returns killed, total as numbers.
+-- Progress scoped to the active route, deduped by bossIndex.
 function RR:GetActiveRouteProgress()
     local routing = self:GetActiveRouting()
     if not routing then return 0, 0 end
@@ -508,22 +430,8 @@ function RR:GetActiveTargetName()
     return boss and self:GetLocalizedBossName(boss) or nil
 end
 
--- Shortest label for a boss: an explicit barLabel override if the boss carries
--- one, otherwise the shortest of its full name and any aliases. Aliases carry
--- short forms ("Sylvanas" for "Sylvanas Windrunner"), which keeps the minimized
--- bar's boss label compact.
---
--- Aliases exist first for name matching (ResolveBoss against Blizzard's
--- saved-instance strings), so some are punctuation-stripped spellings of a
--- form already present -- "NZoth" beside "N'Zoth", "Kelthuzad" beside
--- "Kel'Thuzad". Those are never valid to display, and being one byte shorter
--- they would otherwise always win, so they're skipped: an alias is ignored when
--- it carries no punctuation and another candidate with the same letters does.
---
--- barLabel covers what's left -- where the shortest legitimate candidate is
--- still the wrong label, such as a two-boss encounter whose shortest alias
--- names only one of them. Ties keep the earlier candidate (name before aliases,
--- then alias order). Returns nil for no boss.
+-- Shortest label for a boss: barLabel if set, else the shortest of its name
+-- and aliases. Punctuation-stripped aliases are skipped as display candidates.
 function RR:GetBossDisplayLabel(boss)
     if not boss then return nil end
     if boss.barLabel and boss.barLabel ~= "" then return RR.L[boss.barLabel] end
@@ -578,11 +486,7 @@ function RR:GetActiveTargetLabel()
     return self:GetBossDisplayLabel(boss)
 end
 
--- Position of the current target in the route's kill order: returns (pos, total)
--- where pos is the 1-based index of the active-step boss within GetRouteBossOrder
--- and total is the route length. This answers "which boss am I on" (boss 2 of 4)
--- rather than "how many are dead", so the position reflects route order even if
--- bosses were killed out of sequence. Returns nil when no step is active.
+-- (pos, total) for the active step within the route's kill order.
 function RR:GetActiveTargetPosition()
     local step = self.state and self.state.activeStep
     if not step then return nil end
@@ -597,19 +501,8 @@ function RR:GetActiveTargetPosition()
     return nil
 end
 
--- Returns the raid's bosses in the order the navigation picker directs
--- the player to kill them. This is a pure simulation of the same
--- selection rule ComputeNextStep uses (GetAvailableSteps -> take the
--- first): repeatedly pick the step whose boss prerequisites (`requires`)
--- are satisfied and whose `priority or step` key is lowest, "kill" its
--- boss locally, and continue. It is the single source of truth for route
--- order, shared by the Boss Progress list so the display can never drift
--- from navigation. Mutates no engine state.
---
--- The tie-break (step, then array index) only matters when two ready
--- steps share a `priority or step` value; the live picker's sort is
--- unstable in that case, so making it deterministic here is strictly an
--- improvement, not a divergence.
+-- The raid's bosses in the order navigation will direct the player to kill
+-- them. Re-simulates ComputeNextStep's rule; mutates no state.
 function RR:GetRouteBossOrder()
     local order = {}
     local steps = self:GetActiveRouting()
@@ -649,17 +542,8 @@ end
 function RR:GetProgressLines()
     local lines = {}
     if not self.currentRaid then return lines end
-    -- Three states, each framing an identical 12px marker slot so the
-    -- boss names left-align across all rows regardless of font size:
-    --   killed  -- green check texture
-    --   active  -- yellow arrow texture
-    --   pending -- transparent spacer (empty slot of the same width)
-    -- All three are bracket + 12px element + bracket. The previous
-    -- version mixed a 12px texture (killed) with space-padded text
-    -- (active "[ > ]", pending "[    ]"); spaces and a fixed-px texture
-    -- never share a width, and the gap drifted further as the user's
-    -- font-size slider scaled the spaces but not the texture -- so the
-    -- brackets never aligned. Uniform 12px textures remove the drift.
+    -- All three states are bracket + 12px element + bracket, so boss names
+    -- left-align at any font size.
     local KILLED_GLYPH  = "|TInterface\\RaidFrame\\ReadyCheck-Ready:12:12|t"
     -- Yellow forward chevron. Vertex-color args tint the white source
     -- texture to the active-yellow used elsewhere in the panel.
@@ -679,12 +563,7 @@ function RR:GetProgressLines()
         order = self:GetRouteBossOrder()
     end
 
-    -- Current difficulty as a display bucket. A boss that doesn't exist at
-    -- this difficulty (e.g. Heroic-only Ra-den while on Normal) renders as a
-    -- grayed, uncounted row with a "(<difficulty> only)" tag so the player
-    -- knows the boss exists and why it's unreachable here -- rather than it
-    -- silently vanishing. nil bucket (difficulty not yet detected) disables
-    -- the restriction so nothing is hidden on a transient unknown.
+    -- A boss unavailable here renders grayed and uncounted, not hidden.
     local activeBucket = self:FoldDifficulty(self.currentRaid, self.state.currentDifficultyID)
     local BUCKET_NAME  = { [14] = RR.L["Normal"], [15] = RR.L["Heroic"], [16] = RR.L["Mythic"], [17] = RR.L["LFR"] }
 
@@ -694,11 +573,7 @@ function RR:GetProgressLines()
             and not self:BossAvailableInBucket(boss, activeBucket)
 
         if restrictedHere then
-            -- Heroic-only (or otherwise difficulty-gated) boss on a
-            -- difficulty where it can't be engaged. Grayed, not counted
-            -- toward completion, tagged with the difficulty it requires.
-            -- A boss restricted to a single bucket names that bucket; one
-            -- restricted to several lists them.
+            -- Tagged with the difficulty it needs.
             local allowed = boss.availableDifficulties or {}
             local names = {}
             for _, b in ipairs(allowed) do
@@ -792,13 +667,8 @@ end
 -------------------------------------------------------------------------------
 -- Dialog-trigger advancement
 -------------------------------------------------------------------------------
--- Watches CHAT_MSG_MONSTER_YELL / _SAY / _RAID_BOSS_EMOTE for NPC
--- voicelines that signal a navigation gate (e.g. an orb-click dialog
--- that opens the next leg of the route). Matches against per-seg
--- `triggeredBy = { dialog = { npc, match } }`. Outside-encounter
--- only -- mid-encounter chat carries secret-tainted payloads. Plain
--- substring matching against the authored English, with the locale
--- table consulted for the client-language forms of both npc and match.
+-- Watches monster yell/say/emote against per-seg
+-- `triggeredBy = { dialog = { npc, match } }`. Outside-encounter only.
 
 local dialogTriggerFrame = nil
 
@@ -809,12 +679,7 @@ local function DialogTriggerHandler(_, event, ...)
         local text   = args[2]   -- arg1 = dialog text
         local sender = args[3]   -- arg2 = speaker name
 
-        -- Log BEFORE any guard. With the log placed after them, an event
-        -- that arrived and was dropped is indistinguishable from one that
-        -- never arrived, which makes a missing trigger undiagnosable from
-        -- a zone log. Every exit below states which guard fired. Secret
-        -- payloads are rendered as a placeholder rather than compared,
-        -- matching the dialog-debug capture.
+        -- Log before any guard; every exit below names the guard that fired.
         local payloadIsSecret = issecretvalue
             and (issecretvalue(text) or issecretvalue(sender)) or false
         if RR.ZoneLog then
@@ -833,13 +698,7 @@ local function DialogTriggerHandler(_, event, ...)
             RR:ZoneLog("[DialogTrigger] dropped: secret payload")
             return
         end
-        -- Require text; sender is optional. System-style emotes -- notably
-        -- CHAT_MSG_RAID_BOSS_EMOTE lines like "Megaera rises from the
-        -- mists!" -- arrive with no speaker (sender nil/empty). Those are
-        -- exactly the events a no-npc text trigger is meant to catch, so
-        -- gating on sender would drop them. TriggerMatches only consults
-        -- npc when the trigger specifies one, so a nil sender is safe to
-        -- pass through.
+        -- Text is required, sender is not -- boss emotes have no speaker.
         if not text then
             RR:ZoneLog("[DialogTrigger] dropped: no text")
             return

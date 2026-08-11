@@ -70,6 +70,18 @@ RetroRuns_Data[720] = {
         rewardKind         = "mount",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 71366, slot = "Ranged", name = "Lava Bolt Crossbow", sources = { [14]=36619, [15]=36619 }, bind = "BoE" },
+        { id = 71361, slot = "Two-Hand", name = "Ranseur of Hatred", sources = { [14]=36616, [15]=36616 }, bind = "BoE" },
+        { id = 71360, slot = "Two-Hand", name = "Spire of Scarlet Pain", sources = { [14]=36615, [15]=36615 }, bind = "BoE" },
+        { id = 71640, slot = "Waist", name = "Riplimb's Lost Collar", sources = { [14]=36824, [15]=36824 }, bind = "BoE" },
+        { id = 71359, slot = "Weapon", name = "Chelley's Sterilized Scalpel", sources = { [14]=36614, [15]=36614 }, bind = "BoE" },
+        { id = 71362, slot = "Weapon", name = "Obsidium Cleaver", sources = { [14]=36617, [15]=36617 }, bind = "BoE" },
+        { id = 71365, slot = "Wrist", name = "Hide-Bound Chains", sources = { [14]=36618, [15]=36618 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

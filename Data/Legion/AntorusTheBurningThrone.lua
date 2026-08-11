@@ -78,6 +78,23 @@ RetroRuns_Data[1712] = {
         rewardName         = "Antoran Gloomhound",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 152088, slot = "Chest", name = "Horror Fiend-Scale Breastplate", sources = { [14]=89991, [15]=89992, [16]=89993, [17]=89990 }, bind = "BoE" },
+        { id = 152090, slot = "Chest", name = "Impenetrable Garothi Breastplate", sources = { [14]=89999, [15]=90000, [16]=90001, [17]=89998 }, bind = "BoE" },
+        { id = 152084, slot = "Hands", name = "Gloves of Abhorrent Strategies", sources = { [14]=89975, [15]=89976, [16]=89977, [17]=89974 }, bind = "BoE" },
+        { id = 152682, slot = "Legs", name = "Greaves of the Felblade Defenders", sources = { [14]=90573, [15]=90574, [16]=90575, [17]=90572 }, bind = "BoE" },
+        { id = 153019, slot = "Legs", name = "Hulking Demolisher Legplates", sources = { [14]=90712, [15]=90713, [16]=90714, [17]=90711 }, bind = "BoE" },
+        { id = 151993, slot = "Legs", name = "Leggings of the Sable Stalkers", sources = { [14]=89846, [15]=89847, [16]=89848, [17]=89845 }, bind = "BoE" },
+        { id = 153018, slot = "Shoulder", name = "Corrupted Mantle of the Felseekers", sources = { [14]=90708, [15]=90709, [16]=90710, [17]=90707 }, bind = "BoE" },
+        { id = 152413, slot = "Shoulder", name = "Felflame Inferno Shoulderpads", sources = { [14]=90497, [15]=90498, [16]=90499, [17]=90496 }, bind = "BoE" },
+        { id = 152085, slot = "Wrist", name = "Cuffs of the Viridian Flameweavers", sources = { [14]=89979, [15]=89980, [16]=89981, [17]=89978 }, bind = "BoE" },
+        { id = 152087, slot = "Wrist", name = "Sinuous Kerapteron Bindings", sources = { [14]=89987, [15]=89988, [16]=89989, [17]=89986 }, bind = "BoE" },
+        { id = 152089, slot = "Wrist", name = "Wristguards of Ominous Forging", sources = { [14]=89995, [15]=89996, [16]=89997, [17]=89994 }, bind = "BoE" },
+        { id = 152091, slot = "Wrist", name = "Wristguards of the Dark Keepers", sources = { [14]=90003, [15]=90004, [16]=90005, [17]=90002 }, bind = "BoE" },
+    },
     bosses = {
 
         {

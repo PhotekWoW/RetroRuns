@@ -97,6 +97,22 @@ RetroRuns_Data[967] = {
         rewardName         = "Reins of the Twilight Harbinger",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 77938, slot = "Held In Off-hand", name = "Dragonfire Orb", sources = { [14]=39511, [15]=39511 }, bind = "BoP" },
+        { id = 77192, slot = "Ranged", name = "Ruinblaster Shotgun", sources = { [14]=38927, [15]=38927 }, bind = "BoP" },
+        { id = 78886, slot = "Waist", name = "Belt of Ghostly Graces", sources = { [14]=40189, [15]=40189 }, bind = "BoE" },
+        { id = 78885, slot = "Waist", name = "Dragoncarver Belt", sources = { [14]=40188, [15]=40188 }, bind = "BoE" },
+        { id = 78884, slot = "Waist", name = "Girdle of Fungal Dreams", sources = { [14]=40187, [15]=40187 }, bind = "BoE" },
+        { id = 78887, slot = "Waist", name = "Girdle of Soulful Mending", sources = { [14]=40190, [15]=40190 }, bind = "BoE" },
+        { id = 78882, slot = "Waist", name = "Nightblind Cinch", sources = { [14]=40186, [15]=40186 }, bind = "BoE" },
+        { id = 78879, slot = "Waist", name = "Sash of Relentless Truth", sources = { [14]=40185, [15]=40185 }, bind = "BoE" },
+        { id = 78888, slot = "Waist", name = "Waistguard of Bleeding Bone", sources = { [14]=40191, [15]=40191 }, bind = "BoE" },
+        { id = 78889, slot = "Waist", name = "Waistplate of the Desecrated Future", sources = { [14]=40192, [15]=40192 }, bind = "BoE" },
+        { id = 78878, slot = "Weapon", name = "Spine of the Thousand Cuts", sources = { [14]=40184, [15]=40184 }, bind = "BoP" },
+    },
     bosses = {
         {
             index              = 1,

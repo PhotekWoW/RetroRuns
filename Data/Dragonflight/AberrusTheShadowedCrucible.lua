@@ -98,6 +98,19 @@ RetroRuns_Data[2569] = {
         rewardName         = "Shadowflame Shalewing",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 204422, slot = "Chest", name = "Sundered Edgelord's Breastplate", sources = { [14]=185580, [15]=186514, [16]=186515, [17]=186516 }, bind = "BoE" },
+        { id = 204430, slot = "Feet", name = "Sanctum Guard's Forgewalkers", sources = { [14]=185588, [15]=186659, [16]=186660, [17]=186661 }, bind = "BoE" },
+        { id = 204414, slot = "Hands", name = "Laboratory Assistant's Abductors", sources = { [14]=185572, [15]=186629, [16]=186630, [17]=186631 }, bind = "BoE" },
+        { id = 204429, slot = "Head", name = "Devoted Warden's Gaze", sources = { [14]=185587, [15]=186692, [16]=186693, [17]=186694 }, bind = "BoE" },
+        { id = 204411, slot = "Shoulder", name = "Crucible Curator's Wingspan", sources = { [14]=185569, [15]=186493, [16]=186494, [17]=186495 }, bind = "BoE" },
+        { id = 204415, slot = "Shoulder", name = "Mantle of Sunless Kindling", sources = { [14]=185573, [15]=186644, [16]=186645, [17]=186646 }, bind = "BoE" },
+        { id = 204423, slot = "Waist", name = "Faulds of Failed Experiments", sources = { [14]=185581, [15]=186541, [16]=186542, [17]=186543 }, bind = "BoE" },
+        { id = 204410, slot = "Wrist", name = "Bands of Purified Purpose", sources = { [14]=185568, [15]=186475, [16]=186476, [17]=186477 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

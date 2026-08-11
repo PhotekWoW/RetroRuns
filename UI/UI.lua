@@ -58,13 +58,9 @@ local LATIN_LOCALES = {
     frFR = true, itIT = true, ptBR = true, ptPT = true,
 }
 
--- True when the given bodyFontStyle can render every character the
--- addon will ask it to draw. Two languages are in play: addon text
--- renders in the Text Language setting (RR.activeLocaleCode), while
--- item, boss, and place names arrive in the client's language -- so the
--- font must cover BOTH. Checking only GetLocale() let the ASCII pixel
--- font pass on an English client with Text Language set to a locale
--- with accents, drawing tofu squares.
+-- True when a bodyFontStyle covers every character the addon will draw. Two
+-- languages are in play: addon text follows RR.activeLocaleCode, while item and
+-- boss names arrive in the client's language.
 local function FontStyleSupportsLocale(style)
     local charset = BODY_FONT_INFO[style] and BODY_FONT_INFO[style].charset
     if not charset then return true end   -- standard font: always
@@ -86,7 +82,7 @@ end
 local C_PINK   = { 0.95, 0.35, 0.78 }
 local C_BLUE   = { 0.30, 0.80, 1.00 }
 local C_PINK_HEX = "f259c7"  -- C_PINK as a text-escape hex (RETRO pink)
-local C_LABEL  = "7CFC00"   -- section label colour (green)
+local C_LABEL  = "4DCCFF"   -- section label colour (cyan, the RUNS wordmark blue)
 
 -- Idle-list pill-row leading spacers: transparent fixed-width inline textures
 -- that reserve exact pixel widths at the head of a pill string. The pill text,
@@ -103,13 +99,9 @@ RR.PILL_PLANE_GUTTER   = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:14
 -- Font helper
 -------------------------------------------------------------------------------
 
--- SetFont RAISES a Lua error when the font file fails to load ("Invalid
--- font asset"); it does not return false. With replaced client fonts
--- (files dropped into the game's Fonts folder) that load failure can be
--- transient, and an unprotected call aborts whatever populate it sits in,
--- stranding half-built UI. Each attempt is therefore pcall-wrapped, and
--- the floor is a font OBJECT: the client itself must be able to render
--- GameFontNormal, so it cannot be defeated by a bad file on disk.
+-- SetFont RAISES on a failed font load rather than returning false, and a
+-- replaced client font can fail transiently. Each attempt is pcall-wrapped
+-- with a font OBJECT as the floor, which a bad file on disk cannot defeat.
 local function SafeSetFont(fs, path, size, flags)
     if not fs then return end
     flags = flags or ""
@@ -126,12 +118,9 @@ end
 -- setter for the whole addon.
 RR.SafeSetFont = SafeSetFont
 
--- Resolve the user's bodyFontStyle setting to a {path, sizeFactor}
--- entry from BODY_FONT_INFO. Defaults to "standard" (FRIZQT) if unset
--- or invalid -- matches the bodyFontStyle default in Core.lua. A saved
--- style whose charset cannot render the client's language also resolves
--- to standard; the saved preference is kept so it applies again on a
--- client whose language the font covers.
+-- Resolves bodyFontStyle to a {path, sizeFactor} entry, defaulting to
+-- standard. A style that can't render the client's language also falls back,
+-- but the saved preference is kept for a client whose language it does cover.
 local function GetBodyFontInfo()
     local style = (RetroRuns and RetroRuns.GetSetting)
         and RetroRuns:GetSetting("bodyFontStyle", "standard")
@@ -148,15 +137,9 @@ local function GetBodyFont()
     return GetBodyFontInfo().path
 end
 
--- Font for "chrome" text that may contain localized content (window titles,
--- the load dialog, difficulty sublabels). The pixel title font (04B_03)
--- covers ASCII only, so on a non-English client -- where these strings are
--- translated and may carry accented or non-Latin glyphs -- this returns the
--- client's default font instead. English clients keep the pixel font. Pure
--- brand marks that are ASCII by definition (a bare "RETRORUNS" wordmark with
--- no localized word) can use TITLE_FONT directly; anything showing a
--- translated string should route through here. Defined on the RR table
--- (not a file-level local) to stay under UI.lua's Lua 5.1 200-local ceiling.
+-- Font for chrome text that may carry localized content. The pixel title font
+-- covers ASCII only, so non-English clients get the client default instead.
+-- Anything showing a translated string routes through here.
 function RetroRuns:GetChromeFont()
     if ASCII_LOCALES[GetLocale()] == true then
         return TITLE_FONT
@@ -198,13 +181,9 @@ panel:SetMovable(true)
 panel:EnableMouse(true)
 panel:RegisterForDrag("LeftButton")
 panel:SetClampedToScreen(true)
--- While a drag is in progress the move machinery owns the panel's
--- position. The periodic layout pass (AutoSize / ApplyMinimizedState,
--- driven by UI.Update) re-anchors the panel from the SAVED offsets,
--- which mid-drag still hold the pre-drag position -- so any layout
--- tick during a drag snapped the panel back toward where the drag
--- started. isBeingDragged gates every panel geometry write in those
--- paths; the skipped re-fit runs once at drag stop instead.
+-- A drag owns the panel's position while in progress; the layout pass would
+-- otherwise re-anchor from the saved offsets and snap it back. isBeingDragged
+-- gates every geometry write, and the re-fit runs once at drag stop.
 panel:SetScript("OnDragStart", function(self)
     self.isBeingDragged = true
     self:StartMoving()
@@ -212,12 +191,9 @@ end)
 panel:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
     self.isBeingDragged = nil
-    -- Named movable frames get flagged user-placed the moment a drag
-    -- starts, and the client then stores their position per character
-    -- and re-applies it after our own restore, so every character ends
-    -- up with its own panel position. Clearing the flag keeps position
-    -- persistence entirely in our saved settings, which are shared
-    -- across the account.
+    -- The client flags a named movable frame user-placed on drag start and
+    -- then stores its position per character. Clearing it keeps persistence in
+    -- our account-wide settings.
     self:SetUserPlaced(false)
     -- Normalize the anchor back to CENTER/CENTER so saved offsets
     -- restore correctly on reload.
@@ -253,16 +229,9 @@ local achState
 local RefreshIdleList
 local PositionLegendDivider
 
--- Custom frame border via the engine's edgeFile nine-slice -- the standard,
--- reliable mechanism (SetTextureSliceMargins silently no-ops on this client, so
--- a single stretched texture distorted on resize). An edgeFile is a filmstrip
--- of 8 equal slices (left/right/top/bottom edges + 4 corners) that the engine
--- repeats the edges between fixed corners automatically, at any frame size.
--- bgFile fills the interior (dark). edgeSize sets the on-screen corner/border
--- thickness. This is how Blizzard's own dialog frames and most addons do it.
---
--- The minimized bar reuses the same edge art at a smaller edgeSize so the
--- ornate corners stay on-theme without overwhelming the much shorter bar.
+-- Frame border via the engine's edgeFile nine-slice: a filmstrip of 8 slices
+-- (four edges, four corners) the engine repeats at any frame size.
+-- SetTextureSliceMargins silently no-ops on this client.
 local PANEL_EDGE_SIZE_FULL      = 26
 local PANEL_EDGE_SIZE_MINIMIZED = 14
 
@@ -280,21 +249,13 @@ panel:SetBackdrop(PanelBackdrop(PANEL_EDGE_SIZE_FULL))
 panel:SetBackdropColor(1, 1, 1, RR:GetSetting("panelOpacity", 1.0))
 panel:SetBackdropBorderColor(1, 1, 1, 1)
 
--- The edgeFile backdrop nine-slices at any frame size, but a single fixed
--- edgeSize that looks right on the tall expanded panel reads as oversized
--- ornate corners on the short minimized bar. Re-apply the backdrop at the
--- smaller edgeSize while minimized and the full size when expanded. There is
--- no edgeSize-only setter on this client, so the whole backdrop is re-set;
--- that clears the border/background color, which is restored right after.
+-- Re-applies the backdrop at a smaller edgeSize while minimized. There is no
+-- edgeSize-only setter, so the whole backdrop is re-set and the border and
+-- background colours are restored right after.
 --
--- Purpose-built minimized bar art. Rather than the shared ornate edgeFile,
--- the minimized bar can draw a bespoke frame assembled from three textures:
--- a fixed left cap (which carries a gap in its top line where the "RetroRuns"
--- wordmark is drawn, so the wordmark reads as set into the border), a
--- horizontally tiled/stretched center, and a fixed right cap. The source art
--- is 104px tall padded to 128 (power-of-two), so V runs 0..0.8125. These are
--- shown only while minimized and hidden when the expanded panel's own frame
--- is in use. Cap width on screen matches the art's aspect at the bar height.
+-- Bespoke minimized-bar art: fixed left cap (with a gap in its top line for
+-- the wordmark), tiled centre, fixed right cap. Source art is 104px padded to
+-- 128, so V runs 0..0.8125. Shown only while minimized.
 panel.minbarLeft   = panel:CreateTexture(nil, "BORDER")
 panel.minbarCenter = panel:CreateTexture(nil, "BORDER")
 panel.minbarRight  = panel:CreateTexture(nil, "BORDER")
@@ -308,12 +269,9 @@ for _, key in ipairs({ "minbarLeft", "minbarCenter", "minbarRight" }) do
     panel[key]:Hide()
 end
 
--- Notch: a short strip of plain bar backing that floats one border sublevel
--- above the slices, covering the top border line behind the raid-name label.
--- It breaks the line there so the label reads as set into the border -- the
--- same look the left cap bakes in for the "RR" tab, but movable, since raid
--- names vary in width. The art is 9 rows of backing in a 16px texture at 2x
--- resolution, so it draws at 4.5 screen px tall with V trimmed to 0..9/16.
+-- Notch: bar backing floating one sublevel above the slices, breaking the top
+-- border line behind the raid-name label so it reads as set into the border.
+-- Movable, since raid names vary in width. V trimmed to 0..9/16.
 panel.minbarNotch = panel:CreateTexture(nil, "BORDER", nil, 1)
 panel.minbarNotch:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\minbar-notch")
 panel.minbarNotch:SetTexCoord(0, 1, 0, 9 / 16)
@@ -386,20 +344,10 @@ local function ApplyBorderArtForState(minimized)
     end
 end
 
--- Enable hyperlink clicks on the panel so achievement links in the
--- encounter FontString become clickable. SetItemRef is Blizzard's global
--- dispatcher that routes |Hachievement:...|h, |Hitem:...|h, etc. to the
--- appropriate pane (achievement, item, spell). The handler intentionally
--- does nothing for links it doesn't recognize -- SetItemRef is a no-op
--- for unknown prefixes.
---
--- We also intercept a custom "retroruns:zygor_arrow" link from the
--- entrance-legend's "Zygor Waypoint Arrow Disabled!" warning. Clicking
--- the warning enables Zygor's arrow setting and re-renders our legend
--- so the warning disappears. Zygor itself picks up the new setting on
--- its next SetWaypoint call (which happens when the user clicks any
--- entrance button), so the typical user flow -- click warning, click
--- entrance -- works end-to-end without /reload.
+-- Enables hyperlink clicks so achievement links in the encounter FontString
+-- work. Also intercepts a custom "retroruns:zygor_arrow" link from the
+-- entrance legend's arrow-disabled warning, which enables Zygor's setting and
+-- re-renders the legend.
 panel:SetHyperlinksEnabled(true)
 panel:SetScript("OnHyperlinkClick", function(_, link, text, button)
     if link == "retroruns:zygor_arrow" then
@@ -446,12 +394,9 @@ panel.titleRuns:SetTextColor(unpack(C_BLUE))
 panel.titleRuns:SetShadowOffset(1, -1)
 panel.titleRuns:SetShadowColor(0, 0, 0, 1)
 
--- Minimized-bar top-line target string. Rides the top frame line at the bar's
--- right end (same straddling placement and tab scale as the "RR" tab at the
--- left end), showing the current boss label plus the route's kill count. The
--- notch texture breaks the border line behind it so it reads as set into the
--- frame. Boss label white, count dimmed at render time. Hidden by default;
--- ApplyTitleLayoutForState shows it only when a route is active.
+-- Minimized-bar top-line target string: the current boss label plus the
+-- route's kill count, straddling the top frame line at the right end. Hidden
+-- unless a route is active.
 panel.titleRaidName = panel:CreateFontString(nil, "OVERLAY")
 SafeSetFont(panel.titleRaidName, BODY_FONT, 12, "OUTLINE")
 panel.titleRaidName:SetText("")
@@ -565,17 +510,9 @@ panel.wingLine:SetText("")
 -- others in gray. Format: "[ LFR x/y | N x/y | H x/y | M x/y ]".
 panel.pills = AddField(panel.wingLine, "TOPLEFT", "BOTTOMLEFT", -2, BODY_WIDTH, "GameFontNormalSmall")
 
--- Lockout info tooltip, shown on every raid's pill row (not only locked
--- ones): a short label naming the raid's lockout system plus a one-line
--- plain-English consequence. Keyed by difficultyModel; raids with no
--- model field use independent. The lock glyph still
--- marks a committed-out pill separately via GetLockedOutBucket.
--- Wording notes: the independent gloss is difficulty-set agnostic on purpose
--- (raids span N/H, N/H/M, and LFR/N/H/M -- "both" or a count would be
--- wrong somewhere). The sharedLfr label names the N/H SHARING as the defining
--- rule, with LFR's separateness as the qualifier -- "has LFR" can't be
--- the label since independent raids have LFR too, with fully separate locks.
--- Lives on RR (not a file local) to stay under UI.lua's 200-local limit.
+-- Lockout tooltip for every raid's pill row, keyed by difficultyModel. Raids
+-- with no model field use independent. The lock glyph marks a committed-out
+-- pill separately.
 RR.LockoutTipByModel = {
     single = {
         label = RR.L["Single difficulty"],
@@ -603,12 +540,8 @@ RR.LockoutTipByModel = {
         gloss = RR.L["One difficulty per week; 10 and 25 share it"],
     },
 }
--- The Wrath size models split by lockout shape. sizes keeps every size on
--- its own weekly lockout (the independent wording). sizesShared spans one
--- lockout across 10 and 25, and sizesHeroic spans one across all four
--- size/heroic combinations -- both are the shared wording, since the game
--- classes each size and mode as a difficulty, so "One difficulty per week"
--- reads true for them.
+-- The Wrath size models split by lockout shape: sizes takes the independent
+-- wording, sizesShared and sizesHeroic take the shared wording.
 RR.LockoutTipByModel.sizes            = RR.LockoutTipByModel.independent
 RR.LockoutTipByModel.sizesHeroic      = RR.LockoutTipByModel.shared
 RR.LockoutTipByModel.sizesShared      = RR.LockoutTipByModel.shared
@@ -616,12 +549,9 @@ function RR:GetLockoutTooltipInfo(model)
     return self.LockoutTipByModel[model or "independent"]
 end
 
--- Invisible hover region over the pills row. FontStrings can't take
--- mouse scripts, so a sibling frame sits on top to surface the raid's
--- lockout-system tooltip (short label + plain-English consequence).
--- Armed for EVERY loaded raid in UI.Update -- lockout info is useful
--- whether or not a pill is currently locked; the raid's model is stored
--- on the frame so hover picks the right lines.
+-- Hover region over the pills row: FontStrings can't take mouse scripts, so a
+-- sibling frame carries the lockout tooltip. Armed for every loaded raid, with
+-- the model stored on the frame so hover picks the right lines.
 panel.pillsHover = CreateFrame("Frame", nil, panel)
 panel.pillsHover:SetPoint("TOPLEFT", panel.pills, "TOPLEFT", 0, 0)
 panel.pillsHover:SetPoint("BOTTOM", panel.pills, "BOTTOM", 0, 0)
@@ -651,13 +581,9 @@ panel.next      = AddField(panel.progress, "TOPLEFT", "BOTTOMLEFT", -8,  BODY_WI
 panel.exitNote  = AddField(panel.next,     "TOPLEFT", "BOTTOMLEFT", -13, BODY_WIDTH, "GameFontNormalSmall")
 panel.travel    = AddField(panel.next,     "TOPLEFT", "BOTTOMLEFT", -12, BODY_WIDTH)
 
--- Boss Encounter section. A wrapper Frame holding three stacked
--- sub-widgets:
---   .header        Button -- click toggles the soloTip expand/collapse
---   .achievements  Frame with hyperlinks enabled (achievement links)
---   .specialLoot   Frame with hyperlinks enabled (loot links)
--- Splitting the click-toggle target (header) from the hyperlink
--- targets prevents click competition over imprecise hyperlink hit-tests.
+-- Boss Encounter section: .header (Button, toggles the soloTip),
+-- .achievements and .specialLoot (hyperlink-enabled Frames). Splitting the
+-- toggle target from the hyperlink targets avoids click competition.
 panel.encounter = CreateFrame("Frame", nil, panel)
 panel.encounter:SetPoint("TOPLEFT", panel.travel, "BOTTOMLEFT", 0, -8)
 panel.encounter:SetSize(BODY_WIDTH, 14)
@@ -737,16 +663,9 @@ browserState = {
 
 -- Transmog summary button (mouseover opens popup)
 panel.transmog = CreateFrame("Button", nil, panel)
--- Tmog hover behavior ---------------------------------------------------
--- The transmog popup is shown on hover, but because it will gain dropdown
--- widgets that extend outside the popup's rectangle, we can't just hide on
--- the summary line's OnLeave. Instead:
---   * OnEnter on EITHER the summary line or the popup cancels any pending
---     hide.
---   * OnLeave on either schedules a short-grace hide.
--- This lets the user travel between the summary line and the popup, and
--- interact with dropdown menus that pop out from the popup, without the
--- popup collapsing under them.
+-- Tmog hover: OnEnter on either the summary line or the popup cancels a
+-- pending hide, OnLeave on either schedules one. The grace lets the user
+-- travel between them and reach dropdowns that pop outside the popup.
 local TMOG_HIDE_GRACE = 0.25   -- seconds
 
 local tmogHideTimer
@@ -812,6 +731,8 @@ panel.listHeader = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 panel.listHeader:SetPoint("TOPLEFT", panel.transmog, "BOTTOMLEFT", 0, -12)
 panel.listHeader:SetWidth(BODY_WIDTH)
 panel.listHeader:SetJustifyH("LEFT")
+-- Cyan like the other section labels; the template's own colour is yellow.
+panel.listHeader:SetTextColor(C_BLUE[1], C_BLUE[2], C_BLUE[3])
 
 panel.list = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 panel.list:SetPoint("TOPLEFT", panel.listHeader, "BOTTOMLEFT", 0, -8)
@@ -819,52 +740,24 @@ panel.list:SetWidth(BODY_WIDTH)
 panel.list:SetJustifyH("LEFT")
 panel.list:SetJustifyV("TOP")
 
--- Pool of invisible Button overlays for the expand/collapse toggles in
--- the idle-state supported-raids list and run-complete state's "Where
--- to next" list. Each Button is positioned over the toggle marker on a
--- specific line of panel.list, scaled to cover the texture glyph plus
--- a small hit-zone padding. Created lazily on demand and parked on
--- the side when not needed (Hide()'d, but kept in the pool for reuse
--- on the next refresh so we're not creating frames in a tight loop).
---
--- Why a separate Button pool instead of FontString hyperlinks: the
--- panel's draggable LeftButton + invisible overlay buttons in the
--- middle of the layout (panel.encounter, panel.transmog) compete
--- with hyperlink hit detection in WoW's mouse dispatch. Hyperlinks
--- on the topmost line specifically end up needing two clicks to
--- register because the first click is consumed by another hit
--- target. Using dedicated Button frames sidesteps the issue
--- entirely -- Button click handling is the most reliable path
--- through WoW's mouse system.
+-- Pool of Buttons for the expand/collapse toggles in the idle and
+-- run-complete lists. Created lazily, hidden and kept for reuse. Buttons
+-- rather than FontString hyperlinks: hyperlinks lose the first click to the
+-- panel's other hit targets.
 panel.expansionToggleButtons = {}
 panel.expansionToggleButtonPool = {}
 
--- Entrance-navigation buttons. One per raid that has entrance data,
--- anchored to the right end of the raid-name row's FontString. Click
--- drops a TomTom (preferred) or native Blizzard waypoint at the raid's
--- outdoor entrance coords. Pool / lifecycle mirrors the expansion
--- toggle buttons exactly -- created lazily, recycled per refresh, never
--- destroyed -- because the raids list rebuilds fully on every refresh.
+-- Entrance-navigation buttons, one per raid with entrance data, anchored to
+-- the right of the raid-name FontString. Same lazy-create, recycle-per-refresh
+-- lifecycle as the expansion toggles.
 panel.entranceButtons = {}
 panel.entranceButtonPool = {}
 
--- Borrow a Button from the pool, creating one if the pool is empty.
--- Returned Buttons are blank/Hide()n; callers configure and Show().
+-- Borrow a Button from the pool, creating one if empty. Returned blank and
+-- hidden; callers configure and Show().
 --
--- The button OWNS its visible glyph (SetNormalTexture / SetPushedTexture /
--- SetHighlightTexture). Previously the visible glyph was a |T...|t
--- marker baked into panel.list's text, with this Button sitting as
--- an invisible click-overlay above it. That two-piece design was the
--- root cause of the "multi-click to expand" bug: if the click overlay
--- drifted relative to the rendered text (uneven line heights when
--- mixing textures with text glyphs, accumulated stride drift on
--- deeper lines, etc.), the user clicked where they SAW a glyph but
--- the click landed on empty space.
---
--- One-piece design: the button IS the glyph. They cannot desync
--- because they're the same widget. The button anchors to the left
--- of the raid name so its placement is independent of how the name
--- renders.
+-- The button OWNS its glyph rather than overlaying one drawn in the list
+-- text, so the two cannot desync.
 local function AcquireExpansionToggleButton()
     local btn = table.remove(panel.expansionToggleButtonPool)
     if btn then return btn end
@@ -879,13 +772,8 @@ local function AcquireExpansionToggleButton()
     return btn
 end
 
--- Apply the expanded/collapsed texture set to a button. Called from
--- PositionExpansionToggleButton; separate so a click handler could
--- swap textures without re-positioning if we ever wanted that.
---
--- Pushed texture uses the Down variant for visual feedback when
--- clicking. Highlight texture is the same Highlight variant Blizzard
--- uses for native plus/minus buttons.
+-- Applies the expanded/collapsed texture set, kept separate from positioning
+-- so a click handler can swap textures without re-anchoring.
 local function SetToggleButtonTextures(btn, expanded)
     local upTex, downTex
     if expanded then
@@ -914,19 +802,9 @@ local function ReleaseExpansionToggleButtons()
     wipe(panel.expansionToggleButtons)
 end
 
--- Position a toggle Button alongside its expansion-header FontString.
--- The button anchors to the LEFT of the FontString, sized to match the
--- current font height. When the FontString moves (because lines above
--- it changed), the button moves with it -- no measurement, no drift.
---
--- This replaced an earlier line-index + measured-line-height design
--- that had the button anchored to panel.list's TOPLEFT with a
--- computed y-offset. That design relied on the rendered line stride
--- matching the arithmetic estimate; it didn't always, especially for
--- short lists where small per-line errors didn't average out. Symptom:
--- the second expansion's button drifted further from its text label
--- than the first. Anchoring to the actual rendered widget eliminates
--- the entire bug class.
+-- Anchors a toggle Button to the LEFT of its header FontString, sized to the
+-- current font height. Moving with the rendered widget avoids the drift a
+-- computed y-offset accumulates.
 local function PositionExpansionToggleButton(btn, parentFS, expanded)
     local fontSize = RR:GetSetting("fontSize", 12)
     -- Square button at font-size dimensions so the glyph scales with
@@ -935,12 +813,8 @@ local function PositionExpansionToggleButton(btn, parentFS, expanded)
     btn:SetSize(fontSize, fontSize)
     SetToggleButtonTextures(btn, expanded)
     btn:ClearAllPoints()
-    -- Anchor to the LEFT of the expansion-header FontString. The
-    -- header text starts with leading-space padding (see emitExpansion
-    -- in BuildIdleListRows) so the button has visual room without
-    -- overlapping the text. Vertical alignment is automatic -- the
-    -- CENTER-of-button to LEFT-of-text anchor pair stays in sync no
-    -- matter where the FontString ends up vertically.
+    -- The header text carries leading-space padding so the button has room
+    -- without overlapping. Vertical alignment follows the anchor pair.
     btn:SetPoint("LEFT", parentFS, "LEFT", 0, 0)
 end
 
@@ -955,14 +829,8 @@ local function AcquireEntranceButton()
     btn = CreateFrame("Button", nil, panel)
     btn:RegisterForClicks("LeftButtonUp")
     btn:SetFrameLevel((panel:GetFrameLevel() or 0) + 10)
-    -- Custom diagonal jet silhouette (Media/PlaneIcon), authored white so
-    -- it can be vertex-tinted. Tinted to RETRO pink; reads as "travel /
-    -- go here" and clicking opens the nav chooser. The white-source +
-    -- SetVertexColor pattern matches BugIcon/ChatIcon/RingCircle.
-    --
-    -- Routing-vs-waypoint tier signal is conveyed via the button's
-    -- alpha (1.0 routing, 0.4 waypoint) -- set at the click-handler
-    -- setup site in RefreshIdleList.
+    -- Authored white so it can be vertex-tinted, same as the other icons.
+    -- Alpha carries the routing-vs-waypoint tier, set in RefreshIdleList.
     btn:SetNormalTexture("Interface\\AddOns\\RetroRuns\\Media\\PlaneIcon")
     local nt = btn:GetNormalTexture()
     if nt then nt:SetVertexColor(C_PINK[1], C_PINK[2], C_PINK[3], 1) end
@@ -1216,27 +1084,17 @@ end
 
 
 -- ---------------------------------------------------------------------------
--- Per-line FontString pool for the idle/run-complete supported-raids list.
--- Each rendered line is its own widget so toggle Buttons can anchor to
--- the line's FontString and stay aligned. Legend rows (skip + entrance
--- keys) live in a parallel array so AutoSize excludes them from the
--- list-height budget (the legend space is reserved in the footer).
+-- Per-line FontString pool for the supported-raids list; one widget per line
+-- so toggle Buttons can anchor to it. Legend rows sit in a parallel array so
+-- AutoSize excludes them from the list-height budget.
 -- ---------------------------------------------------------------------------
 panel.idleListLines        = {}
 panel.idleListLegendLines  = {}
 panel.idleListLinePool     = {}
 
--- Single persistent divider drawn above the idle-list legend block, to
--- separate the Routing/Waypoint/skip key rows from the last raid pill row.
--- Created once, repositioned + shown/hidden per refresh.
---
--- The line texture is a pure-WHITE alpha-mask (the shape lives in the alpha
--- channel: a thin band that fades out at both ends), tinted to the theme
--- magenta in code via SetVertexColor. Baking color into the art and keying it
--- out washed the color toward white and looked fuzzy; a white mask + vertex
--- tint stays crisp and true. Texture sharpening is disabled
--- (SetTexelSnappingBias/filter) to avoid the soft-edge blur. A small cyan gem
--- texture sits centered on the line.
+-- Divider above the idle-list legend block. Created once, repositioned and
+-- shown per refresh. The line is a white alpha-mask tinted in code, with
+-- texel snapping disabled to keep the edge crisp.
 panel.legendDivider = panel:CreateTexture(nil, "ARTWORK")
 panel.legendDivider:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-line")
 panel.legendDivider:SetVertexColor(C_PINK[1], C_PINK[2], C_PINK[3], 0.55)
@@ -1276,17 +1134,8 @@ local function ReleaseIdleListLines()
         fs:Hide()
         fs:ClearAllPoints()
         fs:SetText("")
-        -- Clear the _nextGap sentinel used by the spacer-handling
-        -- code in RefreshIdleList. Without this, a FontString that
-        -- was the final row before a spacer in a prior render
-        -- carries SPACER_GAP=6 into the pool. The NEXT render that
-        -- recycles this FontString -- for any row, anywhere -- would
-        -- then anchor its successor row with SPACER_GAP instead of
-        -- ROW_GAP, producing a 4px-too-large gap below a single row
-        -- somewhere in the middle of the list. The exact row depends
-        -- on pool acquisition order, which is why this bug presents
-        -- as "one weird gap somewhere" rather than a systemic stride
-        -- issue.
+        -- Clear the spacer sentinel, or a recycled FontString carries it
+        -- into an unrelated row on the next render.
         fs._nextGap = nil
         table.insert(panel.idleListLinePool, fs)
     end
@@ -1309,13 +1158,9 @@ local function ReleaseIdleListLines()
     if panel.legendDividerGem then panel.legendDividerGem:Hide() end
 end
 
--- In-raid "Boss Progress" checklist: per-line FontString pool, same
--- architecture as the idle-list pool above. Each visible boss row is
--- its own FontString, anchored top-down via BOTTOMLEFT-of-previous
--- chains. The pool exists in parallel rather than sharing
--- idleListLinePool because the two surfaces have different lifecycles
--- (in-raid vs idle/run-complete) and different release triggers, and
--- the parallel design makes the ownership obvious in tracebacks.
+-- Boss Progress checklist pool, same architecture as the idle-list pool.
+-- Parallel rather than shared: the two surfaces have different lifecycles and
+-- release triggers.
 panel.progressListLines    = {}
 panel.progressListLinePool = {}
 
@@ -1421,12 +1266,8 @@ do
         wipe(panel.wingStrikes)
     end
 
-    -- Wing-expand chevron button. Uses two pre-oriented WHITE triangle
-    -- textures (TriRight for collapsed, TriDown for expanded) swapped by
-    -- panel.SetWingChevron -- NOT runtime SetRotation, which bleeds the
-    -- texture past its bounds (oversized footprint + edge sampling). White
-    -- source means SetVertexColor tints to a clean SOLID color. Used at the
-    -- raid level (pill row) and wing level (wing header).
+    -- Two pre-oriented white triangle textures swapped by SetWingChevron, not
+    -- runtime SetRotation -- rotation bleeds the texture past its bounds.
     function panel.AcquireWingToggleButton()
         local btn = table.remove(panel.wingToggleButtonPool)
         if btn then return btn end
@@ -1470,12 +1311,9 @@ do
         wipe(panel.wingToggleButtons)
     end
 
-    -- Draw a strikethrough over a dead boss's name. bossFS is the wingBoss
-    -- row's FontString. The FontString left-anchors at the row's left edge
-    -- but the visible name is indented (leading spaces), so the line must
-    -- start at the name, not the FontString left. We measure the indent's
-    -- width and span only the name portion. indentStr is the exact leading
-    -- whitespace the row used so the measured offset matches.
+    -- Strikethrough over a dead boss's name. The FontString left-anchors at
+    -- the row edge but the name is indented, so the indent's width is measured
+    -- and the line spans only the name.
     function panel.StrikeBossName(bossFS, fontSize, indentStr)
         local fullW = bossFS:GetStringWidth() or 0
         if fullW <= 0 then return end
@@ -1709,15 +1547,9 @@ panel.settingsBtn = MakeActionButton("Settings", RR.L["Settings"], "SettingsIcon
 -------------------------------------------------------------------------------
 -- ApplySettings + auto-sizing
 --
--- Design note: the old approach had two independent sliders (font size and
--- window scale) and a fixed panel height. Users could easily pick a font
--- size that overflowed the frame. The fix is auto-sizing: after font/scale
--- are applied, the frame measures its current content and re-fits. The
--- sliders remain as user preferences, but the frame always accommodates
--- the content they produce.
---
--- Called after any change that affects rendered size (font, scale, content
--- reflow). Safe to call frequently -- cheap on modern hardware.
+-- After font and scale are applied, the frame measures its content and
+-- re-fits, so no font size can overflow it. Called after any change that
+-- affects rendered size; safe to call frequently.
 -------------------------------------------------------------------------------
 
 -- Extra breathing room reserved below the last top-down widget. The main
@@ -1766,21 +1598,12 @@ function UI.ApplySettings()
     SafeSetFont(panel.titleRaidName, RR:GetChromeFont(), TITLE_SIZE, "OUTLINE")
 
     local bump = RR:GetSetting("fontSize", 12) - 12
-    -- Each entry is { widget, baseSize, flags, useBodyFontStyle? }. The
-    -- optional 4th element (truthy) routes the font through GetBodyFont
-    -- so the entry respects the user's bodyFontStyle setting (04B_03 /
-    -- Pixel Operator / Standard). Entries without the flag always use
-    -- BODY_FONT (FRIZQT).
+    -- { widget, baseSize, flags, useBodyFontStyle? }. The 4th element routes
+    -- the font through GetBodyFont so the entry follows the user's
+    -- bodyFontStyle; without it the entry stays on BODY_FONT.
     --
-    -- Scope rule for the bodyFontStyle toggle: everything in the panel
-    -- body participates; header chrome (titleRetro/titleRuns, mode),
-    -- footer chrome (credit, whatsNewLabel), version glyph, and the
-    -- action button row are locked to their construction-time fonts
-    -- and NOT routed through targets. The action buttons use the
-    -- UIPanelButtonTemplate default font; credit and whatsNewLabel
-    -- are 04B_03, version.glyph is FRIZQT, mode is 04B_03 -- all set
-    -- at construction. Only widgets that the user reads as "panel
-    -- content" appear in this table.
+    -- Only panel BODY widgets belong here. Header and footer chrome, the
+    -- version glyph and the action buttons stay on their construction fonts.
     local targets = {
         { panel.raid,       14, "",        true },
         { panel.pills,      11, "",        true },
@@ -1795,40 +1618,15 @@ function UI.ApplySettings()
         { panel.listHeader, 12, "OUTLINE", true },
         { panel.list,       12, "",        true },
     }
-    -- ForceFontRelayout is needed for FontStrings whose `GetStringHeight`
-    -- gets read by AutoSize (so the panel re-fits around the bumped font
-    -- on the same frame). It works by calling fs:SetWidth(fs:GetWidth())
-    -- to poke the layout system, which is fine when the FontString already
-    -- has an explicit width or two horizontal anchors -- in those cases
-    -- the width returned by GetWidth IS the constraint width.
-    --
-    -- It is HARMFUL for FontStrings that size to their content (single
-    -- horizontal anchor, no SetWidth). Those return their natural rendered
-    -- width from GetWidth(), and pinning that width via SetWidth pre-bump
-    -- locks the FontString to the OLD font's render extent. When the font
-    -- is then bumped larger, the text wraps (left-anchored case) or
-    -- truncates with an ellipsis (right-anchored case).
-    --
-    -- Currently no targets need to skip relayout (all entries are
-    -- body widgets with explicit widths or stable anchoring). The
-    -- footer chrome -- credit, whatsNewLabel, version.glyph -- is
-    -- fonted at construction and not in this table at all.
+    -- ForceFontRelayout pokes the layout system so AutoSize can read a bumped
+    -- font's height on the same frame. It is HARMFUL for content-sized
+    -- FontStrings, which it pins to the old font's extent -- those go here.
+    -- Currently empty; every target has an explicit width or stable anchoring.
     local skipRelayout = {}
     for _, t in ipairs(targets) do
-        -- The 4th tuple element (truthy) opts the widget into the
-        -- bodyFontStyle toggle: font choice from GetBodyFont, size
-        -- scaled by the active font's per-font sizeFactor. Widgets
-        -- without the flag stay on BODY_FONT (FRIZQT) at the literal
-        -- baseSize -- those are widgets that don't participate in the
-        -- toggle (e.g., the version glyph).
-        --
-        -- Body-toggle widgets also get a 1px black shadow applied,
-        -- matching SetBodyFont's contract. Pixel fonts at non-integer
-        -- pixel sizes antialias glyph edges to partial opacity, which
-        -- reads as "dim" against the dark backdrop -- the shadow
-        -- restores perceived contrast. Cheap to apply unconditionally
-        -- since shadow state persists across SetFont calls without
-        -- being reset.
+        -- Body-toggle widgets take GetBodyFont and the active font's
+        -- sizeFactor, plus a 1px shadow -- pixel fonts antialias to partial
+        -- opacity at non-integer sizes and read as dim without it.
         local size = math.max(8, t[2] + bump)
         local font
         if t[4] then
@@ -1847,15 +1645,9 @@ function UI.ApplySettings()
         end
     end
 
-    -- Ancillary frames: popup and settings panel aren't parented to panel,
-    -- so they don't inherit SetScale. Apply the same scale to the popup
-    -- directly so the whole addon feels consistent to the user.
-    --
-    -- NOTE: the settings panel deliberately does NOT scale. It's the
-    -- control surface the user is touching while dragging the scale
-    -- slider -- scaling the thing being dragged causes mouse-drag stutter
-    -- as the hitbox moves under the cursor each tick. Settings panel
-    -- stays at 1.0x so the user has a stable target to adjust from.
+    -- The popup isn't parented to panel, so it doesn't inherit SetScale.
+    -- The settings panel deliberately stays at 1.0x: it is the surface being
+    -- dragged while the scale slider moves.
     if tmogWindow then
         tmogWindow:SetScale(scale)
         -- Apply the font size directly to the popup's text without
@@ -1869,36 +1661,16 @@ function UI.ApplySettings()
         end
     end
 
-    -- Skips window: same scale treatment as tmog. Unlike tmog, the skips
-    -- window's content is per-row widgets at fixed y-offsets, so a font
-    -- size change requires re-running RefreshContent to recompute the
-    -- y-cursor and reposition rows.
-    --
-    -- Critical: this must only fire when scale/font ACTUALLY changed, not
-    -- every heartbeat. UI.Update calls ApplySettings ~1Hz (and far more
-    -- often while in a raid). An unconditional RefreshContent here rebuilds
-    -- the row widgets every tick, which releases and re-acquires the
-    -- expansion-toggle buttons -- so a click whose mouse-up landed just
-    -- after a rebuild hit a button that had already been recycled, and the
-    -- expand/collapse silently did nothing. Idle, the tick is infrequent
-    -- enough that clicks usually survived; in a raid the constant refresh
-    -- ate them, which is why the menus "wouldn't expand inside a raid."
-    -- Gate on a change to scale or font size so a shown window only
-    -- rebuilds when the layout inputs change, leaving toggle clicks intact.
-    -- ALSO reset the expand state when the current-raid context changes,
-    -- so expands don't carry across a zone-in/out. Keyed on instanceID
-    -- (nil when not in a raid) -- a discrete change, not a per-tick one,
-    -- so it doesn't reintroduce the click-eating churn.
+    -- The skips window's rows sit at fixed y-offsets, so a font change needs
+    -- a RefreshContent to reposition them. Gate that on scale or font size
+    -- ACTUALLY changing: rebuilding every tick recycles the toggle buttons
+    -- out from under in-flight clicks. Expand state also resets on a
+    -- raid-context change, keyed on instanceID so it stays discrete.
     if skipsWindow then
         skipsWindow:SetScale(scale)
 
-        -- Track the raid-context transition regardless of whether the
-        -- window is shown. A raid change clears the explicit expand
-        -- choices so the next render resets to a clean all-collapsed
-        -- state. This MUST run even while the window is closed --
-        -- otherwise expanding a few sections, closing the window, then
-        -- zoning out would leave those stale expands to reappear when
-        -- the window is reopened, because the reset never fired.
+        -- Tracked even while the window is closed: otherwise expands made
+        -- before closing reappear on reopen because the reset never fired.
         local raidKey = RR.currentRaid and RR.currentRaid.instanceID or nil
         if skipsWindow._lastRaidKey ~= raidKey then
             skipsWindow._lastRaidKey = raidKey
@@ -1910,13 +1682,9 @@ function UI.ApplySettings()
         if skipsWindow:IsShown() and skipsWindow.RefreshContent then
             local fontSize = RR:GetSetting("fontSize", 12)
             local fontStyle = RR:GetSetting("bodyFontStyle", "standard")
-            -- Rebuild on a layout-input change (scale/font size/font family)
-            -- or when the raid transition above flagged a needed rebuild.
-            -- Gating keeps the per-tick churn away (which would eat toggle
-            -- clicks). Font FAMILY must be tracked too: changing the body font
-            -- (Friz / 04B_03 / VT323) without changing the size still needs a
-            -- rebuild so the rows pick up the new font, the same way the idle
-            -- list does via ApplySettings' targets table.
+            -- Rebuild on a layout-input change or a flagged raid transition.
+            -- Font FAMILY counts as an input: changing it without changing
+            -- size still needs the rows to pick up the new font.
             if skipsWindow._lastScale ~= scale
                or skipsWindow._lastFontSize ~= fontSize
                or skipsWindow._lastFontStyle ~= fontStyle
@@ -1929,12 +1697,9 @@ function UI.ApplySettings()
             end
         end
     end
-    -- Achievements window: scale applied like the others. The window uses a
-    -- row pool (one frame per row, like skips), so font-size or font-family
-    -- changes affect row spacing and per-cell font metrics. Gate the rebuild
-    -- on those layout inputs rather than refreshing every tick -- the old
-    -- unconditional per-tick RefreshContent was wasteful and risked eating
-    -- row interactions the same way skips did before its gate.
+    -- Row-pooled like skips, so font size and family change row spacing.
+    -- Gated on those inputs rather than refreshing every tick, which would eat
+    -- row interactions.
     if achievementsWindow then
         achievementsWindow:SetScale(scale)
         if achievementsWindow:IsShown() and achievementsWindow.RefreshContent then
@@ -1952,12 +1717,8 @@ function UI.ApplySettings()
     end
     -- (intentionally no scale applied to settingsFrame)
 
-    -- Apply panel opacity. Reads the current backdrop RGB from each window
-    -- and substitutes the alpha channel only -- text and other content
-    -- stay full-opacity for legibility. The base RGB happens to be the
-    -- same dark grey across all four windows today (0.03/0.03/0.03), but
-    -- reading from the live backdrop instead of hardcoding keeps this
-    -- correct if a window's backdrop tint changes in the future.
+    -- Substitutes the alpha channel only, reading each window's live backdrop
+    -- RGB rather than hardcoding it. Text stays full-opacity.
     local opacity = RR:GetSetting("panelOpacity", 1.0)
     local function ApplyOpacity(frame)
         if not frame then return end
@@ -1998,27 +1759,13 @@ end
 -- Minimize / maximize
 -- =============================================================================
 --
--- Minimized mode renders the panel as a tiny title-bar (logo + RETRO RUNS
--- text + minimize/close buttons), with all body fields and footer action
--- buttons hidden. Toggle via the minimize button to the left of the close X.
--- Persists across /reload via the `minimized` setting in RetroRunsDB.
---
--- The minimized panel height is fixed at MINIMIZED_PANEL_H. AutoSize is a
--- no-op while minimized, so subsequent UI.Update calls don't override the
--- fixed height. Maximizing flips the setting back, re-shows everything,
--- and falls through to the normal AutoSize path.
---
--- Top-pin behavior matches AutoSize: the panel's top edge stays at the
--- same screen position across the resize, so the panel doesn't visually
--- jump when minimizing/maximizing -- it grows/shrinks downward from the
--- title bar.
+-- Minimized mode renders the panel as a title-bar only, with body fields and
+-- footer buttons hidden. Persists via the `minimized` setting. Height is fixed
+-- at MINIMIZED_PANEL_H and AutoSize is a no-op while minimized. The top edge
+-- stays put across the resize, so the panel grows downward.
 
--- Height of the minimized panel. The title bar is logo (34px) + small
--- vertical padding above (10px) + below (~6px) = ~50px. We use 44px:
--- the logo extends slightly below the panel's bottom edge by design,
--- which makes the bar feel less cramped than a flush 50. The minimized bar
--- art has thin top/bottom edges, so it doesn't take the full panel inset --
--- the title/buttons are re-centered for the bar in ApplyMinimizedState.
+-- Height of the minimized panel. 44 rather than the ~50 the content needs:
+-- the logo overhangs the bottom edge by design, which reads less cramped.
 local MINIMIZED_PANEL_H = 44
 
 function UI.IsMinimized()
@@ -2045,12 +1792,8 @@ local function GetBodyAndFooterElements()
     return list
 end
 
--- Show or hide every body and footer element based on minimized state.
--- Also walks the dynamic FontString arrays (idleListLines etc.) since
--- those are populated by RefreshIdleList and need to follow the same
--- visibility rule. Pool tables (idleListLinePool etc.) hold inactive
--- frames that are already hidden by the pool mechanism, so we don't
--- touch those.
+-- Shows or hides every body and footer element, including the dynamic
+-- FontString arrays. Pool tables hold already-hidden frames and are skipped.
 local function ApplyBodyVisibility(visible)
     for _, fs in ipairs(GetBodyAndFooterElements()) do
         if fs then
@@ -2106,12 +1849,8 @@ local function UpdateMinimizeIcon()
     panel.minimizeButton._tex:SetTexture(tex)
 end
 
--- Compute the panel width needed to display just the title bar content
--- (logo + RETRO RUNS text + minimize button + close button) when
--- minimized. Read at apply-time rather than baked in as a constant
--- because the title text's rendered width depends on the font face
--- and OUTLINE flag, which could change via Settings or future
--- redesigns.
+-- Panel width for the title-bar content alone. Measured at apply time rather
+-- than baked in, since the title's width depends on font face and flags.
 
 -- Scale applied to the title wordmark and the title-row buttons. Used both
 -- when laying out the row and when computing the bar width from the title's
@@ -2139,14 +1878,9 @@ UI.MINBAR_EDGE_PX = 8        -- left clearance for the "RR" tab, which straddles
 UI.MINBAR_BODY_EDGE_PX = 16
 UI.MINBAR_RAID_EDGE_PX = 10  -- right clearance for the raid-name label
 
--- Width of the minimized bar. Derived from the title's rendered STRING width
--- (a constant for fixed "RETRO RUNS" text) rather than from live screen-edge
--- positions. The earlier GetRight()-minus-GetLeft() approach re-measured
--- absolute screen coords on every UI.Update, and those edges can resolve
--- transiently wrong while layout is mid-flight on an unrelated event (opening
--- a mailbox fires an event that runs UI.Update, and the bar grew because the
--- measured right edge came back inflated for that frame). String width can't
--- be perturbed that way, so the bar width stays stable.
+-- Width of the minimized bar, from the title's rendered STRING width rather
+-- than live screen edges -- those can resolve transiently wrong while layout
+-- is mid-flight on an unrelated event.
 local function ComputeMinimizedPanelW()
     if not panel.titleRetro or not panel.titleRuns then return nil end
     local retroW = panel.titleRetro:GetStringWidth()
@@ -2169,13 +1903,9 @@ local function ComputeMinimizedPanelW()
     local rightSideWidth   = 57
     local titleToButtonGap = 12
     if panel.titleMinNote and panel.titleMinNote:IsShown() then
-        -- Route-active bar. Two horizontal constraints; the bar must fit the
-        -- wider. String widths are pre-scale; multiply by the string's
-        -- effective scale to get screen px.
-        --   top line: "RR" tab at the left edge, boss label + count at the
-        --     right edge, and a minimum open stretch of border line between
-        --     them. The right string is anchored MINBAR_RAID_EDGE_PX from the
-        --     corner, so that clearance keeps a chunk of line to its right.
+        -- Route-active bar: the wider of two constraints. String widths are
+        -- pre-scale, so multiply by effective scale for screen px.
+        --   top line: "RR" tab left, boss label + count right, open line between.
         --   body row: the minNote, left-anchored, clearing the buttons.
         local tabScale      = TITLE_SCALE * RR_TITLE_TAB_SCALE
         local edge          = UI.MINBAR_EDGE_PX
@@ -2201,43 +1931,22 @@ local function ComputeMinimizedPanelW()
     return math.ceil(titleRightLocal + titleToButtonGap + rightSideWidth)
 end
 
--- Default width to use if ComputeMinimizedPanelW can't measure (text
--- not yet rendered at first-call time after a fresh reload). 240px is
--- a reasonable fit for the current "RETRO RUNS" text at 12pt OUTLINE
--- with the standard font; close enough for a one-frame fallback before
--- the next UI.Update call (which fires within 1 second on the
--- heartbeat) re-measures and applies the precise width.
+-- Fallback for when the text isn't rendered yet after a reload. The next
+-- heartbeat re-measures within a second.
 local MINIMIZED_PANEL_W_FALLBACK = 240
 
--- Apply the panel's height and visibility to match the current minimized
--- setting. The actual setting flip is done by SetMinimized below; this
--- helper just acts on whatever the setting currently says, so it can
--- also be called at restore-time (after /reload, when the saved setting
--- is loaded but the panel state hasn't been touched yet).
+-- Applies height and visibility for whatever the minimized setting currently
+-- says, so it also serves restore-time after /reload. Runs on every refresh
+-- and deliberately does not short-circuit: RefreshIdleList acquires new
+-- FontStrings later in the same update that must inherit the current state.
 --
--- Called from UI.Update on every refresh (heartbeat + events). The
--- iteration covers ~25 elements; trivial cost at 1Hz. We don't
--- short-circuit on "state hasn't changed" because RefreshIdleList
--- (called later in UI.Update) acquires NEW FontStrings into
--- idleListLines that need to inherit the current minimized visibility,
--- and a short-circuit would leave them visible when we're minimized.
--- Position the title wordmark and the top-right buttons for the current state.
--- Expanded: top-anchored under the frame's top rail (offset by the vertical
--- frame inset). Minimized: vertically centered in the short bar, where the bar
--- art's thin top/bottom edges leave room. Without this, the expanded top-offset
--- (-12 - FRAME_INSET_Y) strands the title near the bottom of the short bar with
--- a void above it.
--- Whether the minimized bar is in its route-active form right now: a minNote
--- to show AND the active route yields a boss count and a current target. In
--- this form the bar draws the bespoke frame art and puts the "RR" tab plus the
--- boss label and count on the top line; the single body row shows the minNote.
--- When false the bar is the plain single-row "RETRO RUNS" wordmark on the
--- shared frame. On the UI table, not a file local, to stay under the 200-local
--- ceiling here.
--- True when the minimized bar is in its two-row form: the bespoke border art
--- with the "RR" tab and a right-hand string straddling the top frame line.
--- That form serves an active route AND a completed run, which shows the
--- completion banner and the exit line in the same slots.
+-- Positions the wordmark and top-right buttons: top-anchored when expanded,
+-- vertically centred in the short bar when minimized.
+--
+-- Route-active form needs a minNote plus a boss count and current target from
+-- the active route. It draws the bespoke frame art with the "RR" tab and the
+-- boss label on the top line, and the minNote as the body row. A completed run
+-- uses the same two-row form for its banner and exit line.
 function UI.MinimizedBarRouteActive()
     if RR.IsActiveRouteComplete and RR:IsActiveRouteComplete() then
         return true
@@ -2264,13 +1973,8 @@ local function ApplyTitleLayoutForState(minimized)
         panel.closeButton:SetScale(titleScale)
         panel.minimizeButton:SetScale(titleScale)
 
-        -- Decide whether the bar is in its route-active form. GetActiveMinNote
-        -- returns nil when there's no active routing step OR the current seg
-        -- carries no minNote, so a non-nil return is the signal that genuine
-        -- per-segment data exists. Only then collapse the wordmark to "RR" and
-        -- put the boss label + count on the top line; otherwise keep the full
-        -- "RETRO RUNS" wordmark. This keeps the bar unchanged until minNote
-        -- data is authored into the routing segments.
+        -- A non-nil GetActiveMinNote is the signal that per-segment data
+        -- exists; only then does the wordmark collapse to "RR".
         local minNote = RR.GetActiveMinNote and RR:GetActiveMinNote() or nil
         local showNote = minNote and minNote ~= ""
 
@@ -2306,16 +2010,9 @@ local function ApplyTitleLayoutForState(minimized)
             panel.titleRuns:Hide()
             panel.titleRetro:SetScale(titleScale * RR_TITLE_TAB_SCALE)
 
-            -- Boss label + position on the top line (titleRaidName repurposed as
-            -- the top-line target string). Label is the shortest form for the
-            -- boss the minNote points at; the position is that boss's place in
-            -- the route's kill order ("2/4" = second of four), so it reads as
-            -- "which boss you're on", scoped to the active route (the wing's
-            -- bosses in an LFR wing, the full raid on N/H). The position takes
-            -- the brand blue, which separates it from the white boss name while
-            -- staying legible: at tab scale each glyph is a few pixels inside a
-            -- black outline, and a gray dim enough to read as secondary gets
-            -- swallowed by it, where a saturated color holds up.
+            -- Boss label plus its place in the route's kill order. The
+            -- position takes brand blue rather than gray: at tab scale a dim
+            -- gray gets swallowed by the black outline.
             local pos, total = RR:GetActiveTargetPosition()
             local label = RR:GetActiveTargetLabel()
             local posColor = "|cff4dccff"
@@ -2345,17 +2042,12 @@ local function ApplyTitleLayoutForState(minimized)
             panel.titleMinNote:Hide()
         end
 
-        -- Placement. No route: the full wordmark centers on the bar (LEFT anchor
-        -- = mid-height), unchanged. Route active: the "RR" tab straddles the TOP
-        -- frame line at the left (LEFT point at y = 0 relative to TOPLEFT puts
-        -- the string's vertical center on the line), the boss label + count
-        -- straddles the same line at the right, and the minNote is the single
-        -- body row centered in the bar.
+        -- No route: the wordmark centres on the bar. Route active: the "RR"
+        -- tab and the boss label straddle the top frame line at either end,
+        -- with the minNote as the body row.
         --
-        -- Offset scale space: SetPoint offsets are interpreted in the anchored
-        -- string's OWN effective scale. The top-line strings run at
-        -- s * RR_TITLE_TAB_SCALE, so their offsets divide by that combined
-        -- scale; the minNote runs at plain s and divides by s.
+        -- SetPoint offsets are in the anchored string's OWN effective scale --
+        -- top-line strings divide by s * RR_TITLE_TAB_SCALE, the minNote by s.
         local tabScale  = titleScale * RR_TITLE_TAB_SCALE
         -- Buttons sit inside the bar's curved right corner. The right end cap's
         -- border arc occupies the rightmost few screen px of the frame, so the
@@ -2441,12 +2133,9 @@ function UI.ApplyMinimizedState()
     ApplyBorderArtForState(minimized)
 
     if minimized then
-        -- Capture top + left edges before resize so we can re-anchor
-        -- the panel to keep BOTH edges at the same screen position.
-        -- Same pattern as AutoSize's TOP-PIN extended to also pin LEFT:
-        -- SetHeight + SetWidth on a CENTER-anchored frame redistributes
-        -- both deltas equally on each side, so without this the panel
-        -- would visually jump in two directions when minimizing.
+        -- Pin both edges: SetHeight and SetWidth on a CENTER-anchored frame
+        -- each redistribute their delta equally, so the panel would otherwise
+        -- jump in two directions.
         local oldH = panel:GetHeight() or MINIMIZED_PANEL_H
         local oldW = panel:GetWidth() or PANEL_W
         -- The route-active bar is single-row too now (the boss label and count
@@ -2466,14 +2155,9 @@ function UI.ApplyMinimizedState()
             if heightChanged then panel:SetHeight(newH) end
             if widthChanged  then panel:SetWidth(newW)  end
             if oldTop and oldLeft and pcx and pcy then
-                -- Compute new CENTER-anchor offsets that keep the old
-                -- top edge AND old left edge at the same screen
-                -- position. Both math derivations from the
-                -- CENTER-anchor identity:
-                --   panel.top  = panel.center.y + height/2
-                --   panel.left = panel.center.x - width/2
-                -- Solve for new center given old edge values + new
-                -- dimensions. All in panel-local scaled units.
+                -- New CENTER offsets holding the old top and left edges, from
+                --   top  = center.y + height/2
+                --   left = center.x - width/2
                 local newCenterY = oldTop  - (newH / 2)
                 local newCenterX = oldLeft + (newW / 2)
                 -- Convert from panel-local screen pixels back to the
@@ -2492,12 +2176,8 @@ function UI.ApplyMinimizedState()
         -- state per-heartbeat call after minimize completed), skip
         -- the resize entirely to keep the per-tick cost bounded.
     else
-        -- Maximize-side: restore full width if we were minimized.
-        -- Width handling is symmetric to the minimize path's LEFT-pin
-        -- so the panel grows back rightward from its current left edge,
-        -- not from center. Without this, a previously-minimized panel
-        -- maximizing on the LEFT half of the screen would jump rightward
-        -- as the center stayed fixed and the right edge expanded.
+        -- Symmetric to the minimize path's LEFT-pin, so the panel grows back
+        -- rightward from its current left edge rather than from centre.
         local oldW = panel:GetWidth() or PANEL_W
         -- Geometry writes are skipped mid-drag (see the OnDragStart note).
         if math.abs(PANEL_W - oldW) > 0.5 and not panel.isBeingDragged then
@@ -2525,27 +2205,17 @@ function UI.ApplyMinimizedState()
     end
 end
 
--- Public toggle entry point. Used by the minimize button's OnClick.
--- Could also be called from a slash command in a future enhancement.
---
--- After flipping the setting, runs a full UI.Update so body-content
--- visibility state (e.g. encounter/transmog being explicitly Hide()'d
--- in idle state at the end of UI.Update) is re-asserted correctly when
--- maximizing. Without the explicit Update, ApplyBodyVisibility(true)
--- would briefly un-hide elements that should stay hidden in idle, and
--- they'd flicker until the next heartbeat tick (~1 second).
+-- Public toggle, used by the minimize button. Runs a full UI.Update after the
+-- flip so idle-state visibility is re-asserted -- otherwise elements that
+-- should stay hidden flicker until the next heartbeat.
 function UI.SetMinimized(value)
     RR:SetSetting("minimized", value and true or false)
     UI.Update()
 end
 
--- Shared "open full / close" toggle used by both the minimap button and
--- the /rr command. Open path always shows the fully-expanded panel,
--- regardless of the saved launchMode / minimized setting -- both entry
--- points are explicit "show me the panel" actions, so they ignore the
--- open-minimized preference and the "don't open on login" launchMode.
--- Closing simply hides it. Kept in one place so the two entry points
--- can't drift apart.
+-- Shared open/close toggle for the minimap button and the slash command. Both
+-- are explicit "show me the panel" actions, so the open path always fully
+-- expands regardless of launchMode or the minimized setting.
 function UI.TogglePanelExpanded()
     if RR:GetSetting("showPanel") then
         RR:SetSetting("showPanel", false)
@@ -2583,12 +2253,8 @@ function UI.AutoSize()
     -- Bottom of the layout is whichever pool is non-empty -- in-raid
     -- boss-progress lines, or idle supported-raids list.
     local fontSize   = RR:GetSetting("fontSize", 12)
-    -- Row height is the single-line FontString height (the font pixel
-    -- size). The progress/idle rows are bare FontStrings laid out at a
-    -- -2px stride (see the GetProgressLines / idle-list layout), so the
-    -- per-row advance is fontHeight + 2px gap. An earlier +4 here padded
-    -- every row by 4px the FontStrings don't occupy, inflating the panel
-    -- by ~4px * rowCount -- ~56px of dead space at SoO's 14 bosses.
+    -- Per-row advance is fontHeight + the 2px gap the rows are laid out at.
+    -- Any extra padding here multiplies across every row.
     local lineHeight = GetBodyFontSize(fontSize)
 
     local listH = 0
@@ -2622,16 +2288,9 @@ function UI.AutoSize()
     -- the layout pass. The transmog-popup sizing below is unaffected --
     -- it never writes panel geometry.
     if hasContent and not panel.isBeingDragged then
-        -- Footer reserve covers (from the panel's bottom edge): the action
-        -- button row and, in idle mode, the skip/entrance legend block that
-        -- pins above it. The legend block bottom-anchors LEGEND_BOTTOM_OFFSET
-        -- px up from the panel bottom (see RefreshIdleList; that value already
-        -- clears the button row plus a cushion). The reserve must therefore
-        -- measure from that anchor, NOT from the button-row top -- the earlier
-        -- math used buttonsTopFromBottom (=50) as the legend base, undershooting
-        -- by the LEGEND_BOTTOM_OFFSET-vs-button-top gap and letting the list
-        -- overlap the Routing/Waypoint lines when a tall expansion is open.
-        -- Legend row metrics scale with the active body font's sizeFactor.
+        -- Footer reserve: the action button row, plus the legend block in
+        -- idle mode. Measured from LEGEND_BOTTOM_OFFSET, not the button-row
+        -- top -- the gap between them is what the list would overlap into.
         local buttonsTopFromBottom = BUTTON_Y + BUTTON_H  -- BUTTON_Y includes frame inset
         local isInRaidMode         = #panel.progressListLines > 0
         local footerReserve
@@ -2640,13 +2299,9 @@ function UI.AutoSize()
             local FOOTNOTE_RESERVE = GetBodyFontSize(10) + 12
             footerReserve = buttonsTopFromBottom + FOOTNOTE_RESERVE
         else
-            -- Must mirror RefreshIdleList's legend constants so the two stay
-            -- in sync. The legend block bottom sits at LEGEND_BOTTOM_OFFSET
-            -- from the panel bottom; above it stack up to 3 rows worst-case
-            -- (skip + Routing + Waypoint), each GetBodyFontSize(LEGEND_FONT_
-            -- SIZE=10) + 4px text-row padding, with LEGEND_INTER_GAP gaps
-            -- between them. A final cushion sits above the topmost legend row
-            -- to separate it from the last raid pill row.
+            -- Mirrors RefreshIdleList's legend constants: up to 3 rows
+            -- worst-case, each a legend-size row plus padding, with gaps
+            -- between and a cushion above the topmost.
             local LEGEND_BOTTOM_OFFSET = BUTTON_Y + BUTTON_H + 12  -- BUTTON_Y includes frame inset
             local LEGEND_INTER_GAP     = 4
             local LEGEND_TOP_CUSHION   = 36  -- gap between last pill row and legend (holds the divider)
@@ -2665,12 +2320,9 @@ function UI.AutoSize()
         local parentTop      = panel:GetTop()
         local listHeaderBot  = panel.listHeader and panel.listHeader:GetBottom()
         if parentTop and listHeaderBot then
-            -- COORDINATE-SYSTEM NOTE: per Wowpedia "UI scaling",
-            -- GetTop/GetBottom/GetHeight all return values in the
-            -- FRAME's own scaled coordinate system, which is also what
-            -- SetHeight expects. No division by scale needed for
-            -- `desired`. The only scale conversion is for `maxH` since
-            -- UIParent has a different effective scale than panel.
+            -- GetTop/GetBottom/GetHeight and SetHeight all work in the
+            -- FRAME's own scaled space, so only maxH needs converting --
+            -- UIParent's effective scale differs.
             local scale          = panel:GetScale() or 1
             local topToListTop   = (parentTop - listHeaderBot) + 4
             local desired        = topToListTop + listH + footerReserve
@@ -2679,12 +2331,8 @@ function UI.AutoSize()
             local minH           = 240
             local newH           = math.max(minH, math.min(maxH, desired))
 
-            -- Capture geometry BEFORE SetHeight so we work with the
-            -- pre-resize frame state. SetHeight on a CENTER-anchored
-            -- frame moves the center immediately (WoW redistributes
-            -- the delta equally above and below), so any GetCenter()
-            -- call after SetHeight returns the shifted center, not the
-            -- original one -- causing X to drift on every resize.
+            -- Captured BEFORE SetHeight: that moves the centre immediately,
+            -- so a later GetCenter() returns the shifted value and X drifts.
             local oldTop  = panel:GetTop()
             local oldH    = panel:GetHeight() or newH
             local fscale  = panel:GetEffectiveScale()
@@ -2692,19 +2340,10 @@ function UI.AutoSize()
             local _, pcy  = UIParent:GetCenter()
             panel:SetHeight(newH)
             if oldTop and oldH and pcy and math.abs(newH - oldH) > 0.5 then
-                -- TOP-PIN: compute the CENTER-anchor Y offset that keeps
-                -- the top edge at the same screen position after resize.
-                -- X never changes on a vertical resize, so we reuse the
-                -- already-saved panelX rather than re-deriving it from
-                -- GetCenter() (which would return the shifted center and
-                -- accumulate error across repeated expand/collapse calls).
-                --
-                -- All values from GetTop/GetHeight are in panel-local
-                -- scaled space. SetPoint anchor offsets are also in the
-                -- ANCHORED frame's scaled coord system (NOT UIParent's
-                -- -- per Wowpedia "UI scaling"), so we convert from
-                -- screen pixels back to panel-scaled units by dividing
-                -- by fscale, not pscale.
+                -- Top-pin: the CENTER-anchor Y that holds the top edge. X
+                -- reuses the saved value rather than GetCenter(), which would
+                -- accumulate error across repeated resizes. Offsets are in the
+                -- anchored frame's scaled space, so divide by fscale.
                 local newCenterY = oldTop - (newH / 2)  -- panel scale
                 local y = (newCenterY * fscale - pcy * pscale) / fscale
                 local x = RR:GetSetting("panelX", 0)
@@ -2721,17 +2360,9 @@ function UI.AutoSize()
     if PositionLegendDivider then PositionLegendDivider() end
 
     -- TRANSMOG POPUP -------------------------------------------------------
-    -- Size deterministically from the content's line count rather than
-    -- measuring rendered text (GetStringHeight is lazy after SetFont and
-    -- pops in on the first frame). The content + sanctum line live in a
-    -- ScrollFrame; the legend is a fixed footer. So we:
-    --   1. Size the scroll CHILD to the full content height (text+sanctum),
-    --      so everything is reachable by scrolling.
-    --   2. Size the POPUP to chrome + a capped content viewport + the legend
-    --      footer, clamped to the ceiling. When content fits under the cap,
-    --      the viewport equals the content and no scrollbar shows; when it
-    --      exceeds, the viewport caps and UIPanelScrollFrameTemplate's bar
-    --      appears.
+    -- The scroll CHILD takes the full content height so everything is
+    -- reachable; the POPUP takes chrome + a capped viewport + the legend
+    -- footer. Content under the cap shows no scrollbar.
     if tmogWindow and tmogWindow.contentText then
         local text   = tmogWindow.contentText
         local scroll = tmogWindow.contentScroll
@@ -2741,12 +2372,8 @@ function UI.AutoSize()
         local renderedSize = math.max(8, popupFontSize - 1)
         local popupLineHeight   = GetBodyFontSize(renderedSize) + 0.5
 
-        -- Width: the design width is a floor, not a fixed size. Localized
-        -- item rows can run longer than the English rows the design width
-        -- was chosen around; measure the widest content line and widen the
-        -- popup so rows render unwrapped, up to a ceiling past which
-        -- wrapping resumes. English content fits the floor and the popup
-        -- stays pixel-identical.
+        -- The design width is a floor. Localized rows can run longer, so the
+        -- widest line is measured and the popup widens up to a ceiling.
         local content = text:GetText() or ""
         local measure = tmogWindow.lineMeasure
         if measure then
@@ -2777,26 +2404,33 @@ function UI.AutoSize()
                     maxLineW = sanctumLineWidth
                 end
             end
+            for _, sectionKey in ipairs({ "trash", "hardmode", "faction" }) do
+                local sectionHeader = tmogWindow[sectionKey .. "Header"]
+                local sectionBody   = tmogWindow[sectionKey .. "Body"]
+                if sectionHeader and sectionHeader:IsShown() then
+                    measure:SetText(sectionHeader:GetText() or "")
+                    local headerW = measure:GetStringWidth() or 0
+                    if headerW > maxLineW then maxLineW = headerW end
+                end
+                if sectionBody and sectionBody:IsShown() then
+                    for line in ((sectionBody:GetText() or "")
+                            .. "\n"):gmatch("(.-)\n") do
+                        widen(line)
+                    end
+                end
+            end
             local margin = tmogWindow.contentMargin or 22
             tmogWindow:SetWidth(math.max(UI.POPUP_DESIGN_W,
                 math.min(UI.POPUP_MAX_W, math.ceil(maxLineW) + margin + 28 + 2)))
         end
 
-        -- Set the scroll + child WIDTH first, before measuring text height.
-        -- The content text wraps to the child's width, so its rendered height
-        -- depends on that width -- measuring before the width is finalized
-        -- would read a height for the wrong wrap. Width is deterministic from
-        -- the popup width (minus a 22px left inset and a 28px right inset that
-        -- leaves room for the scrollbar) and does not depend on height, so it
-        -- is safe to set first.
+        -- Width first: content wraps to the child's width, so measuring height
+        -- before it is finalized reads the height for the wrong wrap.
         if scroll then
             scroll:ClearAllPoints()
-            -- Two single-axis anchors: vertical position from the dropdown
-            -- stack (just below ddClass), horizontal from the frame's content
-            -- margin (where legend + loot list align). This keeps the scroll
-            -- column aligned with the content regardless of how far the
-            -- labeled dropdowns are inset, without depending on GetTop/GetBottom
-            -- (which can be nil mid-layout).
+            -- Two single-axis anchors, vertical from the dropdown stack and
+            -- horizontal from the content margin, so neither depends on
+            -- GetTop/GetBottom -- which can be nil mid-layout.
             local margin = tmogWindow.contentMargin or 22
             scroll:SetPoint("TOP",  tmogWindow.ddClass, "BOTTOM", 0, -10)
             scroll:SetPoint("LEFT", tmogWindow, "LEFT", margin, 0)
@@ -2809,12 +2443,9 @@ function UI.AutoSize()
             child:SetWidth(vw)
         end
 
-        -- Line-count estimate, kept ONLY as a fallback for when GetStringHeight
-        -- returns 0 (text not laid out yet). The measured height is the
-        -- authority: the estimate undercounts wrapped rows and real font
-        -- leading (a 4-line list estimated 46px but rendered 52.7px), and that
-        -- undercount sized the scroll child shorter than its own content,
-        -- producing phantom scroll range and a scrollbar on lists that fit.
+        -- Fallback only, for when GetStringHeight returns 0 before layout. The
+        -- measured height is the authority -- the estimate undercounts wrapped
+        -- rows and font leading, which produces a phantom scrollbar.
         local lineCount = 1
         for _ in content:gmatch("\n") do lineCount = lineCount + 1 end
         local estTextH = lineCount * popupLineHeight
@@ -2830,8 +2461,27 @@ function UI.AutoSize()
             sanctumH = ((sH > 1) and sH or popupLineHeight) + 2
         end
 
+        -- Collapsible sections: header (always, when shown) plus body height
+        -- (only when expanded), for the trash section and the boss-scoped
+        -- hard-mode / opposite-faction sections alike. Mirrors the sanctum
+        -- measured-or-estimated fallback so a cold GetStringHeight doesn't
+        -- clip a section.
+        local sectionsH = 0
+        for _, sectionKey in ipairs({ "trash", "hardmode", "faction" }) do
+            local sectionHeader = tmogWindow[sectionKey .. "Header"]
+            local sectionBody   = tmogWindow[sectionKey .. "Body"]
+            if sectionHeader and sectionHeader:IsShown() then
+                local hH = sectionHeader:GetStringHeight() or 0
+                sectionsH = sectionsH + ((hH > 1) and hH or popupLineHeight) + 10
+                if sectionBody and sectionBody:IsShown() then
+                    local bH = sectionBody:GetStringHeight() or 0
+                    sectionsH = sectionsH + ((bH > 1) and bH or popupLineHeight) + 2
+                end
+            end
+        end
+
         -- Full content height the scroll child must span so nothing is clipped.
-        local contentH = textH + sanctumH
+        local contentH = textH + sanctumH + sectionsH
 
         -- Color legend footer: two lines plus an 8px gap above it.
         local legendH = 2 * popupLineHeight + 8
@@ -2861,13 +2511,9 @@ function UI.AutoSize()
             scroll:SetHeight(math.max(1, viewportH))
             child:SetHeight(math.max(1, contentH))
 
-            -- The layout itself decides scrollability: content taller than
-            -- the capped viewport scrolls, anything else does not. The bar's
-            -- visibility keys off this decision rather than the engine's
-            -- reported range alone -- GetVerticalScrollRange can hold a small
-            -- phantom value (a couple of px) even when the viewport, child,
-            -- and content rects are identical, and trusting it showed a
-            -- scrollbar on lists that fit.
+            -- The layout decides scrollability, not GetVerticalScrollRange,
+            -- which can hold a phantom couple of pixels when the viewport,
+            -- child and content rects are identical.
             tmogWindow.tmogContentScrollable = contentH > (viewportH + 0.5)
 
             -- Recompute the scroll child rect so the engine's range reflects
@@ -2876,12 +2522,9 @@ function UI.AutoSize()
                 scroll:UpdateScrollChildRect()
             end
 
-            -- UIPanelScrollFrameTemplate shows its scrollbar unconditionally,
-            -- even when content fits. Install the persistent OnShow guard (no-op
-            -- after first call) and set the immediate state from the layout
-            -- decision plus the actual range. The guard + the
-            -- OnScrollRangeChanged hook together cover the template's deferred
-            -- re-show paths.
+            -- The template shows its scrollbar unconditionally, so the OnShow
+            -- guard and the OnScrollRangeChanged hook together cover its
+            -- deferred re-show paths.
             if tmogWindow.EnsureTmogBarGuard then tmogWindow.EnsureTmogBarGuard() end
             local bar = tmogWindow.ResolveTmogScrollBar
                         and tmogWindow.ResolveTmogScrollBar()
@@ -2958,22 +2601,13 @@ local DIFFICULTY_COLOR_ORDER = {
     "Raid Finder", "LFR", "Normal", "Heroic", "Mythic",
 }
 
--- Colorize difficulty words in a tip. The colorization is context-free:
--- any occurrence of "Mythic" (word boundary) gets the Mythic color,
--- regardless of whether it's being used as a difficulty label. This is
--- an acceptable trade because those words nearly always refer to
--- difficulty in an addon about raid content. Word boundaries protect
--- against partial-match horror (e.g. "Mythica" is not colored).
+-- Colorizes difficulty words in a tip, context-free and on word boundaries.
+-- Words already inside a |c...|r span are left alone, so a caret-marked
+-- ^Mythic^ keeps the author's orange.
 --
--- Author-marked ^carets^ win: words already inside a |c...|r color
--- span (e.g. caret-wrapped via HighlightNames) are left alone, so a
--- soloTip can write ^Mythic^ to force orange highlighting instead of
--- the auto-applied purple difficulty color.
--- Difficulty words to colorize, in longest-first match order. The English
--- words are always present (authored notes are English on every client);
--- the client's own difficulty names from GetDifficultyInfo are merged in,
--- so translated notes colorize on any locale with no per-locale word list.
--- Built lazily once per session; stored on the UI table.
+-- Match order is longest-first. English words are always present; the client's
+-- own difficulty names are merged in so translated notes colorize too. Built
+-- lazily once per session.
 function UI.GetDifficultyColorWords()
     if UI._difficultyColorWords then return UI._difficultyColorWords end
 
@@ -3024,19 +2658,11 @@ local function ColorizeDifficulties(text)
         for _, word in ipairs(words.order) do
             local color = words.colors[word]
             if color then
-                -- %f[%w] and %f[%W] are Lua's frontier patterns, which act
-                -- as word boundaries over letters AND digits -- difficulty
-                -- names can begin with a digit ("10 Player"), which a
-                -- letter-only frontier would never match. Each frontier is
-                -- applied only when that edge of the name is a word
-                -- character: a frontier next to a punctuation edge (the
-                -- ")" closing "10 Player (Heroic)") can never match, and
-                -- the literal punctuation already delimits the name. This
-                -- keeps "Mythic" from matching inside "Mythica" and avoids
-                -- double-coloring if the word appears inside an
-                -- already-colored segment (the |c...|r wrap makes word
-                -- boundaries stable). Localized names pass through a
-                -- magic-character escape so they read as literal text.
+                -- Frontier patterns act as word boundaries over letters AND
+                -- digits, which difficulty names need ("10 Player"). Each is
+                -- applied only when that edge is a word character; a
+                -- punctuation edge already delimits. Localized names are
+                -- escaped so they read as literal text.
                 local pattern = word:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
                 if word:find("^%w") then pattern = "%f[%w]" .. pattern end
                 if word:find("%w$") then pattern = pattern .. "%f[%W]" end
@@ -3065,25 +2691,14 @@ local function ColorizeDifficulties(text)
     return table.concat(out)
 end
 
--- Apply orange highlighting to prose. The author marks spans with
--- ^carets^ in note/travelText/soloTip strings; this function wraps each
--- marked span in the orange color code. Difficulty words
--- (LFR/Normal/Heroic/Mythic) still get their Blizzard quality colors
--- via ColorizeDifficulties, regardless of caret markup.
---
--- Caret pairs nest cleanly because gsub walks left-to-right. Unmatched
--- carets (odd count, or a stray ^ inside a marked span) get stripped
--- silently rather than producing broken color codes.
+-- Wraps ^caret^-marked spans in the orange colour code. Unmatched carets are
+-- stripped silently rather than producing broken colour codes.
 local function HighlightNames(text)
     if not text or text == "" then return text end
     text = text:gsub("%^([^%^]+)%^", function(span)
-        -- A caret span is a proper noun. Location names (map/sub-zone
-        -- names, portal destinations) have official localized forms in the
-        -- locale table, so look each span up: a hit renders the translated
-        -- name, a miss (RR.L returns the key) renders the original. This is
-        -- how place names inside travel prose get localized -- boss/NPC
-        -- names, which usually have no locale entry, keep their source form.
-        -- Inert on English clients: RR.L returns the key unchanged.
+        -- A caret span is a proper noun. Place names have locale entries and
+        -- render translated; boss and NPC names usually don't and keep their
+        -- source form.
         local localized = (RR.L and RR.L[span]) or span
         -- A name the game records under two forms is stored with both,
         -- separated by a vertical bar, so a routing gate can accept either.
@@ -3098,12 +2713,8 @@ local function HighlightNames(text)
 end
 
 
--- The world map's currently-displayed mapID can be stale (the player
--- may have last viewed a different sub-zone), so using it can surface
--- a wrong-step-segment note. Map RENDERING does use worldMapID --
--- that's the right input for "draw segments on whichever map is
--- visible" -- but text matching needs to follow the player's physical
--- location.
+-- Text matching follows the player's physical location, not the world map's
+-- displayed mapID, which can be stale. Map RENDERING does use worldMapID.
 local function GetBestMapForStep(step)
     if not step then return nil end
     return C_Map and C_Map.GetBestMapForUnit
@@ -3113,22 +2724,9 @@ end
 -- map-resolution logic the renderer uses, rather than reimplementing it.
 UI.GetBestMapForStep = GetBestMapForStep
 
--- Per-difficulty pill row text. Renders as a bracketed pipe-separated
--- strip matching the tmog dot row's visual style (BuildPerDiffRow at
--- ~line 2080):
---   [ LFR 0/8 | N 8/8 | H 0/8 | M 0/8 ]
--- with brackets and pipes in dark gray. Pill text color uses the same
--- 3-state palette as the Boss Progress checklist:
---   green  -- this difficulty is fully cleared (count == total)
---   yellow -- this is the player's current difficulty
---   gray   -- everything else (untouched, or partial-not-active;
---             the x/y count carries the partial info)
--- Complete trumps active: a player standing in a fully cleared
--- difficulty sees green, not yellow.
---
--- Returns "" when no kill data available (raid not loaded, API
--- unsupported, no encounters mapped) so the FontString just renders
--- empty without breaking layout.
+-- Per-difficulty pill row: [ LFR 0/8 | N 8/8 | H 0/8 | M 0/8 ]. Green when a
+-- difficulty is fully cleared, yellow for the player's current one, gray
+-- otherwise -- complete trumps active. Empty string when no kill data.
 local function BuildPillsText()
     local counts = RR:GetPerDifficultyKillCounts()
     if not counts then return "" end
@@ -3141,12 +2739,8 @@ local function BuildPillsText()
     local ACTIVE_HEX   = "ffff00"
     local PENDING_HEX  = "9d9d9d"
 
-    -- Short label per display bucket. LFR (17) is intentionally absent:
-    -- like the rest of the addon, the pill row covers Normal and up,
-    -- while LFR sources live in the transmog browser. Mists raids drop
-    -- Mythic (16); the model's bucket list handles that automatically.
-    -- 3/4/5/6 are the Wrath size difficulties, kept as their own buckets
-    -- because each size has its own loot table.
+    -- Short label per display bucket. LFR is absent by design -- the pill row
+    -- covers Normal and up. 3/4/5/6 are the Wrath sizes, each its own bucket.
     local BUCKET_LABEL = {
         [3] = "10N", [4] = "25N", [5] = "10H", [6] = "25H",
         [14] = "N", [15] = "H", [16] = "M",
@@ -3229,15 +2823,9 @@ local function BuildPillsText()
     return text
 end
 
--- Last-rendered travel text, cached so the pane can freeze for the
--- duration of a boss fight. Set on every non-frozen render below;
--- returned verbatim while RR.state.inEncounter is true. Cleared on
--- ENCOUNTER_END (Core.lua) which triggers a re-render with the next
--- step's pre-pull text. Rationale: mid-fight platform changes report
--- different mapIDs (Tindral phase 2 Northern Boughs, etc.) that
--- don't match the pre-pull segment, leading to stale "(Open map for
--- directions)" fallbacks during the fight. Freezing avoids surfacing
--- these mid-encounter regressions.
+-- Last-rendered travel text, returned verbatim while RR.state.inEncounter so
+-- the pane freezes for a fight. Mid-fight platform changes report mapIDs that
+-- don't match the pre-pull segment. Cleared on ENCOUNTER_END.
 local lastTravelText = nil
 
 -- Last picker-output we logged. Used to suppress heartbeat-tick spam:
@@ -3246,30 +2834,15 @@ local lastTravelText = nil
 -- (lastLoggedTravelText starts nil, any returned text differs).
 local lastLoggedTravelText = nil
 
--- Pulse state for the "[!] view special note" attention-grabber on the
--- Boss Encounter line. Cycles 0..15 every 0.1s, giving a 1.6s round
--- trip with 16 brightness steps per cycle. BuildEncounterText reads
--- this to pick a smoothly-graduated yellow color for the [!] glyph,
--- producing a subtle breathing effect while the encounter section is
--- collapsed and the boss has a custom soloTip. Static at full
--- brightness whenever the section is expanded or no soloTip exists.
---
--- Cosmetic-only: feeds back into UI.Update via the dedicated ticker
--- below, no game-state implications.
+-- Pulse phase for the "[!] view special note" glyph. Cycles 0..15 every 0.1s.
+-- Static at full brightness when the section is expanded or there is no
+-- soloTip. Cosmetic only.
 local encounterPulsePhase = 0
 local ENCOUNTER_PULSE_STEPS = 16
 
--- Brightness curve: cosine-modulated yellow (RGB ffff00 base, varying
--- brightness multiplier from ~70% to 100%). Built at load time -- a
--- 16-entry lookup table is cheaper than recomputing the math every
--- tick, and keeps BuildEncounterText to a single index lookup.
---
--- Cosine over a full 2π range gives the breathing curve: slow at the
--- extremes (bright peak, dim trough), fast through the middle. Pure
--- linear stepping reads as mechanical even with many steps; the
--- cosine is what makes it feel organic. Multiplier base 0.85 plus
--- amplitude 0.15 keeps the [!] visible at all phases (never below
--- ~70% of full yellow) so it doesn't disappear at the dim end.
+-- Cosine-modulated yellow, built once at load so the render is one lookup.
+-- Cosine rather than linear stepping is what makes the breathing read as
+-- organic; base 0.85 + amplitude 0.15 keeps the glyph visible at every phase.
 local ENCOUNTER_PULSE_COLORS = {}
 for i = 0, ENCOUNTER_PULSE_STEPS - 1 do
     local phase = (i / ENCOUNTER_PULSE_STEPS) * 2 * math.pi
@@ -3444,17 +3017,9 @@ local function BuildAchievementsBlock(boss)
                 link = link:gsub("|h%[(.-)%]|h", "|h[%1" .. tag .. "]|h", 1)
             end
 
-            -- For completed achievements: strip the link's leading
-            -- |cff<6hex> wrapper and trailing |r, then re-wrap with
-            -- gray. Visual de-emphasis since the achievement is done.
-            -- Incomplete achievements keep Blizzard's native yellow
-            -- (which `GetAchievementLink` embeds for both states; we
-            -- only override it on completion).
-            -- Color codes don't nest in WoW chat formatting -- the
-            -- inner code wins -- so without stripping, a completed
-            -- achievement would render yellow even when wrapped in
-            -- our gray. The |H...|h[Name]|h payload is preserved
-            -- intact, so clickability survives the unwrap.
+            -- Colour codes don't nest -- the inner one wins -- so a completed
+            -- achievement's own wrapper has to be stripped before re-wrapping
+            -- gray. The |H...|h payload survives, so the link stays clickable.
             if completed then
                 link = link:gsub("^|cff%x%x%x%x%x%x", ""):gsub("|r$", "")
                 table.insert(lines, ("%s |c%s%s|r"):format(
@@ -3472,25 +3037,15 @@ local function BuildAchievementsBlock(boss)
     return table.concat(lines, "\n")
 end
 
--- BuildEncounterText returns five values: headerLine, achBlock,
--- specialBlock, clickable, headerPulsing. headerPulsing is true only
--- for the collapsed custom-note form, whose [!] glyph animates; the
--- pulse ticker reads it to refresh the header label alone rather than
--- the whole panel.
---   headerLine - the rendered string for panel.encounter
---   clickable - whether panel.encounter should accept clicks (custom
---               soloTip exists; collapsed or expanded both clickable,
---               so the user can toggle either way)
+-- Returns headerLine, achBlock, specialBlock, clickable, headerPulsing.
+-- headerPulsing is true only for the collapsed custom-note form, and the pulse
+-- ticker reads it to refresh the header label alone.
 --
--- Section composition (top to bottom):
---   1. "Boss Encounter:" line
---        - "Standard"            (no custom soloTip)
---        - "view special note"   (custom soloTip, collapsed)
---        - <full soloTip text>   (custom soloTip, expanded)
---   2. Achievements block (if any) -- ALWAYS rendered, independent of
---      the encounter expand state. Decoupled from the encounter expand
---      toggle so each section can have its own collapse behaviour later.
---   3. Special Loot block (if any) -- ALWAYS rendered.
+-- Composition, top to bottom:
+--   1. "Boss Encounter:" line -- Standard, the collapsed note link, or the
+--      expanded soloTip.
+--   2. Achievements block, always rendered.
+--   3. Special Loot block, always rendered.
 local function BuildEncounterText(step)
     local prefix = ("|cff%s%s|r "):format(C_LABEL, RR.L["Boss Encounter:"])
     if not step then return prefix .. RR.L["N/A"], false end
@@ -3506,17 +3061,8 @@ local function BuildEncounterText(step)
         headerLine = prefix .. "|cffaaaaaa" .. RR.L["Standard"] .. "|r"
         clickable  = false
     elseif not RR:GetSetting("encounterExpanded") then
-        -- Yellow [!] prefix to draw the eye to bosses that have a
-        -- custom soloTip. The "view special note" link itself stays
-        -- in subdued grey so the [!] does the attention-grabbing
-        -- work without the whole line shouting. When the user
-        -- expands the note, the marker drops away (the expanded
-        -- text speaks for itself).
-        --
-        -- The [!] alpha-pulses subtly via encounterPulsePhase (set by
-        -- a 0.4s ticker, see ENCOUNTER_PULSE_COLORS). Static-bright at
-        -- phase 0, dimmer at phases 1-2, back up at phase 3. Cosmetic
-        -- only -- the link itself stays fully readable throughout.
+        -- Yellow [!] marks a boss with a custom soloTip; the link stays gray
+        -- so the glyph does the attention work. Drops away when expanded.
         local pulseColor = ENCOUNTER_PULSE_COLORS[encounterPulsePhase] or "|cffffff00"
         headerLine = prefix .. pulseColor .. "[!]|r |cffaaaaaa" .. RR.L["view special note"] .. "|r"
         clickable  = true
@@ -3595,21 +3141,11 @@ local DOT_SHARED      = "ffbf9000"   -- amber / gold
 local DOT_ACTIVE      = "ffffffff"   -- white
 local DOT_INACTIVE    = "ff555555"   -- dim gray
 
--- WoW class IDs (1-13) -> token used as a key into LOCALIZED_CLASS_NAMES_MALE
--- and RAID_CLASS_COLORS. Built once at file load by calling GetClassInfo
--- for each known class ID.
+-- Class ID (1-13) -> the uppercase token RAID_CLASS_COLORS and
+-- LOCALIZED_CLASS_NAMES_MALE key on, from GetClassInfo's second return.
 --
--- WARNING: do NOT build this from CLASS_SORT_ORDER. CLASS_SORT_ORDER is a
--- display-order list (e.g. sorted by localized name), NOT an ID-indexed
--- table -- so CLASS_SORT_ORDER[1] is "Death Knight" in many locales, not
--- "Warrior" (classID=1). Using it as a lookup was the cause of the
--- tier-row class mislabeling bug (Luminous Chevalier's Robes showing as
--- "Death Knight Tier" when its classes={2} should say Paladin).
---
--- GetClassInfo(classID) returns (className, classTag, classID) -- the
--- second return value is the UPPERCASE token ("WARRIOR", "DEATHKNIGHT",
--- etc.) which is what RAID_CLASS_COLORS + LOCALIZED_CLASS_NAMES_MALE
--- key on. Class IDs 1..13 are stable across all locales.
+-- Do NOT build this from CLASS_SORT_ORDER. That is a display-order list, not
+-- ID-indexed, and using it as a lookup mislabels every tier row.
 local CLASS_ID_TO_TOKEN = {}
 if GetClassInfo then
     for classID = 1, 13 do
@@ -3635,13 +3171,9 @@ local function HasSource(sourceID)
     return C_TransmogCollection.PlayerHasTransmogItemModifiedAppearance(sourceID) == true
 end
 
--- Returns true if the appearance (visual) is collected on this character,
--- regardless of which item source granted it.
---
--- Mirrors the approach CanIMogIt uses: enumerate every source for the
--- appearance and check if any are known. We use `pairs` (not `ipairs`)
--- because GetAllAppearanceSources returns a table that is not always a
--- contiguous array -- ipairs would stop at the first gap and under-report.
+-- True when the appearance is collected via any source. Iterated with `pairs`:
+-- GetAllAppearanceSources is not always a contiguous array, and `ipairs` would
+-- stop at the first gap.
 local function HasAppearanceViaAnySource(appearanceID)
     if not appearanceID or not C_TransmogCollection then return false end
     local sourceIDs = C_TransmogCollection.GetAllAppearanceSources(appearanceID)
@@ -3690,21 +3222,13 @@ local function GetAppearanceIDForSource(sourceID)
     return appearanceID
 end
 
--- Returns one of: "collected", "shared", "missing"
--- "collected" -> this exact source is known
--- "shared"    -> this source's appearance is known via another source
--- "missing"   -> neither; player truly doesn't have the look
+-- "collected" (this exact source), "shared" (the appearance via another
+-- source), or "missing".
 --
--- Appearance resolution: we FIRST try GetSourceInfo(sourceID) so each
--- per-difficulty dot checks against its OWN appearance ID. This matters for
--- tier rows whose 4 difficulty variants have distinct appearances (our
--- schema collapses them under one itemID, which would otherwise make us
--- always check the Normal-difficulty appearance regardless of which dot
--- we're rendering -- causing LFR/H/M dots to falsely go gold when Normal
--- is learned). If GetSourceInfo returns nil (sources the character hasn't
--- collected can return nil; see GetAppearanceIDForItem comment), we fall
--- back to the itemID path -- preserving prior behavior for non-tier items
--- where all 4 sourceIDs share one appearance anyway.
+-- Tries GetSourceInfo(sourceID) FIRST so each per-difficulty dot checks its
+-- OWN appearance -- tier variants share one itemID, and the itemID path would
+-- light every dot the moment Normal was learned. Falls back to the itemID path
+-- when GetSourceInfo returns nil.
 local function CollectionStateForSource(sourceID, itemID)
     if not sourceID then return "missing" end
     if HasSource(sourceID) then return "collected" end
@@ -3727,16 +3251,12 @@ local function FallbackStateForItem(itemID)
     return "missing"
 end
 
--- Expose the state-computing helpers on the RR namespace so diagnostic
--- commands (like /rr tmogaudit in Core.lua) can use the exact same logic
--- the UI uses at render time. Without this, diagnostics would reimplement
--- the state logic and silently drift from the UI over time.
--- The Wrath size pairs, and the label a folded pair prints. When a row
--- carries BOTH difficulties of a pair and they resolve to one appearance,
--- the two pills say the same thing twice ("10N || 10H", always the same
--- color) -- fold them to the bare size instead. Wrath-only: the modern
--- N/H/M difficulties have no size dimension to fold into, and LFR stands
--- alone.
+-- Exposed on RR so the diagnostic commands share the UI's render-time logic
+-- rather than reimplementing and drifting from it.
+--
+-- Wrath size pairs and the label a folded pair prints. A row carrying both
+-- difficulties of a pair that resolve to one appearance says the same thing
+-- twice, so it folds to the bare size. Wrath-only.
 UI.WRATH_SIZE_PAIRS = {
     { normal = 3, heroic = 5, label = "10" },
     { normal = 4, heroic = 6, label = "25" },
@@ -3755,13 +3275,10 @@ function UI.FoldAbsorbsDifficulty(item, anchorDiffID, activeDiff)
     return false
 end
 
--- For a row, returns { [diffID] = label } for the difficulties whose label
--- changes, plus a skip set of the difficulties the fold absorbs. Only folds
--- a pair when BOTH difficulties are present AND both sources resolve to the
--- same appearance -- recolor pairs (Icecrown Citadel's Heroic looks) keep
--- their own labels and their own states. A row that folds one pair but not
--- the other renders mixed labels ("10 || 25N"), which is correct: each pill
--- still states exactly what it drops at.
+-- { [diffID] = label } for the difficulties whose label changes, plus the set
+-- the fold absorbs. Only folds when both difficulties are present AND resolve
+-- to one appearance, so recolor pairs keep their own labels. Mixed labels on a
+-- partly-folded row are correct.
 function UI.FoldedSizeLabels(item)
     if not item or not item.sources then return nil, nil end
     local labels, skip
@@ -3793,18 +3310,12 @@ end
 RR.CollectionStateForSource = CollectionStateForSource
 RR.FallbackStateForItem     = FallbackStateForItem
 
--- Classify an item's difficulty sources as "binary" (all sources resolve
--- to a single appearance) or "perdiff" (sources are distinct appearances,
--- one per difficulty -- e.g. tier recolors where LFR/N/H/M each have their
--- own look). Returns nil when the item has no sources.
+-- "binary" (all sources are one appearance) or "perdiff" (one appearance per
+-- difficulty). Nil when the item has no sources.
 --
--- Binary is expressed two ways in the data:
---   (a) one sourceID cloned across difficulty keys, or
---   (b) distinct sourceIDs that all resolve to the same visualID (Blizzard
---       tracks per-(item x difficulty) acquisition even when the visual is
---       shared; its own appearance tab shows these as one appearance).
--- Falls through to "perdiff" if any source's visualID can't be resolved
--- (cold cache); the next call after the cache warms reclassifies correctly.
+-- Binary is expressed two ways: one sourceID cloned across difficulty keys, or
+-- distinct sourceIDs resolving to the same visualID. Falls through to perdiff
+-- on a cold cache and reclassifies once it warms.
 local function ItemShape(item)
     if not item.sources then return nil end
     local bucketCount = 0
@@ -3844,16 +3355,9 @@ local function ItemShape(item)
     return "perdiff"
 end
 
--- The single collection state of a binary item, folded across every one of
--- its sources keeping the strongest result: collected > shared > missing.
--- A binary item is ONE appearance, so its state is not per-difficulty --
--- owning any one difficulty's source means the appearance is collected, and
--- the other difficulties read collected too (not "shared"). Picking one
--- arbitrary source would report "shared" whenever the pick landed on an
--- uncollected difficulty even though the look is owned via another.
---
--- Both the browser's binary row and the main-panel summary counter classify
--- binary items through this one function so the two can never disagree.
+-- The state of a binary item, folded across every source keeping the strongest
+-- result: collected > shared > missing. Shared by the browser's binary row and
+-- the main-panel summary counter so they cannot disagree.
 function RR.BinaryFoldedState(item)
     if not item.sources then
         return FallbackStateForItem(item.id)
@@ -3870,26 +3374,35 @@ function RR.BinaryFoldedState(item)
     return best
 end
 
+-- True when nothing on this row is left to farm: every populated bucket is in
+-- the collected state. Shared does not count. A binary item folds instead,
+-- since owning any one source collects its single appearance.
+function RR.ItemFullyCollected(item)
+    if ItemShape(item) == "binary" then
+        return RR.BinaryFoldedState(item) == "collected"
+    end
+    if not item.sources then
+        return FallbackStateForItem(item.id) == "collected"
+    end
+    for _, s in pairs(item.sources) do
+        if CollectionStateForSource(s, item.id) ~= "collected" then
+            return false
+        end
+    end
+    return true
+end
+
 RR.ItemShape        = ItemShape
 
 -------------------------------------------------------------------------------
 -- Special Loot: mount / pet / toy / decor collection state
 --
--- Items like the Jailer's "Fractal Cypher of the Zereth Overseer" (teaches
--- the Zereth Overseer mount) are non-equippable collectibles that don't
--- participate in the transmog system. They get their own schema field
--- `specialLoot = { { id, kind, name, ... }, ... }` on each boss and a
--- separate render section in the main panel's encounter text.
+-- Non-equippable collectibles that don't participate in transmog, carried on
+-- each boss as `specialLoot = { { id, kind, name, ... }, ... }`. State is a
+-- boolean, with no per-difficulty columns.
 --
--- `kind` is one of "mount", "pet", "toy", "decor". Collection state is a
--- simple boolean: collected (green) or uncollected (white). No per-
--- difficulty columns because these items don't have difficulty variants.
---
--- "decor" was added for Midnight housing system. The C_HousingCatalog
--- APIs landed in patch 11.2.7 (December 2025); earlier clients won't have
--- them. All housing calls are defensive -- the UI silently no-ops the
--- decor branch on clients without the API, so the feature degrades
--- gracefully rather than erroring.
+-- Housing ("decor") calls are all defensive: the C_HousingCatalog APIs landed
+-- in 11.2.7, and the branch silently no-ops on earlier clients.
 -------------------------------------------------------------------------------
 
 -- Kind labels and colors for the "(Mount)" / "(Pet)" / "(Toy)" / "(Decor)"
@@ -3963,21 +3476,9 @@ local function SpecialCollectionStateForItem(item)
         return "missing"
 
     elseif item.kind == "manuscript" or item.kind == "musicroll" then
-        -- Consumable unlock items: using one flags a hidden quest as
-        -- complete on the current character, then the item is gone. The
-        -- quest flag persists for life, so the durable "is it unlocked?"
-        -- check is IsQuestFlaggedCompleted(questID). Drakewatcher
-        -- Manuscripts unlock a dragonriding visual; Music Rolls unlock a
-        -- garrison jukebox track (the item's Use spell adds the track,
-        -- but the completed quest is what records ownership).
-        --
-        -- Per-character (not account-wide). That's intentional and
-        -- matches the rest of RetroRuns' "what does THIS character
-        -- still need?" model.
-        --
-        -- 12.x exposes both the namespaced C_QuestLog form and the
-        -- legacy global. Prefer the namespaced one when available,
-        -- fall back to the global for safety on older clients.
+        -- A consumable unlock item is gone once used, so the durable check
+        -- is the hidden quest flag it sets. Per-character by design. Prefer
+        -- the namespaced C_QuestLog form, falling back to the global.
         if not item.questID then return "missing" end
         local fn = (C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted)
                    or IsQuestFlaggedCompleted
@@ -4033,20 +3534,12 @@ end
 
 RR.SpecialCollectionStateForItem = SpecialCollectionStateForItem
 
--- Builds the Special Loot section for a boss. Returns a string or nil.
--- Nil means "don't emit a section header" -- used when the boss has no
--- specialLoot entries at all.
+-- The Special Loot section for a boss, or nil to emit no header. Rows are
+-- "* <ItemLink> (Mount)", coloured by collection state, falling back to a
+-- plain name on a cold GetItemInfo cache.
 --
--- Rows look like:
---   * <ItemLink> (Mount)
--- with the bullet and link colored by collection state. The item link
--- comes from GetItemInfo so clicking it opens the Blizzard tooltip; if
--- GetItemInfo's cache isn't warm yet we fall back to a plain-text name.
---
--- Assigns to the forward-declared `BuildSpecialLootSection` local from
--- near the top of the file, not a new `local function`, because
--- BuildEncounterText (defined much earlier) needs to close over this
--- name.
+-- Assigns to the forward-declared local rather than declaring a new one, so
+-- BuildEncounterText can close over the name.
 BuildSpecialLootSection = function(boss)
     if not boss or not boss.specialLoot or #boss.specialLoot == 0 then
         return nil
@@ -4082,20 +3575,9 @@ BuildSpecialLootSection = function(boss)
                 if has then held = held + 1 end
             end
 
-            -- State of the mount row itself.
-            --
-            -- "Ready to trade" (held == total but mount not yet learned)
-            -- uses the SAME partial glyph/color as the in-progress
-            -- (held > 0 < total) state. Both are "you have work to do
-            -- here": for 1/2, get the other neck; for 2/2, walk to the
-            -- trader. The ONLY thing that should flip a row to the
-            -- collected-green state is actually owning the mount, which
-            -- is handled by the mountCollected branch above (entire
-            -- barter block is skipped, falls through to standard
-            -- single-row "(Mount)" render).
-            --
-            -- The text suffix disambiguates the two partial sub-states:
-            -- "1/2 necks in bags" vs "2/2 necks, ready to trade!".
+            -- "Ready to trade" shares the partial glyph with "in progress":
+            -- both mean work remains. Only owning the mount flips the row
+            -- green. The text suffix separates the two partial sub-states.
             local parenSuffix
             local stateColor, stateGlyph
             if held == total then
@@ -4133,14 +3615,8 @@ BuildSpecialLootSection = function(boss)
                         ingColor, ingGlyph, ingDisplay, ingSuffix))
             end
 
-            -- Trade location hint. Only shown once both ingredients are in
-            -- bags (held == total), since that's the moment the player can
-            -- actually act on the location. While still farming, the
-            -- trader's location is irrelevant noise. The RR.L["in bags"] /
-            -- RR.L["not in bags"] text on each ingredient row already
-            -- communicates that bag-only validation is what's being
-            -- checked, so a separate caveat line was redundant and was
-            -- removed in v0.6.1.
+            -- Shown only once every ingredient is in bags, which is when the
+            -- player can act on the location.
             if item.barter.at and held == total then
                 table.insert(lines,
                     ("    |cffaaaaaa" .. RR.L["Trade at %s."] .. "|r"):format(item.barter.at))
@@ -4166,15 +3642,10 @@ BuildSpecialLootSection = function(boss)
             local kindLabel = SPECIAL_KIND_LABEL[item.kind] or item.kind or "?"
             local kindColor = SPECIAL_KIND_COLOR[item.kind] or "ffaaaaaa"
 
-            -- Build the parenthetical kind+restriction group. Most items
-            -- are just "(Pet)"; Mythic-only items become
-            -- "(Pet, Mythic only)" with the restriction in the RETRO brand
-            -- pink (ffF259C7) so the gate is scannable at a glance. We
-            -- avoid Blizzard's epic-quality purple (ffa335ee) here because
-            -- it's identical to the color the item link itself renders in,
-            -- which makes "Mythic only" visually blur into the item name.
-            -- The colored suffix is spliced inside the kindColor wrapper so
-            -- the parens themselves stay the kind's color.
+            -- "(Pet)", or "(Pet, Mythic only)" with the restriction in brand
+            -- pink -- epic purple is the item link's own colour and blurs into
+            -- the name. Spliced inside the kindColor wrapper so the parens
+            -- keep the kind's colour.
             local kindInner = kindLabel
             if item.mythicOnly then
                 kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Mythic only"] .. "|r|c" .. kindColor
@@ -4208,31 +3679,15 @@ BuildSpecialLootSection = function(boss)
     return table.concat(lines, "\n")
 end
 
--- Visibility filter for the transmog popup. Two independent class fields
--- gate a row:
---   * `classes`      -- tier TOKEN rows (one appearance per class). Hidden
---                       for non-matching classes unless "show all" is on.
---   * `equipClasses` -- armor-class restriction (who can equip the piece;
---                       e.g. Cataclysm Baradin Hold sets, where every drop
---                       is class-restricted armor but NONE are tier tokens).
---                       Filtered the same way, but drives no tier label.
--- A row matches if the active filter class is listed in whichever field is
--- present. The class browser dropdown chooses the filter class.
+-- Visibility filter for the transmog popup. Two independent class fields gate
+-- a row: `classes` for tier TOKEN rows (hidden for non-matching classes unless
+-- "show all" is on), and `equipClasses` for armor-class restrictions, filtered
+-- the same way but driving no tier label.
 --
--- Active class filter: which class the tmog browser is currently showing
--- class-gated loot for. A class ID (1-13), 0 meaning "all classes", or nil
--- meaning the class being played. Returns nil for the "all classes" case,
--- otherwise a class ID.
---
--- This is deliberately RUNTIME state (browserState.classFilter), not a
--- saved setting. It was a saved setting, and being saved was the bug: the
--- choice is a temporary view -- picked in the dropdown, or reached by
--- clicking a toast for gear this character cannot wear -- yet it outlived
--- the browser, the session, and the character. RetroRunsDB is account-wide,
--- so a Hunter chosen once left every later browser open, on every character,
--- showing Hunter. Guarding it with an owner class only narrowed that to
--- characters sharing the owner's class, and did nothing across a reload.
--- Nothing persists now, so every open starts on the class being played.
+-- The active filter is a class ID, 0 for all classes, or nil for the class
+-- being played. Deliberately RUNTIME state, never saved: it is a temporary
+-- view, and persisting it left every browser on every character stuck on
+-- whatever class was picked once.
 local function ActiveClassFilter()
     local _, _, playerClassID = UnitClass("player")
     local sel = browserState.classFilter
@@ -4264,15 +3719,10 @@ local function ItemIsForPlayer(item, classOverride)
     return false
 end
 
--- Is an item a "display candidate" for the transmog popup?
--- classOverride forces a specific class gate (used by the main-panel
--- summary, which always reflects the player's own class regardless of the
--- browser's class dropdown). When nil, falls back to ActiveClassFilter --
--- the browser dropdown selection.
--- includeOtherFaction admits rows locked to the opposite faction. The
--- browser passes it so those appearances can be tracked; the summary
--- counters do not, so the counts keep meaning "what this character can go
--- get here".
+-- Is an item a display candidate for the transmog popup? classOverride forces
+-- a class gate, used by the main-panel summary so it always reflects the
+-- player's own class. includeOtherFaction admits opposite-faction rows -- the
+-- browser passes it, the summary counters do not.
 local function ItemIsTransmogCandidate(item, classOverride, includeOtherFaction)
     -- Special-loot entries (pets, mounts, toys, illusions, manuscripts,
     -- decor) carry a `kind` and belong in the boss specialLoot list, which
@@ -4454,22 +3904,12 @@ local function CountBossLootAcrossDifficulties(boss, diffIDs, classOverride)
     return needed, shared, total
 end
 
--- Scans an entire boss's loot and returns an aggregate count of:
---   needed   -> items in the "missing" state (gray dot in the Tmog browser)
---   shared   -> items in the "shared" state (amber dot)
---   total    -> total display-candidate items considered
--- Used by the dropdown label counters (CountRaidLoot, CountExpansionLoot)
--- to build the "(have/total)" badges on dropdown entries.
+-- Aggregate needed / shared / total across a boss's loot, for the dropdown
+-- "(have/total)" badges.
 --
--- Semantics: if the player has an active difficulty (in a supported
--- raid, on a tracked difficulty), this returns the per-difficulty slice
--- for that difficulty only -- matching the "Current (Mythic)" line on
--- the main-panel summary. If there's no active difficulty (browsing
--- outside a raid, or on an untracked difficulty), falls back to a
--- cross-all-difficulties rollup where an item counts as `missing` if
--- ANY of its buckets is missing, else `shared` if any is shared, else
--- collected. The fallback path matches the pre-v0.5.2 dropdown behavior
--- so numbers stay visible when browsing out of raid.
+-- With an active difficulty this is the slice for that difficulty alone,
+-- matching the panel summary. Without one, it rolls up across difficulties:
+-- missing if any bucket is missing, else shared if any is shared.
 local function CountBossLoot(boss)
     if not boss or not boss.loot or #boss.loot == 0 then return nil end
     local activeID = ActiveDifficulty()
@@ -4497,16 +3937,8 @@ local function CountBossLoot(boss)
     return needed, shared, total
 end
 
--- Format a single stats tuple (needed, shared) in the
--- "Missing (N) Shared (N)" shape. Number color is:
---   0    -> green   (user has nothing outstanding in this category)
---   1+   -> orange  (user needs / has duplicates here)
--- The category labels themselves stay at the default text color.
---
--- When BOTH categories are zero, returns a single green "Complete"
--- token instead of the Missing/Shared breakdown -- the caller can
--- emit that in place of the counts so users see explicit confirmation
--- rather than a row of zeros.
+-- Formats (needed, shared) as "Missing (N) Shared (N)", green at 0 and orange
+-- above. Both zero returns a single green "Complete" token instead.
 local function FormatStatsFragment(needed, shared)
     if needed == 0 and shared == 0 then
         return "|cff00ff00" .. RR.L["Complete"] .. "|r"
@@ -4517,14 +3949,13 @@ local function FormatStatsFragment(needed, shared)
         missingColor, needed, sharedColor, shared)
 end
 
--- Main-panel transmog summary: "Transmog Needed:" header + per-
--- difficulty Missing/Shared counts. Zero in both -> "Complete" (green).
--- Numbers: 0 green, 1+ orange. Collapses to "All appearances
--- collected!" when every difficulty is done.
--- Collection-state generation counter. Bumped by the watcher frame
--- below whenever the player's transmog collection changes; the cached
--- summary keys on it so a new appearance invalidates the cache without
--- recounting on every panel refresh.
+-- Main-panel transmog summary: header plus per-difficulty Missing/Shared
+-- counts, collapsing to "All appearances collected!" when every difficulty is
+-- done.
+--
+-- The generation counter is bumped whenever the collection changes; the cached
+-- summary keys on it so a new appearance invalidates without recounting every
+-- panel refresh.
 UI.collectionGeneration = 0
 do
     local collectionWatcher = CreateFrame("Frame")
@@ -4541,8 +3972,11 @@ function UI.BuildTransmogSummaryUncached(step)
     local boss = RR:GetBossByIndex(step.bossIndex)
     if not boss then return nil end
 
-    local header   = ("|cff%s%s|r"):format(C_LABEL, RR.L["Transmog Needed:"])
+    -- The browse hint rides the header itself so the affordance is visible
+    -- without reading to the end of the count lines.
     local clickHnt = "|cff555555" .. RR.L["[click to browse]"] .. "|r"
+    local header   = ("|cff%s%s|r %s"):format(
+        C_LABEL, RR.L["Transmog Needed:"], clickHnt)
     local activeID = ActiveDifficulty()
 
     -- Buckets to summarize come from the raid's difficulty model, not a
@@ -4551,20 +3985,16 @@ function UI.BuildTransmogSummaryUncached(step)
     local summaryBuckets = RR:GetDisplayBuckets(RR.currentRaid)
         or DIFFS_FOR_SUMMARY
 
-    -- When the raid shows a single lockout bucket (Cataclysm folds both
-    -- sizes and both difficulties into one weekly lockout), the
-    -- Current-vs-Other difficulty split is redundant -- there is only one
-    -- bucket on the pill. Collapse to a single cross-bucket rollup line.
-    -- Per-item N/H appearance differences are still surfaced in the loot
-    -- rows themselves by the item-shape logic; this only affects the
-    -- boss-level summary line.
+    -- A single-bucket raid makes the Current-vs-Other split redundant, so the
+    -- summary collapses to one rollup line. Per-item differences still show in
+    -- the loot rows.
     if #summaryBuckets <= 1 then
         local n, s, t = CountBossLootAcrossDifficulties(boss, DIFFS_FOR_SUMMARY, RR.PlayerClassID())
         if not t then return nil end
         if n == 0 and s == 0 then
             return header .. " |cffF259C7" .. RR.L["All appearances collected!"] .. "|r"
         end
-        return header .. "\n- " .. FormatStatsFragment(n, s) .. "  " .. clickHnt
+        return header .. "\n- " .. FormatStatsFragment(n, s)
     end
 
     -- Compute the current-difficulty counts (if active difficulty known).
@@ -4590,7 +4020,7 @@ function UI.BuildTransmogSummaryUncached(step)
         if n == 0 and s == 0 then
             return header .. " |cffF259C7" .. RR.L["All appearances collected!"] .. "|r"
         end
-        return header .. "\n- " .. FormatStatsFragment(n, s) .. "  " .. clickHnt
+        return header .. "\n- " .. FormatStatsFragment(n, s)
     end
 
     -- Both counts computed. Is everything done across the board?
@@ -4603,13 +4033,14 @@ function UI.BuildTransmogSummaryUncached(step)
     -- Header + two dash lines, matching the Achievements section format.
     -- Each line renders either Missing/Shared counts or "Complete".
     -- Click hint always on the last (Other difficulties) line.
-    local diffName = DIFF_NAME[activeID] or tostring(activeID)
+    local diffName = DIFF_LETTER[activeID] or DIFF_NAME[activeID]
+        or tostring(activeID)
     local line1 = ("- %s (|cff%s%s|r): %s"):format(
         RR.L["Current"], C_PINK_HEX, diffName, FormatStatsFragment(curNeeded, curShared))
     local othFrag = othTotal
         and FormatStatsFragment(othNeeded, othShared)
         or "|cff00ff00Complete|r"
-    local line2 = ("- %s: %s  %s"):format(RR.L["Other difficulties"], othFrag, clickHnt)
+    local line2 = ("- %s: %s"):format(RR.L["Other difficulties"], othFrag)
     return header .. "\n" .. line1 .. "\n" .. line2
 end
 
@@ -4637,22 +4068,14 @@ end
 -- Per-difficulty dot row builder
 -------------------------------------------------------------------------------
 
--- Per-item loot row builder. Item shape is intrinsic to its data:
---   * BINARY (1 unique source): renders as a single bracketed state
---     `[ ✓ ]` / `[ ~ ]` / `[ X ]` -- same grammar as Special Loot.
---   * PER-DIFFICULTY (2+ unique sources): the classic
---     `[ LFR | N | H | M ]` strip with each letter colored per state.
--- The "|" literal in the strip is escaped as "||" since WoW reads
--- "|r" as a reset-color sequence.
+-- Per-item loot row builder. Binary rows render one bracketed state;
+-- per-difficulty rows render the `[ LFR | N | H | M ]` strip. The literal pipe
+-- is escaped `||`, since WoW reads `|r` as a colour reset.
 -------------------------------------------------------------------------------
 
--- Glyphs for the binary-shape bracketed indicator. Collected uses
--- ReadyCheck-Ready (native green). Missing uses ReadyCheck-NotReady
--- (native red X) to match the rest of the addon -- Skips, Achievements,
--- and Special Loot all use the same texture for "uncollected / locked /
--- incomplete." The shared glyph uses UI-CheckBox-Check (grayscale)
--- tinted gold rather than ReadyCheck-Ready (native green, can't shift
--- to gold).
+-- Binary-indicator glyphs, reusing the ReadyCheck textures the rest of the
+-- addon uses. Shared takes a grayscale check tinted gold, since the native
+-- green one can't shift colour.
 local BINARY_GLYPH_COLLECTED = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
 local BINARY_GLYPH_SHARED    = "|TInterface\\Buttons\\UI-CheckBox-Check:14:14:0:0:32:32:0:32:0:32:255:215:0|t"
 local BINARY_GLYPH_MISSING   = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14|t"
@@ -4699,13 +4122,30 @@ local function BuildBinaryRow(item)
     -- main-panel count can never disagree on a binary item.
     local state = RR.BinaryFoldedState(item)
 
+    -- One sourceID cloned across every bucket means the strip letters can
+    -- never differ in any way -- not even by collection path, since there is
+    -- only one source to collect. Trash rows are the shipped case. The strip
+    -- would be pure repetition, so these render the plain binary glyph below.
+    local clonedSingleSource
+    do
+        local uniqueSources = {}
+        local uniqueCount = 0
+        for _, src in pairs(item.sources or {}) do
+            if not uniqueSources[src] then
+                uniqueSources[src] = true
+                uniqueCount = uniqueCount + 1
+            end
+        end
+        clonedSingleSource = (uniqueCount == 1)
+    end
+
     -- Merged size-difficulty rows render as a letter strip like any other
     -- multi-difficulty row, so the row itself says which sizes drop it.
     -- Every letter takes the folded state: owning any one size's source
     -- collects the appearance everywhere, so the strip never splits colors.
     -- When nothing is collected, the current difficulty's letter highlights
     -- white and the rest dim, matching the per-difficulty strips.
-    if UI.IsMergedSizeDifficultyRow(item) then
+    if UI.IsMergedSizeDifficultyRow(item) and not clonedSingleSource then
         local activeDiff = ActiveDifficulty()
         -- Fold N/H pairs that share one appearance down to the bare size,
         -- so "10N || 10H" (two pills that can never differ) reads "10".
@@ -4753,13 +4193,8 @@ local function BuildBinaryRow(item)
     return ("|cff777777[ |r|c%s%s|r|cff777777 ]|r"):format(colour, glyph)
 end
 
--- Renders a per-difficulty shape row: classic "[ LFR | N | H | M ]" strip
--- with each letter colored by its own difficulty's collection state.
---
--- NOTE ON COLOR-CODE ESCAPING:
--- WoW parses "|r" as a reset-color sequence. To emit a literal pipe character
--- inside a colored string we must escape it as "||". The separator below uses
--- "||" which renders as a single "|" character on screen.
+-- The "[ LFR | N | H | M ]" strip, each letter coloured by its own
+-- difficulty's state. The separator is authored "||" and renders as one pipe.
 local function BuildPerDiffRow(item)
     local activeDiff = ActiveDifficulty()
     local inner = {}
@@ -4868,15 +4303,9 @@ end
 -- Full-detail popup builder
 -------------------------------------------------------------------------------
 
--- Token families: class IDs that can use each token, plus the slot type
--- (Main-Hand or Off-Hand / Held-in-Off-Hand / Shield). Used by the
--- transmog popup/browser to render weapon-token rows for raids whose
--- tokens don't flow through the standard armor-tier-set pipeline
--- (Castle Nathria's Anima Spherules are the canonical case). Keyed on
--- the first word of the token's localized name ("Mystic Anima Spherule"
--- -> MYSTIC). Mirrors TIER_GROUPS in Harvester.lua; the duplication is
--- intentional while this path is experimental. If weapon-token rendering
--- proves useful long-term, hoist the shared metadata into a common module.
+-- Token families: the class IDs each token serves plus its slot type, for
+-- weapon-token rows that don't flow through the armor-tier pipeline. Keyed on
+-- the first word of the token's localized name.
 local TOKEN_FAMILY_INFO = {
     -- Castle Nathria (9.0) weapon tokens
     MYSTIC       = { classes = { 11, 3, 8 },           slotLabel = "Main-Hand" },
@@ -4961,6 +4390,18 @@ BuildTransmogDetail = function(stepOrCtx)
     appearanceIDCache = {}
     sourceAppearanceIDCache = {}
 
+    -- Rows whose display name collides with another in this boss's loot -- the
+    -- paired Warglaives of Azzinoth are the case: one main-hand, one off-hand,
+    -- both named "Warglaive of Azzinoth". Marked so FormatItemRow appends an
+    -- equip-slot tag that tells them apart.
+    local nameSeen, duplicateNames = {}, {}
+    for _, dupItem in ipairs(boss.loot) do
+        if dupItem.name then
+            if nameSeen[dupItem.name] then duplicateNames[dupItem.name] = true end
+            nameSeen[dupItem.name] = true
+        end
+    end
+
     local candidates = {}
     for _, item in ipairs(boss.loot) do
         if ItemIsTransmogCandidate(item, nil, true) then
@@ -4994,24 +4435,13 @@ BuildTransmogDetail = function(stepOrCtx)
         playerClassName = LOCALIZED_CLASS_NAMES_MALE[playerClassToken]
     end
 
-    -- Bucket candidates by shape: binary first (rare: single-appearance
-    -- multi-difficulty items like Sepulcher's Gavel of the First Arbiter),
-    -- then everything else under "perdiff" which renders adaptively over
-    -- whatever buckets are populated.
+    -- Buckets candidates by shape: binary first, then perdiff sorted by
+    -- bucket count ascending then name, so shorter strips read at the top.
     --
-    -- Within perdiff, sort by bucket count ascending then name. This puts
-    -- WoD-era LFR-only items (1 bucket: { [17] }) first, then WoD N/H/M
-    -- items (3 buckets: { [14], [15], [16] }), then full 4-bucket items
-    -- (Legion+ per-difficulty raids). The grouping reads naturally as
-    -- "shorter strips at the top" without needing an explicit sub-header.
-    -- Hard-mode-only drops (Ulduar) come out of the shape grouping entirely
-    -- and render as their own block at the bottom. They are a different kind
-    -- of gate from difficulty shape -- you cannot get them at all without
-    -- activating the encounter's hard mode -- so mixing them into the normal
-    -- strips would imply they drop on a standard clear.
-    -- Opposite-faction drops come out first, for the same reason: they are a
-    -- gate on the character rather than on the run, and interleaving them
-    -- would imply this character can loot them.
+    -- Hard-mode-only and opposite-faction drops leave the shape grouping
+    -- entirely and render as their own blocks -- both are gates on the run or
+    -- the character, and interleaving them would imply a standard clear
+    -- reaches them.
     local binaryItems    = {}
     local perDiffItems   = {}
     local hardModeItems  = {}
@@ -5046,15 +4476,10 @@ BuildTransmogDetail = function(stepOrCtx)
         end
         return sourceCount
     end
-    -- A stable signature of which difficulty buckets an item drops from, so
-    -- items with the same bucket count cluster by their actual difficulties
-    -- rather than interleaving alphabetically. For WoD split-loot bosses this
-    -- keeps the single-bucket group from mixing Normal-only ({[14]}) items in
-    -- with the Raid Finder ({[17]}) pool -- they share bucketCount 1 but are
-    -- different drop sources and shouldn't be intermingled. Lower difficulty
-    -- IDs sort first (Normal 14 before LFR 17). Folded-away buckets are
-    -- excluded for the same reason as the count: the signature must
-    -- describe the strip the player sees.
+    -- Clusters same-count items by their actual difficulties rather than
+    -- alphabetically, so a split-loot boss doesn't mix Normal-only rows into
+    -- the Raid Finder pool. Folded-away buckets are excluded: the signature
+    -- must describe the strip the player sees.
     local function bucketSignature(item)
         local _, foldedSkip = UI.FoldedSizeLabels(item)
         local ids = {}
@@ -5066,14 +4491,9 @@ BuildTransmogDetail = function(stepOrCtx)
         table.sort(ids)
         return table.concat(ids, ",")
     end
-    -- Binary-shape rows sort by class first, then name -- mirroring the
-    -- per-difficulty tier ordering below, so class-restricted binary gear
-    -- (e.g. Cataclysm Baradin Hold sets, where every drop is binary and
-    -- class-gated via `equipClasses`) clusters by class under "show all"
-    -- rather than interleaving alphabetically across classes. Rows with no
-    -- class info (`classKey` 0) sort together at the top, then by name.
-    -- Uses the lowest class ID in the row's class set as its sort key, same
-    -- convention as the tier block's `a.classes[1]`.
+    -- Binary rows sort by class then name, so class-gated binary gear clusters
+    -- under "show all" instead of interleaving. Rows with no class info sort
+    -- together at the top. Key is the lowest class ID in the row's set.
     local function classKey(item)
         local set = item.classes or item.equipClasses
         if not set or #set == 0 then return 0 end
@@ -5088,13 +4508,9 @@ BuildTransmogDetail = function(stepOrCtx)
         if ka ~= kb then return ka < kb end
         return (a.name or "") < (b.name or "")
     end)
-    -- Tier rows (those carrying `item.classes`) sort as a block ABOVE the
-    -- regular gear, ordered by class ID then name. Regular (non-tier) rows
-    -- keep the bucket-count -> signature -> name ordering. This makes the
-    -- tier separation deliberate across every tier raid rather than an
-    -- incidental side effect of tier's bucket signature differing from
-    -- regular gear (which only happened to cluster on raids like SoO whose
-    -- tier has a 3-bucket shape distinct from 4-bucket regular drops).
+    -- Tier rows sort as a block above regular gear, by class ID then name.
+    -- Explicit rather than relying on tier's bucket signature differing, which
+    -- only clustered on some raids by coincidence.
     local function isTier(item)
         return item.classes and #item.classes > 0
     end
@@ -5107,13 +4523,9 @@ BuildTransmogDetail = function(stepOrCtx)
         local ta, tb = isTier(a), isTier(b)
         if ta ~= tb then return ta end           -- tier block first
         if ta then
-            -- Within tier: class ID ascending, then difficulty signature,
-            -- then name. The signature comes before the name so the
-            -- blank-line grouping below yields one block per difficulty;
-            -- name-first only LOOKED grouped on raids whose tier prefixes
-            -- happened to sort in difficulty order (Heroes' before
-            -- Valorous), and fragmented on Vault of Archavon where the
-            -- per-class PvP set names interleave the sizes.
+            -- Class ID, then difficulty signature, then name. Signature before
+            -- name is what makes the blank-line grouping yield one block per
+            -- difficulty rather than fragmenting on some raids.
             local ka = a.classes[1] or 0
             local kb = b.classes[1] or 0
             if ka ~= kb then return ka < kb end
@@ -5156,6 +4568,12 @@ BuildTransmogDetail = function(stepOrCtx)
             end
         end
         local nameText
+        -- A row with nothing left to farm dims its name from white to gray.
+        -- Only the white is substituted: legendary orange and the tier and
+        -- restriction suffixes keep their colours, since the strip already
+        -- says the row is done.
+        local rowDone = RR.ItemFullyCollected and RR.ItemFullyCollected(item)
+        local baseNameColor = rowDone and "ff808080" or "ffffffff"
         if item.classes then
             -- Pick the right class name + color for the label. If item.classes
             -- has exactly one entry and it matches the player's class, use the
@@ -5183,10 +4601,15 @@ BuildTransmogDetail = function(stepOrCtx)
             end
 
             if className then
-                nameText = (RR.L["|cffffffff%s|r |c%s(%s Tier)|r"]):format(
-                    itemDisplayName, classHex, className)
+                -- The white is part of a localized format string, so the dim
+                -- substitutes into the returned pattern, never the locale key.
+                local fmt = RR.L["|cffffffff%s|r |c%s(%s Tier)|r"]
+                if rowDone then
+                    fmt = fmt:gsub("|cffffffff", "|c" .. baseNameColor, 1)
+                end
+                nameText = fmt:format(itemDisplayName, classHex, className)
             else
-                nameText = ("|cffffffff%s|r"):format(itemDisplayName)
+                nameText = ("|c%s%s|r"):format(baseNameColor, itemDisplayName)
             end
         else
             -- Non-tier rows render in white by default, in legendary
@@ -5194,7 +4617,7 @@ BuildTransmogDetail = function(stepOrCtx)
             -- legendary (quality enum 5). Matches Blizzard's own
             -- legendary text color so the row reads as legendary at
             -- a glance, not as a plain drop.
-            local nameColor = "ffffffff"
+            local nameColor = baseNameColor
             if item.id and GetItemInfo then
                 local quality = select(3, GetItemInfo(item.id))
                 if quality == 5 then
@@ -5203,18 +4626,9 @@ BuildTransmogDetail = function(stepOrCtx)
             end
             nameText = ("|c%s%s|r"):format(nameColor, itemDisplayName)
 
-            -- Class-restricted non-tier items (e.g. Nasz'uro, the Unbound
-            -- Legacy on Sarkareth) get a "(<Class> only)" suffix appended
-            -- in default text color, with the class name itself colored
-            -- in that class's standard WoW color. Distinct from the
-            -- `item.classes` tier path above: tier rows are filtered out
-            -- of the popup for non-matching classes (only visible when
-            -- "Show all class tier" is on), whereas restrictedToClass
-            -- items always render for everyone -- the suffix exists to
-            -- communicate the restriction in-line rather than hide the
-            -- row entirely. Used for legendaries with hard class gates
-            -- where players want to see the appearance exists even on
-            -- characters who can't equip it.
+            -- Class-restricted non-tier items always render for everyone with
+            -- a "(<Class> only)" suffix, unlike tier rows which are filtered
+            -- out. Players want to see a hard-gated legendary exists.
             if item.restrictedToClass then
                 local rcID    = item.restrictedToClass
                 local rcName  = (rcID == playerClassID and playerClassName)
@@ -5236,13 +4650,9 @@ BuildTransmogDetail = function(stepOrCtx)
                 end
             end
 
-            -- Armor-class-restricted rows (equipClasses; e.g. Baradin Hold
-            -- sets) are already filtered to the chosen class, so no suffix is
-            -- needed when a specific class is selected. When "all classes" is
-            -- selected the list mixes every class's armor, so append a colored
-            -- class tag naming who can wear the piece -- otherwise an all-class
-            -- armor dump is unreadable. Single-class pieces name that class;
-            -- multi-class (shared-armor) pieces list each, comma-separated.
+            -- Under a specific class the rows are already filtered, so no
+            -- suffix. Under "all classes" each piece gets a coloured class tag,
+            -- or an unreadable armour dump results.
             if item.equipClasses and ActiveClassFilter() == nil then
                 local tags = {}
                 for _, ecID in ipairs(item.equipClasses) do
@@ -5266,6 +4676,23 @@ BuildTransmogDetail = function(stepOrCtx)
             end
         end
 
+        -- Same-named siblings (the two Warglaives of Azzinoth) get their
+        -- equip slot appended so main-hand and off-hand read distinctly.
+        -- Blizzard's INVTYPE_* globals are already localized; item.slot is the
+        -- cold-cache fallback. Neutral tone, like the bind tag.
+        if item.name and duplicateNames[item.name] then
+            local slotLabel
+            if item.id and GetItemInfo then
+                local equipLoc = select(9, GetItemInfo(item.id))
+                if equipLoc and equipLoc ~= "" then slotLabel = _G[equipLoc] end
+            end
+            slotLabel = slotLabel or item.slot
+            if slotLabel and slotLabel ~= "" then
+                nameText = ("%s |cffffffff(|r|cff9d9d9d%s|r|cffffffff)|r"):format(
+                    nameText, slotLabel)
+            end
+        end
+
         -- Drops that only appear when the encounter's hard mode was
         -- activated. Appended last so it reads after any class tag, and
         -- colored like the other availability tags rather than like the
@@ -5286,6 +4713,53 @@ BuildTransmogDetail = function(stepOrCtx)
                 or  (FACTION_HORDE or RR.L["Horde"])
             nameText = ("%s |cffffffff(|r|c%s%s|r|cffffffff)|r"):format(
                 nameText, factionColor, factionLabel)
+        end
+
+        -- Bind state, appended last. Only trash-drop rows carry `bind`
+        -- today; boss loot omits it because every boss drop binds on
+        -- pickup and a tag on every row would be noise. Rendered in the
+        -- same neutral tone for both values -- the label carries the
+        -- meaning, and the tags above it are availability gates that
+        -- should keep the louder colors.
+        if item.bind then
+            -- Branched on literals rather than looked up through the raw
+            -- field: the locale audit scrapes RR.L keys as they appear in
+            -- source, so a dynamic key would ship untranslated without any
+            -- gate noticing.
+            local bindLabel
+            if item.bind == "BoE" then
+                bindLabel = RR.L["BoE"]
+            elseif item.bind == "BoP" then
+                bindLabel = RR.L["BoP"]
+            end
+            if bindLabel then
+                -- The tag takes the item's quality color -- epic purple until
+                -- the item cache answers, which is also every trash row today.
+                local qualityEscape = "|cffa335ee"
+                local itemQuality = item.id and GetItemInfo
+                    and select(3, GetItemInfo(item.id))
+                local qualityColor = itemQuality and ITEM_QUALITY_COLORS
+                    and ITEM_QUALITY_COLORS[itemQuality]
+                if qualityColor and qualityColor.hex then
+                    qualityEscape = qualityColor.hex
+                end
+                nameText = ("%s |cffffffff(|r%s%s|r|cffffffff)|r"):format(
+                    nameText, qualityEscape, bindLabel)
+            end
+
+            -- Bind-on-equip rows only, while this source is uncollected. A
+            -- BoP drop grants its appearance at loot, so a marker could only
+            -- sit beside a collected row; a BoE can be carried for weeks
+            -- unowned. `shared` rows qualify too: the look is known through
+            -- another item, but equipping the carried piece is what collects
+            -- this source and completes the row.
+            local carriedState = ItemSummaryState(item)
+            if item.bind == "BoE"
+                and (carriedState == "missing" or carriedState == "shared")
+                and GetItemCount and (GetItemCount(item.id, false) or 0) > 0 then
+                nameText = ("%s |cffffffff(|r|cff4dccff%s|r|cffffffff)|r"):format(
+                    nameText, RR.L["in your bags!"])
+            end
         end
         return ("%s  %s"):format(BuildDotRow(item), nameText)
     end
@@ -5330,28 +4804,24 @@ BuildTransmogDetail = function(stepOrCtx)
         MaybeAppendAcquisitionNote(item)
     end
 
-    -- Hard-mode-only block, last. Separated by a blank line like the other
-    -- groups; every row already carries its own "Hard mode only" tag, so no
-    -- sub-header is needed (and none of the other blocks use one).
-    if #hardModeItems > 0 and (#binaryItems > 0 or #perDiffItems > 0) then
-        table.insert(lines, "")
+    -- Hard-mode-only and opposite-faction rows render as their own
+    -- collapsible sections below this text block (same widget shape as the
+    -- trash section), so their lines are built here and handed back.
+    local hardModeBodyText, factionBodyText
+    local function BuildSectionBody(items)
+        if #items == 0 then return nil end
+        local sectionLines = {}
+        for _, item in ipairs(items) do
+            table.insert(sectionLines, FormatItemRow(item))
+            if item.acquisitionNote then
+                table.insert(sectionLines,
+                    ("        |cff888888%s|r"):format(item.acquisitionNote))
+            end
+        end
+        return table.concat(sectionLines, "\n")
     end
-    for _, item in ipairs(hardModeItems) do
-        table.insert(lines, FormatItemRow(item))
-        MaybeAppendAcquisitionNote(item)
-    end
-
-    -- Opposite-faction block, after everything this character can loot.
-    -- Separated by a blank line like the other groups; every row carries its
-    -- own faction tag, so no sub-header is needed.
-    if #otherFactionItems > 0
-        and (#binaryItems > 0 or #perDiffItems > 0 or #hardModeItems > 0) then
-        table.insert(lines, "")
-    end
-    for _, item in ipairs(otherFactionItems) do
-        table.insert(lines, FormatItemRow(item))
-        MaybeAppendAcquisitionNote(item)
-    end
+    hardModeBodyText = BuildSectionBody(hardModeItems)
+    factionBodyText  = BuildSectionBody(otherFactionItems)
 
     -- Weapon-token section (Castle Nathria, Sanctum of Domination).
     -- Tokens are covenant-partitioned in ways the data doesn't capture,
@@ -5408,15 +4878,9 @@ BuildTransmogDetail = function(stepOrCtx)
 
         local slotOrder = { "Main-Hand", "Off-Hand" }
 
-        -- Builds the class-list suffix for a slot's class set. WoW
-        -- exposes class IDs 1..13 in canonical UI order (1=Warrior,
-        -- 2=Paladin, ..., 13=Evoker). Each name renders in its
-        -- standard class color (paladin pink, mage cyan, etc.) via
-        -- RAID_CLASS_COLORS. When the slot's union covers every class
-        -- that has weapon access at that slot for this raid (4 of 4
-        -- Main-Hand families = all 13 classes, or 2 of 2 Off-Hand
-        -- families = 9 classes), the heading collapses to "All
-        -- classes" instead of an unwieldy colored list.
+        -- Class-list suffix for a slot's class set, each name in its class
+        -- colour. Collapses to "All classes" when the set covers every class
+        -- with weapon access at that slot.
         local function FormatClassList(classSet, slotLabel)
             local ids = {}
             for cid in pairs(classSet) do table.insert(ids, cid) end
@@ -5456,9 +4920,10 @@ BuildTransmogDetail = function(stepOrCtx)
         end
 
         if #tokenRows > 0 then
-            -- Blank-line separator above the token section.
-            if #binaryItems > 0 or #perDiffItems > 0 or #hardModeItems > 0
-                or #otherFactionItems > 0 then
+            -- Blank-line separator above the token section. Hard-mode and
+            -- faction rows live in their own sections now, so only the
+            -- in-text groups count.
+            if #binaryItems > 0 or #perDiffItems > 0 then
                 table.insert(lines, "")
             end
             for _, row in ipairs(tokenRows) do
@@ -5469,6 +4934,54 @@ BuildTransmogDetail = function(stepOrCtx)
             -- FontString below the main text, with a Flight button
             -- anchored to it (see BuildSanctumLine and the
             -- sanctumLine widget on tmogWindow). Skipped here.
+        end
+    end
+
+    -- Raid trash is held once at raid level and shown under whichever boss is
+    -- selected. It renders as its own collapsible section below this text block
+    -- in the browser, so the row lines and collected/total counts are built
+    -- here (where the row helpers are in scope) and handed back to the layout.
+    local trashBodyText, trashCollected, trashTotal
+    if raid and raid.trashLoot and #raid.trashLoot > 0 then
+        local trashRows = {}
+        for _, item in ipairs(raid.trashLoot) do
+            if ItemIsTransmogCandidate(item, nil, true) then
+                table.insert(trashRows, item)
+            end
+        end
+        if #trashRows > 0 then
+            -- Partitioned by row shape like the boss list: single-glyph
+            -- binary rows first, per-difficulty strips after, a blank line
+            -- between. One alphabetical pass wove the two shapes together.
+            local binaryTrash, pilledTrash = {}, {}
+            for _, item in ipairs(trashRows) do
+                if ItemShape(item) == "binary" then
+                    table.insert(binaryTrash, item)
+                else
+                    table.insert(pilledTrash, item)
+                end
+            end
+            table.sort(binaryTrash, CompareRegularRows)
+            table.sort(pilledTrash, CompareRegularRows)
+            local trashLines = {}
+            trashCollected, trashTotal = 0, #trashRows
+            local function EmitTrashRow(item)
+                table.insert(trashLines, FormatItemRow(item))
+                if item.acquisitionNote then
+                    table.insert(trashLines,
+                        ("        |cff888888%s|r"):format(item.acquisitionNote))
+                end
+                local state = ItemSummaryState(item)
+                if state ~= "missing" and state ~= "shared" then
+                    trashCollected = trashCollected + 1
+                end
+            end
+            for _, item in ipairs(binaryTrash) do EmitTrashRow(item) end
+            if #binaryTrash > 0 and #pilledTrash > 0 then
+                table.insert(trashLines, "")
+            end
+            for _, item in ipairs(pilledTrash) do EmitTrashRow(item) end
+            trashBodyText = table.concat(trashLines, "\n")
         end
     end
 
@@ -5521,7 +5034,8 @@ BuildTransmogDetail = function(stepOrCtx)
         end
     end
 
-    return table.concat(lines, "\n")
+    return table.concat(lines, "\n"), trashBodyText, trashCollected, trashTotal,
+        hardModeBodyText, factionBodyText
 end
 
 -- Color legend rendered as the bottom-most line in the Tmog window. The
@@ -5634,12 +5148,30 @@ end
 -- Lenient-count helpers: summed across nested levels. For dropdown labels.
 local function CountRaidLoot(raid)
     if not raid or not raid.bosses then return 0, 0, 0 end
-    local n, s, t = 0, 0, 0
+    local needed, shared, total = 0, 0, 0
     for _, boss in ipairs(raid.bosses) do
-        local bn, bs, bt = CountBossLoot(boss)
-        if bn then n, s, t = n + bn, s + bs, t + bt end
+        local bossNeeded, bossShared, bossTotal = CountBossLoot(boss)
+        if bossNeeded then
+            needed = needed + bossNeeded
+            shared = shared + bossShared
+            total  = total  + bossTotal
+        end
     end
-    return n, s, t
+    -- Trash drops belong to the raid, not to any one encounter, so they are
+    -- added once here rather than inside the loop -- summing them per boss
+    -- would multiply every trash appearance by the boss count. CountBossLoot
+    -- reads nothing but the `loot` array off what it is handed, so a table
+    -- carrying only that field counts the same way a boss does.
+    if raid.trashLoot and #raid.trashLoot > 0 then
+        local trashNeeded, trashShared, trashTotal =
+            CountBossLoot({ loot = raid.trashLoot })
+        if trashNeeded then
+            needed = needed + trashNeeded
+            shared = shared + trashShared
+            total  = total  + trashTotal
+        end
+    end
+    return needed, shared, total
 end
 
 local function CountExpansionLoot(expansion, byExpansion)
@@ -5761,15 +5293,9 @@ local function WarmBrowserItemCache()
     end
 end
 
--- Throttled re-render hook for GET_ITEM_INFO_RECEIVED. The event fires
--- once per item as WoW resolves async GetItemInfo calls, which on a
--- cold cache means many events in rapid succession after the first
--- browser open. Coalesce them into one repaint per ~100ms window so
--- we don't chain hundreds of redraws back-to-back.
---
--- Only repaints when the browser is actually visible -- no point
--- redrawing a hidden frame, and the next visible RefreshAll will
--- pick up whatever's in the cache anyway.
+-- GET_ITEM_INFO_RECEIVED fires once per item as WoW resolves async lookups, so
+-- a cold cache means hundreds in succession. Coalesced to one repaint per
+-- ~100ms, and only while the browser is visible.
 local browserRefreshScheduled = false
 function UI.RequestBrowserRefresh()
     if browserRefreshScheduled then return end
@@ -5812,7 +5338,16 @@ GetOrCreateTmogWindow = function()
     tmogFrame:EnableMouse(true)
     tmogFrame:RegisterForDrag("LeftButton")
     tmogFrame:SetScript("OnDragStart", tmogFrame.StartMoving)
-    tmogFrame:SetScript("OnDragStop",  tmogFrame.StopMovingOrSizing)
+    tmogFrame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        -- Re-anchor by the top-left corner so a later expand/collapse grows
+        -- the window downward from a fixed top, not outward from its center.
+        local left, top = self:GetLeft(), self:GetTop()
+        if left and top then
+            self:ClearAllPoints()
+            self:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+        end
+    end)
     tmogFrame:SetClampedToScreen(true)
     tmogFrame:Hide()
 
@@ -5850,13 +5385,9 @@ GetOrCreateTmogWindow = function()
         tmogFrame:Hide()
     end)
 
-    -- The class filter is a view for as long as the browser is open, not a
-    -- saved preference. Looking at another class's drops -- picked in the
-    -- dropdown, or reached by clicking a toast for gear this character
-    -- cannot wear -- must not follow the player to the next time they open
-    -- the browser, nor to the next character. Clearing on hide sends the
-    -- next open back to the class being played, which is what
-    -- ActiveClassFilter returns once nothing is stored.
+    -- The class filter is a view for as long as the browser is open, never a
+    -- preference. Clearing on hide sends the next open back to the class being
+    -- played.
     tmogFrame:HookScript("OnHide", function()
         browserState.classFilter = nil
         if tmogFrame.RefreshClassDropdown then
@@ -5864,15 +5395,12 @@ GetOrCreateTmogWindow = function()
         end
     end)
 
-    -- Three cascading dropdowns: Expansion / Raid / Boss.
-    -- Each refreshes its successors when changed, so selecting a new
-    -- expansion resets the raid + boss dropdowns to their first entries.
-    -- Creates a dropdown with an optional label to its LEFT. The template's
-    -- text element is right-justified by default with wide internal padding,
-    -- which leaves an awkward blank gap on the left of the bar; we re-justify
-    -- it LEFT so the selected text starts at the bar's left edge. `labelText`,
-    -- when given, places a caption to the left of the bar in the space that
-    -- gap used to waste.
+    -- Three cascading dropdowns, Expansion / Raid / Boss, each resetting its
+    -- successors when changed.
+    --
+    -- The template right-justifies its text with wide padding, leaving a gap at
+    -- the bar's left; re-justifying LEFT reclaims it, and `labelText` puts a
+    -- caption there.
     local function MakeDD(name, width, parent, labelText)
         local dd = CreateFrame("Frame", "RetroRuns" .. name .. "DD", parent, "UIDropDownMenuTemplate")
         UIDropDownMenu_SetWidth(dd, width)
@@ -5955,32 +5483,18 @@ GetOrCreateTmogWindow = function()
     -- region) aligns. Independent of the dropdowns' indented left edge.
     tmogFrame.contentMargin = 22
 
-    -- Class filter dropdown -- chooses which class's class-gated loot (tier
-    -- tokens, or Baradin Hold's equipClasses armor) the browser shows. Each
-    -- class is listed by its localized name in its class color, plus an "All
-    -- classes" entry. Defaults to the player's own class (see
-    -- ActiveClassFilter), so the out-of-box view is unchanged. Replaces the
-    -- older "show all class tier" checkbox -- a dropdown lets you pick any
-    -- single class, not just your-own-vs-everyone. Persisted to
-    -- browserState.classFilter (class ID, or 0 for "all").
+    -- Chooses which class's class-gated loot the browser shows: every class by
+    -- localized name in its class colour, plus "All classes". Defaults to the
+    -- class being played.
     local ddClass = MakeDD("Class", 110, tmogFrame, RR.L["Class:"])
     ddClass:SetPoint("TOPLEFT", ddBoss, "BOTTOMLEFT", DD_STEP, 4)
     anchorLabel(ddClass)
     tmogFrame.ddClass = ddClass
 
-    -- Size each dropdown bar to its widest real content by MEASURING the
-    -- rendered string width, rather than a hardcoded guess (which truncated
-    -- "Warlords of Draenor" and would not survive longer future names like
-    -- "Wrath of the Lich King"). A hidden FontString at the dropdown's font
-    -- (GameFontHighlightSmall) measures each candidate; the bar is set to the
-    -- widest plus padding for the dropdown's arrow button and inner margins.
-    --
-    -- Expansion is measured against the FULL expansion-order constant (which
-    -- already lists every expansion, including ones with no data yet), so the
-    -- bar is wide enough the moment those raids are added -- no width edit
-    -- needed. Raid/Boss are measured against all current names; Class against
-    -- the class names plus "All classes". Re-runnable: RefreshDropdowns calls
-    -- this so newly-added data is accommodated on the next open.
+    -- Sizes each dropdown bar by MEASURING its widest candidate with a hidden
+    -- FontString at the dropdown's own font, plus padding. Expansion measures
+    -- against the full expansion-order constant, including expansions with no
+    -- data yet. Re-runnable on every RefreshDropdowns.
     local measureFS = tmogFrame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     measureFS:Hide()
     local function widestStringWidth(strings)
@@ -6129,14 +5643,10 @@ GetOrCreateTmogWindow = function()
     end
     tmogFrame.ResolveTmogScrollBar = ResolveScrollBar
 
-    -- Install a persistent guard on the scrollbar that re-hides it whenever
-    -- there is no scrollable range. UIPanelScrollFrameTemplate (and the modern
-    -- MinimalScrollBar it may use) re-shows the bar from several internal
-    -- paths -- OnScrollRangeChanged, OnSizeChanged, data-provider updates --
-    -- any of which can fire a frame after our layout-pass hide. Hooking the
-    -- bar's own OnShow means whichever path re-shows it, we immediately
-    -- re-hide if the range is still zero. The guard is installed once, lazily,
-    -- since the bar object may not exist until the template finishes setup.
+    -- Persistent guard that re-hides the scrollbar whenever there is no range.
+    -- The template re-shows it from several internal paths, any of which can
+    -- fire a frame after the layout pass hides it. Installed lazily, since the
+    -- bar may not exist until the template finishes setup.
     local barGuardInstalled = false
     local function EnsureBarGuard()
         if barGuardInstalled then return end
@@ -6216,14 +5726,9 @@ GetOrCreateTmogWindow = function()
     lineMeasure:Hide()
     tmogFrame.lineMeasure = lineMeasure
 
-    -- Sanctum vendor line. Lives inside the scroll child, below the main
-    -- content text, so it scrolls with the content it belongs to. Width
-    -- matches the content column so wrapping behaves consistently. Hidden
-    -- when BuildSanctumLine returns nil (boss doesn't drop weapon tokens, or
-    -- raid has no weaponVendors -- non-CN raids).
-    --
-    -- Gap to main text is tight (-2) so the redeem line reads as the
-    -- continuation of the weapon-token heading it sits beneath.
+    -- Sanctum vendor line, inside the scroll child so it travels with the
+    -- content. Tight gap above so it reads as a continuation of the
+    -- weapon-token heading. Hidden when BuildSanctumLine returns nil.
     local sanctumLine = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     sanctumLine:SetPoint("TOPLEFT",  text,        "BOTTOMLEFT",  0, -2)
     sanctumLine:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT",    0, 0)
@@ -6232,6 +5737,91 @@ GetOrCreateTmogWindow = function()
     sanctumLine:SetWordWrap(true)
     sanctumLine:Hide()
     tmogFrame.sanctumLine = sanctumLine
+
+    -- Raid trash-drops section: a collapsible header ("Trash Drops (N/M)") over
+    -- a body of rows, both inside the scroll child so they travel with the
+    -- content. Anchored below the sanctum line; the +/- toggle reuses the
+    -- idle-list wing-expander helpers. Starts collapsed on every open (reset in
+    -- UI.OpenTransmogBrowser).
+    local trashHeader = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    trashHeader:SetPoint("TOPLEFT",  sanctumLine, "BOTTOMLEFT", 0, -4)
+    trashHeader:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT",   0, 0)
+    trashHeader:SetJustifyH("LEFT")
+    trashHeader:SetJustifyV("TOP")
+    trashHeader:Hide()
+    tmogFrame.trashHeader = trashHeader
+
+    local trashBody = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    trashBody:SetPoint("TOPLEFT",  trashHeader, "BOTTOMLEFT", 0, -2)
+    trashBody:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT",   0, 0)
+    trashBody:SetJustifyH("LEFT")
+    trashBody:SetJustifyV("TOP")
+    trashBody:SetWordWrap(true)
+    trashBody:Hide()
+    tmogFrame.trashBody = trashBody
+
+    local trashToggle = CreateFrame("Button", nil, scrollChild)
+    trashToggle:RegisterForClicks("LeftButtonUp")
+    trashToggle:SetFrameLevel((scrollChild:GetFrameLevel() or 0) + 10)
+    -- Pink chevron glyph, same asset pair the LFR wing expanders use. Set up
+    -- as _chevronTex/_chevronHL so panel.SetWingChevron drives the swap.
+    local trashChevron = trashToggle:CreateTexture(nil, "ARTWORK")
+    trashChevron:SetAllPoints(trashToggle)
+    trashToggle._chevronTex = trashChevron
+    local trashChevronHL = trashToggle:CreateTexture(nil, "HIGHLIGHT")
+    trashChevronHL:SetAllPoints(trashToggle)
+    trashChevronHL:SetVertexColor(1, 1, 1, 0.3)
+    trashToggle._chevronHL = trashChevronHL
+    trashToggle:Hide()
+    trashToggle:HookScript("OnEnter", CancelTmogHide)
+    trashToggle:HookScript("OnLeave", ScheduleTmogHide)
+    trashToggle:SetScript("OnClick", function()
+        tmogFrame._trashExpanded = not tmogFrame._trashExpanded
+        tmogFrame:RefreshContent()
+    end)
+    tmogFrame.trashToggle = trashToggle
+
+    -- Boss-scoped collapsible sections: hard-mode-only rows and
+    -- opposite-faction rows, same widget shape as the trash section.
+    -- Headers are anchored by the layout pass, which chains whichever
+    -- sections are visible for the selected boss.
+    local function MakeSectionWidgets(flagKey)
+        local header = scrollChild:CreateFontString(nil, "OVERLAY",
+            "GameFontHighlightSmall")
+        header:SetJustifyH("LEFT")
+        header:SetJustifyV("TOP")
+        header:Hide()
+        local body = scrollChild:CreateFontString(nil, "OVERLAY",
+            "GameFontHighlightSmall")
+        body:SetPoint("TOPLEFT",  header, "BOTTOMLEFT", 0, -2)
+        body:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", 0, 0)
+        body:SetJustifyH("LEFT")
+        body:SetJustifyV("TOP")
+        body:SetWordWrap(true)
+        body:Hide()
+        local toggle = CreateFrame("Button", nil, scrollChild)
+        toggle:RegisterForClicks("LeftButtonUp")
+        toggle:SetFrameLevel((scrollChild:GetFrameLevel() or 0) + 10)
+        local chevron = toggle:CreateTexture(nil, "ARTWORK")
+        chevron:SetAllPoints(toggle)
+        toggle._chevronTex = chevron
+        local chevronHL = toggle:CreateTexture(nil, "HIGHLIGHT")
+        chevronHL:SetAllPoints(toggle)
+        chevronHL:SetVertexColor(1, 1, 1, 0.3)
+        toggle._chevronHL = chevronHL
+        toggle:Hide()
+        toggle:HookScript("OnEnter", CancelTmogHide)
+        toggle:HookScript("OnLeave", ScheduleTmogHide)
+        toggle:SetScript("OnClick", function()
+            tmogFrame[flagKey] = not tmogFrame[flagKey]
+            tmogFrame:RefreshContent()
+        end)
+        return header, body, toggle
+    end
+    tmogFrame.hardmodeHeader, tmogFrame.hardmodeBody, tmogFrame.hardmodeToggle =
+        MakeSectionWidgets("_hardmodeExpanded")
+    tmogFrame.factionHeader, tmogFrame.factionBody, tmogFrame.factionToggle =
+        MakeSectionWidgets("_factionExpanded")
 
     -- Color legend. FIXED footer on the popup (NOT in the scroll child), so
     -- it stays pinned at the bottom while the content above it scrolls.
@@ -6244,15 +5834,10 @@ GetOrCreateTmogWindow = function()
     legendLine:SetWordWrap(true)
     tmogFrame.legendLine = legendLine
 
-    -- Flight button anchored against the sanctum line's RENDERED text
-    -- width (GetStringWidth, not the FontString's frame width which
-    -- spans the popup). Uses the FlightMaster minimap-tracking texture
-    -- (the stock glyph, unlike the idle-list entrance buttons which use
-    -- the custom PlaneIcon). Hidden by default; RefreshContent decides
-    -- whether to show it based on whether
-    -- the player's covenant has a vendor entry with concrete coords.
-    -- Parented to the scroll child so it travels with the sanctum line it
-    -- anchors against, rather than floating over a scrolled-away position.
+    -- Anchored against the sanctum line's RENDERED width (GetStringWidth, not
+    -- the FontString's frame width, which spans the popup) and parented to the
+    -- scroll child so it travels with the line. Shown only when the player's
+    -- covenant has a vendor with concrete coords.
     local sanctumBtn = CreateFrame("Button", nil, scrollChild)
     sanctumBtn:RegisterForClicks("LeftButtonUp")
     sanctumBtn:SetFrameLevel((scrollChild:GetFrameLevel() or 0) + 10)
@@ -6350,19 +5935,21 @@ GetOrCreateTmogWindow = function()
 
     tmogFrame.RefreshContent = function(self)
         local raid, boss = GetBrowserSelection()
-        local detail = boss and BuildTransmogDetail({ boss = boss })
-                              or RR.L["Select a raid and boss."]
+        local detail, trashBodyText, trashCollected, trashTotal
+        local hardModeBodyText, factionBodyText
+        if boss then
+            detail, trashBodyText, trashCollected, trashTotal,
+                hardModeBodyText, factionBodyText =
+                BuildTransmogDetail({ boss = boss })
+        else
+            detail = RR.L["Select a raid and boss."]
+        end
         text:SetText(detail or "")
         local fontSize = RR:GetSetting("fontSize", 12)
         SetBodyFont(text, fontSize - 1, "")
 
-        -- Sanctum vendor line + Flight button. BuildSanctumLine returns
-        -- nil for any boss that doesn't drop weapon tokens or any raid
-        -- without weaponVendors (so non-CN raids automatically hide
-        -- both widgets, no special-casing needed at this site). When
-        -- vendorInfo is nil but text is non-nil, the player has no
-        -- covenant -- we show the "no covenant detected" line but
-        -- hide the Flight button (no real coords to route to).
+        -- A nil return hides both widgets. Text without vendorInfo means no
+        -- covenant: the line shows, the Flight button doesn't.
         local sanctumText, sanctumRaid, sanctumCovID, sanctumVendor =
             BuildSanctumLine(raid, boss)
         if sanctumText then
@@ -6426,6 +6013,115 @@ GetOrCreateTmogWindow = function()
             sanctumBtn:SetScript("OnLeave", ScheduleTmogHide)
         end
 
+        -- Boss-scoped collapsible sections (hard-mode-only rows, then
+        -- opposite-faction rows), rendered above the raid-level trash
+        -- section. `chainPrev` walks down whichever elements are visible so
+        -- each section anchors to the one above it.
+        local chainPrev = self.sanctumLine:IsShown() and self.sanctumLine
+                          or self.contentText
+        local function RenderSection(header, body, toggle, flagKey,
+                                     labelText, bodyText)
+            if bodyText and bodyText ~= "" then
+                SetBodyFont(header, fontSize - 1, "")
+                header:SetText(("|cff%s%s|r"):format(C_LABEL, labelText))
+                header:ClearAllPoints()
+                header:SetPoint("TOPLEFT",  chainPrev, "BOTTOMLEFT", 0, -10)
+                header:SetPoint("TOPRIGHT", self.contentChild, "TOPRIGHT", 0, 0)
+                header:Show()
+                toggle:SetSize(fontSize, fontSize)
+                local measure = self.lineMeasure
+                SetBodyFont(measure, fontSize - 1, "")
+                measure:SetText(header:GetText() or "")
+                toggle:ClearAllPoints()
+                toggle:SetPoint("LEFT", header, "LEFT",
+                    (measure:GetStringWidth() or 0) + 4, 0)
+                panel.SetWingChevron(toggle, self[flagKey])
+                toggle:Show()
+                if self[flagKey] then
+                    SetBodyFont(body, fontSize - 1, "")
+                    body:SetText(bodyText)
+                    body:Show()
+                    chainPrev = body
+                else
+                    body:Hide()
+                    body:SetText("")
+                    chainPrev = header
+                end
+            else
+                header:Hide()
+                header:SetText("")
+                toggle:Hide()
+                body:Hide()
+                body:SetText("")
+            end
+        end
+        local factionLabel = (UnitFactionGroup
+                and UnitFactionGroup("player") == "Alliance")
+            and RR.L["Horde Appearances"] or RR.L["Alliance Appearances"]
+        RenderSection(self.hardmodeHeader, self.hardmodeBody,
+            self.hardmodeToggle, "_hardmodeExpanded",
+            RR.L["Hard Mode"], hardModeBodyText)
+        RenderSection(self.factionHeader, self.factionBody,
+            self.factionToggle, "_factionExpanded",
+            factionLabel, factionBodyText)
+
+        -- Trash-drops collapsible section. The header shows whenever the raid
+        -- has trash rows; the body only when expanded. Counter is collected /
+        -- total, where "collected" excludes shared appearances (matches the
+        -- gray-dimming rule). Label reuses the translated "Trash Drops:" key
+        -- with its trailing colon stripped so no new locale string is needed.
+        if trashBodyText and trashTotal and trashTotal > 0 then
+            local trashLabel = (RR.L["Trash Drops:"]):gsub("[:：]%s*$", "")
+            SetBodyFont(self.trashHeader, fontSize - 1, "")
+            -- Counter colour tracks completion: yellow while anything is
+            -- missing, collected-green at 100%.
+            local trashCountHex = ((trashCollected or 0) >= trashTotal)
+                and "00ff00" or "ffd100"
+            self.trashHeader:SetText(("|cff%s%s|r |cff%s(%d/%d)|r"):format(
+                C_LABEL, trashLabel, trashCountHex,
+                trashCollected or 0, trashTotal))
+            -- Anchor below the last visible element of the section chain
+            -- (main text -> sanctum line -> hard mode -> faction). Anchoring
+            -- to a hidden element inherits its phantom height and pushes the
+            -- section past the measured content, clipping it at the viewport
+            -- edge -- which is why the chain only ever advances past shown
+            -- widgets.
+            local anchorTo = chainPrev
+            self.trashHeader:ClearAllPoints()
+            self.trashHeader:SetPoint("TOPLEFT",  anchorTo, "BOTTOMLEFT", 0, -10)
+            self.trashHeader:SetPoint("TOPRIGHT", self.contentChild, "TOPRIGHT", 0, 0)
+            self.trashHeader:Show()
+            -- Pink chevron: TriRight collapsed, TriDown expanded, same glyph as
+            -- the LFR wing expanders (via panel.SetWingChevron). Sits just past
+            -- the rendered header text. Width is measured on the hidden
+            -- lineMeasure string because GetStringWidth is lazy immediately
+            -- after SetFont on the header itself.
+            self.trashToggle:SetSize(fontSize, fontSize)
+            local trashMeasure = self.lineMeasure
+            SetBodyFont(trashMeasure, fontSize - 1, "")
+            trashMeasure:SetText(self.trashHeader:GetText() or "")
+            local trashHeaderTextW = trashMeasure:GetStringWidth() or 0
+            self.trashToggle:ClearAllPoints()
+            self.trashToggle:SetPoint("LEFT", self.trashHeader, "LEFT",
+                trashHeaderTextW + 4, 0)
+            panel.SetWingChevron(self.trashToggle, self._trashExpanded)
+            self.trashToggle:Show()
+            if self._trashExpanded then
+                SetBodyFont(self.trashBody, fontSize - 1, "")
+                self.trashBody:SetText(trashBodyText)
+                self.trashBody:Show()
+            else
+                self.trashBody:Hide()
+                self.trashBody:SetText("")
+            end
+        else
+            self.trashHeader:Hide()
+            self.trashHeader:SetText("")
+            self.trashToggle:Hide()
+            self.trashBody:Hide()
+            self.trashBody:SetText("")
+        end
+
         -- Legend: always rendered, text refreshed here. Position is fixed
         -- (a footer pinned to the popup bottom at construction), so it does
         -- not get re-anchored per boss -- it stays put while the content
@@ -6433,12 +6129,8 @@ GetOrCreateTmogWindow = function()
         SetBodyFont(legendLine, fontSize - 1, "")
         legendLine:SetText(BuildTmogLegendText())
 
-        -- The "Show all class tier" checkbox's enabled state depends on
-        -- whether the currently-selected boss drops tier tokens. Refresh
-        -- it here (not in RefreshAll) so it stays in sync with the boss
-        -- dropdown's per-click state changes -- the boss dropdown calls
-        -- RefreshContent only (not the full RefreshAll), so anchoring
-        -- this check to RefreshContent is what keeps it correct on a
+        -- Refreshed here rather than in RefreshAll: the boss dropdown calls
+        -- RefreshContent only, so this is what keeps the control correct on a
         -- boss-by-boss stepthrough.
         if self.RefreshClassDropdown then
             self:RefreshClassDropdown()
@@ -6460,36 +6152,13 @@ GetOrCreateTmogWindow = function()
         SaveBrowserState()
     end
 
-    -- "Show all class tier" checkbox is only meaningful on bosses that
-    -- actually drop tier tokens. On non-tier bosses (and on the very
-    -- first/last bosses of a raid which traditionally don't drop tier),
-    -- the toggle has no observable effect -- clicking it would be a
-    -- dead-end interaction. Disable the checkbox in those cases so the
-    -- player gets a visible "this control doesn't apply right now"
-    -- signal instead of silent no-ops.
+    -- The "show all class tier" checkbox and the class dropdown are both
+    -- greyed on bosses with no class-gated loot, so the player sees that the
+    -- control doesn't apply rather than clicking into a no-op.
     --
-    -- A boss "drops tier" iff at least one entry in the raid's
-    -- tierSets.tokenSources maps to that boss's index. Sarkareth's
-    -- omnitoken (Void-Touched Curio) is intentionally not tracked in
-    -- tokenSources -- it's a separate item shape -- so Aberrus's last
-    -- boss reads as "no tier" here. That's consistent with the schema
-    -- decision documented in the data file.
-    --
-    -- Tier tokens aren't the only class-restricted loot, though: some
-    -- raids (WoD's Blackrock Foundry, Highmaul) drop class-specific armor
-    -- pieces tagged with a `classes` field but no tier-set membership
-    -- (e.g. Blackhand's Faceguard, Warrior-only), and Cataclysm Baradin
-    -- Hold sets carry `equipClasses` (armor restriction, not tier). Both
-    -- are hidden for off-class players by ItemIsForPlayer just like tier
-    -- rows, so the "show all" toggle must be live for them too. Enable the
-    -- toggle when the boss has tier tokens OR any class-restricted loot.
-    -- The class dropdown is only meaningful on bosses that actually drop
-    -- class-gated loot (tier tokens, or equipClasses armor). On non-tier
-    -- bosses (and the first/last bosses of a raid which traditionally don't
-    -- drop tier), no row is class-gated, so filtering by class does nothing.
-    -- Disable (grey + dim) the dropdown there so the player gets a visible
-    -- "this control doesn't apply right now" signal rather than a live
-    -- control with no observable effect.
+    -- Class-gated means tier tokens in tierSets.tokenSources, OR any row
+    -- carrying `classes` or `equipClasses` -- both are hidden for off-class
+    -- players, so the toggle has to be live for them too.
     tmogFrame.RefreshClassDropdownEnabled = function(self)
         local raid, boss = GetBrowserSelection()
         local hasClassFiltered = false
@@ -6539,6 +6208,12 @@ GetOrCreateTmogWindow = function()
     tmogFrame:RegisterEvent("TRANSMOG_COLLECTION_SOURCE_ADDED")
     tmogFrame:RegisterEvent("TRANSMOG_COLLECTION_SOURCE_REMOVED")
     tmogFrame:RegisterEvent("TRANSMOG_COLLECTION_UPDATED")
+    -- Bind-on-equip trash rows carry an in-bags marker, so a loot or a sale
+    -- has to repaint the window too. BAG_UPDATE_DELAYED rather than
+    -- BAG_UPDATE: the latter fires once per bag on a single loot, and the
+    -- debounce below would still let a five-bag character queue five
+    -- refreshes.
+    tmogFrame:RegisterEvent("BAG_UPDATE_DELAYED")
 
     local refreshPending = false
     tmogFrame:SetScript("OnEvent", function(self)
@@ -6618,6 +6293,10 @@ function UI.OpenTransmogBrowser()
     -- at their open sites the same way.
     local scale = RR:GetSetting("windowScale", 1.0)
     window:SetScale(scale)
+    -- Collapsible sections always open collapsed.
+    window._trashExpanded = false
+    window._hardmodeExpanded = false
+    window._factionExpanded = false
     window:RefreshAll()
     window:Show()
     -- One more AutoSize after Show so the first visible frame is already at
@@ -6770,12 +6449,8 @@ function UI.DumpTmogSize()
 end
 
 -- ----------------------------------------------------------------------------
--- Shared raid-skip presentation pieces
---
--- Used by both the idle-state list (where the marker appears next to
--- raid names with the skip unlocked) and the skips window (where the
--- marker headlines each unlocked raid). Defined here so both consumers
--- pick up the same glyph rules.
+-- Shared raid-skip presentation, used by both the idle list and the skips
+-- window so the glyph rules cannot diverge.
 -- ----------------------------------------------------------------------------
 
 -- Skip-unlocked marker: yellow raid-target star, same texture used for
@@ -6821,20 +6496,10 @@ local function BuildEntranceLegend()
     local wuiInst       = RR:IsWUIInstalled()
     local tomtomInst    = RR:IsTomTomInstalled()
 
-    -- ROUTING line. Zygor wins ties over Mapzeroth (mirrors the
-    -- cascade in NavigateToEntrance). "None" surfaces when neither
-    -- planner is installed -- explicit empty state, no install hint
-    -- inline (kept terse).
-    --
-    -- Zygor-specific soft-fail: when Zygor is installed but the user
-    -- has the waypoint arrow turned off in Zygor's settings, the
-    -- dispatch still picks Zygor (presence-only design) but Zygor
-    -- produces no visible waypoint. We surface that here so the
-    -- dead-click cause is visible BEFORE the user clicks. The warning
-    -- itself is a clickable hyperlink (retroruns:zygor_arrow, handled
-    -- at the panel-level OnHyperlinkClick) -- a click enables Zygor's
-    -- arrow setting and re-renders this legend so the warning
-    -- disappears immediately.
+    -- ROUTING line. Zygor wins ties over Mapzeroth, matching the dispatch
+    -- cascade. Zygor installed with its waypoint arrow turned off still wins
+    -- the dispatch but produces nothing visible, so that soft-fail is
+    -- surfaced here as a clickable warning that turns the setting back on.
     local routingActive
     if zygorInst then
         routingActive = lit("Zygor")
@@ -6873,14 +6538,9 @@ local function BuildEntranceLegend()
         overlayTail = lbl(RR.L[" with 3D Overlay from "]) .. lit("WUI")
     end
 
-    -- Return two rows. Each row has a label half (gray "Routing: " or
-    -- "Waypoint: ") and a data half (the active provider + tails). The
-    -- caller renders them as TWO FontStrings per row -- label anchored
-    -- to row-left, data anchored to a fixed pixel offset that puts the
-    -- data column past the widest label. This sidesteps the alignment
-    -- drift that comes from proportional-font label widths (e.g.
-    -- "Routing: " is narrower than "Waypoint: " so concatenated text
-    -- doesn't column-align even when labels are styled identically).
+    -- Two rows, each a label half and a data half, rendered as TWO
+    -- FontStrings: proportional label widths mean concatenated text never
+    -- column-aligns.
     return {
         { withMarker = true,  label = lbl(RR.L["Routing: "]),  data = routingActive  .. routingTail },
         { withMarker = false, label = lbl(RR.L["Waypoint: "]), data = waypointActive .. overlayTail },
@@ -6904,25 +6564,13 @@ local SKIPS_WINDOW_WIDTH        = 400
 local SKIPS_WINDOW_MIN_HEIGHT   = 200
 local SKIPS_WINDOW_MAX_HEIGHT   = 600
 
--- Column x-offsets (px from frame left) for the difficulty cells. The
--- name column starts at frame-left + content padding and runs up to
--- the first cell; the three cell columns are right-aligned around their
--- center x-positions so a glyph and the header letter both sit
--- visually centered.
+-- English-default column offsets. Difficulty names are far wider in some
+-- languages, so the window measures its own headers on creation and widens
+-- both the column pitch and the frame; every consumer reads
+-- window.colNormalX / colHeroicX / colMythicX / contentWidth, and these
+-- constants are only the floor.
 --
--- These are the ENGLISH defaults. Difficulty names are far wider in some
--- languages ("Героический" against "Heroic"), so the window measures its
--- own headers on creation and widens both the column pitch and the frame
--- to fit. Every consumer reads window.colNormalX / colHeroicX /
--- colMythicX / contentWidth rather than these constants; the values below
--- are the floor those calculations start from.
---
--- Difficulty order: Mythic / Heroic / Normal (left to right). Hardest
--- first matches a player's typical mental model when checking "do I have
--- skips for this raid" -- they look at Mythic first, eye left to right
--- as the answer cascades up through difficulties. Cascade order means
--- a partial unlock visually stacks checks on the left side of the row,
--- with Normal leftmost and Mythic rightmost (traditional progression).
+-- Column order is Mythic / Heroic / Normal left to right.
 local SKIPS_COL_NAME_X     = 14
 -- Info-button column. All [i] icons in raidRow rendering anchor to
 -- this fixed x so they form a vertical column right of the longest
@@ -6943,28 +6591,17 @@ local SKIPS_COL_HEADER_GAP = 12
 -- is the multiplier (rendered line-height = fontSize * SKIPS_LINE_GAP).
 local SKIPS_LINE_GAP       = 1.7
 
--- Divider offset from the row's bottom edge. Positive value moves the
--- divider UP into the row band (toward the text), set so the row text +
--- glyphs sit visually centered between two consecutive dividers. With
--- SKIPS_LINE_GAP = 1.7 and fontSize=12, lineHeight is ~20px; the
--- FontString has a few px of internal
--- top-padding, so the divider needs to sit a few px above the bottom
--- of the band to make the text appear centered.
+-- Moves the divider up into the row band so the text reads as centred between
+-- two dividers -- the FontString's internal top-padding shifts its visual
+-- midpoint upward.
 local SKIPS_ROW_DIVIDER_INSET = 5
 
--- Glyphs for difficulty cells. Reuse the existing visual vocabulary
--- (ReadyCheck-Ready green check / ReadyCheck-NotReady red X) so the
--- meaning is consistent with how collected/uncollected appearances
--- are rendered elsewhere in the addon. Both textures are natively
--- 14x14 from the RaidFrame family so column widths stay even.
--- Skips-window cell glyphs. Each per-difficulty cell paints one of
--- these. The dots form a severity ramp:
---   Gray    N/A      -- no skip exists at this difficulty
---   White   Locked   -- skip exists here, not yet unlocked
---   Green   Unlocked -- unlocked at this difficulty
--- Rendered from the white StatusDot texture vertex-tinted per state, so
--- they're font-independent (a typographic bullet renders as a missing
--- glyph in pixel fonts like VT323).
+-- Difficulty-cell glyphs, reusing the ReadyCheck check/X vocabulary at a
+-- native 14x14 so column widths stay even.
+--
+-- Skips cells paint a severity ramp instead: gray N/A, white locked, green
+-- unlocked. Vertex-tinted StatusDot textures rather than a typographic
+-- bullet, which renders as a missing glyph in pixel fonts.
 local function StatusDotGlyph(r, g, b)
     return ("|TInterface\\AddOns\\RetroRuns\\Media\\StatusDot:10:10:0:0:64:64:0:64:0:64:%d:%d:%d|t"):format(r, g, b)
 end
@@ -7042,26 +6679,11 @@ local function BuildSkipsRows()
         table.sort(expOrder)
     end
 
-    -- Session-scoped expand state, mirroring the idle list's expansion
-    -- collapse (RR.state.expandedExpansions) but kept in a separate table
-    -- so the two windows collapse independently. The table holds explicit
-    -- user choices only: true = user expanded, false = user collapsed,
-    -- nil = no explicit choice yet.
+    -- Session-scoped expand state, separate from the idle list's so the two
+    -- collapse independently. true = expanded, false/nil = collapsed.
     --
-    -- Default for an expansion with no explicit choice is collapsed --
-    -- EXCEPT the expansion of the raid the player is currently in, which
-    -- auto-expands. That auto-open is a live check against RR.currentRaid
-    -- (not a stored seed), so it follows the player: zoning out of a raid
-    -- drops currentRaid and the section collapses again on the next
-    -- refresh. A manual collapse still wins (the explicit false in the
-    -- table overrides the auto-open) so the user can close the current
-    -- raid's section if they want.
-    -- Session-scoped expand state. true = user expanded, false/nil =
-    -- collapsed. Single-expand accordion, matching the idle list: opening
-    -- one section closes the others, but a section never auto-opens, so
-    -- the clicked +/- button keeps its screen position across a refresh
-    -- (nothing above the click changes height). Spam-clicking the same
-    -- toggle stays under the cursor.
+    -- Single-expand accordion, and nothing ever auto-opens -- that is what
+    -- keeps the clicked +/- button under the cursor across a refresh.
     local expandedState = (RR.state and RR.state.skipsExpandedExpansions) or {}
     local function isExpanded(exp)
         return expandedState[exp] == true
@@ -7087,13 +6709,9 @@ local function BuildSkipsRows()
                 -- Three-state cells: true = unlocked, false = locked,
                 -- "na" = not applicable for this raid (only Mythic exists).
 
-                -- Multi-chain raids (skipQuests array of chains, e.g.
-                -- Antorus's Imonar + Aggramar) render as a single row.
-                -- Each difficulty cell paints two glyphs side-by-side --
-                -- chain 1 on the left, chain 2 on the right -- with the
-                -- pair's visual center aligned to the column midline.
-                -- Each chain cascades independently, so each chain's
-                -- per-difficulty cells come from its own ceiling.
+                -- Multi-chain raids render as one row with two glyphs per
+                -- cell, centred on the column midline. Each chain cascades
+                -- independently and takes its own ceiling.
                 local perChain = RR:GetSkipChainCeilings(raid)
                 local isMultiChain = perChain and #perChain > 1
 
@@ -7284,39 +6902,18 @@ local function GetSkipsRowSlot(parent, idx)
     slot.accent:SetColorTexture(0.45, 0.80, 1.0, 1.0)
     slot.accent:SetWidth(3)
 
-    -- Info button (the "[i]" glyph rendered as a clickable Button). Sits
-    -- just right of the name FontString on rows whose raid has skipTrigger
-    -- text authored. Click opens the skip-detail frame with the trigger
-    -- the trigger text. Hidden on rows without skipTrigger so we don't
-    -- light up empty popups.
-    --
-    -- Implementation: a small Button frame with a child FontString that
-    -- renders the glyph. The glyph IS the visual; no separate texture.
-    -- Hover highlight is a tint shift on the FontString itself. The
-    -- "[i]" bracketed-marker style matches the existing "[!] view
-    -- special note" convention used elsewhere in the addon, and it's
-    -- all-ASCII so STANDARD_TEXT_FONT (FRIZQT) renders it reliably
-    -- across locales (Unicode glyphs like U+24D8 ⓘ are not in FRIZQT's
-    -- coverage on enUS and render as placeholder boxes).
+    -- "[i]" button, shown only on rows whose raid has skipTrigger text. A
+    -- Button with a child FontString; the glyph IS the visual, and hover
+    -- tints the FontString. Bracketed ASCII because Unicode info glyphs are
+    -- outside FRIZQT's coverage and render as boxes.
     slot.infoBtn = CreateFrame("Button", nil, parent)
     slot.infoBtn:SetSize(28, 16)
-    -- Fire OnClick on mouse-button-DOWN rather than UP. Default Button
-    -- behavior is LeftButtonUp, which fires only after release -- but
-    -- the parent Skips window has RegisterForDrag("LeftButton") +
-    -- SetMovable, so a press + tiny cursor jiggle on the small 28x16
-    -- button can be interpreted as a drag-start on the WINDOW instead
-    -- of a click on the BUTTON. Firing on DOWN eliminates that race:
-    -- the click registers immediately, before any movement happens.
+    -- Fires on DOWN, not UP: the parent window is draggable, so a press plus
+    -- a cursor jiggle on a button this small reads as a drag-start on the
+    -- window instead.
     slot.infoBtn:RegisterForClicks("AnyDown")
-    -- Expand the hit-rect outward 4px on each side so the click target
-    -- is slightly larger than the visual [ i ] glyph. Negative inset
-    -- values in SetHitRectInsets EXPAND the hit area beyond the
-    -- button's SetSize bounds. Cheap safety margin: the glyph itself
-    -- is ~16x10 inside a 28x16 button, so cursor positioning at the
-    -- edge of the visible text could land just outside the 28x16 rect
-    -- under high UI scale or cursor-edge cases. The 4px outward
-    -- expansion keeps the click target snappy at any UI scale without
-    -- visually changing the button.
+    -- Negative insets EXPAND the hit area past the button's bounds, keeping
+    -- the target snappy at high UI scale without changing it visually.
     slot.infoBtn:SetHitRectInsets(-4, -4, -4, -4)
     slot.infoBtn.glyph = slot.infoBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     slot.infoBtn.glyph:SetPoint("CENTER", slot.infoBtn, "CENTER", 0, 0)
@@ -7397,13 +6994,8 @@ local function RefreshSkipsContent()
 
         if row.kind == "expansionHeader" then
             SetBodyFont(slot.expHeader, rowFontSize, "")
-            -- Four leading spaces reserve room for the toggle button
-            -- glyph anchored at the FontString's LEFT, matching the idle
-            -- list exactly. Two spaces (an earlier attempt) left the
-            -- button overlapping the first letter. The button is sized
-            -- to the font height and anchored to LEFT, so the reserved
-            -- run of spaces keeps the visible label from shifting whether
-            -- the button shows +/- or the row expands/collapses.
+            -- Four leading spaces reserve room for the toggle glyph anchored
+            -- at the FontString's LEFT. Two overlapped the first letter.
             slot.expHeader:SetText(("    |cff00ffff%s|r"):format(RR.L[row.text]))
             slot.expHeader:ClearAllPoints()
             slot.expHeader:SetPoint("TOPLEFT", window, "TOPLEFT", SKIPS_COL_NAME_X, y)
@@ -7435,13 +7027,9 @@ local function RefreshSkipsContent()
             end)
             btn:Show()
             table.insert(skipsToggleButtons, btn)
-            -- Header rows use a tighter pitch than content rows so the
-            -- collapsed list reads as a compact stack of expansion names,
-            -- matching the main-UI idle list (which packs headers at
-            -- text-height + a small gap). The full 1.7x lineHeight is
-            -- only needed for content rows, where it gives the per-row
-            -- highlight/divider bands room. headerPitch ~= font height
-            -- plus a few px.
+            -- Headers take a tighter pitch than content rows, so a collapsed
+            -- list reads as a compact stack. The full lineHeight is only needed
+            -- where the highlight and divider bands do.
             y = y - headerPitch
 
         elseif row.kind == "raidRow" then
@@ -7452,16 +7040,8 @@ local function RefreshSkipsContent()
             slot.name:SetWidth(SKIPS_COL_INFO_X - SKIPS_COL_NAME_X - 8)
             slot.name:Show()
 
-            -- Active-raid highlight: light up this row if the player is
-            -- currently inside this raid. Comparison is by instanceID
-            -- (not table reference) so BfD works for both factions --
-            -- the Skips window walks the Alliance/symmetric data table,
-            -- but RR.currentRaid can resolve to the Horde-specific BfD
-            -- table for Horde players. The same instanceID covers both.
-            -- Positioning mirrors the achievements window's current-boss
-            -- highlight: spans the row's vertical band with 14px L/R
-            -- inset matching the divider line, plus a 3px-wide accent
-            -- bar on the left.
+            -- Active-raid highlight, compared by instanceID rather than table
+            -- reference so the faction-specific BfD tables both match.
             if RR.currentRaid and row.raidRef
                and row.raidRef.instanceID == RR.currentRaid.instanceID then
                 slot.highlight:ClearAllPoints()
@@ -7485,14 +7065,10 @@ local function RefreshSkipsContent()
                   or (trig.details   and trig.details   ~= ""))
             if hasTrigger then
                 slot.infoBtn:ClearAllPoints()
-                -- Anchor to the window (not to slot.name's FontString) so
-                -- the button's hit rect lives on the same coord grid as
-                -- the rest of the clickable children. Button is 28 wide;
-                -- anchor TOPLEFT at (INFO_X - 14, y) to center on INFO_X.
-                -- y+2 lifts the glyph so its center aligns with the row
-                -- name's visual midline -- the button's GameFontHighlightSmall
-                -- glyph centers at y-8 (button is 16 tall), while the row
-                -- name's body-font text sits higher in its line-box.
+                -- Anchored to the window, not the row FontString, so the hit
+                -- rect shares a coord grid with the other clickable children.
+                -- The y nudge aligns the button glyph with the row name, which
+                -- sits higher in its line-box.
                 slot.infoBtn:SetPoint("TOPLEFT", window, "TOPLEFT",
                     SKIPS_COL_INFO_X - 14, y + 2)
                 slot.infoBtn:SetFrameLevel(window:GetFrameLevel() + 2)
@@ -7572,13 +7148,8 @@ local function RefreshSkipsContent()
             end
             slot.cellN:Show()
 
-            -- Subtle row divider at bottom of this row's vertical span,
-            -- inset from each frame edge so it visually frames the table
-            -- rather than running edge-to-edge. Vertically, the divider
-            -- is pulled up into the band by SKIPS_ROW_DIVIDER_INSET so
-            -- the row text + glyphs read as centered between two
-            -- consecutive dividers (text has internal top-padding that
-            -- shifts its visual midpoint upward).
+            -- Row divider, inset from each frame edge so it frames the table
+            -- rather than running edge-to-edge.
             slot.divider:ClearAllPoints()
             slot.divider:SetPoint("TOPLEFT",  window, "TOPLEFT",  SKIPS_COL_NAME_X, y - lineHeight + SKIPS_ROW_DIVIDER_INSET)
             slot.divider:SetPoint("TOPRIGHT", window, "TOPRIGHT", -14, y - lineHeight + SKIPS_ROW_DIVIDER_INSET)
@@ -7623,19 +7194,10 @@ local function RefreshSkipsContent()
     local clamped = math.max(SKIPS_WINDOW_MIN_HEIGHT,
                              math.min(SKIPS_WINDOW_MAX_HEIGHT, desired))
 
-    -- TOP-PIN (in place): keep the window's top-left corner at its current
-    -- screen position across the resize so it grows downward only and never
-    -- jumps. Dragging the frame (StartMoving) converts its anchor to a
-    -- CENTER-relative point; a bare SetHeight then splits the height delta
-    -- above and below center, moving the expansion +/- buttons out from
-    -- under the cursor. Re-anchoring TOPLEFT to the captured screen
-    -- position fixes that without snapping the window back to the panel,
-    -- so a user-dragged position is preserved.
-    --
-    -- GetTop/GetLeft and the SetPoint offset both live in the frame's own
-    -- scaled coord space, and UIParent BOTTOMLEFT is the origin, so the
-    -- captured values can be used directly as the anchor offset at any
-    -- window-scale setting.
+    -- Top-pin: re-anchor TOPLEFT to the captured screen position so the
+    -- window grows downward and a dragged position survives. A bare SetHeight
+    -- on a CENTER-anchored frame splits the delta and moves the +/- buttons
+    -- out from under the cursor.
     local oldTop  = window:GetTop()
     local oldLeft = window:GetLeft()
     window:SetHeight(clamped)
@@ -7793,14 +7355,9 @@ end -- skips do block
 -- What's New (release-notes body builder)
 -- ============================================================================
 --
--- Renders the release-notes data in RR.WhatsNew (defined in WhatsNew.lua) into
--- a single multi-line, color-coded string. Consumed by the Settings "What's
--- New" tab (the footer version link opens that tab). There is no longer a
--- standalone popup window -- the tab is the single What's New surface.
---
--- Wrapped in a do/end block to keep the supporting locals out of UI.lua's
--- top-level scope (Lua 5.1 caps local-variable count at 200 per function;
--- this file's main chunk is close to that ceiling).
+-- Renders RR.WhatsNew into one colour-coded string for the Settings tab.
+-- Wrapped in do/end to keep its locals out of UI.lua's top-level scope, which
+-- is near Lua 5.1's 200-local ceiling.
 do
 -- Build the multi-line body text from RR.WhatsNew. One FontString worth
 -- of output -- version headers, subheaders, and bulleted lines, joined
@@ -7846,19 +7403,9 @@ end -- do block
 
 
 
--- Build the per-raid pill row for the idle-state list. Same shape as the
--- in-raid pill row, but each pill is colored by its OWN lockout state
--- rather than active-difficulty highlighting:
---   green  = fully cleared this lockout (nothing to farm until reset)
---   amber  = partial kills (still farmable, knows what's left)
---   gray   = no kills / fresh lockout / never entered
---   dim "-" = difficulty doesn't apply to this raid (rare; some legacy
---             raids predate certain difficulties)
---
--- The supported-raids list shows a binary skip indicator via the leading
--- raid-name star (in emitRaid): skip unlocked / not unlocked / no skip
--- mechanic. Per-difficulty skip granularity lives in the dedicated Skips
--- window, reached via the action button.
+-- Per-raid pill row for the idle list. Same shape as the in-raid row, but
+-- coloured by each pill's OWN lockout state: green cleared, amber partial,
+-- gray untouched, dim "-" where the difficulty doesn't apply.
 local function BuildIdleListPills(raid)
     local counts = RR:GetPerDifficultyKillCountsForRaid(raid)
     if not counts then return "" end
@@ -7901,15 +7448,10 @@ local function BuildIdleListPills(raid)
     -- gold (the LFG lock is the locked-out marker).
     local LOCK_GLYPH = " |TInterface\\PetBattles\\PetBattle-LockIcon:12:12:0:0|t"
 
-    -- LFR pill first (easiest -> hardest ordering), matching the in-raid row.
-    -- LFR completion comes from the lockout bitfield, not C_RaidLocks, so it's
-    -- sourced separately. Shown only for raids with LFR wing data. Colored by
-    -- the raid's own lockout state, like the other idle pills (no active-
-    -- difficulty highlight here -- the idle list shows every raid at once).
-    -- The LFR pill lives in its OWN bracket group, separate from the N/H/M
-    -- group. For wing raids the bracket reserves an inner slot before its
-    -- closing "]" (WING_CHEVRON_SLOT) so the wing-expand chevron can sit
-    -- INSIDE the bracket, anchored there by RefreshIdleList.
+    -- LFR pill first, matching the in-raid row. Sourced from the lockout
+    -- bitfield rather than C_RaidLocks, and shown only for raids with wing
+    -- data. It sits in its own bracket group, which reserves an inner slot so
+    -- the wing chevron can sit inside the bracket.
     local lfrSegment = nil
     local lfr = RR:GetLFRKillCountForRaid(raid)
     if lfr then
@@ -7980,19 +7522,11 @@ local function BuildIdleListPills(raid)
     return lfrSegment or diffSegment or ""
 end
 
--- Returns a list of structured rows for RefreshIdleList to render as
--- per-line FontStrings. Each row is one of:
---   { kind = "expansionHeader", exp = name, expanded = bool }
---   { kind = "raidName",        text = colored-and-formatted string }
---   { kind = "pillRow",         text = colored pill string }
---   { kind = "spacer" }
---   { kind = "skipLegend" }
---   { kind = "emptyMessage",    text = "(no raid data loaded)" }
+-- Structured rows for RefreshIdleList to render: expansionHeader, raidName,
+-- pillRow, spacer, skipLegend, emptyMessage.
 --
--- Splitting the row data from the rendering pass means RefreshIdleList
--- can anchor toggle Buttons directly to their expansion-header
--- FontString instances (no line-index math, no measurement drift)
--- while keeping data construction and rendering as separate concerns.
+-- Splitting data from rendering is what lets RefreshIdleList anchor toggle
+-- Buttons to their header FontStrings instead of computing line offsets.
 local function BuildIdleListRows()
     local byExpansion = {}
     for _, raid in pairs(RetroRuns_Data or {}) do
@@ -8001,13 +7535,9 @@ local function BuildIdleListRows()
         -- (journalEncounterID = 0 resolves to no encounter, detectable bosses
         -- = 0, and the pill renderer takes the "doesn't apply" branch).
         if raid.instanceID and raid.instanceID > 0 then
-            -- Faction-aware swap: a Horde player with Horde-specific data for
-            -- a raid (currently only BfD) uses that instead of the shared
-            -- Alliance copy. Otherwise the idle-list pill row counts kills
-            -- against Alliance encounter IDs on a Horde character and reports
-            -- 0/6 instead of 2/9, since Horde kills register against the
-            -- Horde-variant IDs absent from the Alliance bosses[] table.
-            -- Alliance and Neutral characters get the shared raid object.
+            -- Horde players use the Horde-specific table where one exists, or
+            -- the pill row counts kills against Alliance encounter IDs the
+            -- Horde kills never registered against.
             local resolved = RR:GetRaidByInstanceID(raid.instanceID) or raid
             local exp = resolved.expansion or RR.L["Unknown"]
             byExpansion[exp] = byExpansion[exp] or {}
@@ -8038,15 +7568,8 @@ local function BuildIdleListRows()
     local function emitRaid(raid)
         local name  = RR:GetLocalizedRaidName(raid) or "??"
 
-        -- Leading skip-status marker(s). Single-chain raids show one
-        -- marker; multi-chain raids (Antorus, Hellfire Citadel) show one
-        -- marker per chain, each filled or dimmed by that chain's own
-        -- unlock state. Marker states:
-        --   skip unlocked      -> gold
-        --   skip exists, not unlocked -> dim
-        --   no skip mechanic   -> transparent (reserves column width)
-        -- "Skip mechanic" covers raids with skipQuests, skipAchievement,
-        -- or the Garrosh scroll (skipGarrosh).
+        -- One marker per skip chain: gold unlocked, dim locked, transparent
+        -- where no skip mechanic exists (which still reserves the column).
         local hasSkipMechanic = RR:RaidHasSkipMechanic(raid)
         local leading
         if not hasSkipMechanic then
@@ -8100,14 +7623,9 @@ local function BuildIdleListRows()
                 hasPlane = hasPlane,
             })
 
-            -- When this raid's wings are expanded, inject the wing rows
-            -- right below the pill. Each wing becomes a header row
-            -- (WingName + n/N) with its own chevron; the bosses of the
-            -- currently-open wing render below that header (one boss per
-            -- row, so long lists stack instead of wrapping). Only one wing
-            -- per raid is open at a time -- tracked in openWingByRaid keyed
-            -- by raid.instanceID -> wing key. Wing/boss state comes from
-            -- GetWingProgressForRaid.
+            -- Wing rows inject below the pill: a header per wing with its own
+            -- chevron, and the open wing's bosses one per row. Only one wing
+            -- per raid is open at a time.
             local wingExpanded = (RR.state and RR.state.wingExpandedRaids) or {}
             if hasWings and wingExpanded[raid.instanceID] then
                 local wings = RR:GetWingProgressForRaid(raid)
@@ -8170,18 +7688,9 @@ local function BuildIdleListRows()
         table.insert(rows, { kind = "emptyMessage", text = RR.L["|cff9d9d9d(no raid data loaded)|r"] })
     end
 
-    -- Skip legend appears whenever at least one raid line is rendered
-    -- (i.e. at least one expansion is expanded). Every visible raid
-    -- gets a leading star -- filled if unlocked, dim if not -- so
-    -- the legend always has something to explain when raids are
-    -- visible. If every expansion is collapsed, no raids show, no
-    -- stars are visible, and the legend stays hidden.
-    --
-    -- Both legends are rendered in a separate bottom-up pass in
-    -- RefreshIdleList -- they pin near the action button row at the
-    -- panel bottom rather than chaining after the last raid line, so
-    -- they read as a key block above the action row regardless of
-    -- raid-list length.
+    -- The skip legend shows whenever any raid line is rendered, since every
+    -- visible raid carries a star. Both legends render in a separate
+    -- bottom-up pass so they pin above the action row at any list length.
     if anyRaidShown then
         table.insert(rows, { kind = "skipLegend" })
     end
@@ -8604,22 +8113,10 @@ RefreshIdleList = function()
             topFS = fs
 
         elseif row.kind == "entranceLegend" then
-            -- Multi-row block, two FontStrings PER row (label + data)
-            -- so the data column aligns across rows regardless of
-            -- label-width differences in the proportional font. Each
-            -- row's spec is { withMarker, label, data }.
-            --
-            -- Vertical anchor (between rows): the label FontString of
-            -- the upper row chains BOTTOMLEFT-to-TOPLEFT against the
-            -- LABEL FontString of the row below it (or panel bottom
-            -- for the first-rendered row). The DATA FontString of
-            -- each row anchors LEFT-to-RIGHT against its own label
-            -- with a fixed pixel offset (LEGEND_DATA_COLUMN), so the
-            -- data columns align across rows.
-            --
-            -- Render order: bottom-up within the block so each row's
-            -- label has its predecessor (the row below) already
-            -- placed when it anchors.
+            -- Two FontStrings per row (label + data) so the data column aligns
+            -- despite proportional-font label widths. Labels chain upward
+            -- against each other; each data string anchors to its own label at
+            -- a fixed offset. Rendered bottom-up so each anchor target exists.
             local entranceRows = BuildEntranceLegend()
             -- xOffsetFor: per-row left position relative to PAD_LEFT.
             -- Marker rows render the marker glyph as text inside the
@@ -8808,17 +8305,11 @@ function UI.Update()
     end
 
     if raid and loaded then
-        -- The raid name line shows just the raid name; per-difficulty kill
-        -- state lives in the pills row below. A trailing yellow-star marker
-        -- appears when the player's current difficulty is at or below the
-        -- account's cascade ceiling, i.e. when the in-game skip NPC will
-        -- actually let them use it.
-        -- Faction marker for raids with separate per-faction data (currently
-        -- only BfD); symmetric raids get no marker.
+        -- Raid name only; kill state lives in the pills row below. A trailing
+        -- star marks a difficulty at or below the account's skip ceiling.
         --
-        -- Alliance blue / Horde red roughly matching Blizzard's faction
-        -- colors. Bracketed-letter pattern matches the [!] style on the
-        -- boss-encounter line.
+        -- Faction marker for raids with per-faction data; symmetric raids get
+        -- none.
         local raidLabel = RR.L["Raid: "] .. (RR:GetLocalizedRaidName(raid) or raid.name)
         if RetroRuns_DataHorde and RetroRuns_DataHorde[raid.instanceID] then
             local faction = UnitFactionGroup("player")
@@ -8875,16 +8366,9 @@ function UI.Update()
         panel.mapBtn:SetAlpha(1)
 
         if RR:IsInLFR() and not RR:GetActiveWing() then
-            -- LFR mode: routing, segments, and per-boss progress are
-            -- not modeled. LFR wings have different boss subsets and
-            -- different paths than the Normal/Heroic/Mythic layout the
-            -- routing data is authored for, so showing those would lead
-            -- the player toward bosses or transitions that don't exist
-            -- in the wing they're standing in. The panel surfaces a
-            -- single message in place of the routing/encounter content.
-            -- The action button row (Achievements, Transmog, Skips,
-            -- Settings) sits outside this render path and stays visible,
-            -- so the still-working browsers remain one click away.
+            -- LFR wings have different boss subsets and paths than the routing
+            -- data is authored for, so the panel shows one message in place of
+            -- routing. The action button row stays visible.
             local wingName = RR:GetCurrentWingName()
             if wingName then
                 panel.next:SetText(("|cffffffff" .. RR.L["LFR routing for"] .. " |r|cffF259C7%s|r|cffffffff " .. RR.L["isn't supported yet."] .. "|r"):format(wingName))
@@ -9048,25 +8532,10 @@ function UI.Update()
             panel.ReleaseWingToggleButtons()
             ReleaseIdleListLines()
         else
-            -- step == nil branch: either the player has cleared every
-            -- boss in this lockout (genuine run-complete) OR the raid
-            -- is loaded but doesn't have routing data for every boss
-            -- (in-development bring-ups where steps land incrementally).
-            -- Distinguish by comparing routing length to boss count:
-            -- if every boss has a step authored, an empty
-            -- GetAvailableSteps means "all killed/blocked" (genuine
-            -- complete); if routing is shorter than bosses, some
-            -- bosses don't have steps yet and we shouldn't show the
-            -- green "Run complete!" -- the user might have killed
-            -- all the steps that exist and still have more boss work
-            -- ahead of them per the bosses[] count.
-            -- Completion keys off whether every boss in the active route
-            -- is dead (IsActiveRouteComplete), not a step-count comparison.
-            -- That way a skip route -- which has fewer steps than the raid
-            -- has bosses -- reaches "complete" when its final boss dies,
-            -- instead of never satisfying routingCount >= bossCount. An
-            -- empty/unauthored route returns false, preserving the
-            -- "not yet captured" state for in-development bring-ups.
+            -- Completion keys off IsActiveRouteComplete, not a step-count
+            -- comparison, so a skip route with fewer steps than bosses still
+            -- reaches complete on its last boss. An unauthored route returns
+            -- false, keeping the "not yet captured" state for bring-ups.
             local routeComplete = RR.IsActiveRouteComplete and RR:IsActiveRouteComplete()
             local isSkip = (RR.state and RR.state.activeRouteVariant == "skip")
                 or (RR.ActiveRouteSkippedOptionalBoss
@@ -9191,21 +8660,10 @@ function UI.Update()
         panel.listHeader:SetPoint("TOPLEFT", panel.progress, "BOTTOMLEFT", 0, -8)
         panel.listHeader:SetText(RR.L["|cff9d9d9dCurrently supported:|r"])
         RefreshIdleList()
-        -- Hide the intermediate Button widgets in idle state. With empty
-        -- text + EnableMouse(false), Button frames are functionally
-        -- invisible to clicks, but they still occupy layout space at
-        -- their original anchor positions (panel.next -> panel.travel
-        -- -> panel.encounter -> panel.transmog). panel.list is
-        -- re-anchored tight under panel.progress in idle state to skip
-        -- the empty intermediate gap, which means the toggle Button
-        -- overlays positioned over panel.list's lines can end up
-        -- vertically overlapping panel.encounter / panel.transmog's
-        -- bounding boxes. Even with mouse disabled, sibling Buttons
-        -- at the same Z-level can interfere with mouse dispatch.
-        -- Hide() removes them from the layout pass entirely so the
-        -- toggle Buttons get clean clicks regardless of their final
-        -- screen position. The listHeader anchor was re-pointed above
-        -- so hiding panel.transmog no longer orphans anything.
+        -- Hide rather than mouse-disable: a disabled Button still occupies
+        -- layout space, and siblings at the same Z-level interfere with mouse
+        -- dispatch. Hide() removes them from the layout pass so the toggle
+        -- Buttons get clean clicks.
         panel.encounter:Hide()
         panel.transmog:Hide()
         panel.mapBtn:Enable()
@@ -9866,31 +9324,17 @@ function UI._GetOrCreateLoadDialog()
     return loadDialog
 end
 
--- Show the load dialog for the current raid. raidName is the display
--- string; the SKIP state is resolved from the live raid + difficulty.
---
--- SKIP has three states:
---   enabled              -- skip route authored AND unlocked at the
---                           current difficulty
---   disabled + "N/A"     -- this raid has no skip shortcut
---   disabled + "locked"  -- route authored but the player hasn't
---                           unlocked the skip here
--- "N/A" wins when both apply (no skip exists, so unlock state is moot).
+-- The load dialog for the current raid. SKIP is enabled, disabled "N/A" (no
+-- skip exists), or disabled "locked" (authored but not unlocked here). N/A
+-- wins when both apply.
 function UI.ShowLoadDialog(raidName)
     local dialog = UI._GetOrCreateLoadDialog()
     local raid = RR.currentRaid
     local diff = RR.state and RR.state.currentDifficultyID
 
-    -- The load-dialog title and prompt normally render in the pixel wordmark
-    -- font (04B_03), which covers ASCII only. On a non-English client these
-    -- lines show localized content, so they render in the client's default
-    -- font (full glyph coverage for the client's language) regardless of
-    -- whether a particular string happens to be all-ASCII this time -- a
-    -- Spanish raid name without accents should still match the rest of the
-    -- Spanish UI, and the next raid's name may well carry accents. English
-    -- clients keep the pixel font. The RETRORUNS wordmark above is a brand
-    -- mark (ASCII by definition) and stays in the pixel font either way.
-    -- Swapped per-populate, so both branches are always set.
+    -- Title and prompt take the client default on non-English clients even
+    -- when a given string happens to be all-ASCII, so they match the rest of
+    -- the localized UI. The wordmark stays in the pixel font either way.
     local titleName = raidName or (raid and RR:GetLocalizedRaidName(raid)) or "?"
     -- The difficulty renders on its own line, in its own smaller FontString,
     -- rather than running on after the raid name where it used to wrap
@@ -10014,27 +9458,12 @@ function UI.ShowWowheadQuestPopup(questID, raidName, questName)
 end
 
 
--- Builder: walk a raid's bosses and produce a structured row list that the
--- achievements window's row pool can render as a table. Each row has a
--- `kind` plus kind-specific fields. The window decides per-kind which
--- widgets to show and where to position them.
---
--- Row kinds:
---   "glory"    -- raid-level Glory meta header. Fields: id, name, completed,
---                 done, total, rewardSpellID, rewardItemID, rewardName,
---                 rewardRemoved. One row per entry in the raid's gloryMetas
---                 list (gloryMeta, singular, still reads as a one-entry
---                 list). Always first, in list order.
---   "spacer"   -- inserts a half-row of vertical space.
---   "header"   -- column header row. Static labels.
---   "achRow"   -- one achievement, usually attached to a boss. Fields:
---                 bossName, achievementID, achievementName, completed,
---                 soloable, meta, raidWide. Bosses with N achievements
---                 produce N rows; the boss name repeats so the column stays
---                 easy to scan. Raid-wide achievements (the raid's
---                 raidAchievements list) render after the boss rows with
---                 raidWide = true and a dash in the boss column. Bosses
---                 with zero achievements produce no rows.
+-- Structured rows for the achievements window's row pool. Kinds:
+--   "glory"   raid-level meta header, always first, one per gloryMetas entry
+--   "spacer"  half a row of vertical space
+--   "header"  static column labels
+--   "achRow"  one achievement. Bosses with N produce N rows and repeat the
+--             boss name; raid-wide entries follow with a dash in that column.
 local function BuildAchievementRows(raid)
     local rows = {}
     if not raid then return rows end
@@ -10117,17 +9546,9 @@ local function BuildAchievementRows(raid)
     return rows
 end
 
--- Last-rendered fingerprint for the achievements window's row table.
--- Used to short-circuit the window's RefreshContent when no state change has occurred
--- since the last render. Same root-cause class as the idle-list click-race
--- bug: UI.Update calls UpdateAchievementsWindow on every 1Hz heartbeat,
--- which calls RefreshContent, which calls HideAllAchSlots() -- hiding the
--- per-row wowhead "?" buttons on every tick. A user click whose
--- OnMouseDown landed before a heartbeat but OnMouseUp would have landed
--- after got eaten: the button vanished mid-click and OnClick never fired.
--- Symptom: intermittent unresponsiveness of the wowhead-column buttons,
--- with the bug correlated to heartbeat tick timing. Mirrors the
--- lastIdleListFingerprint pattern documented earlier in this file.
+-- Short-circuits RefreshContent when nothing has changed. Without it the
+-- heartbeat hides every row's buttons each tick and eats clicks whose
+-- mouse-up would have landed after. Same pattern as lastIdleListFingerprint.
 local lastAchRowsFingerprint = nil
 
 -- Public hook: callers that need to force a rebuild (font-size changes
@@ -10274,18 +9695,9 @@ local ACH_CELL_TODO   = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14|t"
 local ACH_META_PREFIX     = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14|t "
 local ACH_NON_META_PREFIX = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14:14:0:0:64:64:0:64:0:64:80:80:80|t "
 
--- Soloable indicator. Per-achievement `soloable` field is one of:
---   "yes"   -> green star  (any class can solo)
---   "kinda" -> orange star (solo possible but requires specific class
---                           abilities, e.g., self-heal, immunity, pet)
---   "no"    -> red star    (confirmed not soloable)
---   nil     -> gray star   (not yet evaluated)
---
--- Returns a pre-formatted string ready to concatenate into the
--- achievement-cell text. The leading space is folded in so callers don't
--- need to worry about spacing -- if there's no field at all the gray
--- star still renders, since a missing marker would be ambiguous (could
--- mean "no info" OR "not soloable").
+-- Soloable star: "yes" green, "kinda" orange, "no" red, nil gray. The gray
+-- star still renders for a missing field, since no marker at all would be
+-- ambiguous. Leading space is folded in.
 local function GetSoloableStar(soloable)
     if soloable == "yes"   then return " |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:0:255:0|t" end
     if soloable == "kinda" then return " |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:8:8:0:0:64:64:0:64:0:64:255:136:0|t" end
@@ -11246,18 +10658,9 @@ C_Timer.NewTicker(0.1, function()
     end
 end)
 
--- Second pulse driver: the footer new-version [!] indicator.
--- Independent gating from the encounter-card pulse (runs whenever the
--- panel is allowed and the [!] hasn't been dismissed for the current
--- version), but reuses the same encounterPulsePhase and color table
--- so both pulses breathe in sync. The marker is rewritten in place
--- per tick -- no UI.Update call needed, just a SetText on the FontString.
---
--- Dismissed state is keyed off RetroRunsDB.whatsNewSeenVersion: the [!]
--- shows whenever the stored value != current VERSION (i.e., the player
--- hasn't clicked the version since this version shipped). First-ever click
--- writes the current VERSION into the saved-var, suppressing the [!]
--- until the next version bump.
+-- Footer new-version [!]. Shares encounterPulsePhase so both pulses breathe
+-- in sync, and rewrites in place rather than calling UI.Update. Dismissed
+-- while RetroRunsDB.whatsNewSeenVersion matches the current VERSION.
 C_Timer.NewTicker(0.1, function()
     if not RR:IsPanelAllowed() then return end
     if not panel.whatsNewLabel then return end

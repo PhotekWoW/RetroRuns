@@ -41,6 +41,12 @@ RetroRuns_Data[1648] = {
         tokenSources = {},
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 142541, slot = "Back", name = "Drape of the Forgotten Souls", sources = { [14]=83216, [15]=83218, [16]=83219, [17]=83217 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

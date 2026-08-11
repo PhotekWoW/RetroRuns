@@ -72,6 +72,20 @@ RetroRuns_DataHorde[2070] = {
     --   * boss 3: Horde fights JADEFIRE Masters (Horde variant, jeid 2341).
     --     Alliance's boss 3 is Grong (Revenant variant, jeid 2340).
     --   * bosses 4-9: identical jeids, names, and order both factions.
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 165925, slot = "Back", name = "Drape of Valiant Defense", sources = { [14]=102298, [15]=102300, [16]=102301, [17]=102299 }, bind = "BoE" },
+        { id = 165563, slot = "Feet", name = "Boots of the Dark Iron Raider", sources = { [14]=101972, [15]=101973, [16]=101974, [17]=101975 }, bind = "BoE" },
+        { id = 165547, slot = "Feet", name = "City Crusher Sabatons", sources = { [14]=101908, [15]=101909, [16]=101910, [17]=101911 }, bind = "BoE" },
+        { id = 165520, slot = "Feet", name = "Silent Pillager's Footpads", sources = { [14]=101800, [15]=101802, [16]=101803, [17]=101801 }, bind = "BoE" },
+        { id = 165509, slot = "Feet", name = "Slippers of the Encroaching Tide", sources = { [14]=101756, [15]=101758, [16]=101759, [17]=101757 }, bind = "BoE" },
+        { id = 165765, slot = "Waist", name = "Cord of Zandalari Resolve", sources = { [14]=102118, [15]=102120, [16]=102121, [17]=102119 }, bind = "BoE" },
+        { id = 165564, slot = "Waist", name = "Last Stand Greatbelt", sources = { [14]=101976, [15]=101977, [16]=101978, [17]=101979 }, bind = "BoE" },
+        { id = 165545, slot = "Waist", name = "Waistguard of Elemental Resistance", sources = { [14]=101900, [15]=101901, [16]=101902, [17]=101903 }, bind = "BoE" },
+        { id = 165518, slot = "Waist", name = "Warbeast Hide Cinch", sources = { [14]=101792, [15]=101794, [16]=101795, [17]=101793 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

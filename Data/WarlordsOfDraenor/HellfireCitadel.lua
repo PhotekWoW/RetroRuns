@@ -76,6 +76,19 @@ RetroRuns_Data[1448] = {
         rewardName         = "Infernal Direwolf",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 124323, slot = "Feet", name = "Cruel Hope Crushers", sources = { [14]=69984, [15]=69986, [16]=69987 }, bind = "BoE" },
+        { id = 124150, slot = "Feet", name = "Desiccated Soulrender Slippers", sources = { [14]=69563, [15]=69564, [16]=69565 }, bind = "BoE" },
+        { id = 124252, slot = "Feet", name = "Jungle Assassin's Footpads", sources = { [14]=69728, [15]=69730, [16]=69731 }, bind = "BoE" },
+        { id = 124288, slot = "Feet", name = "Unhallowed Voidlink Boots", sources = { [14]=69857, [15]=69859, [16]=69860 }, bind = "BoE" },
+        { id = 124182, slot = "Waist", name = "Cord of Unhinged Malice", sources = { [14]=69671, [15]=69672, [16]=69673 }, bind = "BoE" },
+        { id = 124311, slot = "Waist", name = "Cursed Demonchain Belt", sources = { [14]=69939, [15]=69941, [16]=69942 }, bind = "BoE" },
+        { id = 124277, slot = "Waist", name = "Flayed Demonskin Belt", sources = { [14]=69816, [15]=69818, [16]=69819 }, bind = "BoE" },
+        { id = 124350, slot = "Waist", name = "Girdle of Demonic Wrath", sources = { [14]=70080, [15]=70082, [16]=70083 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

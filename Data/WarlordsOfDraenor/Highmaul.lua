@@ -52,6 +52,20 @@ RetroRuns_Data[1228] = {
         rewardName         = "Gorestrider Gronnling",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 119343, slot = "Back", name = "Eye-Blinder Greatcloak", sources = { [14]=67009, [15]=67009, [16]=67009 }, bind = "BoE" },
+        { id = 119347, slot = "Back", name = "Gill's Glorious Windcloak", sources = { [14]=67021, [15]=67021, [16]=67021 }, bind = "BoE" },
+        { id = 119346, slot = "Back", name = "Kyu-Sy's Tarflame Doomcloak", sources = { [14]=67018, [15]=67018, [16]=67018 }, bind = "BoE" },
+        { id = 119344, slot = "Back", name = "Magic-Breaker Cape", sources = { [14]=67012, [15]=67012, [16]=67012 }, bind = "BoE" },
+        { id = 119345, slot = "Back", name = "Milenah's Intricate Cloak", sources = { [14]=67015, [15]=67015, [16]=67015 }, bind = "BoE" },
+        { id = 119338, slot = "Waist", name = "Belt of Inebriated Sorrows", sources = { [14]=66994, [15]=66996, [16]=67792 }, bind = "BoE" },
+        { id = 119336, slot = "Waist", name = "Cord of Winsome Sorrows", sources = { [14]=66988, [15]=66990, [16]=67786 }, bind = "BoE" },
+        { id = 119335, slot = "Waist", name = "Eyeripper Girdle", sources = { [14]=66985, [15]=66987, [16]=67789 }, bind = "BoE" },
+        { id = 119337, slot = "Waist", name = "Ripswallow Plate Belt", sources = { [14]=66991, [15]=66993, [16]=67795 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

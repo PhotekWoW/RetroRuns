@@ -59,6 +59,19 @@ RetroRuns_Data[1205] = {
         rewardName         = "Gorestrider Gronnling",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 119341, slot = "Feet", name = "Doomslag Greatboots", sources = { [14]=67003, [15]=67005, [16]=67796 }, bind = "BoE" },
+        { id = 119342, slot = "Feet", name = "Furnace Stoker's Footwraps", sources = { [14]=67006, [15]=67008, [16]=67787 }, bind = "BoE" },
+        { id = 119340, slot = "Feet", name = "Iron-Flecked Sandals", sources = { [14]=67000, [15]=67002, [16]=67790 }, bind = "BoE" },
+        { id = 119339, slot = "Feet", name = "Treads of the Veteran Smith", sources = { [14]=66997, [15]=66999, [16]=67793 }, bind = "BoE" },
+        { id = 119334, slot = "Wrist", name = "Bracers of Callous Disregard", sources = { [14]=66982, [15]=66984, [16]=67791 }, bind = "BoE" },
+        { id = 119332, slot = "Wrist", name = "Bracers of Darkened Skies", sources = { [14]=66976, [15]=66978, [16]=67785 }, bind = "BoE" },
+        { id = 119333, slot = "Wrist", name = "Bracers of Shattered Limbs", sources = { [14]=66979, [15]=66981, [16]=67788 }, bind = "BoE" },
+        { id = 119331, slot = "Wrist", name = "Bracers of Visceral Force", sources = { [14]=66973, [15]=66975, [16]=67794 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

@@ -65,6 +65,17 @@ RetroRuns_Data[2217] = {
         rewardName         = "Wriggling Parasite",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 175007, slot = "Feet", name = "Footpads of Terrible Delusions", sources = { [14]=108809, [15]=108811, [16]=108812, [17]=108810 }, bind = "BoE" },
+        { id = 175006, slot = "Hands", name = "Gauntlets of Nightmare Manifest", sources = { [14]=108805, [15]=108806, [16]=108807, [17]=108808 }, bind = "BoE" },
+        { id = 175009, slot = "Held In Off-hand", name = "Zealous Ritualist's Reverie", sources = { [14]=108814, [15]=108815, [16]=108816, [17]=108813 }, bind = "BoE" },
+        { id = 175004, slot = "Legs", name = "Legwraps of Horrifying Figments", sources = { [14]=108797, [15]=108798, [16]=108799, [17]=108800 }, bind = "BoE" },
+        { id = 175010, slot = "Off-hand", name = "Maddened Adherent's Bulwark", sources = { [14]=108818, [15]=108819, [16]=108820, [17]=108817 }, bind = "BoE" },
+        { id = 175005, slot = "Waist", name = "Belt of Concealed Intent", sources = { [14]=108801, [15]=108802, [16]=108803, [17]=108804 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

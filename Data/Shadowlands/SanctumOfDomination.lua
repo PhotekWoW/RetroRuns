@@ -63,6 +63,20 @@ RetroRuns_Data[2450] = {
         rewardName         = "Hand of Hrestimorak",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 186373, slot = "Feet", name = "Towering Shadowghast Greatboots", sources = { [14]=145936, [15]=145938, [16]=145939, [17]=145937 }, bind = "BoE" },
+        { id = 186358, slot = "Hands", name = "Soulcaster's Woven Grips", sources = { [14]=145876, [15]=145878, [16]=145879, [17]=145877 }, bind = "BoE" },
+        { id = 186367, slot = "Legs", name = "Bonded Soulsmelt Greaves", sources = { [14]=145912, [15]=145914, [16]=145915, [17]=145913 }, bind = "BoE" },
+        { id = 186359, slot = "Legs", name = "Scoundrel's Harrowed Leggings", sources = { [14]=145880, [15]=145882, [16]=145883, [17]=145881 }, bind = "BoE" },
+        { id = 187252, slot = "Shoulder", name = "Ritualist's Spiked Mantle", sources = { [14]=146574, [15]=146574, [16]=146574, [17]=146574 }, bind = "BoE" },
+        { id = 186364, slot = "Waist", name = "Cord of Coerced Spirits", sources = { [14]=145900, [15]=145902, [16]=145903, [17]=145901 }, bind = "BoE" },
+        { id = 186356, slot = "Waist", name = "Forlorn Prisoner's Strap", sources = { [14]=145868, [15]=145870, [16]=145871, [17]=145869 }, bind = "BoE" },
+        { id = 186371, slot = "Wrist", name = "Ancient Brokensoul Bands", sources = { [14]=145928, [15]=145930, [16]=145931, [17]=145929 }, bind = "BoE" },
+        { id = 186362, slot = "Wrist", name = "Bindings of the Subjugated", sources = { [14]=145892, [15]=145894, [16]=145895, [17]=145893 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

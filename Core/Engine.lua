@@ -21,15 +21,8 @@ end
 -- Progress state
 -------------------------------------------------------------------------------
 
--- Identifies which routing variant is currently active, so progress storage
--- can be namespaced by it. Multiple LFR wings of one raid share a single
--- lockout (same instanceID + difficulty 17), and each wing numbers its steps
--- from 1 -- so without this, wing A's "step 1" and wing B's "step 1" collide
--- in the same lockout store (e.g. clearing Primal Bulwark left step 1 = 4,
--- which Caverns' Terros then read as its own step 1, starting it mid-route).
--- Keys: "wing:<lfgDungeonID>" in an LFR wing we route, "skip" on the skip
--- route, "standard" otherwise. Alias wings resolve to their target's key so
--- aliased wings share one namespace, matching how GetActiveWing resolves them.
+-- Namespaces progress storage by routing variant.
+-- Keys: "wing:<lfgDungeonID>", "skip", or "standard".
 function RR:ActiveVariantKey()
     local raid = self.currentRaid
     if raid and raid.lfrWings and self:IsInLFR() then
@@ -49,12 +42,8 @@ function RR:ActiveVariantKey()
     return "standard"
 end
 
--- Resolve the namespaced steps table for the active variant within a lockout
--- store, optionally creating it. The store holds one steps/triggers table per
--- variant key under `byVariant`, so concurrent wings/routes of the same
--- lockout keep separate progress. Legacy stores wrote a bare top-level
--- `steps`/`triggers`; those are intentionally not read here (they belong to a
--- prior week's lockout after reset, or are migrated forward on first write).
+-- The steps table for the active variant, under `byVariant`. Legacy bare
+-- top-level steps/triggers are not read.
 function RR:GetVariantSteps(store, create)
     if not store then return nil end
     local key = self:ActiveVariantKey()
@@ -74,13 +63,8 @@ function RR:GetProgress(stepIndex)
     return 1
 end
 
--- Resolve the persisted store for the current raid + faction + lockout.
--- The store is keyed [instanceID][faction][lockoutId] so concurrent
--- lockouts of the same raid (e.g. a cleared Mythic and an in-progress
--- Heroic in the same week) each keep their own progress instead of
--- clobbering a single shared record. Returns nil when the lockout isn't
--- known yet (saved-instance data not ready) or, with create=false, when
--- no record exists. With create=true, lazily builds the record.
+-- The persisted store, keyed [instanceID][faction][lockoutId]. Nil when the
+-- lockout isn't readable yet, or no record exists and create is false.
 function RR:GetLockoutStore(create)
     if not self.currentRaid or not self.currentRaid.instanceID then return nil end
     local lockoutId = self:GetCurrentLockoutId()
@@ -136,11 +120,8 @@ function RR:HasPersistedProgressForCurrentLockout()
     return self:GetLockoutStore(false) ~= nil
 end
 
--- True if any saved store exists for the current raid + faction, across any
--- lockout, regardless of whether the current lockout is readable yet.
--- Distinct from HasPersistedProgressForCurrentLockout. Used to detect the
--- async-data race: a store exists but the live lockout isn't known yet, so
--- the load decision should be deferred rather than treated as fresh.
+-- Any saved store for this raid + faction, across any lockout. Distinct from
+-- HasPersistedProgressForCurrentLockout.
 function RR:HasSavedRouteStore()
     if not self.currentRaid or not self.currentRaid.instanceID then return false end
     if not RetroRunsDB or not RetroRunsDB.routingProgress then return false end
@@ -241,20 +222,12 @@ local function SegWhenSubZone(seg)
     return seg.when.subZone
 end
 
--- Separator between alternate localized forms of one gate value. A locale
--- entry may list several strings the client is known to return for the same
--- room, e.g. "Kammer des Mondes|Die Kammer des Mondes": the game ships two
--- copies of some instance geometry whose area names differ only by a
--- definite article, and which copy the player is standing in decides which
--- name GetSubZoneText returns.
+-- Separates alternate localized forms of one gate value, e.g.
+-- "Kammer des Mondes|Die Kammer des Mondes".
 local GATE_ALTERNATE_SEPARATOR = "|"
 
--- True when liveSubZone is the gate's authored English value or any of the
--- localized forms the active locale lists for it.
---
--- Order matters: the authored English is tested first, so an English client
--- (where RR.L returns the key unchanged) settles on the first comparison and
--- never reaches the locale branch.
+-- True when liveSubZone is the gate's authored English or a localized form
+-- the active locale lists.
 local function GateSubZoneMatches(gateSubZone, liveSubZone)
     if not gateSubZone then return true end
     if gateSubZone == liveSubZone then return true end
@@ -300,31 +273,14 @@ local function AfterSatisfied(seg, currentProgress)
     return true
 end
 
--- Blizzard's own localized strings mix the two apostrophe glyphs for the
--- same name: AreaTable ships both "Faille de l'Ombre" and the typographic
--- form for one room, on different area IDs, and creature names vary the
--- same way. A trigger captured with one glyph therefore misses a client
--- that emits the other, silently and permanently. Folding the typographic
--- apostrophe (U+2019, bytes E2 80 99) to the plain one on both sides of a
--- comparison removes the whole class. Folding is many-to-one, so strings
--- that already matched still match; it can only add matches, never remove.
+-- Blizzard's localized strings mix both apostrophe glyphs for the same name.
 local function FoldApostrophes(text)
     return (string.gsub(text, "\226\128\153", "'"))
 end
 
--- triggeredBy.dialog fires on any NPC dialog event (CHAT_MSG_MONSTER_YELL,
--- _SAY, _RAID_BOSS_EMOTE) whose npc + text matches the seg's trigger.
---
--- triggeredBy.encounter fires on a successful ENCOUNTER_END whose
--- dungeonEncounterID equals the seg's. Used for scripted fights that end a
--- leg of a route without being Encounter Journal bosses -- Ruby Sanctum's
--- three lieutenants each have their own DungeonEncounter row (1147/1148/
--- 1149) but only Halion appears in the journal. Preferred over a dialog
--- trigger on a boss death yell: chat payloads inside an encounter window
--- can arrive secret-tainted, and whether a death yell resolves before or
--- after ENCOUNTER_END is a race, so the same yell is readable on one kill
--- and redacted on the next. ENCOUNTER_END carries no such payload and is
--- locale-independent.
+-- triggeredBy.dialog matches an NPC dialog event's npc + text.
+-- triggeredBy.encounter matches a successful ENCOUNTER_END's
+-- dungeonEncounterID. Prefer the encounter form where both would work.
 local function TriggerMatches(seg, event, eventData)
     if not seg or not seg.triggeredBy then return true end
 
@@ -338,21 +294,9 @@ local function TriggerMatches(seg, event, eventData)
         if event ~= "npc-dialog" then return false end
         if not eventData then return false end
         local dialogTrigger = seg.triggeredBy.dialog
-        -- npc is optional. Some events -- notably CHAT_MSG_RAID_BOSS_EMOTE
-        -- for ambient "boss rises" lines -- carry an empty sender field, so
-        -- the speaker name isn't a reliable key. When a trigger omits npc,
-        -- match on the dialog text alone. When npc IS specified, the sender
-        -- must equal it or its locale-table form.
+        -- npc is optional; without it the trigger matches on text alone.
         if dialogTrigger.npc and eventData.npc ~= dialogTrigger.npc then
-            -- On a non-English client the event's sender name arrives in
-            -- the client's language, so an authored English npc name can
-            -- never text-match it. Accept the npc's localized form from
-            -- the locale table as well, compared case-insensitively:
-            -- the two Spanish locales can differ solely in casing for
-            -- the same npc (e.g. "Primera arcanista" vs "Primera
-            -- Arcanista"), and one table serves both. Inert on English
-            -- clients and for names without a locale entry: there RR.L
-            -- returns the key itself, which already failed above.
+            -- Sender names arrive localized. Compared case-insensitively.
             local localizedNpc = RR and RR.L and RR.L[dialogTrigger.npc]
             if not (localizedNpc and localizedNpc ~= dialogTrigger.npc
                     and eventData.npc ~= nil
@@ -447,16 +391,8 @@ local function ComputeAdvancedProgress(segments, progress, state, event, eventDa
                         gatePasses = true
                     end
                 elseif event == "encounter-end" then
-                    -- Deliberately NARROWER than the dialog case. A kill can
-                    -- release stay-here only when the seg being crossed
-                    -- explicitly declares a matching encounter trigger. If
-                    -- this instead passed on the event alone (as dialog does
-                    -- for untriggered segs), any boss kill would let a
-                    -- stationary player advance onto a later seg sharing the
-                    -- current mapID -- the Vault Terros/Sennarth and Highmaul
-                    -- 612/610 shapes -- in every shipped raid. Scoped this
-                    -- way, behaviour is unchanged everywhere except segs
-                    -- authored with triggeredBy.encounter.
+                    -- Narrower than the dialog case: only a seg declaring a
+                    -- matching encounter trigger releases stay-here.
                     local nextSeg = segments[progress + 1]
                     if nextSeg and nextSeg.triggeredBy
                         and nextSeg.triggeredBy.encounter
@@ -573,16 +509,8 @@ function RR:PickNoteSeg(step, playerMapID)
     local state = { mapID = mapID, subZone = subZone }
     local seg, segIdx = ComputeCurrentSeg(step.segments, progress, state)
 
-    -- Log when derived current drops below progress (backward derivation).
-    -- One entry per transition, not per render.
-    --
-    -- Suppress the canonical POI-overlay shape: a noteless POI seg sits at
-    -- progress, the picker walks back to the earlier path seg that carries
-    -- the note. This access pattern is the algorithm working correctly --
-    -- the visual marker is on a later seg, the prose is on an earlier seg
-    -- at the same physical location. Logging it on every seed is noise.
-    -- Any backtrace where the seg at progress IS noted still logs, because
-    -- that indicates progress didn't location-match -- a real diagnostic.
+    -- One entry per backward-derivation transition. The
+    -- noteless-POI-over-noted-path shape is suppressed as normal.
     if segIdx and segIdx < progress and self.ZoneLog then
         self.state = self.state or {}
         self.state.backtraceLastCurrent = self.state.backtraceLastCurrent or {}
@@ -608,17 +536,8 @@ function RR:PickNoteSeg(step, playerMapID)
     return seg
 end
 
--- Short instruction for the minimized bar. Resolves the segment currently
--- being shown (same derivation the travel pane uses, so backtrack and the
--- noteless-POI-over-noted-path pattern both resolve to the seg that carries
--- the prose) and returns its minNote. A noteless seg has no minNote of its
--- own; PickNoteSeg returns its noted neighbor, so the bar inherits that
--- neighbor's minNote and the text doesn't flicker across the seg boundary.
--- Returns nil when there is no active step or the current seg carries no
--- minNote, so the bar only collapses the wordmark to "RR" when there is
--- genuine per-segment data to show. The minimized bar keeps the full
--- "RETRO RUNS" wordmark on a nil return -- this is what keeps the feature
--- dark until minNote data is authored into the routing segments.
+-- The minimized bar's short instruction, from the same seg derivation the
+-- travel pane uses. Nil keeps the full wordmark.
 function RR:GetActiveMinNote()
     local step = self.state and self.state.activeStep
     if not step then return nil end
@@ -631,11 +550,8 @@ function RR:GetActiveMinNote()
     return nil
 end
 
--- The exit note for the active route, localized. In an LFR wing the raid's
--- authored exit (walk to a specific spot / portal) doesn't apply -- you
--- leave through the LFG tool -- so a wing may author its own exitNote and
--- otherwise falls back to the generic LFG-tool line. Outside LFR, the
--- raid's note. Returns nil when nothing is authored.
+-- The active route's exit note, localized. An LFR wing uses its own note or
+-- the generic tool line. Nil when nothing is authored.
 function RR:GetActiveExitNote()
     local activeWing = self:GetActiveWing()
     if activeWing then
@@ -648,12 +564,8 @@ function RR:GetActiveExitNote()
     return nil
 end
 
--- Short exit instruction for the minimized bar, localized. Mirrors
--- GetActiveExitNote's wing-then-raid selection, but falls back to a fixed
--- line rather than nil: the bar always has room for one and the player
--- always needs an answer at the end of a run. Every LFR wing leaves the
--- same way, so a wing without its own short form gets the generic tool
--- line; a raid that authors no exit at all says so plainly.
+-- Short exit line for the minimized bar. Same selection as
+-- GetActiveExitNote, but never nil.
 function RR:GetActiveMinExitNote()
     local activeWing = self:GetActiveWing()
     if activeWing then
@@ -690,11 +602,8 @@ end
 -- Seeder
 -------------------------------------------------------------------------------
 
--- Called when the active step changes (boss kill, /reload, fresh login,
--- raid entry). Picks the highest seg whose location matches the player,
--- capped at the seg before any uncompleted gate. The monotonic clamp at
--- the end still protects against regressing past a player-completed
--- point if persisted progress is higher.
+-- On step change: the highest seg matching the player's location, capped at
+-- the seg before any uncompleted gate, clamped against persisted progress.
 function RR:SeedProgress(step)
     if not step or not step.segments then return end
     local stepIndex = step.step or step.priority or 0
@@ -992,17 +901,8 @@ function RR:DiagDump()
     self:ShowCopyWindow("RetroRuns -- Diagnostic", table.concat(lines, "\n"))
 end
 
--- Per-boss completion dump for the diag. The idle-list count and the
--- in-raid kill list read completion from two different APIs, and they can
--- disagree: the in-raid path reads saved-instance encounters positionally,
--- while the idle path resolves each boss's dungeonEncounterID through the
--- Encounter Journal map and asks C_RaidLocks.IsEncounterComplete. When the
--- EJ map omits a boss (it omits Galakras on Horde, for one), the idle path
--- can't see that boss and the count comes up short while the in-raid list
--- still shows it killed. This section makes that visible: for each boss it
--- shows how its dungeonEncID resolved (EJ map, data fallback, or neither)
--- and the IsEncounterComplete result per bucket, so a killed-but-unmapped
--- boss stands out instead of needing a separate probe to find.
+-- Per-boss completion dump: how each boss's dungeonEncID resolved, and its
+-- per-bucket result.
 function RR:BuildCompletionDiagLines()
     local out = {}
     local function add(line) out[#out + 1] = line or "" end

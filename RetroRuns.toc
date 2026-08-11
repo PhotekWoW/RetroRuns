@@ -18,7 +18,7 @@
 ## Notes-koKR: 옛 공격대 솔로 탐색기: 경로 안내, 팁 및 업적 추적
 ## Notes-itIT: Navigatore per bande legacy in solitaria: percorsi, consigli e monitoraggio delle imprese
 ## Author: Photek
-## Version: 2.3.1
+## Version: 2.4.0
 ## X-License: MIT
 ## SavedVariables: RetroRunsDB, RetroRunsDebug
 ## IconTexture: Interface\AddOns\RetroRuns\Media\MinimapIcon
@@ -65,6 +65,14 @@ Data\WrathOfTheLichKing\TrialOfTheCrusader.lua
 Data\WrathOfTheLichKing\IcecrownCitadel.lua
 Data\WrathOfTheLichKing\RubySanctum.lua
 Data\WrathOfTheLichKing\VaultOfArchavon.lua
+Data\BurningCrusade\BlackTemple.lua
+Data\BurningCrusade\GruulsLair.lua
+Data\BurningCrusade\Karazhan.lua
+Data\BurningCrusade\MagtheridonsLair.lua
+Data\BurningCrusade\SerpentshrineCavern.lua
+Data\BurningCrusade\SunwellPlateau.lua
+Data\BurningCrusade\TheBattleForMountHyjal.lua
+Data\BurningCrusade\TheEye.lua
 
 # ── Core ──────────────────────────────────────────────────────────────────────
 Core\Core.lua

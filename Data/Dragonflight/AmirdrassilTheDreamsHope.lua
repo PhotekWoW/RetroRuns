@@ -120,6 +120,15 @@ RetroRuns_Data[2549] = {
         rewardName         = "Reins of the Shadow Dusk Dreamsaber",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 210542, slot = "Feet", name = "Insurgent Flame Warboots", sources = { [16]=193611 }, bind = "BoP" },
+        { id = 210547, slot = "Feet", name = "Sentinel's Gilded Poulaines", sources = { [16]=193659 }, bind = "BoP" },
+        { id = 210543, slot = "Shoulder", name = "Mantle of Slumbering Sands", sources = { [16]=193623 }, bind = "BoP" },
+        { id = 210546, slot = "Waist", name = "Vengeful Bladebeak Girdle", sources = { [16]=193651 }, bind = "BoP" },
+    },
     bosses = {
         {
             index              = 1,

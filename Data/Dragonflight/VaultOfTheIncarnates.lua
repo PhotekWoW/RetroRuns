@@ -103,6 +103,19 @@ RetroRuns_Data[2522] = {
         rewardName         = "Raging Magmammoth",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 202004, slot = "Chest", name = "Brawler's Earthen Cuirass", sources = { [14]=184058, [15]=184059, [16]=184060, [17]=184061 }, bind = "BoE" },
+        { id = 202008, slot = "Feet", name = "Galvanic Gaiters", sources = { [14]=184074, [15]=184076, [16]=184077, [17]=184075 }, bind = "BoE" },
+        { id = 202006, slot = "Head", name = "Greathelm of Horned Fury", sources = { [14]=184066, [15]=184068, [16]=184069, [17]=184067 }, bind = "BoE" },
+        { id = 202003, slot = "Legs", name = "Primal Seeker's Leggings", sources = { [14]=184054, [15]=184055, [16]=184056, [17]=184057 }, bind = "BoE" },
+        { id = 202005, slot = "Shoulder", name = "Frozen Claw Mantle", sources = { [14]=184062, [15]=184063, [16]=184064, [17]=184065 }, bind = "BoE" },
+        { id = 202009, slot = "Waist", name = "Lavamancer's Ceremonial Waistguard", sources = { [14]=184078, [15]=184080, [16]=184081, [17]=184079 }, bind = "BoE" },
+        { id = 202010, slot = "Wrist", name = "Primalist Warden's Bracers", sources = { [14]=184082, [15]=184084, [16]=184085, [17]=184083 }, bind = "BoE" },
+        { id = 202007, slot = "Wrist", name = "Woven Stone Bracelets", sources = { [14]=184070, [15]=184071, [16]=184072, [17]=184073 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

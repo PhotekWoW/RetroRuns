@@ -55,6 +55,20 @@ RetroRuns_Data[2164] = {
         rewardName         = "Azshari Bloatray",
     },
 
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 168602, slot = "Back", name = "Cloak of Blessed Depths", sources = { [14]=104585, [15]=104586, [16]=104587, [17]=104588 }, bind = "BoE" },
+        { id = 169932, slot = "Hands", name = "Brineweaver Guardian's Gloves", sources = { [14]=105294, [15]=105296, [16]=105297, [17]=105295 }, bind = "BoE" },
+        { id = 169934, slot = "Hands", name = "Deepcrawler's Handguards", sources = { [14]=105302, [15]=105303, [16]=105304, [17]=105305 }, bind = "BoE" },
+        { id = 169936, slot = "Hands", name = "Gauntlets of Crashing Tides", sources = { [14]=105310, [15]=105311, [16]=105312, [17]=105313 }, bind = "BoE" },
+        { id = 169930, slot = "Hands", name = "Handwraps of Unhindered Resonance", sources = { [14]=105286, [15]=105287, [16]=105288, [17]=105289 }, bind = "BoE" },
+        { id = 169933, slot = "Wrist", name = "Abyssal Bubbler's Bracers", sources = { [14]=105298, [15]=105300, [16]=105301, [17]=105299 }, bind = "BoE" },
+        { id = 169935, slot = "Wrist", name = "Brutish Myrmidon's Vambraces", sources = { [14]=105306, [15]=105307, [16]=105308, [17]=105309 }, bind = "BoE" },
+        { id = 169929, slot = "Wrist", name = "Cuffs of Soothing Currents", sources = { [14]=105282, [15]=105283, [16]=105284, [17]=105285 }, bind = "BoE" },
+        { id = 169931, slot = "Wrist", name = "Skulker's Blackwater Bands", sources = { [14]=105290, [15]=105291, [16]=105292, [17]=105293 }, bind = "BoE" },
+    },
     bosses = {
         {
             index              = 1,

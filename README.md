@@ -61,6 +61,16 @@ Currently supports:
 * The Obsidian Sanctum (3.0.2)
 * Vault of Archavon (3.0.2)
 
+**The Burning Crusade**
+* Sunwell Plateau (2.4)
+* Black Temple (2.1)
+* The Battle for Mount Hyjal (2.1)
+* Serpentshrine Cavern (2.0.3)
+* The Eye (2.0.3)
+* Magtheridon's Lair (2.0.3)
+* Gruul's Lair (2.0.3)
+* Karazhan (2.0.3)
+
 ## Installation
 
 1. Download the latest `RetroRuns.zip`.
@@ -132,7 +142,7 @@ Main commands, type in chat:
 
 ## Status
 
-Version **2.3.1**
+Version **2.4.0**
 
 ## Reporting bugs / requesting features
 
