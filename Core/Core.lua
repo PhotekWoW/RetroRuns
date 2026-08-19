@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "2.4.0"
+local VERSION    = "2.5.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -30,9 +30,12 @@ RetroRuns = {
         bossesKilled          = {},   -- [bossIndex] = true
         -- Kills known only from the shared-lockout sibling's saved row.
         bossesKilledViaPairOnly = {},
+        -- Optional bosses the player chose to bypass. Same key space and
+        -- lifetime as bossesKilled, so every reset that clears kills
+        -- clears these too.
+        bossesSkipped         = {},   -- [bossIndex] = true
         activeStep            = nil,
         testMode              = false,
-        manualTargetBossIndex = nil,
         loadedRaidKey         = nil,
         lastSeenRaidKey       = nil,
         -- True once UPDATE_INSTANCE_INFO has fired. The load decision defers
@@ -398,6 +401,55 @@ function RR:NavigateToSanctum(raid, covID)
     return self:NavigateToDestination(vendor.vendorMapID, vendor.x, vendor.y, title, raid)
 end
 
+--- Pick the player's faction half of a vendor block, or the block itself
+--- when it ships one spot for both. Shared by tokenVendors and by the
+--- per-boss omniToken blocks, which take the same faction-split shape.
+function RR:ResolveFactionBlock(block)
+    if not block then return nil end
+    if block.alliance or block.horde then
+        local faction = UnitFactionGroup and UnitFactionGroup("player")
+        return (faction == "Alliance") and block.alliance or block.horde
+    end
+    return block
+end
+
+--- Look up a dungeon by its data key. The dungeon table is keyed by
+--- journalInstanceID, not instance map id: several journal dungeons share
+--- one map (Dire Maul's wings, Stratholme's halves), so the map cannot key
+--- the table the way it does for raids.
+function RR:GetDungeonByKey(journalInstanceID)
+    if not journalInstanceID then return nil end
+    return RetroRuns_DungeonData and RetroRuns_DungeonData[journalInstanceID]
+end
+
+--- Resolve a raid's tokenVendors entry, picking the player's faction half
+--- when the raid ships a split.
+function RR:GetTokenVendor(raid)
+    return self:ResolveFactionBlock(raid and raid.tokenVendors)
+end
+
+--- Drop a waypoint at a raid's token-redemption vendor (Icecrown Citadel,
+--- Firelands, Siege of Orgrimmar). Routes through the shared
+--- NavigateToDestination dispatch.
+function RR:NavigateToTokenVendor(raid)
+    local vendor = self:GetTokenVendor(raid)
+    if not vendor then
+        self:Print(RR.L["No token vendor data available."])
+        return nil
+    end
+    -- Raids whose city merchants differ per armor type are routed by the
+    -- browser instead, which knows the class being viewed; this path
+    -- serves the single-vendor raids.
+    local mapID, x, y = vendor.vendorMapID, vendor.x, vendor.y
+    if not mapID or not x or not y then
+        self:Print(RR.L["No token vendor data available."])
+        return nil
+    end
+    local title = (RR.L["RetroRuns: %s"]):format(
+        (vendor.vendorName and RR.L[vendor.vendorName]) or RR.L["Token vendor"])
+    return self:NavigateToDestination(mapID, x, y, title, raid)
+end
+
 --- The NPC whose gossip queues legacy LFR solo, keyed by raid.expansion.
 --- Battle for Azeroth splits by faction. `unverified` coords are approximate.
 RR.LFR_QUEUE_NPCS = {
@@ -524,7 +576,7 @@ function RR:CancelNavRoute()
     self.state.activeRoute = nil
 end
 
---- Normalise a name for fuzzy matching:
+--- Normalize a name for fuzzy matching:
 --- lowercase, strip punctuation, collapse whitespace.
 function RR:NormalizeName(name)
     if not name then return nil end
@@ -846,10 +898,15 @@ local function CollectRaidDataIssues(scopeFilter)
                                             sp .. (" segment %d triggeredBy.dialog missing match field"):format(si))
                                     end
                                 end
+                            elseif seg.triggeredBy.encounter then
+                                if type(seg.triggeredBy.encounter) ~= "number" then
+                                    add("error", raidLabel,
+                                        sp .. (" segment %d triggeredBy.encounter must be a dungeonEncounterID"):format(si))
+                                end
                             else
                                 -- triggeredBy with no known sub-key (e.g. just empty {})
                                 add("warn", raidLabel,
-                                    sp .. (" segment %d triggeredBy has no recognized sub-key (expected dialog)"):format(si))
+                                    sp .. (" segment %d triggeredBy has no recognized sub-key (expected dialog or encounter)"):format(si))
                             end
                         end
                         -- after must reference valid seg indices in same step:
@@ -1184,11 +1241,14 @@ local function GetEJMapForJournalInstance(journalInstanceID)
         return walked
     end
 
-    -- MoP raids expose only the legacy sizes, so fall through until one
-    -- yields rows.
+    -- MoP raids expose only the legacy sizes and the Classic 40-player
+    -- raids only id 9, so fall through until one yields rows. A raid whose
+    -- live id is missing here walks empty forever: the result is not cached
+    -- (see below), so every caller re-runs the whole select-and-restore
+    -- dance and drags an open Encounter Journal along with it.
     local count = walkAtDifficulty(14)
     if count == 0 then
-        for _, legacyDifficulty in ipairs({ 15, 5, 6, 3, 4, 17, 7 }) do
+        for _, legacyDifficulty in ipairs({ 15, 5, 6, 3, 4, 9, 17, 7 }) do
             count = walkAtDifficulty(legacyDifficulty)
             if count > 0 then break end
         end
@@ -1252,8 +1312,10 @@ local DIFFICULTY_MODELS = {
         buckets = { 14, 15 },
     },
     single = {
-        -- One difficulty: Baradin Hold, Ulduar, the TBC raids.
-        fold    = { [3] = 14, [4] = 14, [14] = 14 },
+        -- One difficulty: Baradin Hold, Ulduar, the TBC raids, and the
+        -- Classic raids. The 40-player ones report live id 9; Ruins of
+        -- Ahn'Qiraj reports 3, which the TBC raids already cover.
+        fold    = { [3] = 14, [4] = 14, [9] = 14, [14] = 14 },
         buckets = { 14 },
     },
     sizes = {
@@ -1833,19 +1895,8 @@ local function OfferedGroupBuckets(raid)
     return offered
 end
 
-function RR:GetLockedOutBucket(raid, counts)
-    if not raid or not counts then return nil end
-    local offered = OfferedGroupBuckets(raid)
-    if not offered then return nil end
-
-    -- One member with kills locks every other offered member. Returns the
-    -- first such bucket; callers wanting the full set use
-    -- GetLockedOutBuckets below.
-    local locked = self:GetLockedOutBuckets(raid, counts)
-    return locked and locked[1] or nil
-end
-
 -- Every bucket the shared lockout currently blocks, or nil when nothing is.
+-- One member with kills locks every other offered member.
 function RR:GetLockedOutBuckets(raid, counts)
     if not raid or not counts then return nil end
 
@@ -2393,15 +2444,6 @@ function RR:IsRouteTargetSkipAvailableAtDifficulty(raid, difficultyID)
     return difficultyID <= ceiling
 end
 
--- Binary "is this raid's skip unlocked at any difficulty?" Convenience
--- wrapper for callers that just want to know whether to surface the
--- skip-marker affordance. Mostly equivalent to "does
--- GetRaidSkipUnlockedCeiling return non-nil" but keeps the call site
--- self-documenting.
-function RR:HasRaidSkipUnlocked(raid)
-    return self:GetRaidSkipUnlockedCeiling(raid) ~= nil
-end
-
 -- The data table for the raid the player is inside. Horde reads
 -- RetroRuns_DataHorde first, falling through to the shared table.
 function RR:GetSupportedRaid()
@@ -2533,6 +2575,11 @@ function RR:ResolveFactionEncounters()
                             for _, seg in ipairs(segments) do
                                 seg.note    = resolveTokens(seg.note, nameMap)
                                 seg.minNote = resolveTokens(seg.minNote, nameMap)
+                                -- Skip variants name the same encounters.
+                                seg.skipNote =
+                                    resolveTokens(seg.skipNote, nameMap)
+                                seg.skipMinNote =
+                                    resolveTokens(seg.skipMinNote, nameMap)
                             end
                         end
                     end
@@ -2758,6 +2805,7 @@ function RR:HandleLocationChange()
             -- context has to wipe it.
             wipe(self.state.bossesKilled)
             wipe(self.state.bossesKilledViaPairOnly)
+            wipe(self.state.bossesSkipped)
             self.state.lastSeenRaidKey = key
 
             if self:HasPersistedProgressForCurrentLockout()
@@ -2799,6 +2847,7 @@ function RR:HandleLocationChange()
         -- they enter starts with a clean baseline.
         wipe(self.state.bossesKilled)
         wipe(self.state.bossesKilledViaPairOnly)
+        wipe(self.state.bossesSkipped)
         self.currentRaid                 = nil
         self.state.loadedRaidKey         = nil
         self.state.instanceInfoSeen      = false
@@ -2839,6 +2888,48 @@ function RR:RefreshAll()
     if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
 end
 
+-- Saved-instance re-query on a short backoff, for encounters that end
+-- without a success flag: their kill credit can land seconds after the
+-- immediate re-query has already come back empty, and with no later query
+-- the step would only advance on the next zone change. One sequence runs at
+-- a time; it stops as soon as a sync reports a change (here or in the
+-- UPDATE_INSTANCE_INFO handler) or the budget is spent.
+function RR:ScheduleKillSyncRetry()
+    if self.state.killSyncRetryActive then return end
+    self.state.killSyncRetryActive = true
+    local delays = { 3, 5, 8 }
+    local raidKeyAtSchedule = self:GetRaidContextKey()
+    local attempt = 0
+    local function tick()
+        -- Cleared elsewhere means the kill already landed.
+        if not self.state.killSyncRetryActive then return end
+        attempt = attempt + 1
+        -- The run moved on: raid unloaded, zoned out, or context changed.
+        if self.state.testMode
+            or not self.currentRaid
+            or self.state.loadedRaidKey ~= self:GetRaidContextKey()
+            or self:GetRaidContextKey() ~= raidKeyAtSchedule then
+            self.state.killSyncRetryActive = nil
+            return
+        end
+        local changed = self:SyncFromSavedRaidInfo(true)
+        self:ZoneLog(("kill-sync retry %d/%d: changed=%s")
+            :format(attempt, #delays, tostring(changed)))
+        if changed ~= false then
+            self.state.killSyncRetryActive = nil
+            RR.UI.Update()
+            if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
+            return
+        end
+        if attempt < #delays then
+            C_Timer.After(delays[attempt + 1], tick)
+        else
+            self.state.killSyncRetryActive = nil
+        end
+    end
+    C_Timer.After(delays[1], tick)
+end
+
 -------------------------------------------------------------------------------
 -- Test-mode helpers
 -------------------------------------------------------------------------------
@@ -2846,13 +2937,11 @@ end
 function RR:ResetTestState()
     self:ClearBossState()
     self.state.testMode             = true
-    self.state.manualTargetBossIndex = nil
     self:ComputeNextStep()
 end
 
 function RR:DisableTestMode()
     self.state.testMode             = false
-    self.state.manualTargetBossIndex = nil
     -- Wipe any fake test-mode state and rebuild from real lockout.
     -- Without this, exiting test mode left the panel showing the
     -- accumulated test-mode kills/segments rather than reality.
@@ -3267,14 +3356,12 @@ function RR:LootProbeStop()
     lootProbe.buffer = nil
 end
 
-function RR:IsLootProbeActive()
-    return lootProbe.active == true
-end
-
 -------------------------------------------------------------------------------
 -- Runs the loot-verification pipeline on one raid. Async.
 --   opts.verbose  per-boss and per-item rows (default true)
 --   opts.banner   progress Print()s (default true)
+--   opts.ejtrace  one line per boss/difficulty in the coverage pass showing
+--                 what the Encounter Journal was actually on when read
 --   onDone(lines, T)  accumulated output, and the findings counters
 -------------------------------------------------------------------------------
 function RR:VerifyOneRaid(raid, opts, onDone)
@@ -3408,7 +3495,7 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                     end
                 end
 
-                -- The row's canonical appearanceID, used below to recognise
+                -- The row's canonical appearanceID, used below to recognize
                 -- items sharing one visual.
                 local rowAppearanceID
                 if C_TransmogCollection and C_TransmogCollection.GetItemInfo then
@@ -3955,7 +4042,7 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                                     and ejSrcByBucket[paired][shSrc]
                                 -- Token-redeemed tier: eras where tier drops
                                 -- as a TOKEN put the token in the journal and
-                                -- the redeemed armour nowhere -- none of the
+                                -- the redeemed armor nowhere -- none of the
                                 -- Burning Crusade tier piece itemIDs appear in
                                 -- JournalEncounterItem at all. The EJ can
                                 -- therefore never expose these sources, so the
@@ -4019,15 +4106,27 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                 EJ_SelectInstance(raid.journalInstanceID or 0)
                 EJ_ResetLootFilter()
                 C_Timer.After(0.2, function()
-                    pcall(EJ_SelectEncounter, journalID)
+                    local selectOk = pcall(EJ_SelectEncounter, journalID)
                     if C_EncounterJournal and C_EncounterJournal.ResetSlotFilter then
                         C_EncounterJournal.ResetSlotFilter()
                     end
                     EJ_SetDifficulty(diffID)
 
                     RR:WaitForEJLootSettled(1000, 10000, function(numLoot)
+                        -- ejtrace counters: how many settled rows belong to
+                        -- THIS boss, and which other encounters the journal
+                        -- returned instead.
+                        local traceMatched, traceOthers = 0, nil
                         for i = 1, numLoot do
                             local info = C_EncounterJournal.GetLootInfoByIndex(i)
+                            if opts.ejtrace and info and info.itemID then
+                                if info.encounterID == journalID then
+                                    traceMatched = traceMatched + 1
+                                elseif info.encounterID then
+                                    traceOthers = traceOthers or {}
+                                    traceOthers[info.encounterID] = true
+                                end
+                            end
                             if info and info.itemID and info.encounterID == journalID then
                                 -- Filter to transmog-eligible items.
                                 -- C_TransmogCollection.GetItemInfo(itemID)
@@ -4067,6 +4166,25 @@ function RR:VerifyOneRaid(raid, opts, onDone)
                                     end
                                 end
                             end
+                        end
+                        if opts.ejtrace then
+                            local otherList = {}
+                            if traceOthers then
+                                for encID in pairs(traceOthers) do
+                                    table.insert(otherList, tostring(encID))
+                                end
+                                table.sort(otherList)
+                            end
+                            local instSelected = EJ_GetSelectedInstance
+                                and EJ_GetSelectedInstance() or "?"
+                            local diffAfter = EJ_GetDifficulty
+                                and EJ_GetDifficulty() or "?"
+                            add(("  [--] ejtrace %s d%d: sel=%s diffAfter=%s inst=%s settle=%d match=%d others={%s}"):format(
+                                boss.name or "?", diffID,
+                                selectOk and "ok" or "FAIL",
+                                tostring(diffAfter), tostring(instSelected),
+                                numLoot, traceMatched,
+                                table.concat(otherList, ",")))
                         end
                         C_Timer.After(0.2, NextDiff)
                     end)
@@ -4274,6 +4392,9 @@ SlashCmdList["RETRORUNS"] = function(input)
 
     elseif cmd == "ej" then
         RR:HarvestDiagnose()
+
+    elseif cmd == "dungeonmods" then
+        RR:HarvestDungeonMods(rest)
 
     elseif cmd == "lockprobe" then
         RR:LockProbe()
@@ -4742,9 +4863,18 @@ SlashCmdList["RETRORUNS"] = function(input)
                     table.concat(lines, "\n"))
                 return
             end
-            local DIFFS = { {17,"LFR"}, {14,"Normal"}, {15,"Heroic"}, {16,"Mythic"} }
-            for _, d in ipairs(DIFFS) do
-                local diffID, diffName = d[1], d[2]
+            -- Buckets come from the raid's own difficulty model. A fixed
+            -- modern list prints "(no source in data)" four times on the
+            -- Wrath size models, whose display buckets are 3/4/5/6, leaving
+            -- the tool silent on exactly the raids it is reached for.
+            local BUCKET_LABEL = {
+                [17] = "LFR", [14] = "Normal", [15] = "Heroic", [16] = "Mythic",
+                [3]  = "10N", [4]  = "25N",    [5]  = "10H",    [6]  = "25H",
+            }
+            local buckets = RR:GetDisplayBuckets(raid) or { 17, 14, 15, 16 }
+            add(("  buckets: %s"):format(table.concat(buckets, ", ")))
+            for _, diffID in ipairs(buckets) do
+                local diffName = BUCKET_LABEL[diffID] or ("bucket " .. diffID)
                 local srcID = itemRow.sources[diffID]
                 if not srcID then
                     add(("  [%s %d]: (no source in data)"):format(diffName, diffID))
@@ -5090,7 +5220,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         --          2-3 unique        -> PARTIAL (WRN): source data may have
         --                               half-resolved. Rae'shalare is a
         --                               known instance (bonusID variants
-        --                               ATT stores differently than modID).
+        --                               stored apart from modID).
         --   [E5] Retired (was: difficulty-bucket mismatch via itemContext).
         --        The check depended on GetSourceInfo(src).itemLink, which is
         --        nil in this runtime context across every shipped raid. E3
@@ -5129,7 +5259,19 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- Usage:
         --   /rr tmogverify               -- currently-loaded raid
         --   /rr tmogverify <substring>   -- any raid by name from anywhere
-        local nameQuery = rest and rest ~= "" and rest:lower() or nil
+        -- Append "ejtrace" for a per-boss/difficulty line in the coverage
+        -- pass showing what the Encounter Journal was on at read time.
+        local ejtrace = false
+        local queryWords = {}
+        for word in (rest or ""):gmatch("%S+") do
+            if word:lower() == "ejtrace" then
+                ejtrace = true
+            else
+                table.insert(queryWords, word)
+            end
+        end
+        local nameQuery = #queryWords > 0
+            and table.concat(queryWords, " "):lower() or nil
         local raid
 
         if nameQuery then
@@ -5171,7 +5313,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             -- (see Core.lua just above the dispatcher). The dispatcher's job
             -- here is just to resolve which raid to verify and render the
             -- result. Cache-warm + the 1s wait both live inside VerifyOneRaid.
-            RR:VerifyOneRaid(raid, { verbose = true, banner = true, progress = true }, function(lines, T)
+            RR:VerifyOneRaid(raid, { verbose = true, banner = true, progress = true, ejtrace = ejtrace }, function(lines, T)
                 RetroRunsDebug = RetroRunsDebug or {}
                 RetroRunsDebug.tmogverify = table.concat(lines, "\n")
                 RR:ShowCopyWindow(
@@ -5574,7 +5716,7 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         -- start. The setting controls whether the "Boss Encounter:" line
         -- shows the full soloTip text or the "view special note" link;
         -- it's session-scoped because users expect collapsed-by-default
-        -- on each fresh login/reload, and the prior persistent behaviour
+        -- on each fresh login/reload, and the prior persistent behavior
         -- could surface long soloTip text unexpectedly when the user
         -- arrived at a boss they hadn't intentionally expanded.
         RR:SetSetting("encounterExpanded", false)
@@ -5643,6 +5785,8 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
             local changed = RR:SyncFromSavedRaidInfo(false)  -- data already fresh from server push
             RR:ZoneLog(("UPDATE_INSTANCE_INFO handler: changed=%s"):format(tostring(changed)))
             if changed ~= false then
+                -- The kill landed; any pending kill-sync retry can stop.
+                RR.state.killSyncRetryActive = nil
                 RR:ZoneLog("UPDATE_INSTANCE_INFO handler: calling UI.Update + MapOverlay:Refresh")
                 RR.UI.Update()
                 if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
@@ -5714,20 +5858,52 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
                 -- Beasts fires three times with success=0 (Gormok, the
                 -- worms, Icehowl) and never once with success=1, so the
                 -- ID path above can't register the kill and the only
-                -- source left is the saved-instance cache. Ask the
-                -- server for it now rather than waiting for its own next
-                -- push, which on a stationary player can be many seconds
-                -- and only arrived promptly in testing because an
-                -- incidental zone change forced a refresh. The reply
-                -- lands as UPDATE_INSTANCE_INFO, whose handler syncs and
-                -- re-renders only when the kill set actually changed --
-                -- so on a genuine wipe this costs one round trip and
-                -- changes nothing on screen.
+                -- sources left are BOSS_KILL and the saved-instance
+                -- cache. Ask the server now, then keep asking on a short
+                -- backoff: the credit can land seconds after this first
+                -- query has already come back empty, and the server does
+                -- not push an update to a stationary player on its own.
+                -- Each reply lands as UPDATE_INSTANCE_INFO, whose handler
+                -- syncs and re-renders only when the kill set actually
+                -- changed -- so on a genuine wipe this costs a few round
+                -- trips and changes nothing on screen.
                 if RequestRaidInfo then RequestRaidInfo() end
+                RR:ScheduleKillSyncRetry()
                 -- Re-render so the travel pane snaps back to the live
                 -- (non-frozen) text.
                 RR.UI.Update()
             end
+        end
+
+    elseif event == "BOSS_KILL" then
+        -- Kill credit, as distinct from ENCOUNTER_END's script verdict. A
+        -- solo player can out-pace a scripted fight so it ends success=0
+        -- (or never reports a success at all) while the server still
+        -- grants the kill; this event fires when the credit lands. Same
+        -- marking path as a success=1 ENCOUNTER_END, and marking an
+        -- already-marked boss is a no-op, so overlap with a clean success
+        -- is harmless.
+        local encounterID, encounterName = ...
+
+        RR:ZoneLog(("BOSS_KILL fired: id=%s name=%q loadedKey=%s currentKey=%s")
+            :format(tostring(encounterID), tostring(encounterName),
+                    tostring(RR.state.loadedRaidKey),
+                    tostring(RR:GetRaidContextKey())))
+
+        if not RR.state.testMode
+            and RR.currentRaid
+            and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
+            if not RR:MarkBossKilledByEncounterID(encounterID) then
+                -- The name can carry trailing titles ("X, Champion of the
+                -- Naaru"); strip them so the name fallback can match.
+                if type(encounterName) == "string" then
+                    RR:MarkBossKilledByEncounterName(
+                        (encounterName:gsub(",.*$", "")))
+                end
+            end
+            RR:AdvanceProgress("encounter-end", { encounterID = encounterID })
+            RR.UI.Update()
+            if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
         end
 
     elseif event == "ENCOUNTER_START" then
@@ -5776,6 +5952,7 @@ RR.frame:RegisterEvent("ZONE_CHANGED")
 RR.frame:RegisterEvent("ZONE_CHANGED_INDOORS")
 RR.frame:RegisterEvent("UPDATE_INSTANCE_INFO")
 RR.frame:RegisterEvent("ENCOUNTER_END")
+RR.frame:RegisterEvent("BOSS_KILL")
 RR.frame:RegisterEvent("ENCOUNTER_START")
 RR.frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 

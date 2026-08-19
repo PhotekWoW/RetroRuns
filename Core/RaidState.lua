@@ -32,6 +32,7 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
     if not self.currentRaid then
         wipe(self.state.bossesKilled)
         wipe(self.state.bossesKilledViaPairOnly)
+        wipe(self.state.bossesSkipped)
         self:ComputeNextStep()
         return false
     end
@@ -167,13 +168,6 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
             self.state.bossesKilledViaPairOnly[k] = true
         end
         self.state.bossesKilled[k] = true
-    end
-    -- Clear manualTargetBossIndex if the manually-targeted boss is now
-    -- killed (matches the behaviour of MarkBossKilled which does this
-    -- check when called from ENCOUNTER_END's MarkBossKilledByEncounterName).
-    if self.state.manualTargetBossIndex
-        and self.state.bossesKilled[self.state.manualTargetBossIndex] then
-        self.state.manualTargetBossIndex = nil
     end
 
     self:ComputeNextStep()

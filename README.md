@@ -71,6 +71,19 @@ Currently supports:
 * Gruul's Lair (2.0.3)
 * Karazhan (2.0.3)
 
+**Classic**
+* Temple of Ahn'Qiraj (1.9)
+* Ruins of Ahn'Qiraj (1.9)
+* Blackwing Lair (1.6)
+* Molten Core (1.1)
+
+That is every legacy raid in the game, Classic through Dragonflight.
+
+**Dungeons** are covered in the transmog browser: all 123 legacy dungeons
+from Classic through Dragonflight, with their bosses and drops, selectable
+from the Type dropdown next to the expansion list. Guided routing for
+dungeons is not in yet.
+
 ## Installation
 
 1. Download the latest `RetroRuns.zip`.
@@ -142,7 +155,7 @@ Main commands, type in chat:
 
 ## Status
 
-Version **2.4.0**
+Version **2.5.0**
 
 ## Reporting bugs / requesting features
 

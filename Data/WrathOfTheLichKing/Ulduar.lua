@@ -757,6 +757,8 @@ RetroRuns_Data[603] = {
                 { id = 46024, slot = "Weapon", name = "Kingsbane", sources = { [14]=22182 } },
                 { id = 45527, slot = "Weapon", name = "Soulscribe", sources = { [14]=21962 } },
                 { id = 46031, slot = "Weapon", name = "Touch of Madness", sources = { [14]=22186 } },
+                { id = 46017, slot = "Weapon", name = "Val'anyr, Hammer of Ancient Kings", sources = { [14]=22178 },
+                  acquisitionNote = "Assembled from 30 Fragments of Val'anyr, which drop across Ulduar; the hammer is forged during the Yogg-Saron encounter." },
                 { id = 45429, slot = "Chest", name = "Valorous Siegebreaker Battleplate", sources = { [14]=21894 }, classes = { 1 } },
                 { id = 45424, slot = "Chest", name = "Valorous Siegebreaker Breastplate", sources = { [14]=21889 }, classes = { 1 } },
                 { id = 45375, slot = "Chest", name = "Valorous Aegis Battleplate", sources = { [14]=21842 }, classes = { 2 } },

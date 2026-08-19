@@ -626,19 +626,33 @@ local sourceClassIndex
 
 local function BuildSourceClassIndex()
     sourceClassIndex = {}
+    local function IndexLoot(loot)
+        for _, item in ipairs(loot or {}) do
+            local classes = item.classes or item.equipClasses
+                or (item.restrictedToClass and { item.restrictedToClass })
+            if classes and #classes > 0 and item.sources then
+                for _, sourceID in pairs(item.sources) do
+                    sourceClassIndex[sourceID] = classes
+                end
+                -- A faction pair's twin serves the same class.
+                if item.mirror and item.mirror.sources then
+                    for _, sourceID in pairs(item.mirror.sources) do
+                        sourceClassIndex[sourceID] = classes
+                    end
+                end
+            end
+        end
+    end
     for _, dataTable in ipairs({ RetroRuns_Data, RetroRuns_DataHorde }) do
         if type(dataTable) == "table" then
             for _, raid in pairs(dataTable) do
                 for _, boss in ipairs(raid.bosses or {}) do
-                    for _, item in ipairs(boss.loot or {}) do
-                        local classes = item.classes or item.equipClasses
-                        if classes and #classes > 0 and item.sources then
-                            for _, sourceID in pairs(item.sources) do
-                                sourceClassIndex[sourceID] = classes
-                            end
-                        end
-                    end
+                    IndexLoot(boss.loot)
                 end
+                -- Trash is held at raid level, not under a boss, and it
+                -- carries class-locked rows (Molten Core ships the whole
+                -- T1 belt and bracer run there).
+                IndexLoot(raid.trashLoot)
             end
         end
     end
@@ -944,11 +958,6 @@ local function RefreshItemsCollectionAfterFilterChange()
 end
 
 local function OpenToastInJournal(toastFrame)
-    if InCombatLockdown and InCombatLockdown() then
-        T("open: refused -- in combat lockdown")
-        return false
-    end
-
     if toastFrame.sourceID then
         -- An appearance the wardrobe won't navigate to for this character
         -- has no page to open, so a normal click would strand the player on
@@ -1591,11 +1600,6 @@ local function ArmFlush(delay)
     end)
 end
 
--- Pink "New appearance:" line. Retained for the settings preview.
-function RR.FormatAppearanceLine(shownLinkOrName)
-    return ("|cffF259C7New appearance:|r %s"):format(shownLinkOrName or "")
-end
-
 -- Resolve a special-loot collection event (mount/pet/toy) to a name, icon, and
 -- chat link. Returns name, icon, itemID (toys only), kindLabel, link; any may
 -- be nil if the journal can't resolve it yet.
@@ -2143,13 +2147,6 @@ function RR.FormatCollectionSummaryLine(specialCount, appCount, tokenCount, vend
     if #parts == 0 then return "" end
     return table.concat(parts, " |cff666666·|r ")
         .. ("  |cffffd100|Haddon:%s:vg:%d|h[" .. RR.L["view"] .. "]|h|r"):format(LINK_ADDON, viewID or 0)
-end
-
--- Gray vendor-grade line with [view]. Retained for the settings preview's
--- legacy two-line format.
-function RR.FormatVendorSummaryLine(count, viewID)
-    return ("|cff999999" .. RR.L["%d vendor-grade item%s collected"] .. "|r  |cffffd100|Haddon:%s:vg:%d|h[" .. RR.L["view"] .. "]|h|r")
-        :format(count, count == 1 and "" or "s", LINK_ADDON, viewID or 0)
 end
 
 -- Re-color a link by its true quality (strip the outer wrapper, rewrap). Falls

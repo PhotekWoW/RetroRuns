@@ -25,6 +25,40 @@
 local RR = RetroRuns
 RR.WhatsNew = {
     {
+        version  = "2.5.0",
+        date     = "2026-08-18",
+        sections = {
+            {
+                heading = "Added",
+                bullets = {
+                    "**The Classic raids are in, and that completes the roster.** Molten Core, Blackwing Lair, Ruins of Ahn'Qiraj and Temple of Ahn'Qiraj each come with full routing, loot, tier sets and trash drops. With them, every legacy raid in the game is now covered -- Classic through Dragonflight, all 51, every one of them walked and routed.",
+                    "**The transmog browser now covers dungeons.** A new Type selector switches between Raids and Dungeons, and every legacy dungeon from Classic through Dragonflight is there to browse boss by boss -- 123 dungeons in all, with appearances tracked per difficulty where the game varies them. Dungeons are browsing only for now; full guided routing, like the raids have, is coming soon. Probably.",
+                    "**Tokens now tell you where to take them.** Tier tokens that cannot simply be right-clicked, and the omnitokens some bosses drop in place of a fixed piece, show a hint under the boss that drops them: the NPC to visit, what the turn-in costs, and a travel button where one can be reached. Icecrown Citadel's map marker points at the quartermaster who serves your own class.",
+                    "**Optional bosses can be skipped.** A boss the route can bypass is marked as optional on the panel and in the Boss Progress list, and its encounter row offers a Skip Boss button. Skipping asks for confirmation first, because routing stays down for the rest of that lockout, and then sends you on to the next boss. The run finishes with a reminder that you can still go back and kill anything you skipped.",
+                    "**Tier rows tell you more.** They show which specializations a piece can be handed to, the full upgrade chain where one exists, and any appearance a piece can be traded up to. The explanation beneath a tier list now folds away when you do not want it.",
+                },
+            },
+            {
+                heading = "Changed",
+                bullets = {
+                    "**The transmog browser reads more clearly.** Item names follow the same color key as their difficulty markers, tier is set apart from ordinary loot and always leads the list, legendaries sit in their own block, and gear only one class can wear says so.",
+                    "**Each faction's tier piece and its twin share one row** in the raids where every piece has a counterpart, with your own faction first and a marker for each version, so you can tell which of the two you still need.",
+                },
+            },
+            {
+                heading = "Fixed",
+                bullets = {
+                    "**Several raids were missing appearances entirely.** Trash and shared boss drops across Siege of Orgrimmar, Naxxramas and Throne of Thunder never appeared in the browser, so they read as uncollectable however many times you cleared the raid. All of them now show.",
+                    "**Loot rows could show the wrong name color**, most often in the Wrath raids, where a row whose markers said collected still rendered its name gray.",
+                    "**Assorted browser display fixes.** Loot lines up in proper columns, tier lists no longer sit double-spaced, a boss's ordinary loot no longer sorts above its tier list, rows that looked identical are told apart, and gear several classes can wear names the one you are looking at.",
+                    "**Redemption hints point at the right place.** Trial of the Crusader names the pieces your Trophies actually buy, and Siege of Orgrimmar no longer sends Alliance players to the Horde vendor's spot.",
+                    "**Route notes advance promptly after fights the game reports oddly**, instead of waiting until you walk somewhere.",
+                    "**Smaller fixes.** Travel buttons say \"Zone out first\" rather than placing a waypoint that cannot be routed to, loot toasts respond to clicks during combat and open the right class's page, the Encounter Journal no longer redraws over itself, and row dividers no longer vanish at some window scales.",
+                },
+            },
+        },
+    },
+    {
         version  = "2.4.0",
         date     = "2026-08-11",
         sections = {
@@ -40,7 +74,7 @@ RR.WhatsNew = {
             {
                 heading = "Changed",
                 bullets = {
-                    "**Collected items are dimmed in the transmog browser.** An item you have finished with now shows its name in grey rather than white, so the rows still worth your time stand out. An item counts as finished when every difficulty it drops at is collected.",
+                    "**Collected items are dimmed in the transmog browser.** An item you have finished with now shows its name in gray rather than white, so the rows still worth your time stand out. An item counts as finished when every difficulty it drops at is collected.",
                     "**Section labels are now cyan.** The green and yellow section headings (Traveling, Achievements, Boss Encounter, Special Loot, Transmog Needed, Boss Progress, Trash Drops) now use the branded cyan instead.",
                     "**Hard-mode and opposite-faction drops fold into their own sections.** In the transmog browser, hard-mode-only drops (Ulduar) and the other faction's appearances (Trial of the Crusader) no longer run inline with the boss's loot list. Each now sits in its own collapsible section -- \"Hard Mode\", and \"Horde Appearances\" or \"Alliance Appearances\" depending on your character -- below the main list, collapsed until you expand it.",
                     "**The Transmog Needed summary takes up less space.** The [click to browse] hint now sits next to the heading instead of at the end of the counts, and the current difficulty shows as shorthand -- \"25H\" rather than \"25 Player (Heroic)\".",
@@ -98,7 +132,7 @@ RR.WhatsNew = {
             {
                 heading = "Changed",
                 bullets = {
-                    "**The Volcanius marker in Vault of the Incarnates is a plain point of interest.** It was a pulsing ring of the kind that turns grey and ticks itself off once you pass it, but that kill cannot be detected, so the ring never resolved.",
+                    "**The Volcanius marker in Vault of the Incarnates is a plain point of interest.** It was a pulsing ring of the kind that turns gray and ticks itself off once you pass it, but that kill cannot be detected, so the ring never resolved.",
                     "**Expansion names display in the client's language.** The expansion headers and dropdowns follow what the game's own journal shows, which localizes them on some clients.",
                     "**The Achievements section now appears for every boss.** Bosses with no tracked achievements show the section with \"None\" rather than hiding it; the row opens the Achievements window.",
                     "**The Achievements window no longer changes width when switching raids.** It keeps the widest size it has needed so far and only its bottom edge moves, matching the transmog popup's behavior.",
@@ -149,30 +183,6 @@ RR.WhatsNew = {
         },
     },
 
-    {
-        version  = "2.2.0",
-        date     = "2026-07-18",
-        sections = {
-            {
-                heading = "Added",
-                bullets = {
-                    "**Localization support, starting with Spanish.** The groundwork is in place for RetroRuns to run in languages other than English: player-facing text now goes through a translation layer, and raid, wing, boss, and place names follow your game client's language. Spanish is the first language built on it, covering the interface and all route content on esES and esMX clients. More languages can now be added without further engine work. English clients are unchanged.",
-                    "**Minimized mode comes to life.** Collapse the main panel to enable minimized mode. The main panel is replaced with a much smaller bar that shows an abbreviated version of every step-by-step travel note, along with a quick snapshot of current boss progress. Supported on all raids, all routes; Full, Skip, and LFR.",
-                },
-            },
-            {
-                heading = "Fixed",
-                bullets = {
-                    "**The panel now keeps one position across all characters.** The window's position has always been saved account-wide, but the game's own per-character frame memory was re-applying each character's last position over it, so every character ended up with the panel somewhere different. The saved position now wins everywhere: move it once and it stays there for the whole account.",
-                    "**Boss progress now tracks correctly on non-English clients in Mists of Pandaria raids.** On a client running in a non-English language, killing a boss in Mogu'shan Vaults, Heart of Fear, Terrace of Endless Spring, Throne of Thunder, or Siege of Orgrimmar did not register the kill or advance the route: the boss progress list, travel note, and map line stayed on the first boss no matter how far you had cleared. The Encounter Journal lookup used to match kills was reading at a difficulty those raids do not offer. English clients were unaffected and remain unchanged.",
-                    "**The loot summary no longer misses drops when loot arrives a moment after the loot window closes.** On higher-latency pulls the summary could appear empty; it now waits briefly for the last items.",
-                    "**The transmog window no longer shows a scrollbar when a boss's loot list fits.** A scrollbar, and a clipped travel button, appeared on bosses with a weapon-token footnote even when the list fit.",
-                    "**The vendor travel button in the transmog window uses the correct plane icon and no longer sits under the scrollbar.**",
-                    "**The Dragon Soul routing hint before Ultraxion now appears.** The step telling you to talk to Thrall to begin the encounter could never display.",
-                },
-            },
-        },
-    },
 
 
 }

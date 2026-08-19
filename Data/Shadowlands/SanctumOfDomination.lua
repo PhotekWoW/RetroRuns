@@ -287,7 +287,7 @@ RetroRuns_Data[2450] = {
                 { id = 15133, name = "This World is a Prism", meta = true, soloable = "no" },
             },
             loot = {
-                { id = 186439, slot = "Back", name = "Dark Ranger's Quiver", sources = { [17]=145999, [14]=145998, [15]=146000, [16]=146001 } },
+                { id = 186439, slot = "Back", name = "Dark Ranger's Quiver", sources = { [17]=145999, [14]=145998, [15]=146000, [16]=146001 }, restrictedToClass = 3 },
                 { id = 186334, slot = "Chest", name = "Witherheart Studded Breastplate", sources = { [17]=145781, [14]=145780, [15]=145782, [16]=145783 } },
                 { id = 186353, slot = "Feet", name = "Greaves of Haunting Ruination", sources = { [17]=145857, [14]=145856, [15]=145858, [16]=145859 } },
                 { id = 186325, slot = "Head", name = "Veil of the Banshee Queen", sources = { [17]=145753, [14]=145752, [15]=145754, [16]=145755 } },
@@ -305,7 +305,7 @@ RetroRuns_Data[2450] = {
                 -- EJ canonicalizes on 145985, so that's the sourceID
                 -- used here. Collection detection works either way
                 -- (GetAllAppearanceSources walks both siblings).
-                { id = 186414, slot = "Ranged", name = "Rae'shalare, Death's Whisper", sources = { [17]=145985, [14]=145985, [15]=145985, [16]=145985 } },
+                { id = 186414, slot = "Ranged", name = "Rae'shalare, Death's Whisper", sources = { [17]=145985, [14]=145985, [15]=145985, [16]=145985 }, restrictedToClass = 3 },
                 { id = 186342, slot = "Shoulder", name = "Epaulets of the Master Ranger", sources = { [17]=145813, [14]=145812, [15]=145814, [16]=145815 } },
                 { id = 186349, slot = "Shoulder", name = "Spires of Broken Hope", sources = { [17]=145841, [14]=145840, [15]=145842, [16]=145843 } },
                 { id = 186332, slot = "Waist", name = "Windrunner's Baldric", sources = { [17]=145773, [14]=145772, [15]=145774, [16]=145775 } },

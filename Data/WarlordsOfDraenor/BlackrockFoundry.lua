@@ -457,6 +457,24 @@ RetroRuns_Data[1205] = {
                 { id = 116660, kind = "mount",    name = "Ironhoof Destroyer",          mythicOnly = true },
                 { id = 138809, kind = "illusion", name = "Illusion: Mark of Blackrock", sourceID = 5336 },
             },
+            -- The Iron Essences right-click into a repeatable quest that is
+            -- turned in to a faction NPC, both standing in Talador on the
+            -- same spot. Each faction drops its own essence items:
+            -- 119310/119316/119323 turn in to Lady Liadrin,
+            -- 120277/120278/120279 to Exarch Maladaar.
+            omniToken = {
+                text = "Blackhand also drops Essence Tokens, which are omnitokens that you redeem for any Tier 17 set piece of matching quality. Not tracked here.",
+                alliance = {
+                    vendorName = "Exarch Maladaar",
+                    zoneMain   = "Talador",
+                    mapID = 535, x = 0.498, y = 0.484,
+                },
+                horde = {
+                    vendorName = "Lady Liadrin",
+                    zoneMain   = "Talador",
+                    mapID = 535, x = 0.500, y = 0.484,
+                },
+            },
         },
     },
 

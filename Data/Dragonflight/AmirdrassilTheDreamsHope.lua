@@ -394,10 +394,15 @@ RetroRuns_Data[2549] = {
             },
             -- Flame-Warped Curio is an omnitoken Fyrakk drops alongside
             -- the standard tier piece -- it can be exchanged for any tier
-            -- slot of the player's choice.
-            tmogFootnote = {
+            -- slot of the player's choice. Kirasztia takes it; the item's
+            -- own description names her.
+            omniToken = {
                 text   = "Fyrakk additionally drops {item}, an omnitoken that exchanges for any tier slot. Not tracked here.",
                 itemID = 210947,
+                vendorName = "Kirasztia",
+                zoneMain   = "Emerald Dream",
+                zoneSub    = "Wellspring Overlook",
+                mapID = 2200, x = 0.366, y = 0.334,
             },
         },
     },

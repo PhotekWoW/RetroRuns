@@ -566,6 +566,13 @@ RetroRuns_Data[967] = {
                 { id = 78815, slot = "Legs", name = "Time Lord's Leggings", sources = { [17]=38464 }, classes = { 8 } },
                 { id = 78804, slot = "Legs", name = "Wyrmstalker's Legguards", sources = { [17]=38852 }, classes = { 3 } },
             },
+            -- Pickpocketing her opens the Rogue legendary chain. The daggers
+            -- themselves are listed under Madness of Deathwing, per the
+            -- convention for legendaries that no boss actually drops.
+            tmogFootnote = {
+                text = "Pickpocketing Hagara starts a long Rogue chain that eventually rewards {item1} and {item2}. Both are listed under Madness of Deathwing.",
+                itemIDs = { 77949, 77950 },
+            },
         },
         {
             index              = 5,
@@ -825,11 +832,14 @@ RetroRuns_Data[967] = {
             },
             soloTip            = "Jump between platforms, killing each of his limbs.",
             loot = {
+                { id = 77950, slot = "Off-hand", name = "Tiriosh, Nightmare of Ages", sources = { [14]=39517, [15]=39517 }, restrictedToClass = 4,
+                  acquisitionNote = "Awarded together at the end of a long Rogue chain that begins by pickpocketing Hagara the Stormbinder." },
                 { id = 78359, slot = "Ranged", name = "Vishanka, Jaws of the Earth", sources = { [17]=39857, [14]=39744, [15]=39848 } },
                 { id = 77191, slot = "Two-Hand", name = "Gurthalak, Voice of the Deeps", sources = { [17]=39864, [14]=38926, [15]=39855 } },
                 { id = 77194, slot = "Two-Hand", name = "Kiril, Fury of Beasts", sources = { [17]=39859, [14]=38929, [15]=39850 } },
                 { id = 77190, slot = "Two-Hand", name = "Ti'tahk, the Steps of Time", sources = { [17]=39863, [14]=38925, [15]=39854 } },
                 { id = 77189, slot = "Weapon", name = "Blade of the Unmaker", sources = { [17]=39860, [14]=38924, [15]=39851 } },
+                { id = 77949, slot = "Weapon", name = "Golad, Twilight of Aspects", sources = { [14]=39516, [15]=39516 }, restrictedToClass = 4 },
                 { id = 77196, slot = "Weapon", name = "Maw of the Dragonlord", sources = { [17]=39862, [14]=38931, [15]=39853 } },
                 { id = 77188, slot = "Weapon", name = "No'Kaled, the Elements of Death", sources = { [17]=39858, [14]=38923, [15]=39849 } },
                 { id = 77195, slot = "Weapon", name = "Rathrak, the Poisonous Mind", sources = { [17]=39861, [14]=38930, [15]=39852 } },

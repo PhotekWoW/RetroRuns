@@ -104,7 +104,6 @@ RetroRuns_Data[1136] = {
         [99694] = 11,  -- Helm of the Cursed Protector
         [99695] = 12,  -- Shoulders of the Cursed Protector
         [99696] = 4,  -- Chest of the Cursed Vanquisher
-        [99712] = 13,  -- Leggings of the Cursed Conqueror
         [99713] = 13,  -- Leggings of the Cursed Protector
         [99714] = 4,  -- Chest of the Cursed Vanquisher
         [99715] = 4,  -- Chest of the Cursed Conqueror
@@ -119,30 +118,12 @@ RetroRuns_Data[1136] = {
         [99724] = 11,  -- Helm of the Cursed Conqueror
         [99725] = 11,  -- Helm of the Cursed Protector
         [99726] = 13,  -- Leggings of the Cursed Vanquisher
-        [99742] = 4,  -- Chest of the Cursed Vanquisher
-        [99743] = 4,  -- Chest of the Cursed Conqueror
-        [99744] = 4,  -- Chest of the Cursed Protector
-        [99745] = 8,  -- Gauntlets of the Cursed Vanquisher
-        [99746] = 8,  -- Gauntlets of the Cursed Conqueror
-        [99747] = 8,  -- Gauntlets of the Cursed Protector
-        [99748] = 11,  -- Helm of the Cursed Vanquisher
-        [99749] = 11,  -- Helm of the Cursed Conqueror
-        [99750] = 11,  -- Helm of the Cursed Protector
-        [99751] = 13,  -- Leggings of the Cursed Vanquisher
-        [99752] = 13,  -- Leggings of the Cursed Conqueror
-        [99753] = 13,  -- Leggings of the Cursed Protector
-        [99754] = 12,  -- Shoulders of the Cursed Vanquisher
-        [99755] = 12,  -- Shoulders of the Cursed Conqueror
-        [99756] = 12,  -- Shoulders of the Cursed Protector
         [105857] = 14,  -- Essence of the Cursed Protector
         [105858] = 14,  -- Essence of the Cursed Conqueror
         [105859] = 14,  -- Essence of the Cursed Vanquisher
         [105860] = 14,  -- Essence of the Cursed Protector
         [105861] = 14,  -- Essence of the Cursed Conqueror
         [105862] = 14,  -- Essence of the Cursed Vanquisher
-        [105863] = 14,  -- Essence of the Cursed Protector
-        [105864] = 14,  -- Essence of the Cursed Conqueror
-        [105865] = 14,  -- Essence of the Cursed Vanquisher
         [105866] = 14,  -- Essence of the Cursed Protector
         [105867] = 14,  -- Essence of the Cursed Conqueror
         [105868] = 14,  -- Essence of the Cursed Vanquisher
@@ -182,14 +163,28 @@ RetroRuns_Data[1136] = {
     -- Trash drops. The Encounter Journal indexes boss loot only,
     -- so these carry no journal rows and belong to no encounter.
     trashLoot = {
-        { id = 105743, slot = "Chest", name = "Kor'kron Dark Shaman Vestment", sources = { [14]=57075, [15]=57075, [16]=57075, [17]=57075 }, bind = "BoP" },
-        { id = 105742, slot = "Feet", name = "Kor'kron Dark Shaman Treads", sources = { [14]=57074, [15]=57074, [16]=57074, [17]=57074 }, bind = "BoP" },
-        { id = 105744, slot = "Hands", name = "Kor'kron Dark Shaman Gloves", sources = { [14]=57076, [15]=57076, [16]=57076, [17]=57076 }, bind = "BoP" },
-        { id = 105745, slot = "Head", name = "Kor'kron Dark Shaman Cowl", sources = { [14]=57077, [15]=57077, [16]=57077, [17]=57077 }, bind = "BoP" },
-        { id = 105746, slot = "Legs", name = "Kor'kron Dark Shaman Kilt", sources = { [14]=57078, [15]=57078, [16]=57078, [17]=57078 }, bind = "BoP" },
-        { id = 105747, slot = "Shoulder", name = "Kor'kron Dark Shaman Shoulder", sources = { [14]=57079, [15]=57079, [16]=57079, [17]=57079 }, bind = "BoP" },
-        { id = 105741, slot = "Waist", name = "Kor'kron Dark Shaman Belt", sources = { [14]=57073, [15]=57073, [16]=57073, [17]=57073 }, bind = "BoP" },
-        { id = 105748, slot = "Wrist", name = "Kor'kron Dark Shaman Bracers", sources = { [14]=57080, [15]=57080, [16]=57080, [17]=57080 }, bind = "BoP" },
+        { id = 113224, slot = "Back", name = "Aeth's Swiftcinder Cloak", sources = { [14]=62185, [15]=62185, [16]=62185, [17]=62185 }, bind = "BoP" },
+        { id = 113231, slot = "Back", name = "Brave Niunai's Cloak", sources = { [14]=62200, [15]=62200, [16]=62200, [17]=62200 }, bind = "BoP" },
+        { id = 113226, slot = "Back", name = "Cape of the Alpha", sources = { [14]=62189, [15]=62189, [16]=62189, [17]=62189 }, bind = "BoP" },
+        { id = 113230, slot = "Back", name = "Drape of the Omega", sources = { [14]=62199, [15]=62199, [16]=62199, [17]=62199 }, bind = "BoP" },
+        { id = 113223, slot = "Back", name = "Turtleshell Greatcloak", sources = { [14]=62184, [15]=62184, [16]=62184, [17]=62184 }, bind = "BoP" },
+        { id = 105743, slot = "Chest", name = "Kor'kron Dark Shaman Vestment", sources = { [14]=57075, [15]=57075, [16]=57075, [17]=57075 }, bind = "BoP", restrictedToClass = 7 },
+        { id = 105742, slot = "Feet", name = "Kor'kron Dark Shaman Treads", sources = { [14]=57074, [15]=57074, [16]=57074, [17]=57074 }, bind = "BoP", restrictedToClass = 7 },
+        { id = 113220, slot = "Hands", name = "Crimson Gauntlets of Death", sources = { [14]=62175, [15]=62175, [16]=62177, [17]=62176 }, bind = "BoP" },
+        { id = 113228, slot = "Hands", name = "Gauntlets of Discarded Time", sources = { [14]=62193, [15]=62193, [16]=62195, [17]=62194 }, bind = "BoP" },
+        { id = 113225, slot = "Hands", name = "Kalaena's Arcane Handwraps", sources = { [14]=62186, [15]=62186, [16]=62188, [17]=62187 }, bind = "BoP" },
+        { id = 113222, slot = "Hands", name = "Keengrip Arrowpullers", sources = { [14]=62181, [15]=62181, [16]=62183, [17]=62182 }, bind = "BoP" },
+        { id = 105744, slot = "Hands", name = "Kor'kron Dark Shaman Gloves", sources = { [14]=57076, [15]=57076, [16]=57076, [17]=57076 }, bind = "BoP", restrictedToClass = 7 },
+        { id = 113227, slot = "Hands", name = "Marco's Crackling Gloves", sources = { [14]=62190, [15]=62190, [16]=62192, [17]=62191 }, bind = "BoP" },
+        { id = 113219, slot = "Hands", name = "Romy's Reliable Grips", sources = { [14]=62172, [15]=62172, [16]=62174, [17]=62173 }, bind = "BoP" },
+        { id = 113218, slot = "Hands", name = "Seebo's Sainted Touch", sources = { [14]=62169, [15]=62169, [16]=62171, [17]=62170 }, bind = "BoP" },
+        { id = 113221, slot = "Hands", name = "Siid's Silent Stranglers", sources = { [14]=62178, [15]=62178, [16]=62180, [17]=62179 }, bind = "BoP" },
+        { id = 113229, slot = "Hands", name = "Zoid's Molten Gauntlets", sources = { [14]=62196, [15]=62196, [16]=62198, [17]=62197 }, bind = "BoP" },
+        { id = 105745, slot = "Head", name = "Kor'kron Dark Shaman Cowl", sources = { [14]=57077, [15]=57077, [16]=57077, [17]=57077 }, bind = "BoP", restrictedToClass = 7 },
+        { id = 105746, slot = "Legs", name = "Kor'kron Dark Shaman Kilt", sources = { [14]=57078, [15]=57078, [16]=57078, [17]=57078 }, bind = "BoP", restrictedToClass = 7 },
+        { id = 105747, slot = "Shoulder", name = "Kor'kron Dark Shaman Shoulder", sources = { [14]=57079, [15]=57079, [16]=57079, [17]=57079 }, bind = "BoP", restrictedToClass = 7 },
+        { id = 105741, slot = "Waist", name = "Kor'kron Dark Shaman Belt", sources = { [14]=57073, [15]=57073, [16]=57073, [17]=57073 }, bind = "BoP", restrictedToClass = 7 },
+        { id = 105748, slot = "Wrist", name = "Kor'kron Dark Shaman Bracers", sources = { [14]=57080, [15]=57080, [16]=57080, [17]=57080 }, bind = "BoP", restrictedToClass = 7 },
     },
     bosses = {
         {
@@ -685,6 +680,29 @@ RetroRuns_Data[1136] = {
             specialLoot = {
                 { id = 104253, kind = "mount", name = "Kor'kron Juggernaut" },
                 { id = 253242, kind = "decor", decorID = 9263, name = "Horde Warlord's Throne" },
+            },
+            -- The Cursed tier tokens redeem on right-click; only these
+            -- Essences need a vendor. Four vendor pairs stand in a row at
+            -- each faction's Shrine, one pair per difficulty, and an Essence
+            -- exchanges at the one matching where it dropped. The label
+            -- stays generic for the same reason Icecrown's marker does: one
+            -- NPC name would misname the other three. The point marks the
+            -- middle of the row; coords are approximate until walked.
+            omniToken = {
+                text = "Garrosh also drops {tokens}, which are omnitokens that allow you to purchase any Tier 16 set piece of matching quality. Not tracked here.",
+                tokenLabel = "Essence Tokens",
+                alliance = {
+                    vendorName = "Tier Vendors",
+                    zoneMain   = "Vale of Eternal Blossoms",
+                    zoneSub    = "Shrine of Seven Stars",
+                    mapID = 394, x = 0.423, y = 0.444,
+                },
+                horde = {
+                    vendorName = "Tier Vendors",
+                    zoneMain   = "Vale of Eternal Blossoms",
+                    zoneSub    = "Shrine of Two Moons",
+                    mapID = 392, x = 0.432, y = 0.775,
+                },
             },
         },
     },

@@ -82,7 +82,7 @@ end
 local C_PINK   = { 0.95, 0.35, 0.78 }
 local C_BLUE   = { 0.30, 0.80, 1.00 }
 local C_PINK_HEX = "f259c7"  -- C_PINK as a text-escape hex (RETRO pink)
-local C_LABEL  = "4DCCFF"   -- section label colour (cyan, the RUNS wordmark blue)
+local C_LABEL  = "4DCCFF"   -- section label color (cyan, the RUNS wordmark blue)
 
 -- Idle-list pill-row leading spacers: transparent fixed-width inline textures
 -- that reserve exact pixel widths at the head of a pill string. The pill text,
@@ -251,10 +251,10 @@ panel:SetBackdropBorderColor(1, 1, 1, 1)
 
 -- Re-applies the backdrop at a smaller edgeSize while minimized. There is no
 -- edgeSize-only setter, so the whole backdrop is re-set and the border and
--- background colours are restored right after.
+-- background colors are restored right after.
 --
 -- Bespoke minimized-bar art: fixed left cap (with a gap in its top line for
--- the wordmark), tiled centre, fixed right cap. Source art is 104px padded to
+-- the wordmark), tiled center, fixed right cap. Source art is 104px padded to
 -- 128, so V runs 0..0.8125. Shown only while minimized.
 panel.minbarLeft   = panel:CreateTexture(nil, "BORDER")
 panel.minbarCenter = panel:CreateTexture(nil, "BORDER")
@@ -376,7 +376,7 @@ panel.logo:SetPoint("TOPLEFT", PAD_LEFT - 4, -10 - FRAME_INSET_Y)
 panel.logo:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\LogoSquare")
 panel.logo:Hide()
 
--- Title (two FontStrings, split only at colour boundary). Anchored to the
+-- Title (two FontStrings, split only at color boundary). Anchored to the
 -- panel's top-left now that the logo is hidden.
 panel.titleRetro = panel:CreateFontString(nil, "OVERLAY")
 panel.titleRetro:SetPoint("TOPLEFT", PAD_LEFT + 8, -12 - FRAME_INSET_Y)
@@ -579,6 +579,13 @@ panel.next      = AddField(panel.progress, "TOPLEFT", "BOTTOMLEFT", -8,  BODY_WI
 -- under the "Run complete!" banner. Smaller font than the banner (see
 -- targets table). Only populated when the loaded raid authors an exitNote.
 panel.exitNote  = AddField(panel.next,     "TOPLEFT", "BOTTOMLEFT", -13, BODY_WIDTH, "GameFontNormalSmall")
+-- Skip-run comeback line, shown between the banner and the exit note. Its
+-- own field so the exit note stays the bottom of the block.
+panel.skipReturn = AddField(panel.next,    "TOPLEFT", "BOTTOMLEFT", -13, BODY_WIDTH, "GameFontNormalSmall")
+-- Skip-run caveat, its own field because a FontString carries ONE font size
+-- and this line renders two points under the comeback line it follows.
+panel.skipNote  = AddField(panel.skipReturn, "TOPLEFT", "BOTTOMLEFT", -6, BODY_WIDTH - 12, "GameFontNormalSmall")
+panel.skipNote:SetPoint("TOPLEFT", panel.skipReturn, "BOTTOMLEFT", 12, -6)
 panel.travel    = AddField(panel.next,     "TOPLEFT", "BOTTOMLEFT", -12, BODY_WIDTH)
 
 -- Boss Encounter section: .header (Button, toggles the soloTip),
@@ -601,10 +608,50 @@ panel.encounter.header.label:SetNonSpaceWrap(true)
 panel.encounter.header:RegisterForClicks("LeftButtonUp")
 panel.encounter.header:SetScript("OnClick", function(self)
     if not self.clickable then return end
-    local now = RR:GetSetting("encounterExpanded")
-    RR:SetSetting("encounterExpanded", not now)
-    UI.Update()
+    -- A click landing on the note's {skip} link fires BOTH this and
+    -- OnHyperlinkClick, and their order is not guaranteed. Deferring one
+    -- frame lets the link handler raise its flag either way, so the note
+    -- does not collapse out from under the confirmation.
+    C_Timer.After(0, function()
+        if panel.encounter.skipLinkClicked then
+            panel.encounter.skipLinkClicked = nil
+            return
+        end
+        local now = RR:GetSetting("encounterExpanded")
+        RR:SetSetting("encounterExpanded", not now)
+        UI.Update()
+    end)
 end)
+
+-- The expanded note carries a {skip} link on optional bosses. Hyperlinks
+-- ride the same frame as the toggle here (unlike the achievements and
+-- special-loot sub-widgets, which are link-only), so the flag above is what
+-- keeps the two apart.
+panel.encounter.header:SetHyperlinksEnabled(true)
+panel.encounter.header:SetScript("OnHyperlinkClick", function(_, link)
+    local bossIndex = link and link:match("^rrskip:(%d+)$")
+    if not bossIndex then return end
+    panel.encounter.skipLinkClicked = true
+    UI.ConfirmSkipBoss(tonumber(bossIndex))
+end)
+
+-- Skip control for an optional boss, sharing the header's row. Its own
+-- Button rather than part of the header's click area, so toggling the note
+-- and bypassing the boss never compete for one click -- the same split the
+-- hyperlink sub-widgets use.
+panel.encounter.skip = CreateFrame("Button", nil, panel.encounter)
+panel.encounter.skip:SetSize(1, 14)
+panel.encounter.skip:SetFrameLevel(panel.encounter.header:GetFrameLevel() + 2)
+panel.encounter.skip.label = panel.encounter.skip:CreateFontString(
+    nil, "OVERLAY", "GameFontHighlightSmall")
+panel.encounter.skip.label:SetPoint("TOPLEFT", 0, 0)
+panel.encounter.skip.label:SetJustifyH("LEFT")
+panel.encounter.skip:RegisterForClicks("LeftButtonUp")
+panel.encounter.skip:SetScript("OnClick", function(self)
+    if not self.bossIndex then return end
+    UI.ConfirmSkipBoss(self.bossIndex)
+end)
+panel.encounter.skip:Hide()
 
 -- Achievements sub-widget: hyperlinks-only, no toggle.
 panel.encounter.achievements = CreateFrame("Frame", nil, panel.encounter)
@@ -654,6 +701,10 @@ browserState = {
     expansion = nil,
     raidKey   = nil,
     bossIndex = nil,
+    -- Which instance table the browser reads: "raid" (RetroRuns_Data,
+    -- keyed by instance map id) or "dungeon" (RetroRuns_DungeonData,
+    -- keyed by journalInstanceID).
+    instanceKind = "raid",
     active    = false,
     -- Which class's class-gated loot the browser is showing: a class ID,
     -- 0 for "all classes", or nil for "the class being played". Runtime
@@ -713,6 +764,7 @@ panel.transmog:SetScript("OnClick", function()
     -- loot would be surprising. The /rr tmog command, by contrast,
     -- preserves the last-browsed selection.
     if RR.currentRaid and RR.state.activeStep then
+        browserState.instanceKind = "raid"
         browserState.expansion = RR.currentRaid.expansion
         browserState.raidKey   = RR.currentRaid.instanceID
         browserState.bossIndex = RR.state.activeStep.bossIndex
@@ -731,7 +783,7 @@ panel.listHeader = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 panel.listHeader:SetPoint("TOPLEFT", panel.transmog, "BOTTOMLEFT", 0, -12)
 panel.listHeader:SetWidth(BODY_WIDTH)
 panel.listHeader:SetJustifyH("LEFT")
--- Cyan like the other section labels; the template's own colour is yellow.
+-- Cyan like the other section labels; the template's own color is yellow.
 panel.listHeader:SetTextColor(C_BLUE[1], C_BLUE[2], C_BLUE[3])
 
 panel.list = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -867,19 +919,34 @@ end
 -- the clicked button. Used to confirm silent waypoint paths
 -- (Blizzard/TomTom) where nothing else in the panel acknowledges
 -- the click. Drives alpha manually via C_Timer.NewTicker.
-local function ShowWaypointToast(anchorFrame, text)
+local function ShowWaypointToast(anchorFrame, text, rowFS)
     if not anchorFrame or not text then return end
 
     local toast = CreateFrame("Frame", nil, UIParent)
     toast:SetFrameStrata("TOOLTIP")  -- above the addon panel
     toast:SetSize(180, 18)
-    toast:ClearAllPoints()
-    toast:SetPoint("LEFT", anchorFrame, "RIGHT", 6, 0)
 
     local fs = toast:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    fs:SetPoint("LEFT", toast, "LEFT", 0, 0)
     fs:SetText("|cffffd700" .. text .. "|r")  -- gold for friendly notice
-    fs:SetJustifyH("LEFT")
+
+    toast:ClearAllPoints()
+    if rowFS then
+        -- Idle-list rows open the toast RIGHTWARD, past the row's last
+        -- difficulty pill. Their plane sits in the left gutter, where a
+        -- leftward toast clips off-screen with the panel near the left
+        -- edge of the display. Width follows the text so the toast ends
+        -- with the message.
+        fs:SetJustifyH("LEFT")
+        fs:SetPoint("LEFT", toast, "LEFT", 0, 0)
+        toast:SetWidth(math.max(1, fs:GetStringWidth()))
+        toast:SetPoint("LEFT", rowFS, "LEFT", rowFS:GetStringWidth() + 10, 0)
+    else
+        -- Everywhere else the toast opens LEFTWARD off the clicked button,
+        -- which has open space on that side.
+        fs:SetJustifyH("RIGHT")
+        fs:SetPoint("RIGHT", toast, "RIGHT", 0, 0)
+        toast:SetPoint("RIGHT", anchorFrame, "LEFT", -6, 0)
+    end
 
     toast:SetAlpha(0)  -- start invisible
     toast:Show()
@@ -918,8 +985,19 @@ end
 -- the function is reachable as panel.ShowNavChooser.
 do
     local navChooser  -- the singleton frame, lazily created
-    function panel.ShowNavChooser(anchorFrame, raid)
+    -- rowFS is the idle-list pill row the plane belongs to. It anchors the
+    -- toast past the row's last difficulty pill.
+    function panel.ShowNavChooser(anchorFrame, raid, rowFS)
         if not anchorFrame or not raid then return end
+
+        -- Waypoints cannot be placed from inside an instance, so say so
+        -- rather than routing into silence -- the same guard the browser's
+        -- travel plane uses. The run-complete panel shows the idle list
+        -- while the player is still zoned in, so its planes land here.
+        if IsInInstance and IsInInstance() then
+            ShowWaypointToast(anchorFrame, RR.L["Zone out first"], rowFS)
+            return
+        end
 
         -- The chooser exists to pick between the LFR queue NPC and the
         -- physical entrance. A raid with no LFR wings has only the entrance,
@@ -928,7 +1006,7 @@ do
         if raid.lfrWings == nil then
             local result = RR:NavigateToEntrance(raid)
             if result and not result.planner then
-                ShowWaypointToast(anchorFrame, RR.L["Waypoint set"])
+                ShowWaypointToast(anchorFrame, RR.L["Waypoint set"], rowFS)
             end
             return
         end
@@ -1505,25 +1583,8 @@ panel.mapBtn = MakeActionButton("Map", RR.L["Map"], "MapIcon.tga",
     START_X,
     function() RR:ShowCurrentMapForStep() end)
 
-panel.tmogBtn = MakeActionButton("Tmog", RR.L["Tmog"], "HangerIcon.tga",
-    START_X + (BUTTON_W + BUTTON_GAP) * 1,
-    function()
-        -- When in a supported raid, default the browser to that raid +
-        -- current boss before opening (so the user sees their actual
-        -- context rather than the last-browsed selection). Out of a
-        -- raid, fall through to the preserved last-browsed state.
-        if RR.currentRaid then
-            browserState.expansion = RR.currentRaid.expansion
-            browserState.raidKey   = RR.currentRaid.instanceID
-            if RR.state and RR.state.activeStep then
-                browserState.bossIndex = RR.state.activeStep.bossIndex
-            end
-        end
-        UI.ToggleTransmogBrowser()
-    end)
-
 panel.achievesBtn = MakeActionButton("Achieves", RR.L["Achieves"], "TrophyIcon.tga",
-    START_X + (BUTTON_W + BUTTON_GAP) * 2,
+    START_X + (BUTTON_W + BUTTON_GAP) * 1,
     function()
         -- When in a supported raid, default the dropdowns to that raid
         -- before opening (so the user sees their actual context rather
@@ -1534,6 +1595,25 @@ panel.achievesBtn = MakeActionButton("Achieves", RR.L["Achieves"], "TrophyIcon.t
             achState.raidKey   = RR.currentRaid.instanceID
         end
         UI.ToggleAchievementsWindow()
+    end)
+
+-- Center seat of the five, where the eye lands first.
+panel.tmogBtn = MakeActionButton("Tmog", RR.L["Tmog"], "HangerIcon.tga",
+    START_X + (BUTTON_W + BUTTON_GAP) * 2,
+    function()
+        -- When in a supported raid, default the browser to that raid +
+        -- current boss before opening (so the user sees their actual
+        -- context rather than the last-browsed selection). Out of a
+        -- raid, fall through to the preserved last-browsed state.
+        if RR.currentRaid then
+            browserState.instanceKind = "raid"
+            browserState.expansion = RR.currentRaid.expansion
+            browserState.raidKey   = RR.currentRaid.instanceID
+            if RR.state and RR.state.activeStep then
+                browserState.bossIndex = RR.state.activeStep.bossIndex
+            end
+        end
+        UI.ToggleTransmogBrowser()
     end)
 
 panel.skipsBtn = MakeActionButton("Skips", RR.L["Skips"], "SkipIcon.tga",
@@ -1610,6 +1690,8 @@ function UI.ApplySettings()
         { panel.progress,   14, "OUTLINE", true },
         { panel.next,       14, "OUTLINE", true },
         { panel.exitNote,   11, "",        true },
+        { panel.skipReturn, 11, "",        true },
+        { panel.skipNote,    9, "",        true },
         { panel.travel,     12, "",        true },
         { panel.encounter.header.label,       12, "", true },
         { panel.encounter.achievements.label, 12, "", true },
@@ -1650,14 +1732,21 @@ function UI.ApplySettings()
     -- dragged while the scale slider moves.
     if tmogWindow then
         tmogWindow:SetScale(scale)
-        -- Apply the font size directly to the popup's text without
-        -- re-running RefreshContent -- the content (text/line count) hasn't
-        -- changed, only the font size, so there's no need to re-invoke
-        -- BuildTransmogDetail or SetText on every heartbeat tick. That was
-        -- triggering the visible auto-adjust reflow once per second.
-        if tmogWindow.contentText then
-            local fontSize = RR:GetSetting("fontSize", 12)
-            SetBodyFont(tmogWindow.contentText, fontSize - 1, "")
+        -- Row-pooled: the loot rows sit at computed x/y offsets, so a font
+        -- change needs a full RefreshContent to re-measure and reposition
+        -- them. Gated on the layout inputs actually changing -- rebuilding
+        -- every heartbeat tick would churn the rows once per second.
+        if tmogWindow:IsShown() and tmogWindow.RefreshContent then
+            local fontSize  = RR:GetSetting("fontSize", 12)
+            local fontStyle = RR:GetSetting("bodyFontStyle", "standard")
+            if tmogWindow._lastScale ~= scale
+               or tmogWindow._lastFontSize ~= fontSize
+               or tmogWindow._lastFontStyle ~= fontStyle then
+                tmogWindow._lastScale = scale
+                tmogWindow._lastFontSize = fontSize
+                tmogWindow._lastFontStyle = fontStyle
+                tmogWindow:RefreshContent()
+            end
         end
     end
 
@@ -1781,7 +1870,7 @@ local function GetBodyAndFooterElements()
     local list = {
         panel.raid, panel.wingLine, panel.pills, panel.progress, panel.next,
         panel.travel, panel.encounter, panel.transmog,
-        panel.exitNote,
+        panel.exitNote, panel.skipReturn, panel.skipNote,
         panel.listHeader, panel.list,
         panel.credit, panel.version, panel.whatsNewLabel,
         panel.toastStatus,
@@ -1941,7 +2030,7 @@ local MINIMIZED_PANEL_W_FALLBACK = 240
 -- FontStrings later in the same update that must inherit the current state.
 --
 -- Positions the wordmark and top-right buttons: top-anchored when expanded,
--- vertically centred in the short bar when minimized.
+-- vertically centered in the short bar when minimized.
 --
 -- Route-active form needs a minNote plus a boss count and current target from
 -- the active route. It draws the bespoke frame art with the "RR" tab and the
@@ -2042,7 +2131,7 @@ local function ApplyTitleLayoutForState(minimized)
             panel.titleMinNote:Hide()
         end
 
-        -- No route: the wordmark centres on the bar. Route active: the "RR"
+        -- No route: the wordmark centers on the bar. Route active: the "RR"
         -- tab and the boss label straddle the top frame line at either end,
         -- with the minNote as the body row.
         --
@@ -2177,7 +2266,7 @@ function UI.ApplyMinimizedState()
         -- the resize entirely to keep the per-tick cost bounded.
     else
         -- Symmetric to the minimize path's LEFT-pin, so the panel grows back
-        -- rightward from its current left edge rather than from centre.
+        -- rightward from its current left edge rather than from center.
         local oldW = panel:GetWidth() or PANEL_W
         -- Geometry writes are skipped mid-drag (see the OnDragStart note).
         if math.abs(PANEL_W - oldW) > 0.5 and not panel.isBeingDragged then
@@ -2331,7 +2420,7 @@ function UI.AutoSize()
             local minH           = 240
             local newH           = math.max(minH, math.min(maxH, desired))
 
-            -- Captured BEFORE SetHeight: that moves the centre immediately,
+            -- Captured BEFORE SetHeight: that moves the center immediately,
             -- so a later GetCenter() returns the shifted value and X drifts.
             local oldTop  = panel:GetTop()
             local oldH    = panel:GetHeight() or newH
@@ -2362,9 +2451,11 @@ function UI.AutoSize()
     -- TRANSMOG POPUP -------------------------------------------------------
     -- The scroll CHILD takes the full content height so everything is
     -- reachable; the POPUP takes chrome + a capped viewport + the legend
-    -- footer. Content under the cap shows no scrollbar.
-    if tmogWindow and tmogWindow.contentText then
-        local text   = tmogWindow.contentText
+    -- footer. Content under the cap shows no scrollbar. Width and content
+    -- height come from the row layout pass in RefreshContent, which is
+    -- the only code that touches the row widgets; this block just fits
+    -- the frame and the scroll viewport around the stored geometry.
+    if tmogWindow and tmogWindow.tmogContentH then
         local scroll = tmogWindow.contentScroll
         local child  = tmogWindow.contentChild
 
@@ -2372,60 +2463,6 @@ function UI.AutoSize()
         local renderedSize = math.max(8, popupFontSize - 1)
         local popupLineHeight   = GetBodyFontSize(renderedSize) + 0.5
 
-        -- The design width is a floor. Localized rows can run longer, so the
-        -- widest line is measured and the popup widens up to a ceiling.
-        local content = text:GetText() or ""
-        local measure = tmogWindow.lineMeasure
-        if measure then
-            SetBodyFont(measure, renderedSize, "")
-            local maxLineW = 0
-            local function widen(lineText)
-                if lineText and lineText ~= "" then
-                    measure:SetText(lineText)
-                    local lineWidth = measure:GetStringWidth() or 0
-                    if lineWidth > maxLineW then maxLineW = lineWidth end
-                end
-            end
-            for line in (content .. "\n"):gmatch("(.-)\n") do
-                widen(line)
-            end
-            if tmogWindow.sanctumLine and tmogWindow.sanctumLine:IsShown() then
-                measure:SetText(tmogWindow.sanctumLine:GetText() or "")
-                local sanctumLineWidth = measure:GetStringWidth() or 0
-                -- The vendor travel button sits 4px past the line's text;
-                -- reserve its width so the button never lands under the
-                -- scrollbar gutter.
-                if tmogWindow.sanctumButton
-                        and tmogWindow.sanctumButton:IsShown() then
-                    sanctumLineWidth = sanctumLineWidth
-                        + math.floor(popupFontSize * 1.4) + 4
-                end
-                if sanctumLineWidth > maxLineW then
-                    maxLineW = sanctumLineWidth
-                end
-            end
-            for _, sectionKey in ipairs({ "trash", "hardmode", "faction" }) do
-                local sectionHeader = tmogWindow[sectionKey .. "Header"]
-                local sectionBody   = tmogWindow[sectionKey .. "Body"]
-                if sectionHeader and sectionHeader:IsShown() then
-                    measure:SetText(sectionHeader:GetText() or "")
-                    local headerW = measure:GetStringWidth() or 0
-                    if headerW > maxLineW then maxLineW = headerW end
-                end
-                if sectionBody and sectionBody:IsShown() then
-                    for line in ((sectionBody:GetText() or "")
-                            .. "\n"):gmatch("(.-)\n") do
-                        widen(line)
-                    end
-                end
-            end
-            local margin = tmogWindow.contentMargin or 22
-            tmogWindow:SetWidth(math.max(UI.POPUP_DESIGN_W,
-                math.min(UI.POPUP_MAX_W, math.ceil(maxLineW) + margin + 28 + 2)))
-        end
-
-        -- Width first: content wraps to the child's width, so measuring height
-        -- before it is finalized reads the height for the wrong wrap.
         if scroll then
             scroll:ClearAllPoints()
             -- Two single-axis anchors, vertical from the dropdown stack and
@@ -2437,59 +2474,19 @@ function UI.AutoSize()
             local popupW = tmogWindow:GetWidth() or UI.POPUP_DESIGN_W
             scroll:SetWidth(math.max(1, popupW - margin - 28))
         end
-        if child and scroll then
-            local vw = scroll:GetWidth()
-            if not vw or vw < 1 then vw = (tmogWindow:GetWidth() or UI.POPUP_DESIGN_W) - 28 - 22 end
-            child:SetWidth(vw)
-        end
 
-        -- Fallback only, for when GetStringHeight returns 0 before layout. The
-        -- measured height is the authority -- the estimate undercounts wrapped
-        -- rows and font leading, which produces a phantom scrollbar.
-        local lineCount = 1
-        for _ in content:gmatch("\n") do lineCount = lineCount + 1 end
-        local estTextH = lineCount * popupLineHeight
+        local contentH = tmogWindow.tmogContentH
 
-        local measuredTextH = text:GetStringHeight() or 0
-        local textH = (measuredTextH > 1) and measuredTextH or estTextH
-
-        -- Sanctum vendor line (Castle Nathria): measured height plus the 2px
-        -- gap when shown. Hidden for every non-CN raid -> contributes 0.
-        local sanctumH = 0
-        if tmogWindow.sanctumLine and tmogWindow.sanctumLine:IsShown() then
-            local sH = tmogWindow.sanctumLine:GetStringHeight() or 0
-            sanctumH = ((sH > 1) and sH or popupLineHeight) + 2
-        end
-
-        -- Collapsible sections: header (always, when shown) plus body height
-        -- (only when expanded), for the trash section and the boss-scoped
-        -- hard-mode / opposite-faction sections alike. Mirrors the sanctum
-        -- measured-or-estimated fallback so a cold GetStringHeight doesn't
-        -- clip a section.
-        local sectionsH = 0
-        for _, sectionKey in ipairs({ "trash", "hardmode", "faction" }) do
-            local sectionHeader = tmogWindow[sectionKey .. "Header"]
-            local sectionBody   = tmogWindow[sectionKey .. "Body"]
-            if sectionHeader and sectionHeader:IsShown() then
-                local hH = sectionHeader:GetStringHeight() or 0
-                sectionsH = sectionsH + ((hH > 1) and hH or popupLineHeight) + 10
-                if sectionBody and sectionBody:IsShown() then
-                    local bH = sectionBody:GetStringHeight() or 0
-                    sectionsH = sectionsH + ((bH > 1) and bH or popupLineHeight) + 2
-                end
-            end
-        end
-
-        -- Full content height the scroll child must span so nothing is clipped.
-        local contentH = textH + sanctumH + sectionsH
-
-        -- Color legend footer: two lines plus an 8px gap above it.
-        local legendH = 2 * popupLineHeight + 8
+        -- Color legend footer: its line count (2, or 3 where a faction-pair
+        -- line is present), an 8px gap above it, plus the divider band
+        -- (6px line + its 6px clearance).
+        local legendH = (tmogWindow.legendLineCount or 2) * popupLineHeight
+                        + 8 + 12
 
         -- Popup chrome: top close-button reserve + dropdown stack (four
         -- dropdowns anchored BOTTOMLEFT +4 overlap by 4px each, so 4*32-12=116)
         -- + gap below dropdowns + bottom margin.
-        local chromeTop = 32 + (4 * 32 - 12) + 10   -- above the scroll region
+        local chromeTop = 32 + (5 * 32 - 12) + 10   -- above the scroll region (5 dropdowns)
         local chromeBot = 14                        -- bottom margin under legend
 
         -- Maximum content viewport: whatever the ceiling leaves after chrome
@@ -2691,8 +2688,8 @@ local function ColorizeDifficulties(text)
     return table.concat(out)
 end
 
--- Wraps ^caret^-marked spans in the orange colour code. Unmatched carets are
--- stripped silently rather than producing broken colour codes.
+-- Wraps ^caret^-marked spans in the orange color code. Unmatched carets are
+-- stripped silently rather than producing broken color codes.
 local function HighlightNames(text)
     if not text or text == "" then return text end
     text = text:gsub("%^([^%^]+)%^", function(span)
@@ -2855,15 +2852,6 @@ for i = 0, ENCOUNTER_PULSE_STEPS - 1 do
     ENCOUNTER_PULSE_COLORS[i] = ("|cff%02x%02x00"):format(byte, byte)
 end
 
--- Public accessor for the current pulse color escape. Cross-module
--- readers (MapOverlay's completionCheck flashing labels, etc.) call
--- this to breathe in sync with the encounter [!] and What's New?
--- [!] pulses. Closes over the local ENCOUNTER_PULSE_COLORS table
--- and encounterPulsePhase so callers don't need their own copy.
-function RR:GetPulseColor()
-    return ENCOUNTER_PULSE_COLORS[encounterPulsePhase] or "|cffffff00"
-end
-
 -- Pulse table for map labels: same cadence as the encounter [!], but sweeps
 -- all three RGB channels so text breathes gray->white (0.60..1.00) instead of
 -- dim-to-bright yellow, keeping map labels in the white-text vocabulary.
@@ -2923,8 +2911,9 @@ local function BuildTravelText(step)
         local mapID = GetBestMapForStep(step)
 
         local seg = RR:PickNoteSeg(step, mapID)
-        if seg and seg.note then
-            return prefix .. HighlightNames(RR.L[seg.note])
+        local note = RR:ResolveSegNote(seg, "note")
+        if note then
+            return prefix .. HighlightNames(RR.L[note])
         end
         if step.travelText then
             return prefix .. HighlightNames(RR.L[step.travelText])
@@ -3017,7 +3006,7 @@ local function BuildAchievementsBlock(boss)
                 link = link:gsub("|h%[(.-)%]|h", "|h[%1" .. tag .. "]|h", 1)
             end
 
-            -- Colour codes don't nest -- the inner one wins -- so a completed
+            -- Color codes don't nest -- the inner one wins -- so a completed
             -- achievement's own wrapper has to be stripped before re-wrapping
             -- gray. The |H...|h payload survives, so the link stays clickable.
             if completed then
@@ -3070,6 +3059,19 @@ local function BuildEncounterText(step)
     else
         local tip = RR.L[(boss and boss.soloTip) or step.soloTip or ""]
         tip = HighlightNames(tip)
+        -- {skip} becomes a magenta link on an optional boss and plain text
+        -- otherwise, so a tip never advertises a control the player has no
+        -- way to use.
+        if tip:find("{skip}", 1, true) then
+            local word = RR.L["Skip"]
+            if step.optional then
+                -- Bracketed like the header control, so the word reads as
+                -- the same button rather than emphasis.
+                word = ("|Hrrskip:%d|h|cffF259C7[%s]|r|h")
+                    :format(step.bossIndex or 0, word)
+            end
+            tip = tip:gsub("{skip}", word)
+        end
         headerLine = prefix .. tip
         clickable  = true
     end
@@ -3130,7 +3132,7 @@ local DIFF_NAME = {
     [16] = RR.L["Mythic"],
 }
 
--- Four-state colours for difficulty dots:
+-- Four-state colors for difficulty dots:
 --   COLLECTED -> you have this exact source learned
 --   SHARED    -> you have the same appearance from a DIFFERENT item
 --                (tier recolor, world drop, etc.)
@@ -3140,6 +3142,13 @@ local DOT_COLLECTED   = "ff00ff00"   -- bright green
 local DOT_SHARED      = "ffbf9000"   -- amber / gold
 local DOT_ACTIVE      = "ffffffff"   -- white
 local DOT_INACTIVE    = "ff555555"   -- dim gray
+
+-- Name color for a row with nothing left to farm. A muted take on
+-- COLLECTED, so the row agrees with its own strip. Deliberately NOT gray:
+-- gray is INACTIVE's "not collected", and the same tone on a name carried
+-- the opposite meaning to the one the legend prints. Lives on the UI table
+-- because the file's chunk is at the 200-local ceiling.
+UI.NAME_DONE = "ff4d8a4d"   -- muted green
 
 -- Class ID (1-13) -> the uppercase token RAID_CLASS_COLORS and
 -- LOCALIZED_CLASS_NAMES_MALE key on, from GetClassInfo's second return.
@@ -3374,10 +3383,38 @@ function RR.BinaryFoldedState(item)
     return best
 end
 
+-- Folded state of a row's opposite-faction twin (`item.mirror`): its own
+-- appearance, owned by its own item, folded across its buckets the same way
+-- a binary row folds.
+function RR.MirrorFoldedState(item)
+    local mirror = item.mirror
+    if not mirror or not mirror.sources then return "missing" end
+    local best = "missing"
+    for _, s in pairs(mirror.sources) do
+        local st = CollectionStateForSource(s, mirror.id)
+        if st == "collected" then
+            return "collected"
+        elseif st == "shared" then
+            best = "shared"
+        end
+    end
+    return best
+end
+
 -- True when nothing on this row is left to farm: every populated bucket is in
 -- the collected state. Shared does not count. A binary item folds instead,
 -- since owning any one source collects its single appearance.
 function RR.ItemFullyCollected(item)
+    -- A vendor upgrade is a second appearance on the same row, so the row
+    -- is only done once it is collected too.
+    if item.upgrade and item.upgrade.source
+       and CollectionStateForSource(item.upgrade.source, item.id) ~= "collected" then
+        return false
+    end
+    -- The other faction's twin is likewise its own appearance on the row.
+    if item.mirror and RR.MirrorFoldedState(item) ~= "collected" then
+        return false
+    end
     if ItemShape(item) == "binary" then
         return RR.BinaryFoldedState(item) == "collected"
     end
@@ -3535,7 +3572,7 @@ end
 RR.SpecialCollectionStateForItem = SpecialCollectionStateForItem
 
 -- The Special Loot section for a boss, or nil to emit no header. Rows are
--- "* <ItemLink> (Mount)", coloured by collection state, falling back to a
+-- "* <ItemLink> (Mount)", colored by collection state, falling back to a
 -- plain name on a cold GetItemInfo cache.
 --
 -- Assigns to the forward-declared local rather than declaring a new one, so
@@ -3643,9 +3680,9 @@ BuildSpecialLootSection = function(boss)
             local kindColor = SPECIAL_KIND_COLOR[item.kind] or "ffaaaaaa"
 
             -- "(Pet)", or "(Pet, Mythic only)" with the restriction in brand
-            -- pink -- epic purple is the item link's own colour and blurs into
+            -- pink -- epic purple is the item link's own color and blurs into
             -- the name. Spliced inside the kindColor wrapper so the parens
-            -- keep the kind's colour.
+            -- keep the kind's color.
             local kindInner = kindLabel
             if item.mythicOnly then
                 kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Mythic only"] .. "|r|c" .. kindColor
@@ -3699,6 +3736,25 @@ local function ActiveClassFilter()
     return playerClassID
 end
 
+-- Which class a row should label itself with when its `classes` list serves
+-- more than one: the class being viewed if the filter names one of them,
+-- else the played class when the row serves it, else the row's first entry.
+-- Taking the first unconditionally made Vault of Archavon's and Baradin
+-- Hold's three-class cloth and mail sets read as whichever class happened
+-- to sort lowest, regardless of the dropdown.
+function UI.PreferredRowClassID(classList, playerClassID)
+    if not classList or #classList == 0 then return nil end
+    if #classList == 1 then return classList[1] end
+    local activeFilter = ActiveClassFilter()
+    for _, classID in ipairs(classList) do
+        if classID == activeFilter then return classID end
+    end
+    for _, classID in ipairs(classList) do
+        if classID == playerClassID then return classID end
+    end
+    return classList[1]
+end
+
 -- The player's own class ID. The main-panel summary counts against this
 -- rather than ActiveClassFilter so it always reflects what THIS character
 -- can collect in the raid they're standing in -- independent of whatever
@@ -3708,8 +3764,33 @@ function RR.PlayerClassID()
     return classID
 end
 
+-- True when the class being viewed wears NOTHING among a list's
+-- equipClasses rows. Appearance learning ignores class restriction
+-- (live-verified in Vault of Archavon), so for such a class the wear filter
+-- would blank a list of appearances it can genuinely collect -- Baradin
+-- Hold is all equipClasses, and a Monk filtering to Monk would see an
+-- empty raid. The walks compute this once per list and ItemIsForPlayer
+-- reads it, letting every row through instead.
+UI._equipGateExempt = false
+function UI.EquipGateExemptFor(lootList, filterClass)
+    if not filterClass or not lootList then return false end
+    local sawGated = false
+    for _, item in ipairs(lootList) do
+        if item.equipClasses then
+            sawGated = true
+            for _, classID in ipairs(item.equipClasses) do
+                if classID == filterClass then return false end
+            end
+        end
+    end
+    return sawGated
+end
+
 local function ItemIsForPlayer(item, classOverride)
-    local gate = item.classes or item.equipClasses
+    local gate = item.classes
+    if not gate and not UI._equipGateExempt then
+        gate = item.equipClasses
+    end
     if not gate then return true end
     local filterClass = classOverride or ActiveClassFilter()
     if not filterClass then return true end   -- "all classes" selected
@@ -3755,7 +3836,7 @@ end
 -- bucket so it lines up with the 14/15/16/17 keys the source data uses.
 -- Under a size-folding model a live size variant (e.g. 25-player Heroic)
 -- folds to its Heroic bucket; under the independent model the id is returned
--- unchanged. Used to choose the white vs gray dot colour in the browser.
+-- unchanged. Used to choose the white vs gray dot color in the browser.
 local function ActiveDifficulty()
     return RR:FoldDifficulty(RR.currentRaid, RR.state and RR.state.currentDifficultyID)
 end
@@ -3772,7 +3853,13 @@ local function ItemSummaryState(item)
     local hasMissing = false
     local hasShared = false
     local hasAnyBucket = false
-    for _, diffID in ipairs(DIFFS_FOR_SUMMARY) do
+    -- Buckets come from the raid's difficulty model, not a fixed list. An era
+    -- on 3/4/5/6 matches nothing in the modern set, so every row fell through
+    -- to the item-level check below, which cannot see one difficulty being
+    -- owned through another item and reports the row plain "collected".
+    local summaryBuckets = RR:GetDisplayBuckets(RR.currentRaid)
+        or DIFFS_FOR_SUMMARY
+    for _, diffID in ipairs(summaryBuckets) do
         local src = item.sources[diffID]
         if src then
             hasAnyBucket = true
@@ -3784,6 +3871,28 @@ local function ItemSummaryState(item)
             end
         end
     end
+    -- The vendor-upgrade appearance counts toward the row's summary, so a
+    -- row with the drop collected but the upgrade missing still reports
+    -- as incomplete to the section counters.
+    if item.upgrade and item.upgrade.source then
+        hasAnyBucket = true
+        local upgradeState = CollectionStateForSource(item.upgrade.source, item.id)
+        if upgradeState == "missing" then
+            hasMissing = true
+        elseif upgradeState == "shared" then
+            hasShared = true
+        end
+    end
+    -- The opposite-faction twin counts the same way.
+    if item.mirror then
+        hasAnyBucket = true
+        local mirrorState = RR.MirrorFoldedState(item)
+        if mirrorState == "missing" then
+            hasMissing = true
+        elseif mirrorState == "shared" then
+            hasShared = true
+        end
+    end
     if not hasAnyBucket then
         -- All buckets nil -- fall through to item-level check.
         return FallbackStateForItem(item.id)
@@ -3791,6 +3900,52 @@ local function ItemSummaryState(item)
     if hasMissing then return "missing" end
     if hasShared  then return "shared"  end
     return "collected"
+end
+
+-- Row-level counterpart to the difficulty pills, using their own colors so a
+-- name can never disagree with the strip beside it:
+--   done here                    -> NAME_DONE (a muted COLLECTED)
+--   owned through another item   -> SHARED    (gold)
+--   something to collect now     -> ACTIVE    (white)
+--   what is left drops elsewhere -> INACTIVE  (gray)
+-- A row with no per-difficulty data reads as available rather than dimming
+-- something we cannot place. Lives on the UI table; the chunk is at the
+-- 200-local ceiling.
+function UI.RowNameColor(item)
+    if RR.ItemFullyCollected and RR.ItemFullyCollected(item) then
+        return UI.NAME_DONE
+    end
+    -- Nothing left to farm anywhere: the look is already owned through a
+    -- different item. Gold, matching its own pills and the legend's "via
+    -- another item". Gray would claim it drops at some other difficulty and
+    -- white would send the player to collect it, and both are false.
+    if ItemSummaryState(item) == "shared" then return DOT_SHARED end
+    if not item.sources then return DOT_ACTIVE end
+    local activeDiff = ActiveDifficulty()
+    if activeDiff then
+        local src = item.sources[activeDiff]
+        if src and CollectionStateForSource(src, item.id) == "missing" then
+            return DOT_ACTIVE
+        end
+        -- A vendor upgrade is a second appearance on the row, obtainable at
+        -- its own difficulty.
+        local upgrade = item.upgrade
+        if upgrade and upgrade.source and upgrade.difficulty == activeDiff
+           and CollectionStateForSource(upgrade.source, item.id) == "missing" then
+            return DOT_ACTIVE
+        end
+        -- So is the opposite-faction twin, at its own difficulties. Without
+        -- this the row reads gray whenever the near half is already owned
+        -- through another item -- claiming nothing is available here while
+        -- the twin beside it is still missing and still dropping.
+        local mirror = item.mirror
+        if mirror and mirror.sources and mirror.sources[activeDiff]
+           and CollectionStateForSource(mirror.sources[activeDiff], mirror.id)
+               == "missing" then
+            return DOT_ACTIVE
+        end
+    end
+    return DOT_INACTIVE
 end
 
 -------------------------------------------------------------------------------
@@ -3804,6 +3959,8 @@ end
 local function CountBossLootForDifficulty(boss, diffID, classOverride)
     if not boss or not boss.loot or #boss.loot == 0 then return nil end
     if not diffID then return nil end
+    UI._equipGateExempt = UI.EquipGateExemptFor(boss.loot,
+        classOverride or ActiveClassFilter())
     local needed, shared, total = 0, 0, 0
     for _, item in ipairs(boss.loot) do
         if ItemIsTransmogCandidate(item, classOverride) then
@@ -3822,6 +3979,19 @@ local function CountBossLootForDifficulty(boss, diffID, classOverride)
                         needed = needed + 1
                     elseif foldedState == "shared" then
                         shared = shared + 1
+                    end
+                    -- The opposite-faction twin is a second appearance
+                    -- collectible from the same drop, so it counts on the
+                    -- difficulty lines it is reachable at.
+                    if item.mirror and item.mirror.sources
+                       and item.mirror.sources[diffID] then
+                        total = total + 1
+                        local mirrorState = RR.MirrorFoldedState(item)
+                        if mirrorState == "missing" then
+                            needed = needed + 1
+                        elseif mirrorState == "shared" then
+                            shared = shared + 1
+                        end
                     end
                 end
             else
@@ -3858,6 +4028,8 @@ end
 -- rolls up the three non-active difficulties into a single count.
 local function CountBossLootAcrossDifficulties(boss, diffIDs, classOverride)
     if not boss or not boss.loot or #boss.loot == 0 then return nil end
+    UI._equipGateExempt = UI.EquipGateExemptFor(boss.loot,
+        classOverride or ActiveClassFilter())
     local needed, shared, total = 0, 0, 0
     for _, item in ipairs(boss.loot) do
         if ItemIsTransmogCandidate(item, classOverride) then
@@ -3921,6 +4093,7 @@ local function CountBossLoot(boss)
         if t and t > 0 then return n, s, t end
     end
     -- Fallback: cross-all-difficulties rollup via ItemSummaryState.
+    UI._equipGateExempt = UI.EquipGateExemptFor(boss.loot, ActiveClassFilter())
     local needed, shared, total = 0, 0, 0
     for _, item in ipairs(boss.loot) do
         if ItemIsTransmogCandidate(item) then
@@ -3992,7 +4165,7 @@ function UI.BuildTransmogSummaryUncached(step)
         local n, s, t = CountBossLootAcrossDifficulties(boss, DIFFS_FOR_SUMMARY, RR.PlayerClassID())
         if not t then return nil end
         if n == 0 and s == 0 then
-            return header .. " |cffF259C7" .. RR.L["All appearances collected!"] .. "|r"
+            return header .. "\n|cffF259C7" .. RR.L["All appearances collected!"] .. "|r"
         end
         return header .. "\n- " .. FormatStatsFragment(n, s)
     end
@@ -4018,7 +4191,7 @@ function UI.BuildTransmogSummaryUncached(step)
         local n, s, t = CountBossLootAcrossDifficulties(boss, summaryBuckets, RR.PlayerClassID())
         if not t then return nil end
         if n == 0 and s == 0 then
-            return header .. " |cffF259C7" .. RR.L["All appearances collected!"] .. "|r"
+            return header .. "\n|cffF259C7" .. RR.L["All appearances collected!"] .. "|r"
         end
         return header .. "\n- " .. FormatStatsFragment(n, s)
     end
@@ -4027,7 +4200,7 @@ function UI.BuildTransmogSummaryUncached(step)
     local curDone = (curNeeded == 0 and curShared == 0)
     local othDone = (not othTotal) or (othNeeded == 0 and othShared == 0)
     if curDone and othDone then
-        return header .. " |cffF259C7" .. RR.L["All appearances collected!"] .. "|r"
+        return header .. "\n|cffF259C7" .. RR.L["All appearances collected!"] .. "|r"
     end
 
     -- Header + two dash lines, matching the Achievements section format.
@@ -4070,12 +4243,12 @@ end
 
 -- Per-item loot row builder. Binary rows render one bracketed state;
 -- per-difficulty rows render the `[ LFR | N | H | M ]` strip. The literal pipe
--- is escaped `||`, since WoW reads `|r` as a colour reset.
+-- is escaped `||`, since WoW reads `|r` as a color reset.
 -------------------------------------------------------------------------------
 
 -- Binary-indicator glyphs, reusing the ReadyCheck textures the rest of the
 -- addon uses. Shared takes a grayscale check tinted gold, since the native
--- green one can't shift colour.
+-- green one can't shift color.
 local BINARY_GLYPH_COLLECTED = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
 local BINARY_GLYPH_SHARED    = "|TInterface\\Buttons\\UI-CheckBox-Check:14:14:0:0:32:32:0:32:0:32:255:215:0|t"
 local BINARY_GLYPH_MISSING   = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14|t"
@@ -4153,24 +4326,24 @@ local function BuildBinaryRow(item)
         local inner = {}
         for _, diffID in ipairs(DIFF_ORDER) do
             if item.sources[diffID] and not (foldedSkip and foldedSkip[diffID]) then
-                local colour
+                local color
                 if state == "collected" then
-                    colour = DOT_COLLECTED
+                    color = DOT_COLLECTED
                 elseif state == "shared" then
-                    colour = DOT_SHARED
+                    color = DOT_SHARED
                 elseif diffID == activeDiff
                     or (foldedLabels and foldedLabels[diffID]
                         and UI.FoldAbsorbsDifficulty(item, diffID, activeDiff)) then
                     -- A folded pill highlights white when EITHER of its
                     -- difficulties is the current one, since it stands for
                     -- both.
-                    colour = DOT_ACTIVE
+                    color = DOT_ACTIVE
                 else
-                    colour = DOT_INACTIVE
+                    color = DOT_INACTIVE
                 end
                 local label = (foldedLabels and foldedLabels[diffID])
                     or DIFF_LETTER[diffID]
-                table.insert(inner, ("|c%s%s|r"):format(colour, label))
+                table.insert(inner, ("|c%s%s|r"):format(color, label))
             end
         end
         if debugEnabled then
@@ -4182,18 +4355,18 @@ local function BuildBinaryRow(item)
         return "|cff777777[ |r" .. table.concat(inner, sep) .. "|cff777777 ]|r"
     end
 
-    local colour, glyph = BinaryStateRendering(state)
+    local color, glyph = BinaryStateRendering(state)
 
     if debugEnabled then
         RR._dotTrace = RR._dotTrace or {}
         RR._dotTrace[item.id] = ("item=%s (id=%d) shape=binary state=%s -> %s"):format(
-            item.name or "?", item.id or 0, state, colour)
+            item.name or "?", item.id or 0, state, color)
     end
 
-    return ("|cff777777[ |r|c%s%s|r|cff777777 ]|r"):format(colour, glyph)
+    return ("|cff777777[ |r|c%s%s|r|cff777777 ]|r"):format(color, glyph)
 end
 
--- The "[ LFR | N | H | M ]" strip, each letter coloured by its own
+-- The "[ LFR | N | H | M ]" strip, each letter colored by its own
 -- difficulty's state. The separator is authored "||" and renders as one pipe.
 local function BuildPerDiffRow(item)
     local activeDiff = ActiveDifficulty()
@@ -4227,20 +4400,20 @@ local function BuildPerDiffRow(item)
         if src then
             local letter = (foldedLabels and foldedLabels[diffID])
                 or DIFF_LETTER[diffID]
-            local colour
+            local color
 
             local state = CollectionStateForSource(src, item.id)
 
             if state == "collected" then
-                colour = DOT_COLLECTED
+                color = DOT_COLLECTED
             elseif state == "shared" then
-                colour = DOT_SHARED
+                color = DOT_SHARED
             elseif diffID == activeDiff
                 or (foldedLabels and foldedLabels[diffID]
                     and UI.FoldAbsorbsDifficulty(item, diffID, activeDiff)) then
-                colour = DOT_ACTIVE
+                color = DOT_ACTIVE
             else
-                colour = DOT_INACTIVE
+                color = DOT_INACTIVE
             end
 
             if traceLines then
@@ -4271,10 +4444,10 @@ local function BuildPerDiffRow(item)
                         tostring(apID), apFrom, allCount, knownCount)
                 end
                 table.insert(traceLines, ("  diff=%d letter=%s src=%s state=%s -> %s%s"):format(
-                    diffID, letter, tostring(src), state, colour, detail))
+                    diffID, letter, tostring(src), state, color, detail))
             end
 
-            table.insert(inner, ("|c%s%s|r"):format(colour, letter))
+            table.insert(inner, ("|c%s%s|r"):format(color, letter))
         end
     end
 
@@ -4288,15 +4461,395 @@ local function BuildPerDiffRow(item)
         .. "|cff777777 ]|r"
 end
 
+-- Rows whose look can be traded up at a vendor carry a second appearance
+-- that no difficulty drops, so it takes a pill of its own after the drop
+-- pills instead of a difficulty key. Texture escapes ignore |c coloring,
+-- so the arrow is tinted through the extended markup's RGB arguments --
+-- the same route the gold shared-checkmark takes.
+-- Both live on the UI table rather than as file-level locals: UI.lua's
+-- main chunk sits at Lua 5.1's 200-local ceiling.
+UI.UPGRADE_PILL_RGB = {
+    [DOT_COLLECTED] = "0:255:0",
+    [DOT_SHARED]    = "191:144:0",
+    [DOT_ACTIVE]    = "255:255:255",
+    [DOT_INACTIVE]  = "136:136:136",
+}
+-- Single source for the arrow escape so the pill and the legend that
+-- explains it can never drift apart.
+function UI.UpgradeArrowGlyph(color)
+    return ("|TInterface\\AddOns\\RetroRuns\\Media\\ArrowUp:10:10:0:0:64:64:0:64:0:64:%s|t")
+        :format(UI.UPGRADE_PILL_RGB[color] or UI.UPGRADE_PILL_RGB[DOT_INACTIVE])
+end
+-- Spec icons for a tier piece, so a player can see which loot spec the
+-- token will actually hand them -- a piece serving one spec needs a
+-- respec before the token is consumed, one serving all of them does not.
+--
+-- Resolved live rather than from db2: ItemSpecOverride covers well under
+-- a fifth of the tier items, and the game fills the rest from ItemSpec's
+-- stat rules. The API answers only for the played class and returns nil
+-- otherwise, which is why the icons simply do not render when the browser
+-- is pointed at somebody else's tier.
+function UI.SpecIconsForItem(itemID)
+    if not itemID or not C_Item or not C_Item.GetItemSpecInfo then return nil end
+    if not GetSpecializationInfoByID then return nil end
+    local specs = C_Item.GetItemSpecInfo(itemID)
+    if not specs or #specs == 0 then return nil end
+    table.sort(specs)   -- ascending specID is the in-game spec order
+    local icons = {}
+    for _, specID in ipairs(specs) do
+        local icon = select(4, GetSpecializationInfoByID(specID))
+        if icon then
+            table.insert(icons, ("|T%s:12:12|t"):format(icon))
+        end
+    end
+    if #icons == 0 then return nil end
+    return table.concat(icons)
+end
+
+-- Progression dot, for rows whose appearances form an upgrade chain. Same
+-- vertex-tinted texture the skips window uses; a typographic bullet is a
+-- missing glyph in the pixel fonts.
+function UI.ProgressDotGlyph(color)
+    return ("|TInterface\\AddOns\\RetroRuns\\Media\\StatusDot:10:10:0:0:64:64:0:64:0:64:%s|t")
+        :format(UI.UPGRADE_PILL_RGB[color] or UI.UPGRADE_PILL_RGB[DOT_INACTIVE])
+end
+-- Maps a source's collection state to its pill color. `activeFor` is the
+-- difficulty at which the step becomes obtainable, so an out-of-reach step
+-- reads gray rather than white.
+function UI.ChainStepColor(state, activeFor)
+    if state == "collected" then return DOT_COLLECTED end
+    if state == "shared"    then return DOT_SHARED end
+    if activeFor == nil or ActiveDifficulty() == activeFor then
+        return DOT_ACTIVE
+    end
+    return DOT_INACTIVE
+end
+function UI.BuildUpgradeRow(item)
+    local upgrade = item.upgrade
+
+    -- Rows carrying `baseLook` render their whole chain as dots, one per
+    -- step, left to right. The base dot is INFORMATIONAL ONLY -- it is
+    -- never counted, because for most pieces that appearance is already
+    -- a row of its own elsewhere, and `shared` does not satisfy a counter,
+    -- so counting it would leave the row permanently incomplete.
+    if item.baseLook and item.baseLook.source then
+        local steps = {
+            UI.ChainStepColor(
+                CollectionStateForSource(item.baseLook.source, item.id), nil),
+            UI.ChainStepColor(RR.BinaryFoldedState(item), nil),
+            UI.ChainStepColor(
+                CollectionStateForSource(upgrade.source, item.id),
+                upgrade.difficulty),
+        }
+        local dots = {}
+        for _, color in ipairs(steps) do
+            table.insert(dots, UI.ProgressDotGlyph(color))
+        end
+        local chainSep = "|cff555555 || |r"
+        return "|cff777777[ |r" .. table.concat(dots, chainSep) .. "|cff777777 ]|r"
+    end
+    -- Base pill: the drop, folded to one state the way binary rows are.
+    local baseState = RR.BinaryFoldedState(item)
+    local baseColor = DOT_ACTIVE
+    if baseState == "collected" then
+        baseColor = DOT_COLLECTED
+    elseif baseState == "shared" then
+        baseColor = DOT_SHARED
+    end
+    -- The base is one appearance however many difficulties list it, so the
+    -- letters only earn their place when WHICH difficulty matters. Icecrown
+    -- needs them (the token drops at 25N, 10H and 25H but not 10N, and 10H
+    -- is a far easier run than 25H); Firelands trash drops the same look at
+    -- both of its difficulties, so `collapseBase` folds it to the plain
+    -- binary glyph every other single-appearance row uses.
+    local baseCells = {}
+    if item.upgrade.collapseBase then
+        local glyphColor, glyph = BinaryStateRendering(baseState)
+        table.insert(baseCells, ("|c%s%s|r"):format(glyphColor, glyph))
+    else
+        local activeDiff = ActiveDifficulty()
+        for _, diffID in ipairs(DIFF_ORDER) do
+            if item.sources and item.sources[diffID] then
+                local color = baseColor
+                -- Nothing collected yet: the difficulty being run highlights.
+                if baseState ~= "collected" and baseState ~= "shared" then
+                    color = (diffID == activeDiff) and DOT_ACTIVE or DOT_INACTIVE
+                end
+                table.insert(baseCells,
+                    ("|c%s%s|r"):format(color, DIFF_LETTER[diffID] or "?"))
+            end
+        end
+    end
+
+    -- Upgrade pill: its own appearance, and its own collection state.
+    local upgradeState = CollectionStateForSource(upgrade.source, item.id)
+    local upgradeColor
+    if upgradeState == "collected" then
+        upgradeColor = DOT_COLLECTED
+    elseif upgradeState == "shared" then
+        upgradeColor = DOT_SHARED
+    elseif upgrade.difficulty and ActiveDifficulty() == upgrade.difficulty then
+        upgradeColor = DOT_ACTIVE
+    else
+        upgradeColor = DOT_INACTIVE
+    end
+    table.insert(baseCells, UI.UpgradeArrowGlyph(upgradeColor))
+
+    local sep = "|cff555555 || |r"
+    return "|cff777777[ |r" .. table.concat(baseCells, sep) .. "|cff777777 ]|r"
+end
+
+-- A faction pair renders as two dots, the viewing player's faction first,
+-- matching the order the composed name prints the two versions in.
+-- Which of the four states one half of a faction pair is in: its own folded
+-- collection state, plus -- when nothing is collected -- whether that half
+-- actually drops at the difficulty being run. Single source for the half's
+-- dot AND its name, so the two can never disagree.
+function UI.MirrorHalfState(foldedState, sources)
+    if foldedState == "collected" or foldedState == "shared" then
+        return foldedState
+    end
+    local activeDiff = ActiveDifficulty()
+    if activeDiff and sources and sources[activeDiff] then return "active" end
+    return "inactive"
+end
+
+-- Dot color for a half's state.
+function UI.MirrorHalfDotColor(halfState)
+    if halfState == "collected" then return DOT_COLLECTED end
+    if halfState == "shared"    then return DOT_SHARED end
+    if halfState == "active"    then return DOT_ACTIVE end
+    return DOT_INACTIVE
+end
+
+-- Name color for a half's state. Same four states, but a finished half
+-- takes the muted done-green a finished row's name takes rather than the
+-- dot's full-brightness green.
+function UI.MirrorHalfNameColor(halfState)
+    if halfState == "collected" then return UI.NAME_DONE end
+    return UI.MirrorHalfDotColor(halfState)
+end
+
+function UI.BuildMirrorRow(item)
+    local primaryDot = UI.ProgressDotGlyph(UI.MirrorHalfDotColor(
+        UI.MirrorHalfState(RR.BinaryFoldedState(item), item.sources)))
+    local mirrorDot = UI.ProgressDotGlyph(UI.MirrorHalfDotColor(
+        UI.MirrorHalfState(RR.MirrorFoldedState(item),
+            item.mirror and item.mirror.sources)))
+    local first, second = primaryDot, mirrorDot
+    if UnitFactionGroup and UnitFactionGroup("player") == "Horde" then
+        first, second = mirrorDot, primaryDot
+    end
+    local sep = "|cff555555 || |r"
+    return "|cff777777[ |r" .. first .. sep .. second .. "|cff777777 ]|r"
+end
+
+-- Splits a faction pair's two names into the words they share and the words
+-- that differ, so each half can be colored separately. Returns
+-- (prefix, leadFirst, leadSecond, suffix). The two names differ only in some
+-- leading or trailing words depending on locale ("Kel'Thuzad's Gloves of
+-- Conquest" leads in English; French shares the front instead). leadFirst is
+-- nil when the names are identical, in which case prefix holds the whole
+-- name; prefix or suffix is "" when nothing is shared on that side.
+function UI.SplitPairedName(firstName, secondName)
+    if firstName == secondName then return firstName, nil, nil, "" end
+    local firstWords, secondWords = {}, {}
+    for word in firstName:gmatch("%S+") do table.insert(firstWords, word) end
+    for word in secondName:gmatch("%S+") do table.insert(secondWords, word) end
+    local sharedTail = 0
+    while sharedTail < #firstWords and sharedTail < #secondWords
+        and firstWords[#firstWords - sharedTail]
+            == secondWords[#secondWords - sharedTail] do
+        sharedTail = sharedTail + 1
+    end
+    if sharedTail > 0 then
+        local leadA = table.concat(firstWords, " ", 1, #firstWords - sharedTail)
+        local leadB = table.concat(secondWords, " ", 1, #secondWords - sharedTail)
+        if leadA ~= "" and leadB ~= "" then
+            return "", leadA, leadB,
+                table.concat(firstWords, " ", #firstWords - sharedTail + 1)
+        end
+    end
+    local sharedHead = 0
+    while sharedHead < #firstWords and sharedHead < #secondWords
+        and firstWords[sharedHead + 1] == secondWords[sharedHead + 1] do
+        sharedHead = sharedHead + 1
+    end
+    if sharedHead > 0 then
+        local tailA = table.concat(firstWords, " ", sharedHead + 1)
+        local tailB = table.concat(secondWords, " ", sharedHead + 1)
+        if tailA ~= "" and tailB ~= "" then
+            return table.concat(firstWords, " ", 1, sharedHead),
+                tailA, tailB, ""
+        end
+    end
+    return "", firstName, secondName, ""
+end
+
+-- A faction pair's name, each half in its own half's color and the shared
+-- words in the row's summary color, so every colored element on the row
+-- agrees with the dot above it. Returns a fully colored string: color codes
+-- do not nest, so the caller must not wrap this again.
+function UI.BuildPairedNameText(nearName, farName, nearColor, farColor,
+                                sharedColor)
+    local prefix, leadNear, leadFar, suffix =
+        UI.SplitPairedName(nearName, farName)
+    if not leadNear then
+        return ("|c%s%s|r"):format(sharedColor, prefix)
+    end
+    local parts = {}
+    if prefix ~= "" then
+        table.insert(parts, ("|c%s%s|r"):format(sharedColor, prefix))
+    end
+    table.insert(parts, ("|c%s%s|r"):format(nearColor, leadNear))
+    table.insert(parts, ("|c%s/|r"):format(sharedColor))
+    table.insert(parts, ("|c%s%s|r"):format(farColor, leadFar))
+    if suffix ~= "" then
+        table.insert(parts, ("|c%s%s|r"):format(sharedColor, suffix))
+    end
+    return table.concat(parts, " ")
+end
+
 -- Shape-aware dispatcher. Picks the renderer based on the item's sourceID
 -- uniqueness count. BuildDotRow is retained as the public name so any
 -- existing callers continue to work.
 local function BuildDotRow(item)
-    if ItemShape(item) == "binary" then
+    if item.upgrade and item.upgrade.source then
+        return UI.BuildUpgradeRow(item)
+    elseif item.mirror then
+        return UI.BuildMirrorRow(item)
+    elseif ItemShape(item) == "binary" then
         return BuildBinaryRow(item)
     else
         return BuildPerDiffRow(item)
     end
+end
+
+-------------------------------------------------------------------------------
+-- List dividers
+-------------------------------------------------------------------------------
+
+UI.DIVIDER_LINE_H  = 6     -- the asset's drawn height
+UI.DIVIDER_GEM_SIZE = 14
+UI.DIVIDER_SUBGEM_SIZE = 10  -- sub-divider gems, so nesting reads at a glance
+UI.DIVIDER_GAP     = 8     -- clearance between a label, its gems and the lines
+UI.DIVIDER_ABOVE   = 8     -- cushion over the divider row
+UI.DIVIDER_BELOW   = 4     -- cushion under it
+
+-- Horizontal insets inside the transmog popup. The TEXT column is
+-- asymmetric on purpose -- the right side reserves scrollbar width while the
+-- left takes the ordinary margin -- so a rule that simply spans its parent
+-- column lands off the frame's center. Every horizontal rule therefore
+-- insets by RULE from BOTH edges and centers on the frame itself.
+UI.TMOG_MARGIN_L     = 22  -- body and legend text, left edge
+UI.TMOG_LEGEND_PAD_R = 14  -- legend text, right edge
+UI.TMOG_RULE_INSET   = 28  -- both edges, every horizontal rule (= scrollbar width)
+
+-- One divider: two line halves, two gems and a label. The titled form sets
+-- a gem either side of the words; the plain form centers one gem on an
+-- unbroken line. The halves stay off the pixel grid -- a snapped line this
+-- thin can round away to nothing at fractional scales.
+function UI.MakeListDivider(parent)
+    local divider = {}
+    local function MakeLine()
+        local line = parent:CreateTexture(nil, "ARTWORK")
+        line:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-line")
+        line:SetVertexColor(C_PINK[1], C_PINK[2], C_PINK[3], 0.55)
+        line:SetHeight(UI.DIVIDER_LINE_H)
+        if line.SetTexelSnappingBias then
+            line:SetTexelSnappingBias(0)
+            line:SetSnapToPixelGrid(false)
+        end
+        line:Hide()
+        return line
+    end
+    divider.left  = MakeLine()
+    divider.right = MakeLine()
+
+    local function MakeGem()
+        local gem = parent:CreateTexture(nil, "OVERLAY")
+        gem:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-gem")
+        gem:SetSize(UI.DIVIDER_GEM_SIZE, UI.DIVIDER_GEM_SIZE)
+        if gem.SetTexelSnappingBias then
+            gem:SetTexelSnappingBias(0)
+            gem:SetSnapToPixelGrid(false)
+        end
+        gem:Hide()
+        return gem
+    end
+    divider.gemLeft  = MakeGem()
+    divider.gemRight = MakeGem()
+
+    divider.label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    divider.label:SetJustifyH("LEFT")
+    divider.label:SetJustifyV("TOP")
+    divider.label:SetWordWrap(false)
+    divider.label:Hide()
+    return divider
+end
+
+-- Places one divider across `width` with its line centered on `rowH`.
+-- Returns the total height consumed, cushions included. An empty label
+-- yields the gem form: one unbroken line with the gem centered on it.
+-- `leftX` shifts the rule right of the content column's own left edge, so it
+-- can inset equally from both frame edges even though the column does not.
+function UI.PlaceListDivider(divider, anchor, topY, leftX, width, rowH,
+                             labelText, labelW)
+    local y      = topY - UI.DIVIDER_ABOVE
+    local lineY  = y - math.floor((rowH - UI.DIVIDER_LINE_H) / 2)
+    -- Gems stand taller than the line, so they hang evenly above and below it.
+    local gemY   = lineY
+        + math.floor((UI.DIVIDER_GEM_SIZE - UI.DIVIDER_LINE_H) / 2)
+    divider.left:ClearAllPoints()
+    divider.left:SetPoint("TOPLEFT", anchor, "TOPLEFT", leftX, lineY)
+
+    if labelText and labelText ~= "" then
+        -- Gem, words, gem centers as one cluster inside the span; the line
+        -- halves run from it out to either end.
+        local gemW      = UI.DIVIDER_GEM_SIZE
+        local clusterW  = (gemW + UI.DIVIDER_GAP) * 2 + labelW
+        local clusterX  = leftX + math.floor((width - clusterW) / 2)
+        local labelX    = clusterX + gemW + UI.DIVIDER_GAP
+        local rightGemX = labelX + labelW + UI.DIVIDER_GAP
+        local rightX    = clusterX + clusterW + UI.DIVIDER_GAP
+
+        divider.left:SetWidth(math.max(1, clusterX - UI.DIVIDER_GAP - leftX))
+        divider.left:Show()
+        divider.right:ClearAllPoints()
+        divider.right:SetPoint("TOPLEFT", anchor, "TOPLEFT", rightX, lineY)
+        divider.right:SetWidth(math.max(1, leftX + width - rightX))
+        divider.right:Show()
+
+        divider.gemLeft:ClearAllPoints()
+        divider.gemLeft:SetPoint("TOPLEFT", anchor, "TOPLEFT", clusterX, gemY)
+        divider.gemLeft:Show()
+        divider.gemRight:ClearAllPoints()
+        divider.gemRight:SetPoint("TOPLEFT", anchor, "TOPLEFT", rightGemX, gemY)
+        divider.gemRight:Show()
+
+        divider.label:ClearAllPoints()
+        divider.label:SetPoint("TOPLEFT", anchor, "TOPLEFT", labelX, y)
+        divider.label:SetText(labelText)
+        divider.label:Show()
+    else
+        divider.left:SetWidth(math.max(1, width))
+        divider.left:Show()
+        divider.right:Hide()
+        divider.label:Hide()
+        divider.gemRight:Hide()
+        divider.gemLeft:ClearAllPoints()
+        divider.gemLeft:SetPoint("CENTER", divider.left, "CENTER", 0, 0)
+        divider.gemLeft:Show()
+    end
+    return UI.DIVIDER_ABOVE + rowH + UI.DIVIDER_BELOW
+end
+
+function UI.HideListDivider(divider)
+    divider.left:Hide()
+    divider.right:Hide()
+    divider.gemLeft:Hide()
+    divider.gemRight:Hide()
+    divider.label:Hide()
 end
 
 -------------------------------------------------------------------------------
@@ -4330,14 +4883,335 @@ local function ParseTokenFamily(name)
     return nil
 end
 
--- Builds the Covenant Sanctum vendor hint line for the Tmog popup.
--- Returns (text, raid, covID, vendorInfo); text is nil if the boss
--- doesn't drop tokens or the raid has no weaponVendors. The Flight
--- button anchors to this FontString.
+-- Builds the vendor hint line for the Tmog popup: Castle Nathria's
+-- covenant-keyed Sanctum weapon vendor, or a raid's static
+-- token-redemption vendor (tokenVendors). Returns (text, raid, covID,
+-- vendorInfo, vendorKind); covID is nil for token vendors. text is nil
+-- when the selected boss drops no redeemable tokens. The Flight button
+-- anchors to this FontString.
+-- An item's clickable link, or a purple-bracketed name when the client has
+-- not cached it yet. On the UI table rather than a local: UI.lua's main
+-- chunk sits at Lua 5.1's 200-local ceiling.
+function UI.ItemLinkFor(itemID)
+    if not itemID then return "" end
+    local _, itemLink = GetItemInfo(itemID)
+    if itemLink then return itemLink end
+    return ("|cffa335ee[%s]|r"):format(GetItemInfo(itemID) or RR.L["(item)"])
+end
+
 local function BuildSanctumLine(raid, boss)
-    if not raid or not raid.weaponVendors or not boss then
+    if not raid or not boss then return nil end
+
+    -- Omnitokens: a boss drop that buys ANY tier slot rather than one
+    -- piece. The appearances it can become are already tracked on their own
+    -- rows, so the hint says the token exists, says it is not tracked, and
+    -- points at whoever takes it. The prose wraps, so the destination sits
+    -- on its own last line and the travel plane anchors there.
+    if boss.omniToken then
+        local omni = boss.omniToken
+        local spot = RR:ResolveFactionBlock(omni)
+        if spot then
+            local body = RR.L[omni.text or ""]
+            if omni.itemID then
+                body = body:gsub("{item}", UI.ItemLinkFor(omni.itemID))
+            end
+            -- {tokens} names a FAMILY rather than one item, so it takes the
+            -- epic color a link would carry without pretending to be one.
+            -- Color codes do not nest: close the body's gray, run the phrase,
+            -- then reopen gray for the rest of the sentence.
+            if omni.tokenLabel then
+                body = body:gsub("{tokens}", "|r|cffa335ee"
+                    .. RR.L[omni.tokenLabel] .. "|r|cff9d9d9d")
+            end
+            local placeLine = (RR.L["|cff888888  -> |r|cffffffff%s|r|cff888888 -- |r|cffffffff%s|r"])
+                :format(RR.L[spot.vendorName or ""],
+                        RR.L[spot.zoneSub or spot.zoneMain or ""])
+            local hintInfo
+            if spot.mapID and spot.x and spot.y then
+                hintInfo = {
+                    buttonOnLastLine = true,
+                    buttonLineText   = placeLine,
+                    travel = { mapID = spot.mapID, x = spot.x, y = spot.y,
+                               vendorName = spot.vendorName,
+                               zoneSub = spot.zoneSub },
+                }
+            end
+            return ("|cff9d9d9d%s|r\n%s"):format(body, placeLine),
+                raid, nil, spot, "omni", hintInfo
+        end
+    end
+
+    -- Static token-redemption vendors (Icecrown Citadel, Firelands,
+    -- Siege of Orgrimmar). `bosses` limits the hint to the bosses that
+    -- drop the turn-in item; absent means every boss.
+    if raid.tokenVendors then
+        local showForBoss = true
+        if raid.tokenVendors.bosses then
+            showForBoss = false
+            for _, gatedIndex in ipairs(raid.tokenVendors.bosses) do
+                if gatedIndex == boss.index then
+                    showForBoss = true
+                    break
+                end
+            end
+        end
+        local vendorInfo = showForBoss and RR:GetTokenVendor(raid)
+        -- Static list: one bullet per spot, no per-character resolution.
+        -- Used where a single vendor keeps several spawns.
+        if vendorInfo and vendorInfo.locations then
+            local rowFormat = RR.L["|cff888888     * %s: |r|cffffffff%s|r"]
+            local subFormat = RR.L["|cff888888        * |r%s"]
+            local lines = { ("|cff888888  -> %s|r"):format(
+                RR.L[vendorInfo.heading or "Redeem Tier Tokens at:"]) }
+            -- A spot with sub-bullets needs the heading set off from them,
+            -- or the whole block reads as one undifferentiated list.
+            if vendorInfo.locations[1] and vendorInfo.locations[1].byClass then
+                table.insert(lines, "")
+            end
+            local hintInfo
+            local emittedAnySpot = false
+            for _, spot in ipairs(vendorInfo.locations) do
+                -- A spot may name the bosses whose tokens it takes, so a
+                -- boss dropping only one kind of token shows only that
+                -- half. Without it the hint contradicts the tier rows above
+                -- it, which are already split the same way.
+                local spotHere = true
+                if spot.bosses then
+                    spotHere = false
+                    for _, gatedIndex in ipairs(spot.bosses) do
+                        if gatedIndex == boss.index then
+                            spotHere = true
+                            break
+                        end
+                    end
+                end
+                if spotHere then
+                local detail = RR.L[spot.vendorName or ""]
+                -- A spot whose token and materials differ per class carries
+                -- a byClass table. It follows the class dropdown for the
+                -- same reason the ICC hint does -- the rows above it are
+                -- class-filtered, so a hint naming another class's
+                -- materials would contradict them.
+                local classSpot = spot
+                if spot.byClass then
+                    local _, _, playedID = UnitClass("player")
+                    classSpot = spot.byClass[ActiveClassFilter() or playedID or 0]
+                end
+                -- A class with no entry has no set from THIS spot, so the
+                -- spot drops out rather than the whole hint: a sibling spot
+                -- may be open to every class, as the weapon turn-ins are.
+                -- When every spot filters out, the bare-heading guard below
+                -- still hides the hint entirely.
+                if classSpot then
+                -- {item} takes a real item link. The link carries its own
+                -- quality color, and color codes do not nest, so close the
+                -- row's white before it and reopen after -- otherwise the
+                -- link's trailing |r ends the row color early and whatever
+                -- follows renders in the default tone.
+                if classSpot.itemID then
+                    local _, itemLink = GetItemInfo(classSpot.itemID)
+                    if not itemLink then
+                        local fallbackName = GetItemInfo(classSpot.itemID)
+                            or RR.L["(item)"]
+                        itemLink = ("|cffa335ee[%s]|r"):format(fallbackName)
+                    end
+                    detail = detail:gsub("{item}",
+                        "|r" .. itemLink .. "|cffffffff")
+                end
+                -- Every spot after the first gets a blank line, or one
+                -- block's materials run straight into the next spot's
+                -- heading and the two read as one list. Gated on byClass
+                -- once, which left the spots without per-class costs
+                -- (Temple's two weapon turn-ins) crammed against the block
+                -- above them.
+                if emittedAnySpot then
+                    table.insert(lines, "")
+                end
+                emittedAnySpot = true
+                table.insert(lines, rowFormat:format(
+                    RR.L[spot.place or ""], detail))
+                -- Anchor the travel button to the SPOT'S OWN row, captured
+                -- before any sub-bullets push it up the list -- measuring
+                -- after them would hang the plane off the last material.
+                local spotLineIndex, spotLineText = #lines, lines[#lines]
+                -- A spot carrying a cost breakdown lists it as indented
+                -- sub-bullets under its own line: what reputation gates it,
+                -- the token, and the materials. Item links localize
+                -- themselves and carry their own quality color, so the
+                -- sub-rows stay uncolored around them.
+                -- The faction differs per raid, so the label is built around
+                -- the id the data carries. The client localizes the faction
+                -- name itself, leaving only the frame around it to translate.
+                if classSpot.repStanding and vendorInfo.repFactionID then
+                    local factionData = C_Reputation
+                        and C_Reputation.GetFactionDataByID
+                        and C_Reputation.GetFactionDataByID(vendorInfo.repFactionID)
+                    local factionName = (factionData and factionData.name)
+                        or (GetFactionInfoByID
+                            and GetFactionInfoByID(vendorInfo.repFactionID))
+                    -- Standing indices are Blizzard's own: 4 Neutral through
+                    -- 8 Exalted. Both halves of the line come from the client,
+                    -- so only the frame around them carries a locale entry.
+                    local standingLabel =
+                        _G["FACTION_STANDING_LABEL" .. classSpot.repStanding]
+                    if factionName and standingLabel then
+                        table.insert(lines, subFormat:format(
+                            (RR.L["%s Reputation"]):format(factionName)
+                            .. " = " .. standingLabel))
+                    end
+                end
+                if classSpot.token then
+                    -- Every AQ20 turn-in takes exactly one token, so the
+                    -- count is fixed rather than data-driven; it is written
+                    -- out anyway to match the idol and scarab rows.
+                    table.insert(lines, subFormat:format(
+                        ("1x %s"):format(UI.ItemLinkFor(classSpot.token))))
+                end
+                -- Materials, one sub-bullet per entry. An entry is a list of
+                -- { itemID, count } pairs; two in one entry share a line
+                -- joined with " + ", so a turn-in's paired scarab stacks read
+                -- as one cost rather than two separate ones.
+                if classSpot.mats then
+                    for _, matLine in ipairs(classSpot.mats) do
+                        local matParts = {}
+                        for _, mat in ipairs(matLine) do
+                            table.insert(matParts, ("%dx %s"):format(
+                                mat[2], UI.ItemLinkFor(mat[1])))
+                        end
+                        if matParts[1] then
+                            table.insert(lines, subFormat:format(
+                                table.concat(matParts, " + ")))
+                        end
+                    end
+                end
+                -- What the token turns into, for spots whose reward is a
+                -- choice rather than one fixed piece. Named here so the
+                -- rows above can stay untagged.
+                if classSpot.yields and classSpot.yields[1] then
+                    local yieldParts = {}
+                    for _, itemID in ipairs(classSpot.yields) do
+                        table.insert(yieldParts, UI.ItemLinkFor(itemID))
+                    end
+                    table.insert(lines, subFormat:format(
+                        (RR.L["Yields: %s"]):format(
+                            table.concat(yieldParts, ", "))))
+                end
+                -- The plane rides whichever spot a waypoint can reach.
+                if spot.mapID and spot.x and spot.y and not hintInfo then
+                    hintInfo = {
+                        buttonLineIndex = spotLineIndex - 1,   -- 0-based
+                        buttonLineText  = spotLineText,
+                        travel = { mapID = spot.mapID, x = spot.x, y = spot.y,
+                                   vendorName = spot.vendorName,
+                                   zoneSub = spot.zoneSub },
+                    }
+                end
+                end
+                end
+            end
+            -- Every spot filtered out leaves a bare heading, which reads as
+            -- a broken hint rather than an absent one.
+            if #lines <= 2 then return nil end
+            return table.concat(lines, "\n"), raid, nil, vendorInfo, "token",
+                hintInfo
+        end
+        if vendorInfo and vendorInfo.classVendors then
+            -- Raids whose tokens redeem in more than one place list each
+            -- spot on its own line under a shared heading, naming the
+            -- vendor that serves THIS character: by class inside the
+            -- raid, by armor type at the city merchants.
+            -- Armor subclass each class wears: 1 Cloth, 2 Leather,
+            -- 3 Mail, 4 Plate. Built here rather than at file scope --
+            -- UI.lua's main chunk sits at Lua 5.1's 200-local ceiling.
+            local ARMOR_SUBCLASS_BY_CLASS = {
+                [1] = 4, [2] = 4, [3] = 3, [4] = 2, [5] = 1, [6] = 4,
+                [7] = 3, [8] = 1, [9] = 1, [10] = 2, [11] = 2, [12] = 2,
+                [13] = 3,
+            }
+            -- The hint follows the class dropdown, like every other
+            -- class-gated element in the window -- otherwise the rows and
+            -- the vendor under them can name different classes. "All
+            -- classes" has no single vendor, so it falls back to the class
+            -- being played (which is also the dropdown's own default).
+            local playedName, playedToken, playedID = UnitClass("player")
+            local classID = ActiveClassFilter() or playedID
+            local classToken = CLASS_ID_TO_TOKEN[classID] or playedToken
+            local className = (classID == playedID) and playedName
+                              or ClassNameForID(classID)
+            -- The class name carries its own class color, the same read
+            -- the tier tags use.
+            if className and classToken and RAID_CLASS_COLORS
+               and RAID_CLASS_COLORS[classToken]
+               and RAID_CLASS_COLORS[classToken].colorStr then
+                className = ("|c%s%s|r"):format(
+                    RAID_CLASS_COLORS[classToken].colorStr, className)
+            end
+            local classVendor = vendorInfo.classVendors[classID or 0]
+            if type(classVendor) == "table" then
+                local faction = UnitFactionGroup and UnitFactionGroup("player")
+                classVendor = (faction == "Alliance")
+                    and classVendor.alliance or classVendor.horde
+            end
+            -- Classes that postdate the raid's tier have no vendor and no
+            -- tier to redeem, so the hint stays hidden for them.
+            if not classVendor then return nil end
+
+            local armorSubclass = ARMOR_SUBCLASS_BY_CLASS[classID or 0]
+            local armorEntry = armorSubclass
+                and vendorInfo.armorVendors[armorSubclass]
+            local armorVendor = armorEntry and armorEntry.vendorName
+            local armorLabel = armorSubclass and GetItemSubClassInfo
+                and GetItemSubClassInfo(LE_ITEM_CLASS_ARMOR or 4, armorSubclass)
+
+            -- The trailing field arrives pre-colored (class color for the
+            -- class name, white for the armor type), so the format leaves
+            -- it alone -- color codes do not nest.
+            local rowFormat = RR.L["|cff888888     * %s: |r|cffffffff%s|r|cff888888 for |r%s"]
+            local lines = { ("|cff888888  -> %s|r"):format(
+                RR.L[vendorInfo.heading or "Redeem Tier Tokens at:"]) }
+            table.insert(lines, rowFormat:format(
+                RR.L[vendorInfo.classVendorPlace or ""],
+                RR.L[classVendor], className or ""))
+            local hintInfo
+            if armorVendor and armorLabel then
+                table.insert(lines, rowFormat:format(
+                    RR.L[vendorInfo.armorVendorPlace or ""],
+                    RR.L[armorVendor],
+                    ("|cffffffff%s|r"):format(armorLabel)))
+                -- The travel button rides the city line -- the in-raid
+                -- vendor cannot be routed to (see insideRaid).
+                if armorEntry.mapID and armorEntry.x and armorEntry.y then
+                    hintInfo = {
+                        buttonLineIndex = #lines - 1,   -- 0-based
+                        buttonLineText  = lines[#lines],
+                        travel = { mapID = armorEntry.mapID,
+                                   x = armorEntry.x, y = armorEntry.y,
+                                   vendorName = armorVendor,
+                                   zoneSub = armorEntry.zoneSub },
+                    }
+                end
+            end
+            return table.concat(lines, "\n"), raid, nil, vendorInfo, "token",
+                hintInfo
+        end
+        if vendorInfo and vendorInfo.vendorName then
+            local text
+            if vendorInfo.zoneSub then
+                text = (RR.L["|cff888888  -> Redeem tokens at |r|cffffffff%s|r|cff888888: |r|cffffffff%s|r|cff888888 (|r|cffffffff%s|r|cff888888)|r"]):format(
+                    RR.L[vendorInfo.vendorName],
+                    RR.L[vendorInfo.zoneMain],
+                    RR.L[vendorInfo.zoneSub])
+            else
+                text = (RR.L["|cff888888  -> Redeem tokens at |r|cffffffff%s|r|cff888888: |r|cffffffff%s|r"]):format(
+                    RR.L[vendorInfo.vendorName],
+                    RR.L[vendorInfo.zoneMain])
+            end
+            return text, raid, nil, vendorInfo, "token"
+        end
         return nil
     end
+
+    if not raid.weaponVendors then return nil end
     local tokenSources = raid.tierSets and raid.tierSets.tokenSources
     if not tokenSources then return nil end
     local bossDropsTokens = false
@@ -4371,7 +5245,7 @@ local function BuildSanctumLine(raid, boss)
     else
         text = RR.L["|cffff9333  -> No covenant detected|r|cff888888 -- align to redeem weapon tokens.|r"]
     end
-    return text, raid, covID, vendorInfo
+    return text, raid, covID, vendorInfo, "covenant"
 end
 
 -- Renders the transmog detail body. Accepts {boss=...} or {bossIndex=N}.
@@ -4383,7 +5257,8 @@ BuildTransmogDetail = function(stepOrCtx)
         boss = RR:GetBossByIndex(stepOrCtx.bossIndex)
     end
     if not boss or not boss.loot or #boss.loot == 0 then
-        return RR.L["No loot data for this boss."]
+        return { mainRows = { { kind = "text",
+            text = RR.L["No loot data for this boss."] } } }
     end
 
     -- Reset per-render caches so we pick up collection changes between pops.
@@ -4392,16 +5267,29 @@ BuildTransmogDetail = function(stepOrCtx)
 
     -- Rows whose display name collides with another in this boss's loot -- the
     -- paired Warglaives of Azzinoth are the case: one main-hand, one off-hand,
-    -- both named "Warglaive of Azzinoth". Marked so FormatItemRow appends an
+    -- both named "Warglaive of Azzinoth". Marked so FormatItemCells appends an
     -- equip-slot tag that tells them apart.
+    -- Keyed on the name the PLAYER sees, not the authored one. Two rows can
+    -- carry distinct authored names and still collide once the client name
+    -- replaces them: Antorus ships Scythe of the Unmaker "(Blue)" and
+    -- "(Red)", two appearances that share one client name, so an
+    -- authored-name scan saw no duplicate and the browser drew the same
+    -- row twice.
+    local function ShownName(item)
+        local clientName = item.id and GetItemInfo and GetItemInfo(item.id)
+        if clientName and clientName ~= "" then return clientName end
+        return item.name
+    end
     local nameSeen, duplicateNames = {}, {}
     for _, dupItem in ipairs(boss.loot) do
-        if dupItem.name then
-            if nameSeen[dupItem.name] then duplicateNames[dupItem.name] = true end
-            nameSeen[dupItem.name] = true
+        local shown = ShownName(dupItem)
+        if shown then
+            if nameSeen[shown] then duplicateNames[shown] = true end
+            nameSeen[shown] = true
         end
     end
 
+    UI._equipGateExempt = UI.EquipGateExemptFor(boss.loot, ActiveClassFilter())
     local candidates = {}
     for _, item in ipairs(boss.loot) do
         if ItemIsTransmogCandidate(item, nil, true) then
@@ -4410,18 +5298,23 @@ BuildTransmogDetail = function(stepOrCtx)
     end
 
     if #candidates == 0 then
-        return RR.L["No transmog data for this boss."]
+        return { mainRows = { { kind = "text",
+            text = RR.L["No transmog data for this boss."] } } }
     end
 
-    local lines = {}
+    -- Structured rows, laid into pooled widgets by the browser's layout
+    -- pass. Kinds: "item" (three-cell loot row), "text" (full-width
+    -- wrapping line), "note" (wrapping sub-line indented to the name
+    -- column), "blank" (one-line gap).
+    local mainRows = {}
 
     -- Compact top line: just the player's current difficulty.
     local activeDiff  = ActiveDifficulty()
     local activeName  = activeDiff and DIFF_NAME[activeDiff]
     if activeName then
-        table.insert(lines,
-            ("|cff888888" .. RR.L["Current difficulty: %s"] .. "|r"):format(activeName))
-        table.insert(lines, "")
+        table.insert(mainRows, { kind = "text",
+            text = ("|cff888888" .. RR.L["Current difficulty: %s"] .. "|r"):format(activeName) })
+        table.insert(mainRows, { kind = "blank" })
     end
 
     -- Resolve the player's class name once for the tier annotation.
@@ -4433,6 +5326,33 @@ BuildTransmogDetail = function(stepOrCtx)
     local playerClassName
     if playerClassToken and LOCALIZED_CLASS_NAMES_MALE then
         playerClassName = LOCALIZED_CLASS_NAMES_MALE[playerClassToken]
+    end
+
+    -- The display name FormatItemCells will render: client-localized once
+    -- the item cache answers, the stored English name on English clients,
+    -- an ellipsis on translated clients until the cache warms.
+    local function RowDisplayName(item)
+        local displayName = item.name
+        local activeLocale = RR.activeLocaleCode or GetLocale()
+        if activeLocale and activeLocale:sub(1, 2) ~= "en" then
+            displayName = "..."
+        end
+        if item.id and GetItemInfo then
+            local clientName = GetItemInfo(item.id)
+            if clientName and clientName ~= "" then
+                displayName = clientName
+            end
+        end
+        return displayName
+    end
+
+    -- Legendary-quality rows render as their own block under the regular
+    -- loot. The quality read mirrors the orange-name check in
+    -- FormatItemCells, so the block and the color always agree.
+    local function IsLegendaryRow(item)
+        local quality = item.id and GetItemInfo
+            and select(3, GetItemInfo(item.id))
+        return quality == 5
     end
 
     -- Buckets candidates by shape: binary first, then perdiff sorted by
@@ -4452,7 +5372,8 @@ BuildTransmogDetail = function(stepOrCtx)
         elseif item.hardModeOnly then
             table.insert(hardModeItems, item)
         elseif ItemShape(item) == "binary"
-            and not UI.IsMergedSizeDifficultyRow(item) then
+            and not UI.IsMergedSizeDifficultyRow(item)
+            and not item.upgrade then
             -- Merged size-difficulty rows are binary in state but render as
             -- letter strips, so they group with the per-difficulty rows and
             -- take the same bucket-signature clustering.
@@ -4480,16 +5401,22 @@ BuildTransmogDetail = function(stepOrCtx)
     -- alphabetically, so a split-loot boss doesn't mix Normal-only rows into
     -- the Raid Finder pool. Folded-away buckets are excluded: the signature
     -- must describe the strip the player sees.
-    local function bucketSignature(item)
-        local _, foldedSkip = UI.FoldedSizeLabels(item)
+    -- The difficulties a row actually drops at, BEFORE size folding. Rows
+    -- group by this rather than by their rendered strip, so a row whose
+    -- 10N and 10H share one appearance (rendered "[ 10 ]") sits with the
+    -- other 10-player rows instead of forming a block of its own.
+    local function rawSignature(item)
         local ids = {}
         for diffID in pairs(item.sources or {}) do
-            if not (foldedSkip and foldedSkip[diffID]) then
-                ids[#ids + 1] = diffID
-            end
+            ids[#ids + 1] = diffID
         end
         table.sort(ids)
         return table.concat(ids, ",")
+    end
+    local function rawCount(item)
+        local total = 0
+        for _ in pairs(item.sources or {}) do total = total + 1 end
+        return total
     end
     -- Binary rows sort by class then name, so class-gated binary gear clusters
     -- under "show all" instead of interleaving. Rows with no class info sort
@@ -4511,8 +5438,11 @@ BuildTransmogDetail = function(stepOrCtx)
     -- Tier rows sort as a block above regular gear, by class ID then name.
     -- Explicit rather than relying on tier's bucket signature differing, which
     -- only clustered on some raids by coincidence.
+    -- The section holds both halves of a raid's token economy: class tier,
+    -- gated by `classes`, and token rewards open to every class, which name
+    -- the token they redeem from instead.
     local function isTier(item)
-        return item.classes and #item.classes > 0
+        return (item.classes and #item.classes > 0) or item.tokenReward ~= nil
     end
     table.sort(hardModeItems, function(a, b)
         local ka, kb = classKey(a), classKey(b)
@@ -4523,22 +5453,37 @@ BuildTransmogDetail = function(stepOrCtx)
         local ta, tb = isTier(a), isTier(b)
         if ta ~= tb then return ta end           -- tier block first
         if ta then
+            -- The player's own class tier leads the block; token rewards any
+            -- class can take follow it, grouped by the token they come from.
+            local ra = a.classes and 0 or 1
+            local rb = b.classes and 0 or 1
+            if ra ~= rb then return ra < rb end
+            if not a.classes then
+                local wa = a.tokenReward or ""
+                local wb = b.tokenReward or ""
+                if wa ~= wb then return wa < wb end
+                return (a.name or "") < (b.name or "")
+            end
             -- Class ID, then difficulty signature, then name. Signature before
             -- name is what makes the blank-line grouping yield one block per
             -- difficulty rather than fragmenting on some raids.
             local ka = a.classes[1] or 0
             local kb = b.classes[1] or 0
             if ka ~= kb then return ka < kb end
-            local sa, sb = bucketSignature(a), bucketSignature(b)
+            local sa, sb = rawSignature(a), rawSignature(b)
             if sa ~= sb then return sa < sb end
             return (a.name or "") < (b.name or "")
         end
-        -- Within regular gear: shorter bucket strips first, then a stable
-        -- difficulty signature, then name.
-        local ca, cb = bucketCount(a), bucketCount(b)
+        -- Within regular gear: group by the difficulties the row drops at,
+        -- fewest first. Inside a group, rows whose appearance is shared
+        -- across those difficulties (one folded pill) lead, since they read
+        -- as the simplest case of that section.
+        local ca, cb = rawCount(a), rawCount(b)
         if ca ~= cb then return ca < cb end
-        local sa, sb = bucketSignature(a), bucketSignature(b)
+        local sa, sb = rawSignature(a), rawSignature(b)
         if sa ~= sb then return sa < sb end
+        local pa, pb = bucketCount(a), bucketCount(b)
+        if pa ~= pb then return pa < pb end
         return (a.name or "") < (b.name or "")
     end
     table.sort(perDiffItems, CompareRegularRows)
@@ -4546,181 +5491,49 @@ BuildTransmogDetail = function(stepOrCtx)
     -- list rather than like a differently-sorted appendix.
     table.sort(otherFactionItems, CompareRegularRows)
 
-    -- Helper: format one item's full row ("rowIndicator  name [tier label]").
-    -- Shared between both groups so the name/class-tier formatting stays
-    -- consistent regardless of shape.
-    local function FormatItemRow(item)
-        -- The item's name in the client's own language, from the item cache.
-        -- GetItemInfo is async: a cold cache returns nil on the first render.
-        -- On English clients the stored data name covers the gap (same
-        -- string). On translated clients the English name would flash for a
-        -- frame before the refresh swaps it, so the gap shows a neutral
-        -- ellipsis instead.
-        local itemDisplayName = item.name
-        local activeLocale = RR.activeLocaleCode or GetLocale()
-        if activeLocale and activeLocale:sub(1, 2) ~= "en" then
-            itemDisplayName = "..."
-        end
-        if item.id and GetItemInfo then
-            local clientName = GetItemInfo(item.id)
-            if clientName and clientName ~= "" then
-                itemDisplayName = clientName
+    -- Legendaries leave both shape groups and render as their own block
+    -- under the regular loot, separated by a blank line. Extraction runs
+    -- after the sorts so the survivors keep their order.
+    local legendaryItems = {}
+    local function ExtractLegendaries(list)
+        local kept = {}
+        for _, item in ipairs(list) do
+            if IsLegendaryRow(item) then
+                table.insert(legendaryItems, item)
+            else
+                table.insert(kept, item)
             end
         end
+        return kept
+    end
+    binaryItems  = ExtractLegendaries(binaryItems)
+    perDiffItems = ExtractLegendaries(perDiffItems)
+    table.sort(legendaryItems, function(a, b)
+        return (a.name or "") < (b.name or "")
+    end)
+
+    -- Whether this view emits a faction pair, for the legend footer. MUST be
+    -- declared before FormatItemCells, which sets it: a local declared after
+    -- a function is not in that function's scope, so the assignment would
+    -- silently create a global and this would stay false.
+    local viewHasFactionPair = false
+
+    -- Helper: format one item's row as three cells -- the state indicator
+    -- (dot row or pill strip), the colored name, and the trailing tags
+    -- (bind state, class label, slot disambiguator, availability gates).
+    -- The layout pass renders each cell as its own FontString, so rows in
+    -- an alignment group share column x-offsets by construction.
+    local function FormatItemCells(item)
+        local itemDisplayName = RowDisplayName(item)
         local nameText
-        -- A row with nothing left to farm dims its name from white to gray.
-        -- Only the white is substituted: legendary orange and the tier and
-        -- restriction suffixes keep their colours, since the strip already
-        -- says the row is done.
-        local rowDone = RR.ItemFullyCollected and RR.ItemFullyCollected(item)
-        local baseNameColor = rowDone and "ff808080" or "ffffffff"
-        if item.classes then
-            -- Pick the right class name + color for the label. If item.classes
-            -- has exactly one entry and it matches the player's class, use the
-            -- player's class name (cheap, no lookup). Otherwise look up the
-            -- actual row's class -- which happens when the "show all class
-            -- tier" toggle is on.
-            local rowClassID = item.classes[1]
-            local className, classToken
-            if rowClassID == playerClassID then
-                className  = playerClassName
-                classToken = playerClassToken
-            else
-                className  = ClassNameForID(rowClassID) or playerClassName
-                classToken = CLASS_ID_TO_TOKEN[rowClassID] or playerClassToken
-            end
+        local tagParts = {}
 
-            -- Get the standard WoW class color for this class. RAID_CLASS_COLORS
-            -- returns a table with `.colorStr` formatted as "AARRGGBB" (ff-prefixed
-            -- alpha), which is exactly what Blizzard chat color codes expect
-            -- after the "|c" prefix.
-            local classHex = "ffff8000"  -- fallback: orange (the old hardcoded color)
-            if classToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
-                local classColor = RAID_CLASS_COLORS[classToken]
-                if classColor.colorStr then classHex = classColor.colorStr end
-            end
-
-            if className then
-                -- The white is part of a localized format string, so the dim
-                -- substitutes into the returned pattern, never the locale key.
-                local fmt = RR.L["|cffffffff%s|r |c%s(%s Tier)|r"]
-                if rowDone then
-                    fmt = fmt:gsub("|cffffffff", "|c" .. baseNameColor, 1)
-                end
-                nameText = fmt:format(itemDisplayName, classHex, className)
-            else
-                nameText = ("|c%s%s|r"):format(baseNameColor, itemDisplayName)
-            end
-        else
-            -- Non-tier rows render in white by default, in legendary
-            -- orange when the item's GetItemInfo quality reports as
-            -- legendary (quality enum 5). Matches Blizzard's own
-            -- legendary text color so the row reads as legendary at
-            -- a glance, not as a plain drop.
-            local nameColor = baseNameColor
-            if item.id and GetItemInfo then
-                local quality = select(3, GetItemInfo(item.id))
-                if quality == 5 then
-                    nameColor = "ffff8000"
-                end
-            end
-            nameText = ("|c%s%s|r"):format(nameColor, itemDisplayName)
-
-            -- Class-restricted non-tier items always render for everyone with
-            -- a "(<Class> only)" suffix, unlike tier rows which are filtered
-            -- out. Players want to see a hard-gated legendary exists.
-            if item.restrictedToClass then
-                local rcID    = item.restrictedToClass
-                local rcName  = (rcID == playerClassID and playerClassName)
-                                or ClassNameForID(rcID)
-                local rcToken = (rcID == playerClassID and playerClassToken)
-                                or CLASS_ID_TO_TOKEN[rcID]
-                if rcName then
-                    local rcHex = "ffff8000"  -- fallback: orange
-                    if rcToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[rcToken] then
-                        local classColor = RAID_CLASS_COLORS[rcToken]
-                        if classColor.colorStr then rcHex = classColor.colorStr end
-                    end
-                    -- "(|cAARRGGBB<ClassName>|r only)" -- only the class
-                    -- name itself is colored; parens and "only" stay in
-                    -- the default text color so the suffix reads as a
-                    -- normal-toned tag rather than a louder label.
-                    nameText = ("%s |cffffffff(|r|c%s%s|r|cffffffff only)|r"):format(
-                        nameText, rcHex, rcName)
-                end
-            end
-
-            -- Under a specific class the rows are already filtered, so no
-            -- suffix. Under "all classes" each piece gets a coloured class tag,
-            -- or an unreadable armour dump results.
-            if item.equipClasses and ActiveClassFilter() == nil then
-                local tags = {}
-                for _, ecID in ipairs(item.equipClasses) do
-                    local ecName  = (ecID == playerClassID and playerClassName)
-                                    or ClassNameForID(ecID)
-                    local ecToken = (ecID == playerClassID and playerClassToken)
-                                    or CLASS_ID_TO_TOKEN[ecID]
-                    if ecName then
-                        local ecHex = "ffff8000"
-                        if ecToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[ecToken] then
-                            local classColor = RAID_CLASS_COLORS[ecToken]
-                            if classColor.colorStr then ecHex = classColor.colorStr end
-                        end
-                        table.insert(tags, ("|c%s%s|r"):format(ecHex, ecName))
-                    end
-                end
-                if #tags > 0 then
-                    nameText = ("%s |cffffffff(|r%s|cffffffff)|r"):format(
-                        nameText, table.concat(tags, "|cffffffff, |r"))
-                end
-            end
-        end
-
-        -- Same-named siblings (the two Warglaives of Azzinoth) get their
-        -- equip slot appended so main-hand and off-hand read distinctly.
-        -- Blizzard's INVTYPE_* globals are already localized; item.slot is the
-        -- cold-cache fallback. Neutral tone, like the bind tag.
-        if item.name and duplicateNames[item.name] then
-            local slotLabel
-            if item.id and GetItemInfo then
-                local equipLoc = select(9, GetItemInfo(item.id))
-                if equipLoc and equipLoc ~= "" then slotLabel = _G[equipLoc] end
-            end
-            slotLabel = slotLabel or item.slot
-            if slotLabel and slotLabel ~= "" then
-                nameText = ("%s |cffffffff(|r|cff9d9d9d%s|r|cffffffff)|r"):format(
-                    nameText, slotLabel)
-            end
-        end
-
-        -- Drops that only appear when the encounter's hard mode was
-        -- activated. Appended last so it reads after any class tag, and
-        -- colored like the other availability tags rather than like the
-        -- item name.
-        if item.hardModeOnly then
-            nameText = ("%s |cffffffff(|r|cffF259C7%s|r|cffffffff)|r"):format(
-                nameText, RR.L["Hard mode only"])
-        end
-
-        -- Opposite-faction drops. Tagged per row rather than under a block
-        -- header, matching how hard-mode rows announce themselves (no block
-        -- in this popup carries a sub-header). Colored in the faction's own
-        -- color so the tag reads at a glance.
-        if ItemIsOtherFaction(item) then
-            local factionColor = (item.faction == "Alliance") and "ff6699ff" or "ffcc4444"
-            local factionLabel = (item.faction == "Alliance")
-                and (FACTION_ALLIANCE or RR.L["Alliance"])
-                or  (FACTION_HORDE or RR.L["Horde"])
-            nameText = ("%s |cffffffff(|r|c%s%s|r|cffffffff)|r"):format(
-                nameText, factionColor, factionLabel)
-        end
-
-        -- Bind state, appended last. Only trash-drop rows carry `bind`
+        -- Bind state leads the tag run. Only trash-drop rows carry `bind`
         -- today; boss loot omits it because every boss drop binds on
         -- pickup and a tag on every row would be noise. Rendered in the
         -- same neutral tone for both values -- the label carries the
-        -- meaning, and the tags above it are availability gates that
-        -- should keep the louder colors.
+        -- meaning, and the class tags that follow it are availability
+        -- gates that should keep the louder colors.
         if item.bind then
             -- Branched on literals rather than looked up through the raw
             -- field: the locale audit scrapes RR.L keys as they appear in
@@ -4743,48 +5556,296 @@ BuildTransmogDetail = function(stepOrCtx)
                 if qualityColor and qualityColor.hex then
                     qualityEscape = qualityColor.hex
                 end
-                nameText = ("%s |cffffffff(|r%s%s|r|cffffffff)|r"):format(
-                    nameText, qualityEscape, bindLabel)
-            end
-
-            -- Bind-on-equip rows only, while this source is uncollected. A
-            -- BoP drop grants its appearance at loot, so a marker could only
-            -- sit beside a collected row; a BoE can be carried for weeks
-            -- unowned. `shared` rows qualify too: the look is known through
-            -- another item, but equipping the carried piece is what collects
-            -- this source and completes the row.
-            local carriedState = ItemSummaryState(item)
-            if item.bind == "BoE"
-                and (carriedState == "missing" or carriedState == "shared")
-                and GetItemCount and (GetItemCount(item.id, false) or 0) > 0 then
-                nameText = ("%s |cffffffff(|r|cff4dccff%s|r|cffffffff)|r"):format(
-                    nameText, RR.L["in your bags!"])
+                table.insert(tagParts, ("|cffffffff(|r%s%s|r|cffffffff)|r"):format(
+                    qualityEscape, bindLabel))
             end
         end
-        return ("%s  %s"):format(BuildDotRow(item), nameText)
+        -- The name takes the same states the difficulty pills use, so the
+        -- row reads as one thing. Only this base color is substituted:
+        -- legendary orange and the tier and restriction suffixes keep their
+        -- own colors.
+        local baseNameColor = UI.RowNameColor(item)
+        -- A faction pair prints both versions' names as one row, the viewing
+        -- player's faction first, and EACH NAME CARRIES ITS OWN HALF'S COLOR
+        -- so it matches the dot above it -- a pair whose near half is owned
+        -- elsewhere and whose far half is missing reads gold / gray, not one
+        -- summary color for both. Pre-colored, so the branches below must
+        -- not wrap it again. The twin's localized name needs its own
+        -- GetItemInfo; the data name is the cold-cache fallback.
+        local pairedNameText
+        if item.mirror then
+            -- The legend's faction-pair line keys off this: set where a pair
+            -- is actually emitted, not from the raid's data, so a pair
+            -- filtered out by the class dropdown does not advertise itself.
+            viewHasFactionPair = true
+            local mirrorName = item.mirror.name
+            if GetItemInfo and item.mirror.id then
+                local clientName = GetItemInfo(item.mirror.id)
+                if clientName and clientName ~= "" then
+                    mirrorName = clientName
+                end
+            end
+            local nearColor = UI.MirrorHalfNameColor(UI.MirrorHalfState(
+                RR.BinaryFoldedState(item), item.sources))
+            local farColor = UI.MirrorHalfNameColor(UI.MirrorHalfState(
+                RR.MirrorFoldedState(item), item.mirror.sources))
+            local nearName = itemDisplayName
+            local farName = mirrorName
+            if UnitFactionGroup and UnitFactionGroup("player") == "Horde" then
+                nearName, farName = farName, nearName
+                nearColor, farColor = farColor, nearColor
+            end
+            pairedNameText = UI.BuildPairedNameText(
+                nearName, farName, nearColor, farColor, baseNameColor)
+            itemDisplayName = nearName .. " / " .. farName
+        end
+        if item.classes then
+            -- Pick the right class name + color for the label. A row serving
+            -- SEVERAL classes takes the one being viewed, not just its first:
+            -- Vault of Archavon and Baradin Hold ship cloth and mail sets
+            -- shared by three classes, so a Mage browsing a Priest/Mage/
+            -- Warlock piece read "(Priest Tier)" whatever the filter said.
+            local rowClassID = UI.PreferredRowClassID(item.classes, playerClassID)
+            local className, classToken
+            if rowClassID == playerClassID then
+                className  = playerClassName
+                classToken = playerClassToken
+            else
+                className  = ClassNameForID(rowClassID) or playerClassName
+                classToken = CLASS_ID_TO_TOKEN[rowClassID] or playerClassToken
+            end
+
+            -- Get the standard WoW class color for this class. RAID_CLASS_COLORS
+            -- returns a table with `.colorStr` formatted as "AARRGGBB" (ff-prefixed
+            -- alpha), which is exactly what Blizzard chat color codes expect
+            -- after the "|c" prefix.
+            local classHex = "ffff8000"  -- fallback: orange (the old hardcoded color)
+            if classToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
+                local classColor = RAID_CLASS_COLORS[classToken]
+                if classColor.colorStr then classHex = classColor.colorStr end
+            end
+
+            nameText = pairedNameText
+                or ("|c%s%s|r"):format(baseNameColor, itemDisplayName)
+            if className then
+                -- The spec icons ride inside the tier tag, so the row reads
+                -- "(Priest Tier <icons>)". Two format keys rather than one
+                -- with an empty slot, so no locale carries a stray gap when
+                -- the icons are unavailable.
+                -- Icons resolve for the PLAYED class only, so on a row being
+                -- viewed as somebody else's class they would show the played
+                -- class's specs under another class's label. Suppress rather
+                -- than mislabel.
+                local specIcons = (rowClassID == playerClassID)
+                    and UI.SpecIconsForItem(item.id) or nil
+                -- White parentheses around the class-colored label, the
+                -- same frame the "(<Class>)" suffix uses.
+                local tierInner
+                if specIcons then
+                    tierInner = (RR.L["%s Tier %s"]):format(className, specIcons)
+                else
+                    tierInner = (RR.L["%s Tier"]):format(className)
+                end
+                table.insert(tagParts,
+                    ("|cffffffff(|r|c%s%s|r|cffffffff)|r"):format(
+                        classHex, tierInner))
+            end
+        else
+            -- Non-tier rows render in white by default, in legendary
+            -- orange when the item's GetItemInfo quality reports as
+            -- legendary (quality enum 5). Matches Blizzard's own
+            -- legendary text color so the row reads as legendary at
+            -- a glance, not as a plain drop.
+            local nameColor = baseNameColor
+            if item.id and GetItemInfo then
+                local quality = select(3, GetItemInfo(item.id))
+                if quality == 5 then
+                    nameColor = "ffff8000"
+                end
+            end
+            nameText = pairedNameText
+                or ("|c%s%s|r"):format(nameColor, itemDisplayName)
+
+            -- Class-restricted non-tier items always render for everyone with
+            -- a "(<Class>)" suffix, unlike tier rows which are filtered
+            -- out. Players want to see a hard-gated legendary exists.
+            if item.restrictedToClass then
+                local rcID    = item.restrictedToClass
+                local rcName  = (rcID == playerClassID and playerClassName)
+                                or ClassNameForID(rcID)
+                local rcToken = (rcID == playerClassID and playerClassToken)
+                                or CLASS_ID_TO_TOKEN[rcID]
+                if rcName then
+                    local rcHex = "ffff8000"  -- fallback: orange
+                    if rcToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[rcToken] then
+                        local classColor = RAID_CLASS_COLORS[rcToken]
+                        if classColor.colorStr then rcHex = classColor.colorStr end
+                    end
+                    -- "(|cAARRGGBB<ClassName>|r)" -- the class name is
+                    -- colored; the parens stay in the default text color
+                    -- so the suffix reads as a normal-toned tag. The class
+                    -- name comes from the client, so the tag needs no
+                    -- locale entry.
+                    table.insert(tagParts, ("|cffffffff(|r|c%s%s|r|cffffffff)|r"):format(
+                        rcHex, rcName))
+                end
+            end
+
+            -- Wearable-class tag, always: these rows show for every class
+            -- (the appearance is collectible regardless), so the tag is
+            -- what says who actually equips the piece.
+            if item.equipClasses then
+                local classTags = {}
+                for _, ecID in ipairs(item.equipClasses) do
+                    local ecName  = (ecID == playerClassID and playerClassName)
+                                    or ClassNameForID(ecID)
+                    local ecToken = (ecID == playerClassID and playerClassToken)
+                                    or CLASS_ID_TO_TOKEN[ecID]
+                    if ecName then
+                        local ecHex = "ffff8000"
+                        if ecToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[ecToken] then
+                            local classColor = RAID_CLASS_COLORS[ecToken]
+                            if classColor.colorStr then ecHex = classColor.colorStr end
+                        end
+                        table.insert(classTags, ("|c%s%s|r"):format(ecHex, ecName))
+                    end
+                end
+                if #classTags > 0 then
+                    table.insert(tagParts, ("|cffffffff(|r%s|cffffffff)|r"):format(
+                        table.concat(classTags, "|cffffffff, |r")))
+                end
+            end
+
+            -- `tokenReward` carries no row tag. It groups the row into the
+            -- tier section and sorts it beside the others from the same
+            -- token; the hint's own "Yields" line names which weapons each
+            -- token gives, so a per-row label would only repeat it in a
+            -- form no other row tag uses.
+        end
+
+        -- Same-named siblings (the two Warglaives of Azzinoth) get their
+        -- equip slot appended so main-hand and off-hand read distinctly.
+        -- Blizzard's INVTYPE_* globals are already localized; item.slot is the
+        -- cold-cache fallback. Neutral tone, like the bind tag.
+        local shownName = ShownName(item)
+        if shownName and duplicateNames[shownName] then
+            -- The authored disambiguator wins where the data carries one the
+            -- client name drops: the two Scythes share a client name AND a
+            -- slot, so the equip-slot tag cannot separate them.
+            local tagLabel
+            if item.name and item.name ~= shownName then
+                tagLabel = item.name:match("%(([^()]+)%)%s*$")
+            end
+            if not tagLabel then
+                if item.id and GetItemInfo then
+                    local equipLoc = select(9, GetItemInfo(item.id))
+                    if equipLoc and equipLoc ~= "" then tagLabel = _G[equipLoc] end
+                end
+                tagLabel = tagLabel or item.slot
+            end
+            if tagLabel and tagLabel ~= "" then
+                table.insert(tagParts, ("|cffffffff(|r|cff9d9d9d%s|r|cffffffff)|r"):format(
+                    tagLabel))
+            end
+        end
+
+        -- Neither hard-mode nor opposite-faction drops carry a per-row tag:
+        -- each kind renders inside its own section, under a header that
+        -- already names the condition ("Hard Mode", "Horde Appearances"),
+        -- so a tag on every line said it twice.
+
+        -- Bind-on-equip rows only, while this source is uncollected. A
+        -- BoP drop grants its appearance at loot, so a marker could only
+        -- sit beside a collected row; a BoE can be carried for weeks
+        -- unowned. `shared` rows qualify too: the look is known through
+        -- another item, but equipping the carried piece is what collects
+        -- this source and completes the row. Stays at the end of the run:
+        -- it is an alert about the player's bags, not a property of the item.
+        if item.bind == "BoE" then
+            local carriedState = ItemSummaryState(item)
+            if (carriedState == "missing" or carriedState == "shared")
+                and GetItemCount and (GetItemCount(item.id, false) or 0) > 0 then
+                table.insert(tagParts, ("|cffffffff(|r|cff4dccff%s|r|cffffffff)|r"):format(
+                    RR.L["in your bags!"]))
+            end
+        end
+        return BuildDotRow(item), nameText, table.concat(tagParts, " ")
     end
 
-    -- Renders the acquisitionNote sub-line below an item row, if the
-    -- item has one. Used for items with unusual acquisition mechanics
-    -- (e.g. legendaries gated behind a quest-starter, items unlocked
-    -- via a separate vendor exchange). Indented under the row it
-    -- annotates and rendered in dim gray so it reads as commentary
-    -- without competing with the row's main name.
-    local function MaybeAppendAcquisitionNote(item)
-        if not item.acquisitionNote then return end
-        table.insert(lines, ("        |cff888888%s|r"):format(item.acquisitionNote))
+    -- Emits one loot row, plus its acquisitionNote sub-line when the item
+    -- has one (legendaries gated behind a quest-starter, vendor-exchange
+    -- unlocks). The note renders as a wrapping row indented to the name
+    -- column, in dim gray so it reads as commentary. `isTierRow` picks which
+    -- of the list's two column pairs the row lays out against.
+    local function EmitItemRow(rowsOut, item, isTierRow)
+        local indicatorText, nameText, tagsText = FormatItemCells(item)
+        table.insert(rowsOut, { kind = "item", indicator = indicatorText,
+            name = nameText, tags = tagsText, isTier = isTierRow })
+        if item.acquisitionNote then
+            table.insert(rowsOut, { kind = "note",
+                text = ("|cff888888%s|r"):format(RR.L[item.acquisitionNote]) })
+        end
     end
 
-    -- Emit binary-shape group first.
-    for _, item in ipairs(binaryItems) do
-        table.insert(lines, FormatItemRow(item))
-        MaybeAppendAcquisitionNote(item)
+    -- Tier leads the list, whatever shape its rows take. Tier used to sort
+    -- to the front of each shape group SEPARATELY, so a binary-shape epic
+    -- rendered above a per-difficulty tier row -- and therefore above the
+    -- TIER / TOKENS divider, which is inserted at the first tier row.
+    -- Splitting here also makes the tier block contiguous by construction,
+    -- which is what lets the dividers draw at all.
+    local function SplitTierRows(list)
+        local tierPart, lootPart = {}, {}
+        for _, item in ipairs(list) do
+            if isTier(item) then
+                table.insert(tierPart, item)
+            else
+                table.insert(lootPart, item)
+            end
+        end
+        return tierPart, lootPart
+    end
+    local binaryTier,  binaryLoot  = SplitTierRows(binaryItems)
+    local perDiffTier, perDiffLoot = SplitTierRows(perDiffItems)
+
+    -- A class break only earns its place when some class has more than one
+    -- tier row to bind. Where every class carries a single row (direct-drop
+    -- tier), the break falls between every row and doubles the block height.
+    -- Class tier only. Token rewards are tier-section rows carrying no class,
+    -- so they neither group by one nor count toward the break rule.
+    local tierRows = {}
+    for _, item in ipairs(binaryTier)  do table.insert(tierRows, item) end
+    for _, item in ipairs(perDiffTier) do table.insert(tierRows, item) end
+    local tierRowsPerClass, anyTierClassGrouped = {}, false
+    for _, item in ipairs(tierRows) do
+        if item.classes then
+            local classID = item.classes[1] or 0
+            tierRowsPerClass[classID] = (tierRowsPerClass[classID] or 0) + 1
+            if tierRowsPerClass[classID] > 1 then anyTierClassGrouped = true end
+        end
+    end
+
+    -- Tier block, both shapes, binary first so the shorter strips lead.
+    local lastTierClass
+    for _, item in ipairs(tierRows) do
+        local tierClass = item.classes and item.classes[1] or nil
+        -- Tier breaks on CLASS, not on difficulty: one class's 10 and 25
+        -- pieces are a single player's set and read as one block.
+        if anyTierClassGrouped and lastTierClass and tierClass ~= lastTierClass then
+            table.insert(mainRows, { kind = "blank" })
+        end
+        lastTierClass = tierClass
+        EmitItemRow(mainRows, item, true)
+    end
+
+    -- Ordinary loot, binary shape first, then per-difficulty.
+    for _, item in ipairs(binaryLoot) do
+        EmitItemRow(mainRows, item, false)
     end
 
     -- Blank-line separator between groups, but only if both groups have
     -- content (otherwise we'd emit a trailing blank line for no reason).
-    if #binaryItems > 0 and #perDiffItems > 0 then
-        table.insert(lines, "")
+    if #binaryLoot > 0 and #perDiffLoot > 0 then
+        table.insert(mainRows, { kind = "blank" })
     end
 
     -- Emit per-difficulty group. Items are pre-sorted by bucket count
@@ -4794,34 +5855,57 @@ BuildTransmogDetail = function(stepOrCtx)
     -- block with a blank line between, then the 3-bucket N/H/M items, then
     -- any full 4-bucket items -- no explicit sub-headers needed.
     local lastSignature
-    for _, item in ipairs(perDiffItems) do
-        local sig = bucketSignature(item)
+    for _, item in ipairs(perDiffLoot) do
+        -- Separated on the raw difficulty set, so a folded row joins the
+        -- section it shares difficulties with rather than starting one.
+        local sig = rawSignature(item)
         if lastSignature and sig ~= lastSignature then
-            table.insert(lines, "")
+            table.insert(mainRows, { kind = "blank" })
         end
         lastSignature = sig
-        table.insert(lines, FormatItemRow(item))
-        MaybeAppendAcquisitionNote(item)
+        EmitItemRow(mainRows, item, false)
+    end
+
+    -- Legendary block last, a blank line clear of the regular loot.
+    if #legendaryItems > 0 then
+        if #binaryItems > 0 or #perDiffItems > 0 then
+            table.insert(mainRows, { kind = "blank" })
+        end
+        for _, item in ipairs(legendaryItems) do
+            EmitItemRow(mainRows, item)
+        end
     end
 
     -- Hard-mode-only and opposite-faction rows render as their own
-    -- collapsible sections below this text block (same widget shape as the
-    -- trash section), so their lines are built here and handed back.
-    local hardModeBodyText, factionBodyText
-    local function BuildSectionBody(items)
+    -- collapsible sections (same widget shape as the trash section), so
+    -- their rows are built here and handed back.
+    --
+    -- Each section aligns within ITSELF: it is measured as its own render
+    -- list, so an expanding section cannot shift the main list's columns.
+    local function BuildSectionRows(items)
         if #items == 0 then return nil end
-        local sectionLines = {}
+        local sectionRows = {}
         for _, item in ipairs(items) do
-            table.insert(sectionLines, FormatItemRow(item))
-            if item.acquisitionNote then
-                table.insert(sectionLines,
-                    ("        |cff888888%s|r"):format(item.acquisitionNote))
-            end
+            EmitItemRow(sectionRows, item, isTier(item))
         end
-        return table.concat(sectionLines, "\n")
+        return sectionRows
     end
-    hardModeBodyText = BuildSectionBody(hardModeItems)
-    factionBodyText  = BuildSectionBody(otherFactionItems)
+
+    -- The other faction's TIER rows mirror this faction's piece for piece, so
+    -- they belong beside the tier block. Its ordinary drops do not mirror
+    -- anything, so they stay at the foot with the rest of the loot.
+    local factionTierItems, factionLootItems = {}, {}
+    for _, item in ipairs(otherFactionItems) do
+        if isTier(item) then
+            table.insert(factionTierItems, item)
+        else
+            table.insert(factionLootItems, item)
+        end
+    end
+
+    local hardModeRows    = BuildSectionRows(hardModeItems)
+    local factionTierRows = BuildSectionRows(factionTierItems)
+    local factionRows     = BuildSectionRows(factionLootItems)
 
     -- Weapon-token section (Castle Nathria, Sanctum of Domination).
     -- Tokens are covenant-partitioned in ways the data doesn't capture,
@@ -4879,7 +5963,7 @@ BuildTransmogDetail = function(stepOrCtx)
         local slotOrder = { "Main-Hand", "Off-Hand" }
 
         -- Class-list suffix for a slot's class set, each name in its class
-        -- colour. Collapses to "All classes" when the set covers every class
+        -- color. Collapses to "All classes" when the set covers every class
         -- with weapon access at that slot.
         local function FormatClassList(classSet, slotLabel)
             local ids = {}
@@ -4922,12 +6006,12 @@ BuildTransmogDetail = function(stepOrCtx)
         if #tokenRows > 0 then
             -- Blank-line separator above the token section. Hard-mode and
             -- faction rows live in their own sections now, so only the
-            -- in-text groups count.
+            -- in-list groups count.
             if #binaryItems > 0 or #perDiffItems > 0 then
-                table.insert(lines, "")
+                table.insert(mainRows, { kind = "blank" })
             end
             for _, row in ipairs(tokenRows) do
-                table.insert(lines, row)
+                table.insert(mainRows, { kind = "text", text = row })
             end
 
             -- Vendor hint line is rendered separately as its own
@@ -4938,24 +6022,29 @@ BuildTransmogDetail = function(stepOrCtx)
     end
 
     -- Raid trash is held once at raid level and shown under whichever boss is
-    -- selected. It renders as its own collapsible section below this text block
-    -- in the browser, so the row lines and collected/total counts are built
-    -- here (where the row helpers are in scope) and handed back to the layout.
-    local trashBodyText, trashCollected, trashTotal
+    -- selected. It renders as its own collapsible section below the main rows
+    -- in the browser, so the section's rows and collected/total counts are
+    -- built here (where the row helpers are in scope) and handed back.
+    local trashSectionRows, trashCollected, trashTotal
     if raid and raid.trashLoot and #raid.trashLoot > 0 then
-        local trashRows = {}
+        UI._equipGateExempt = UI.EquipGateExemptFor(raid.trashLoot,
+            ActiveClassFilter())
+        local trashItems = {}
         for _, item in ipairs(raid.trashLoot) do
             if ItemIsTransmogCandidate(item, nil, true) then
-                table.insert(trashRows, item)
+                table.insert(trashItems, item)
             end
         end
-        if #trashRows > 0 then
+        if #trashItems > 0 then
             -- Partitioned by row shape like the boss list: single-glyph
             -- binary rows first, per-difficulty strips after, a blank line
             -- between. One alphabetical pass wove the two shapes together.
             local binaryTrash, pilledTrash = {}, {}
-            for _, item in ipairs(trashRows) do
-                if ItemShape(item) == "binary" then
+            for _, item in ipairs(trashItems) do
+                -- An upgrade row is binary in source count but renders as
+                -- a strip, so it groups with the pilled rows -- otherwise
+                -- the one plain glyph lands mid-list among them.
+                if ItemShape(item) == "binary" and not item.upgrade then
                     table.insert(binaryTrash, item)
                 else
                     table.insert(pilledTrash, item)
@@ -4963,14 +6052,10 @@ BuildTransmogDetail = function(stepOrCtx)
             end
             table.sort(binaryTrash, CompareRegularRows)
             table.sort(pilledTrash, CompareRegularRows)
-            local trashLines = {}
-            trashCollected, trashTotal = 0, #trashRows
+            trashSectionRows = {}
+            trashCollected, trashTotal = 0, #trashItems
             local function EmitTrashRow(item)
-                table.insert(trashLines, FormatItemRow(item))
-                if item.acquisitionNote then
-                    table.insert(trashLines,
-                        ("        |cff888888%s|r"):format(item.acquisitionNote))
-                end
+                EmitItemRow(trashSectionRows, item)
                 local state = ItemSummaryState(item)
                 if state ~= "missing" and state ~= "shared" then
                     trashCollected = trashCollected + 1
@@ -4978,72 +6063,175 @@ BuildTransmogDetail = function(stepOrCtx)
             end
             for _, item in ipairs(binaryTrash) do EmitTrashRow(item) end
             if #binaryTrash > 0 and #pilledTrash > 0 then
-                table.insert(trashLines, "")
+                table.insert(trashSectionRows, { kind = "blank" })
             end
             for _, item in ipairs(pilledTrash) do EmitTrashRow(item) end
-            trashBodyText = table.concat(trashLines, "\n")
+
+            -- Legend for the upgrade pill, under the rows it explains.
+            -- {upArrow} takes the same tinted glyph the pill uses, dimmed,
+            -- and {item} resolves to a real item link.
+            if raid.trashNote and raid.trashNote.text then
+                local noteText = RR.L[raid.trashNote.text]
+                noteText = noteText:gsub("{upArrow}",
+                    UI.UpgradeArrowGlyph(DOT_INACTIVE))
+                if raid.trashNote.itemID then
+                    local _, itemLink = GetItemInfo(raid.trashNote.itemID)
+                    if not itemLink then
+                        local fallbackName = GetItemInfo(raid.trashNote.itemID)
+                            or RR.L["(item)"]
+                        itemLink = ("|cffa335ee[%s]|r"):format(fallbackName)
+                    end
+                    noteText = noteText:gsub("{item}", itemLink)
+                end
+                table.insert(trashSectionRows, { kind = "blank" })
+                table.insert(trashSectionRows, { kind = "text", soft = true,
+                    text = ("|cff9d9d9d%s|r"):format(noteText) })
+            end
+            -- Raids whose redemption belongs to trash rather than tier put
+            -- the vendor hint at the foot of this section.
+            if raid.tokenVendors and raid.tokenVendors.below == "trash" then
+                table.insert(trashSectionRows, { kind = "sanctum" })
+            end
         end
     end
 
-    -- Optional per-boss footnote(s). Accepts three forms:
-    --   string                   -- rendered as-is
-    --   { text=..., itemID=N }   -- {item} -> WoW item link
-    --   { {text=...,itemID=N}, ... }   -- list of entries
+    -- Optional per-boss footnote: { text = ..., itemID = N }, where {item}
+    -- becomes a WoW item link. Prose that belongs under a boss but names no
+    -- destination -- anything pointing at a vendor is an omniToken instead.
     if boss.tmogFootnote then
-        -- Renders a single footnote entry to grey text. Returns the formatted
+        -- Renders a single footnote entry to gray text. Returns the formatted
         -- string, or nil if the entry produces no usable text.
+        -- `itemID` fills {item}. A footnote naming SEVERAL items takes
+        -- `itemIDs` and numbered {item1}/{item2} tokens instead: a
+        -- translation can then reorder the sentence without the links
+        -- swapping, which a repeated {item} could not survive.
+        -- UI.ItemLinkFor carries its own cold-cache fallback.
         local function RenderFootnoteEntry(entry)
-            if type(entry) == "string" then
-                return RR.L[entry]
-            end
             if type(entry) ~= "table" then return nil end
-            local sub
+            local text = RR.L[entry.text or ""]
             if entry.itemID then
-                local _, itemLink = GetItemInfo(entry.itemID)
-                sub = itemLink   -- nil on cold cache; fallback below
+                text = text:gsub("{item}", UI.ItemLinkFor(entry.itemID))
             end
-            if not sub then
-                -- Cold-cache fallback: bracketed name, loses clickability
-                -- for this render only.
-                local fallbackName = (entry.itemID and GetItemInfo(entry.itemID))
-                                     or RR.L["(item)"]
-                sub = ("|cffa335ee[%s]|r"):format(fallbackName)
+            for index, itemID in ipairs(entry.itemIDs or {}) do
+                text = text:gsub("{item" .. index .. "}",
+                    UI.ItemLinkFor(itemID))
             end
-            return (RR.L[entry.text or ""]):gsub("{item}", sub)
+            return text
         end
 
-        -- Single entry vs list: a list has numeric indices, no top-level
-        -- `text` field.
-        local entries
-        if type(boss.tmogFootnote) == "string" then
-            entries = { boss.tmogFootnote }
-        elseif type(boss.tmogFootnote) == "table"
-               and boss.tmogFootnote.text == nil
-               and boss.tmogFootnote[1] then
-            entries = boss.tmogFootnote
-        else
-            entries = { boss.tmogFootnote }
-        end
-
-        for _, entry in ipairs(entries) do
+        for _, entry in ipairs({ boss.tmogFootnote }) do
             local footnoteText = RenderFootnoteEntry(entry)
             if footnoteText and footnoteText ~= "" then
-                table.insert(lines, "")
-                table.insert(lines, ("|cff9d9d9d%s|r"):format(footnoteText))
+                table.insert(mainRows, { kind = "blank" })
+                -- Footnotes are prose: they wrap at whatever width the
+                -- loot rows set rather than widening the popup to fit.
+                table.insert(mainRows, { kind = "text", soft = true,
+                    text = ("|cff9d9d9d%s|r"):format(footnoteText) })
             end
         end
     end
 
-    return table.concat(lines, "\n"), trashBodyText, trashCollected, trashTotal,
-        hardModeBodyText, factionBodyText
+    -- The redemption hint belongs with the tier it explains, so it renders
+    -- directly under the last tier row rather than at the foot of the
+    -- list. Raids with no tier rows leave the marker out and the hint
+    -- falls back to the end of the list.
+    local placeUnderTrash = raid and raid.tokenVendors
+                            and raid.tokenVendors.below == "trash"
+    local firstTierIndex, lastTierIndex
+    for index, row in ipairs(mainRows) do
+        if row.isTier then
+            if not firstTierIndex then firstTierIndex = index end
+            lastTierIndex = index
+        end
+    end
+    -- Tier sorts to the front of its shape group, so the block is normally
+    -- unbroken. A raid carrying tier in both shape groups would put loot
+    -- between the halves, and an opening divider there would enclose rows
+    -- it does not describe, so it only draws over an unbroken block.
+    local tierContiguous = firstTierIndex ~= nil
+    if firstTierIndex then
+        for index = firstTierIndex, lastTierIndex do
+            local row = mainRows[index]
+            if row.kind == "item" and not row.isTier then
+                tierContiguous = false
+                break
+            end
+        end
+    end
+    -- Anything after the tier block needs the closing divider; a boss whose
+    -- list ends on tier would otherwise trail one.
+    local tierHasFollowers = lastTierIndex and #mainRows > lastTierIndex
+    local tierInfoRows
+    if lastTierIndex then
+        -- Legend for the chain dots, then the vendor hint. Both fold into a
+        -- collapsible "Tier / Token Info" subsection, collapsed by default:
+        -- on the token-turn-in raids the full hint stands taller than the
+        -- rows it explains.
+        tierInfoRows = {}
+        if raid and raid.tierNote and raid.tierNote.text then
+            local noteText = RR.L[raid.tierNote.text]
+            noteText = noteText:gsub("{dot}", UI.ProgressDotGlyph(DOT_INACTIVE))
+            if raid.tierNote.itemID then
+                local _, itemLink = GetItemInfo(raid.tierNote.itemID)
+                if itemLink then noteText = noteText:gsub("{item}", itemLink) end
+            end
+            table.insert(tierInfoRows, { kind = "text", soft = true,
+                text = ("|cff9d9d9d%s|r"):format(noteText) })
+        end
+        if not placeUnderTrash then
+            table.insert(tierInfoRows, { kind = "sanctum" })
+        end
+        local afterTier = {}
+        if #tierInfoRows > 0 then
+            -- The layout pass draws the subsection header here, and the
+            -- rows under it only while expanded. Emitted even when the only
+            -- content is the sanctum marker -- whether that line has text
+            -- is known only at render time, and the header draws nothing
+            -- when it turns out empty.
+            table.insert(afterTier, { kind = "tierinfo" })
+        end
+        -- Only the other faction's TIER rows ride up here; its ordinary
+        -- drops keep the foot-of-list section. Bosses with no tier leave
+        -- the marker out and the rows fall back to the foot.
+        if factionTierRows and #factionTierRows > 0 then
+            table.insert(afterTier,
+                { kind = "section", section = "factiontier" })
+        end
+        -- Closes the tier block under its legend and opens the ordinary
+        -- drops, so they stop reading as more of the note.
+        if tierHasFollowers then
+            table.insert(afterTier, { kind = "divider", label = "LOOT" })
+        end
+        for offset = #afterTier, 1, -1 do
+            table.insert(mainRows, lastTierIndex + 1, afterTier[offset])
+        end
+        -- Inserted last: it sits below lastTierIndex, so the offsets above
+        -- are already spent.
+        if tierContiguous then
+            table.insert(mainRows, firstTierIndex,
+                { kind = "divider", label = "TIER / TOKENS" })
+        end
+    end
+
+    return {
+        mainRows       = mainRows,
+        tierInfoRows   = tierInfoRows,
+        trashRows      = trashSectionRows,
+        trashCollected = trashCollected,
+        trashTotal     = trashTotal,
+        hardModeRows   = hardModeRows,
+        factionTierRows = factionTierRows,
+        factionRows    = factionRows,
+        hasFactionPair = viewHasFactionPair,
+    }
 end
 
 -- Color legend rendered as the bottom-most line in the Tmog window. The
 -- dot colors mean the same thing whether or not the player is in a
 -- supported raid, so it sits below the per-boss content and the
 -- weapon-token redemption hint (when present), as a global footer.
-local function BuildTmogLegendText()
-    return
+local function BuildTmogLegendText(showFactionPair)
+    local text =
         ("|c%s" .. RR.L["green"] .. "|r|cff888888 = " .. RR.L["collected"]
             .. "      |r|c%s" .. RR.L["gold"] .. "|r|cff888888 = "
             .. RR.L["via another item"] .. "|r\n"):format(
@@ -5053,6 +6241,27 @@ local function BuildTmogLegendText()
             .. RR.L["gray"] .. "|r|cff888888 = " .. RR.L["not collected"]
             .. "|r"):format(
             DOT_ACTIVE, DOT_INACTIVE)
+    -- Third line only where the view actually renders a faction pair, so
+    -- the other fifty raids keep a two-line footer. It explains the SHAPE;
+    -- the colors a pair takes are the four already named above, which is
+    -- why the sample dots carry no state of their own -- they are drawn in
+    -- the same gray as the surrounding label text so they read as
+    -- typography rather than as a fifth color to learn.
+    local lineCount = 2
+    if showFactionPair then
+        local faction = UnitFactionGroup and UnitFactionGroup("player")
+        local nearName = (faction == "Horde") and FACTION_HORDE or FACTION_ALLIANCE
+        local farName  = (faction == "Horde") and FACTION_ALLIANCE or FACTION_HORDE
+        if nearName and farName then
+            text = text .. "\n"
+                .. UI.ProgressDotGlyph(DOT_INACTIVE)
+                .. UI.ProgressDotGlyph(DOT_INACTIVE)
+                .. ("|cff888888 = " .. RR.L["%s & %s"] .. "|r"):format(
+                    nearName, farName)
+            lineCount = 3
+        end
+    end
+    return text, lineCount
 end
 
 -------------------------------------------------------------------------------
@@ -5115,9 +6324,12 @@ end
 -- Returns (byExpansion, expansions) where:
 --   byExpansion[expName] = { raid, raid, ... } -- raids sorted newest patch first
 --   expansions          = { expName, ... }     -- ordered newest expansion first
-local function EnumerateRaids()
+-- On the UI table: UI.lua's main chunk sits at Lua 5.1's 200-local ceiling.
+UI.EnumerateInstances = function(kind)
+    local source = (kind == "dungeon") and RetroRuns_DungeonData
+                   or RetroRuns_Data
     local byExpansion = {}
-    for _, raid in pairs(RetroRuns_Data or {}) do
+    for _, raid in pairs(source or {}) do
         -- Skip incomplete entries (instanceID = 0); they have no resolved
         -- journal IDs and would render as all-dash pills.
         if raid.instanceID and raid.instanceID > 0 then
@@ -5143,6 +6355,26 @@ local function EnumerateRaids()
         if not seen[e] then table.insert(expansions, e) end
     end
     return byExpansion, expansions
+end
+
+local function EnumerateRaids()
+    return UI.EnumerateInstances("raid")
+end
+
+-- The key a browser entry is stored under: raids by instance map id,
+-- dungeons by journalInstanceID (wings share maps).
+UI.BrowserKeyOf = function(entry)
+    if entry.kind == "dungeon" then return entry.journalInstanceID end
+    return entry.instanceID
+end
+
+-- Kind-aware resolve for browserState.raidKey.
+UI.BrowserInstanceByKey = function(key)
+    if not key then return nil end
+    if browserState.instanceKind == "dungeon" then
+        return RR:GetDungeonByKey(key)
+    end
+    return RR:GetRaidByInstanceID(key)
 end
 
 -- Lenient-count helpers: summed across nested levels. For dropdown labels.
@@ -5192,7 +6424,7 @@ local function FormatCountSuffix(_, _, _)
 end
 
 local function GetBrowserSelection()
-    local raid = browserState.raidKey and RR:GetRaidByInstanceID(browserState.raidKey)
+    local raid = browserState.raidKey and UI.BrowserInstanceByKey(browserState.raidKey)
     local boss
     if raid and raid.bosses and browserState.bossIndex then
         boss = raid.bosses[browserState.bossIndex]
@@ -5208,11 +6440,12 @@ local function SaveBrowserState()
         expansion = browserState.expansion,
         raidKey   = browserState.raidKey,
         bossIndex = browserState.bossIndex,
+        instanceKind = browserState.instanceKind,
     })
 end
 
 local function EnsureBrowserDefaults()
-    local byExpansion, expansions = EnumerateRaids()
+    local byExpansion, expansions = UI.EnumerateInstances(browserState.instanceKind)
     if #expansions == 0 then return end
 
     -- First-priority defaults: load from SavedVariables if present. Validate
@@ -5220,15 +6453,24 @@ local function EnsureBrowserDefaults()
     -- have removed a raid's data file since their last session).
     local saved = not browserState.raidKey and RR:GetSetting("browserSelection") or nil
     if saved then
-        if saved.raidKey and RR:GetRaidByInstanceID(saved.raidKey) then
+        -- Restore the kind FIRST: the key only validates against the table
+        -- that kind selects (a saved dungeon key is not in the raid table).
+        local savedKind = saved.instanceKind or "raid"
+        local entry
+        if saved.raidKey then
+            entry = (savedKind == "dungeon")
+                and RR:GetDungeonByKey(saved.raidKey)
+                or RR:GetRaidByInstanceID(saved.raidKey)
+        end
+        if entry then
+            browserState.instanceKind = savedKind
             browserState.raidKey   = saved.raidKey
-            browserState.expansion = saved.expansion
-                                     or RR:GetRaidByInstanceID(saved.raidKey).expansion
+            browserState.expansion = saved.expansion or entry.expansion
             browserState.bossIndex = saved.bossIndex or 1
         end
     end
 
-    if not browserState.raidKey then
+    if not browserState.raidKey and browserState.instanceKind == "raid" then
         local currentID = RR.currentRaid and RR.currentRaid.instanceID
         if currentID and RR:GetRaidByInstanceID(currentID) then
             browserState.raidKey   = currentID
@@ -5259,7 +6501,7 @@ end
 -- instead of plain-text fallbacks. Called on every RefreshAll.
 local function WarmBrowserItemCache()
     if not GetItemInfo then return end
-    local raid = browserState.raidKey and RR:GetRaidByInstanceID(browserState.raidKey)
+    local raid = browserState.raidKey and UI.BrowserInstanceByKey(browserState.raidKey)
     if not raid or not raid.bosses then return end
     for _, boss in ipairs(raid.bosses) do
         if boss.loot then
@@ -5272,23 +6514,18 @@ local function WarmBrowserItemCache()
                 if item.id then GetItemInfo(item.id) end
             end
         end
-        -- Footnote items live outside loot/specialLoot but still
-        -- need their links resolved for the footnote rendering.
+        -- Footnote and omnitoken items live outside loot/specialLoot but
+        -- still render as links, so they warm here too.
         if boss.tmogFootnote then
-            local function WarmEntry(entry)
-                if type(entry) == "table" and entry.itemID then
-                    GetItemInfo(entry.itemID)
-                end
+            if boss.tmogFootnote.itemID then
+                GetItemInfo(boss.tmogFootnote.itemID)
             end
-            if type(boss.tmogFootnote) == "table"
-               and boss.tmogFootnote.text == nil
-               and boss.tmogFootnote[1] then
-                for _, entry in ipairs(boss.tmogFootnote) do
-                    WarmEntry(entry)
-                end
-            else
-                WarmEntry(boss.tmogFootnote)
+            for _, itemID in ipairs(boss.tmogFootnote.itemIDs or {}) do
+                GetItemInfo(itemID)
             end
+        end
+        if boss.omniToken and boss.omniToken.itemID then
+            GetItemInfo(boss.omniToken.itemID)
         end
     end
 end
@@ -5354,8 +6591,8 @@ GetOrCreateTmogWindow = function()
     tmogFrame:HookScript("OnEnter", CancelTmogHide)
     tmogFrame:HookScript("OnLeave", ScheduleTmogHide)
 
-    -- Hyperlink handlers: makes item links inside contentText (the boss's
-    -- loot list, the tmogFootnote) clickable. Same pattern used by
+    -- Hyperlink handlers: makes item links inside the loot rows (the
+    -- tmogFootnote's item links) clickable. Same pattern used by
     -- panel.encounter for Special Loot links. SetItemRef is Blizzard's
     -- global router that opens the appropriate frame for each link type
     -- (item -> tooltip, achievement -> achievement frame, etc.) and is a
@@ -5414,16 +6651,6 @@ GetOrCreateTmogWindow = function()
             lbl:SetJustifyH("LEFT")
             dd.label = lbl
         end
-        -- Dropdown menus render as separate top-level frames; their hover
-        -- isn't inherited by the popup, so we cancel the hide timer while
-        -- the menu is open to prevent the popup from disappearing.
-        dd.HookShowHide = function()
-            local menu = _G["DropDownList1"]
-            if menu then
-                menu:HookScript("OnShow", CancelTmogHide)
-                menu:HookScript("OnHide", ScheduleTmogHide)
-            end
-        end
         return dd
     end
 
@@ -5438,7 +6665,7 @@ GetOrCreateTmogWindow = function()
     local capMeasure = tmogFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     capMeasure:Hide()
     local LABEL_W = 0
-    for _, cap in ipairs({ RR.L["Exp:"], RR.L["Raid:"], RR.L["Boss:"], RR.L["Class:"] }) do
+    for _, cap in ipairs({ RR.L["Exp:"], RR.L["Type:"], RR.L["Raid:"], RR.L["Boss:"], RR.L["Class:"] }) do
         capMeasure:SetText(cap)
         local textWidth = capMeasure:GetStringWidth() or 0
         if textWidth > LABEL_W then LABEL_W = textWidth end
@@ -5450,6 +6677,9 @@ GetOrCreateTmogWindow = function()
     local DD_INSET   = 16
 
     local ddExp  = MakeDD("Expansion", 110, tmogFrame, RR.L["Exp:"])
+    -- Raids-or-dungeons switch. Sits under the expansion bar so the
+    -- cascade reads Exp -> Type -> Raid -> Boss -> Class.
+    local ddType = MakeDD("InstanceKind", 110, tmogFrame, RR.L["Type:"])
     local ddRaid = MakeDD("Raid",      185, tmogFrame, RR.L["Raid:"])
     local ddBoss = MakeDD("Boss",      185, tmogFrame, RR.L["Boss:"])
 
@@ -5460,7 +6690,8 @@ GetOrCreateTmogWindow = function()
     local barLeft = barVisibleLeft - DD_INSET
     local DD_STEP = 5
     ddExp:SetPoint("TOPLEFT",  tmogFrame,     "TOPLEFT",     barLeft, -32)
-    ddRaid:SetPoint("TOPLEFT", ddExp, "BOTTOMLEFT",  DD_STEP,  4)
+    ddType:SetPoint("TOPLEFT", ddExp, "BOTTOMLEFT",  DD_STEP,  4)
+    ddRaid:SetPoint("TOPLEFT", ddType, "BOTTOMLEFT", DD_STEP,  4)
     ddBoss:SetPoint("TOPLEFT", ddRaid, "BOTTOMLEFT", DD_STEP,  4)
 
     -- Labels: anchored to each bar's own left edge with a fixed gap, so
@@ -5476,15 +6707,16 @@ GetOrCreateTmogWindow = function()
         dd.label:SetPoint("TOP",  dd, "TOP",  0, -6)
         dd.label:SetWidth(LABEL_W)
     end
-    anchorLabel(ddExp); anchorLabel(ddRaid); anchorLabel(ddBoss)
+    anchorLabel(ddExp); anchorLabel(ddType); anchorLabel(ddRaid); anchorLabel(ddBoss)
 
     tmogFrame.ddExp, tmogFrame.ddRaid, tmogFrame.ddBoss = ddExp, ddRaid, ddBoss
+    tmogFrame.ddType = ddType
     -- Left margin where below-dropdown content (loot list, legend, scroll
     -- region) aligns. Independent of the dropdowns' indented left edge.
     tmogFrame.contentMargin = 22
 
     -- Chooses which class's class-gated loot the browser shows: every class by
-    -- localized name in its class colour, plus "All classes". Defaults to the
+    -- localized name in its class color, plus "All classes". Defaults to the
     -- class being played.
     local ddClass = MakeDD("Class", 110, tmogFrame, RR.L["Class:"])
     ddClass:SetPoint("TOPLEFT", ddBoss, "BOTTOMLEFT", DD_STEP, 4)
@@ -5526,11 +6758,13 @@ GetOrCreateTmogWindow = function()
 
         -- Raid + Boss: every current raid and boss name.
         local raidNames, bossNames = {}, {}
-        for _, raid in pairs(RetroRuns_Data or {}) do
-            if raid.instanceID and raid.instanceID > 0 then
-                raidNames[#raidNames + 1] = RR:GetLocalizedRaidName(raid) or ""
-                for _, boss in ipairs(raid.bosses or {}) do
-                    bossNames[#bossNames + 1] = RR:GetLocalizedBossName(boss) or ""
+        for _, dataTable in ipairs({ RetroRuns_Data, RetroRuns_DungeonData }) do
+            for _, raid in pairs(dataTable or {}) do
+                if raid.instanceID and raid.instanceID > 0 then
+                    raidNames[#raidNames + 1] = RR:GetLocalizedRaidName(raid) or ""
+                    for _, boss in ipairs(raid.bosses or {}) do
+                        bossNames[#bossNames + 1] = RR:GetLocalizedBossName(boss) or ""
+                    end
                 end
             end
         end
@@ -5686,7 +6920,7 @@ GetOrCreateTmogWindow = function()
     scroll:SetScrollChild(scrollChild)
     tmogFrame.contentChild = scrollChild
 
-    -- The loot list (contentText) and sanctum line render into the scroll
+    -- The loot rows and sanctum line render into the scroll
     -- child, so item/achievement link clicks route through the child's
     -- hyperlink scripts, not the popup's. Mirror the popup's handlers here
     -- so links inside the scrolled content stay clickable.
@@ -5707,58 +6941,88 @@ GetOrCreateTmogWindow = function()
     scrollChild:HookScript("OnEnter", CancelTmogHide)
     scrollChild:HookScript("OnLeave", ScheduleTmogHide)
 
-    -- Content text sits inside the scroll child. Width is driven by the
-    -- scroll child (which the layout sizes to the viewport width), so text
-    -- wraps to the visible column, not the full popup.
-    local text = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    text:SetPoint("TOPLEFT",  scrollChild, "TOPLEFT",  0, 0)
-    text:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", 0, 0)
-    text:SetJustifyH("LEFT")
-    text:SetJustifyV("TOP")
-    text:SetWordWrap(true)
+    -- The loot lists render as pooled per-row widgets inside the scroll
+    -- child: each item row is three cell FontStrings (state indicator,
+    -- name, trailing tags) at computed column x-offsets, and text rows
+    -- (difficulty line, token lines, footnotes, acquisition notes) take a
+    -- full-width wrapping FontString. Same architecture as the
+    -- Achievements window's row table, so columns line up by construction
+    -- at any font or scale. Slots are reused across refreshes by index.
+    local tmogRowPool = {}
+    local function GetTmogRowSlot(idx)
+        local slot = tmogRowPool[idx]
+        if slot then return slot end
+        slot = {}
+        local function MakeCell(wrap)
+            local cell = scrollChild:CreateFontString(nil, "OVERLAY",
+                "GameFontHighlightSmall")
+            cell:SetJustifyH("LEFT")
+            cell:SetJustifyV("TOP")
+            cell:SetWordWrap(wrap)
+            cell:Hide()
+            return cell
+        end
+        slot.indicator = MakeCell(false)
+        slot.name      = MakeCell(false)
+        slot.tags      = MakeCell(false)
+        slot.wide      = MakeCell(true)
+        tmogRowPool[idx] = slot
+        return slot
+    end
+    local function HideTmogRowSlots()
+        for _, slot in ipairs(tmogRowPool) do
+            slot.indicator:Hide()
+            slot.name:Hide()
+            slot.tags:Hide()
+            slot.wide:Hide()
+        end
+    end
 
-    tmogFrame.contentText = text
+    -- Dividers pool separately from the row cells: a list holds two or three
+    -- of them against dozens of rows, so pairing each row slot with textures
+    -- it will never draw wastes them.
+    local tmogDividerPool = {}
+    local function GetTmogDivider(idx)
+        local divider = tmogDividerPool[idx]
+        if not divider then
+            divider = UI.MakeListDivider(scrollChild)
+            tmogDividerPool[idx] = divider
+        end
+        return divider
+    end
+    local function HideTmogDividers()
+        for _, divider in ipairs(tmogDividerPool) do
+            UI.HideListDivider(divider)
+        end
+    end
 
-    -- Hidden, unanchored FontString for measuring content lines at their
-    -- natural (unwrapped) width. AutoSize applies the content font to it
-    -- each pass, so the measurement always matches what renders.
+    -- Hidden, unanchored FontString for measuring row cells at their
+    -- natural (unwrapped) width. The layout pass applies the content font
+    -- to it each refresh, so measurements always match what renders.
     local lineMeasure = tmogFrame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     lineMeasure:Hide()
     tmogFrame.lineMeasure = lineMeasure
 
     -- Sanctum vendor line, inside the scroll child so it travels with the
-    -- content. Tight gap above so it reads as a continuation of the
-    -- weapon-token heading. Hidden when BuildSanctumLine returns nil.
+    -- content. Positioned by the layout pass below the main rows. Hidden
+    -- when BuildSanctumLine returns nil.
     local sanctumLine = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    sanctumLine:SetPoint("TOPLEFT",  text,        "BOTTOMLEFT",  0, -2)
-    sanctumLine:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT",    0, 0)
     sanctumLine:SetJustifyH("LEFT")
     sanctumLine:SetJustifyV("TOP")
     sanctumLine:SetWordWrap(true)
     sanctumLine:Hide()
     tmogFrame.sanctumLine = sanctumLine
 
-    -- Raid trash-drops section: a collapsible header ("Trash Drops (N/M)") over
-    -- a body of rows, both inside the scroll child so they travel with the
-    -- content. Anchored below the sanctum line; the +/- toggle reuses the
+    -- Raid trash-drops section: a collapsible header ("Trash Drops (N/M)")
+    -- over pooled rows, inside the scroll child so they travel with the
+    -- content. Positioned by the layout pass; the +/- toggle reuses the
     -- idle-list wing-expander helpers. Starts collapsed on every open (reset in
     -- UI.OpenTransmogBrowser).
     local trashHeader = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    trashHeader:SetPoint("TOPLEFT",  sanctumLine, "BOTTOMLEFT", 0, -4)
-    trashHeader:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT",   0, 0)
     trashHeader:SetJustifyH("LEFT")
     trashHeader:SetJustifyV("TOP")
     trashHeader:Hide()
     tmogFrame.trashHeader = trashHeader
-
-    local trashBody = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    trashBody:SetPoint("TOPLEFT",  trashHeader, "BOTTOMLEFT", 0, -2)
-    trashBody:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT",   0, 0)
-    trashBody:SetJustifyH("LEFT")
-    trashBody:SetJustifyV("TOP")
-    trashBody:SetWordWrap(true)
-    trashBody:Hide()
-    tmogFrame.trashBody = trashBody
 
     local trashToggle = CreateFrame("Button", nil, scrollChild)
     trashToggle:RegisterForClicks("LeftButtonUp")
@@ -5781,9 +7045,46 @@ GetOrCreateTmogWindow = function()
     end)
     tmogFrame.trashToggle = trashToggle
 
+    -- "Tier / Token Info" subsection toggle: the same chevron pair, riding
+    -- the gem divider that heads the subsection instead of a text header.
+    local tierInfoToggle = CreateFrame("Button", nil, scrollChild)
+    tierInfoToggle:RegisterForClicks("LeftButtonUp")
+    tierInfoToggle:SetFrameLevel((scrollChild:GetFrameLevel() or 0) + 10)
+    -- The button spans the whole header row as the hit area; the chevron
+    -- textures are positioned beside the label at draw time rather than
+    -- stretched across the button.
+    local tierInfoChevron = tierInfoToggle:CreateTexture(nil, "ARTWORK")
+    tierInfoToggle._chevronTex = tierInfoChevron
+    local tierInfoChevronHL = tierInfoToggle:CreateTexture(nil, "HIGHLIGHT")
+    tierInfoChevronHL:SetVertexColor(1, 1, 1, 0.3)
+    tierInfoToggle._chevronHL = tierInfoChevronHL
+    tierInfoToggle:Hide()
+    tierInfoToggle:HookScript("OnEnter", CancelTmogHide)
+    tierInfoToggle:HookScript("OnLeave", ScheduleTmogHide)
+    tierInfoToggle:SetScript("OnClick", function()
+        tmogFrame._tierInfoExpanded = not tmogFrame._tierInfoExpanded
+        tmogFrame:RefreshContent()
+    end)
+    tmogFrame.tierInfoToggle = tierInfoToggle
+
+    -- The subsection's own divider, styled as a SUB-divider once here: the
+    -- rule and gems take RETRO cyan against the section dividers' pink,
+    -- with smaller gems and a shorter rule. Collapsed it sits directly
+    -- above the LOOT divider, and two same-colored gem rules stacked read
+    -- as siblings. A dedicated widget rather than the shared pool, so the
+    -- styling cannot leak onto the section dividers through reuse.
+    local tierInfoDivider = UI.MakeListDivider(scrollChild)
+    tierInfoDivider.left:SetVertexColor(C_BLUE[1], C_BLUE[2], C_BLUE[3], 0.45)
+    tierInfoDivider.right:SetVertexColor(C_BLUE[1], C_BLUE[2], C_BLUE[3], 0.45)
+    tierInfoDivider.gemLeft:SetVertexColor(C_BLUE[1], C_BLUE[2], C_BLUE[3], 1)
+    tierInfoDivider.gemRight:SetVertexColor(C_BLUE[1], C_BLUE[2], C_BLUE[3], 1)
+    tierInfoDivider.gemLeft:SetSize(UI.DIVIDER_SUBGEM_SIZE, UI.DIVIDER_SUBGEM_SIZE)
+    tierInfoDivider.gemRight:SetSize(UI.DIVIDER_SUBGEM_SIZE, UI.DIVIDER_SUBGEM_SIZE)
+    tmogFrame.tierInfoDivider = tierInfoDivider
+
     -- Boss-scoped collapsible sections: hard-mode-only rows and
     -- opposite-faction rows, same widget shape as the trash section.
-    -- Headers are anchored by the layout pass, which chains whichever
+    -- Headers are positioned by the layout pass, which chains whichever
     -- sections are visible for the selected boss.
     local function MakeSectionWidgets(flagKey)
         local header = scrollChild:CreateFontString(nil, "OVERLAY",
@@ -5791,14 +7092,6 @@ GetOrCreateTmogWindow = function()
         header:SetJustifyH("LEFT")
         header:SetJustifyV("TOP")
         header:Hide()
-        local body = scrollChild:CreateFontString(nil, "OVERLAY",
-            "GameFontHighlightSmall")
-        body:SetPoint("TOPLEFT",  header, "BOTTOMLEFT", 0, -2)
-        body:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", 0, 0)
-        body:SetJustifyH("LEFT")
-        body:SetJustifyV("TOP")
-        body:SetWordWrap(true)
-        body:Hide()
         local toggle = CreateFrame("Button", nil, scrollChild)
         toggle:RegisterForClicks("LeftButtonUp")
         toggle:SetFrameLevel((scrollChild:GetFrameLevel() or 0) + 10)
@@ -5816,19 +7109,56 @@ GetOrCreateTmogWindow = function()
             tmogFrame[flagKey] = not tmogFrame[flagKey]
             tmogFrame:RefreshContent()
         end)
-        return header, body, toggle
+        return header, toggle
     end
-    tmogFrame.hardmodeHeader, tmogFrame.hardmodeBody, tmogFrame.hardmodeToggle =
+    tmogFrame.hardmodeHeader, tmogFrame.hardmodeToggle =
         MakeSectionWidgets("_hardmodeExpanded")
-    tmogFrame.factionHeader, tmogFrame.factionBody, tmogFrame.factionToggle =
+    -- The opposite faction gets two sections: its tier beside the tier
+    -- block, its ordinary drops at the foot. Separate widgets and separate
+    -- expand flags, so folding one does not fold the other.
+    tmogFrame.factionTierHeader, tmogFrame.factionTierToggle =
+        MakeSectionWidgets("_factionTierExpanded")
+    tmogFrame.factionHeader, tmogFrame.factionToggle =
         MakeSectionWidgets("_factionExpanded")
 
     -- Color legend. FIXED footer on the popup (NOT in the scroll child), so
     -- it stays pinned at the bottom while the content above it scrolls.
     -- Anchored to the popup's bottom in the layout pass.
+    -- Divider above the legend, same white alpha-mask line and cyan gem the
+    -- idle list and settings pages use. Fixed to the popup, not the scroll
+    -- child, so it stays with the legend footer.
+    local legendDivider = tmogFrame:CreateTexture(nil, "ARTWORK")
+    legendDivider:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-line")
+    legendDivider:SetVertexColor(C_PINK[1], C_PINK[2], C_PINK[3], 0.55)
+    legendDivider:SetHeight(6)
+    if legendDivider.SetTexelSnappingBias then
+        legendDivider:SetTexelSnappingBias(0)
+        legendDivider:SetSnapToPixelGrid(false)
+    end
+    tmogFrame.legendDivider = legendDivider
+
+    local legendDividerGem = tmogFrame:CreateTexture(nil, "OVERLAY")
+    legendDividerGem:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-gem")
+    legendDividerGem:SetSize(14, 14)
+    legendDividerGem:SetPoint("CENTER", legendDivider, "CENTER", 0, 0)
+    if legendDividerGem.SetTexelSnappingBias then
+        legendDividerGem:SetTexelSnappingBias(0)
+        legendDividerGem:SetSnapToPixelGrid(false)
+    end
+    tmogFrame.legendDividerGem = legendDividerGem
+
     local legendLine = tmogFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    legendLine:SetPoint("BOTTOMLEFT",  tmogFrame, "BOTTOMLEFT",  22, 12)
-    legendLine:SetPoint("BOTTOMRIGHT", tmogFrame, "BOTTOMRIGHT", -14, 12)
+    legendLine:SetPoint("BOTTOMLEFT",  tmogFrame, "BOTTOMLEFT",
+        UI.TMOG_MARGIN_L, 12)
+    legendLine:SetPoint("BOTTOMRIGHT", tmogFrame, "BOTTOMRIGHT",
+        -UI.TMOG_LEGEND_PAD_R, 12)
+    -- Vertical position comes from the legend text; the horizontal span is
+    -- corrected off the text's own insets to RULE either side, so the gem
+    -- lands on the frame's center rather than the text column's.
+    legendDivider:SetPoint("BOTTOMLEFT",  legendLine, "TOPLEFT",
+        UI.TMOG_RULE_INSET - UI.TMOG_MARGIN_L, 6)
+    legendDivider:SetPoint("BOTTOMRIGHT", legendLine, "TOPRIGHT",
+        UI.TMOG_LEGEND_PAD_R - UI.TMOG_RULE_INSET, 6)
     legendLine:SetJustifyH("LEFT")
     legendLine:SetJustifyV("TOP")
     legendLine:SetWordWrap(true)
@@ -5858,7 +7188,42 @@ GetOrCreateTmogWindow = function()
     -- Dropdown initializers (defined after tmogFrame exists so they can reference it).
     tmogFrame.RefreshDropdowns = function(self)
         EnsureBrowserDefaults()
-        local byExp, expList = EnumerateRaids()
+        local byExp, expList = UI.EnumerateInstances(browserState.instanceKind)
+
+        -- Type dropdown: raids or dungeons. Switching resets the selection
+        -- into the new table; the expansion carries over when it exists
+        -- there, otherwise falls to the first with content.
+        UIDropDownMenu_Initialize(ddType, function()
+            for _, kindEntry in ipairs({ { "raid", RR.L["Raids"] },
+                                         { "dungeon", RR.L["Dungeons"] } }) do
+                local kindValue, kindLabel = kindEntry[1], kindEntry[2]
+                local info = UIDropDownMenu_CreateInfo()
+                info.text = kindLabel
+                info.value = kindValue
+                info.checked = (browserState.instanceKind == kindValue)
+                info.func = function()
+                    if browserState.instanceKind == kindValue then return end
+                    browserState.instanceKind = kindValue
+                    -- Select straight into the new table. A cleared key
+                    -- reads as first-open to EnsureBrowserDefaults, which
+                    -- would restore the saved selection and silently undo
+                    -- the switch.
+                    local newByExp, newExpList = UI.EnumerateInstances(kindValue)
+                    if not newByExp[browserState.expansion] then
+                        browserState.expansion = newExpList[1]
+                    end
+                    local first = newByExp[browserState.expansion]
+                                  and newByExp[browserState.expansion][1]
+                    browserState.raidKey   = first and UI.BrowserKeyOf(first) or nil
+                    browserState.bossIndex = 1
+                    SaveBrowserState()
+                    tmogFrame:RefreshAll()
+                end
+                UIDropDownMenu_AddButton(info)
+            end
+        end)
+        UIDropDownMenu_SetText(ddType,
+            browserState.instanceKind == "dungeon" and RR.L["Dungeons"] or RR.L["Raids"])
 
         -- Expansion dropdown
         UIDropDownMenu_Initialize(ddExp, function()
@@ -5873,7 +7238,7 @@ GetOrCreateTmogWindow = function()
                     browserState.expansion = expName
                     -- Pick first raid + first boss in the new expansion.
                     local first = byExp[expName] and byExp[expName][1]
-                    browserState.raidKey   = first and first.instanceID or nil
+                    browserState.raidKey   = first and UI.BrowserKeyOf(first) or nil
                     browserState.bossIndex = 1
                     tmogFrame:RefreshAll()
                 end
@@ -5887,13 +7252,14 @@ GetOrCreateTmogWindow = function()
             local raids = byExp[browserState.expansion] or {}
             for _, raid in ipairs(raids) do
                 local n, s, t = CountRaidLoot(raid)
+                local entryKey = UI.BrowserKeyOf(raid)
                 local info = UIDropDownMenu_CreateInfo()
                 info.text = (RR:GetLocalizedRaidName(raid) or "?") .. FormatCountSuffix(n, s, t)
-                info.value = raid.instanceID
-                info.checked = (raid.instanceID == browserState.raidKey)
+                info.value = entryKey
+                info.checked = (entryKey == browserState.raidKey)
                 info.func = function()
-                    if browserState.raidKey == raid.instanceID then return end
-                    browserState.raidKey   = raid.instanceID
+                    if browserState.raidKey == entryKey then return end
+                    browserState.raidKey   = entryKey
                     browserState.bossIndex = 1
                     tmogFrame:RefreshAll()
                 end
@@ -5901,13 +7267,13 @@ GetOrCreateTmogWindow = function()
             end
         end)
         local raidName = "(none)"
-        local selRaid = browserState.raidKey and RR:GetRaidByInstanceID(browserState.raidKey)
+        local selRaid = browserState.raidKey and UI.BrowserInstanceByKey(browserState.raidKey)
         if selRaid then raidName = RR:GetLocalizedRaidName(selRaid) or "?" end
         UIDropDownMenu_SetText(ddRaid, raidName)
 
         -- Boss dropdown (within current raid)
         UIDropDownMenu_Initialize(ddBoss, function()
-            local raid = browserState.raidKey and RR:GetRaidByInstanceID(browserState.raidKey)
+            local raid = browserState.raidKey and UI.BrowserInstanceByKey(browserState.raidKey)
             if not raid or not raid.bosses then return end
             for idx, boss in ipairs(raid.bosses) do
                 local n, s, t = CountBossLoot(boss)
@@ -5933,64 +7299,516 @@ GetOrCreateTmogWindow = function()
         if self.SizeDropdownsToContent then self:SizeDropdownsToContent() end
     end
 
+    -- Lays the structured rows from BuildTransmogDetail into the pooled
+    -- row widgets, positions the sanctum line and the collapsible section
+    -- headers at absolute offsets in the scroll child, and stores the
+    -- finished content height for AutoSize's viewport math. Runs once per
+    -- RefreshContent; AutoSize never touches the row widgets, so
+    -- heartbeat ticks cannot churn them out from under a click.
+    local function LayoutTmogContent(self, detail, fontSize)
+        local renderedSize = math.max(8, fontSize - 1)
+        local measure = self.lineMeasure
+        SetBodyFont(measure, renderedSize, "")
+        local function MeasureText(rowText)
+            measure:SetText(rowText or "")
+            return measure:GetStringWidth() or 0
+        end
+
+        -- Row pitch: one rendered line of the body font. The space width
+        -- probes as a difference of two measurements -- GetStringWidth of
+        -- a whitespace-only string is 0 (FontStrings trim it).
+        measure:SetText("Xg")
+        local rowH = math.ceil(measure:GetStringHeight() or 0)
+        if rowH < 1 then rowH = math.ceil(GetBodyFontSize(renderedSize)) + 2 end
+        local spaceW = MeasureText("x x") - MeasureText("xx")
+        if spaceW < 1 then spaceW = 3 end
+        local nameGap = 2 * spaceW   -- indicator column -> name column
+        local tagGap  = spaceW       -- name column -> tag column
+
+        -- Section specs, in render order. The trash header carries its
+        -- collected/total counter: yellow while anything is missing,
+        -- collected-green at 100%.
+        local trashHeaderText
+        if detail.trashRows and (detail.trashTotal or 0) > 0 then
+            local trashLabel = (RR.L["Trash Drops:"]):gsub("[:：]%s*$", "")
+            local trashCountHex = ((detail.trashCollected or 0) >= detail.trashTotal)
+                and "00ff00" or "ffd100"
+            trashHeaderText = ("|cff%s%s|r |cff%s(%d/%d)|r"):format(
+                C_LABEL, trashLabel, trashCountHex,
+                detail.trashCollected or 0, detail.trashTotal)
+        end
+        local factionLabel = (UnitFactionGroup
+                and UnitFactionGroup("player") == "Alliance")
+            and RR.L["Horde Appearances"] or RR.L["Alliance Appearances"]
+        -- `key` lets a section be claimed by a marker row in the main list
+        -- and drawn there instead of here at the foot.
+        local sections = {
+            { key = "hardmode",
+              header = self.hardmodeHeader, toggle = self.hardmodeToggle,
+              flag = "_hardmodeExpanded", rows = detail.hardModeRows,
+              label = ("|cff%s%s|r"):format(C_LABEL, RR.L["Hard Mode"]) },
+            { key = "factiontier",
+              header = self.factionTierHeader, toggle = self.factionTierToggle,
+              flag = "_factionTierExpanded", rows = detail.factionTierRows,
+              label = ("|cff%s%s|r"):format(C_LABEL, factionLabel) },
+            { key = "faction",
+              header = self.factionHeader, toggle = self.factionToggle,
+              flag = "_factionExpanded", rows = detail.factionRows,
+              label = ("|cff%s%s|r"):format(C_LABEL, factionLabel) },
+            { key = "trash",
+              header = self.trashHeader, toggle = self.trashToggle,
+              flag = "_trashExpanded", rows = detail.trashRows,
+              label = trashHeaderText },
+        }
+
+        -- Measure pass over the lists that will actually render (a
+        -- collapsed section contributes only its header). Rows in an
+        -- alignment group take the group's widest indicator and name, so
+        -- the whole group's tag column lands at one x-offset.
+        local renderLists = { detail.mainRows or {} }
+        for _, section in ipairs(sections) do
+            if section.rows and #section.rows > 0 and section.label
+               and self[section.flag] then
+                table.insert(renderLists, section.rows)
+            end
+        end
+        local maxRowW = 0
+        -- Two column pairs per render list, one for the tier block and one for
+        -- the loot below it. Every row in a block takes the same name and tag
+        -- offsets, so tags form one straight column whatever class set a row
+        -- carries. Tier and loot measure apart because the divider already
+        -- reads them as separate tables: a single long loot name would
+        -- otherwise push every tier tag far right of its own short names.
+        -- Each section is its own render list, so expanding one cannot shift
+        -- the others -- the measure pass only walks expanded sections.
+        for _, rows in ipairs(renderLists) do
+            local tierIndicatorW, tierNameW = 0, 0
+            local lootIndicatorW, lootNameW = 0, 0
+            for _, row in ipairs(rows) do
+                if row.kind == "item" then
+                    row.indicatorW = MeasureText(row.indicator)
+                    row.nameW      = MeasureText(row.name)
+                    row.tagsW      = (row.tags and row.tags ~= "")
+                                     and MeasureText(row.tags) or 0
+                    if row.isTier then
+                        if row.indicatorW > tierIndicatorW then
+                            tierIndicatorW = row.indicatorW
+                        end
+                        if row.nameW > tierNameW then tierNameW = row.nameW end
+                    else
+                        if row.indicatorW > lootIndicatorW then
+                            lootIndicatorW = row.indicatorW
+                        end
+                        if row.nameW > lootNameW then lootNameW = row.nameW end
+                    end
+                elseif row.kind == "text" and not row.soft then
+                    -- Prose rows (footnotes, acquisition notes) are
+                    -- excluded: they wrap to the width the loot rows
+                    -- set instead of stretching the popup to fit.
+                    local rowWidth = MeasureText(row.text)
+                    if rowWidth > maxRowW then maxRowW = rowWidth end
+                end
+            end
+            for _, row in ipairs(rows) do
+                if row.kind == "item" then
+                    row.colIndicatorW = row.isTier and tierIndicatorW or lootIndicatorW
+                    row.colNameW      = row.isTier and tierNameW or lootNameW
+                    local rowWidth = row.colIndicatorW + nameGap + row.colNameW
+                    if row.tagsW > 0 then
+                        rowWidth = rowWidth + tagGap + row.tagsW
+                    end
+                    if rowWidth > maxRowW then maxRowW = rowWidth end
+                end
+            end
+        end
+        for _, section in ipairs(sections) do
+            if section.rows and #section.rows > 0 and section.label then
+                local headerWidth = MeasureText(section.label)
+                if headerWidth > maxRowW then maxRowW = headerWidth end
+            end
+        end
+        if self.sanctumLine:IsShown() then
+            -- Measured per line: a multi-location hint carries newlines,
+            -- and the column has to fit the widest of them.
+            --
+            -- A hint anchored to its last line is prose PLUS a destination.
+            -- Measuring the prose stretched the popup to a whole
+            -- paragraph's width, so only the destination line is measured
+            -- there; the sentence wraps to the width the loot rows set,
+            -- which is the treatment footnote rows already get.
+            local sanctumWidth = 0
+            local wrapProse = self._sanctumHint
+                              and self._sanctumHint.buttonOnLastLine
+            local hintLines = {}
+            for hintLine in ((self.sanctumLine:GetText() or "")
+                    .. "\n"):gmatch("(.-)\n") do
+                table.insert(hintLines, hintLine)
+            end
+            for index, hintLine in ipairs(hintLines) do
+                if not wrapProse or index == #hintLines then
+                    local lineWidth = MeasureText(hintLine)
+                    if lineWidth > sanctumWidth then
+                        sanctumWidth = lineWidth
+                    end
+                end
+            end
+            -- The vendor travel button sits 4px past the line's text;
+            -- reserve its width so the button never lands under the
+            -- scrollbar gutter.
+            if self.sanctumButton and self.sanctumButton:IsShown() then
+                sanctumWidth = sanctumWidth + math.floor(fontSize * 1.4) + 4
+            end
+            if sanctumWidth > maxRowW then maxRowW = sanctumWidth end
+        end
+
+        -- Width first: the design width is a floor, and wrapping rows
+        -- need the final viewport width before their heights can be read.
+        local margin = self.contentMargin or 22
+        local popupW = math.max(UI.POPUP_DESIGN_W,
+            math.min(UI.POPUP_MAX_W, math.ceil(maxRowW) + margin + 28 + 2))
+        self:SetWidth(popupW)
+        local viewportW = math.max(1, popupW - margin - 28)
+        self.contentChild:SetWidth(viewportW)
+        -- Rules inset by RULE from BOTH frame edges, so they center on the
+        -- frame rather than on this column (whose right side is the wider
+        -- of the two, reserving scrollbar width).
+        local ruleLeft = math.max(0, UI.TMOG_RULE_INSET - margin)
+        local ruleW    = math.max(1, viewportW - ruleLeft)
+
+        -- Layout walk: rows render top-down from y = 0 in the scroll
+        -- child. Item rows are one line each; text and note rows wrap to
+        -- the viewport and take their measured height.
+        HideTmogRowSlots()
+        self.tierInfoToggle:Hide()
+        UI.HideListDivider(self.tierInfoDivider)
+        HideTmogDividers()
+        local y = 0
+        local slotIdx = 0
+        local dividerIdx = 0
+        local lastNameX = nameGap
+        local sanctumPlaced = false
+        -- Positions the vendor hint (and its travel button) at the current
+        -- y. Called from the "sanctum" marker row when the raid has tier,
+        -- otherwise after the list.
+        local function PlaceSanctumLine()
+            if not self.sanctumLine:IsShown() then return end
+            y = y - (self._sanctumNeedsGap and rowH or 2)
+            local hintTop = y
+            self.sanctumLine:ClearAllPoints()
+            self.sanctumLine:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, y)
+            self.sanctumLine:SetWidth(viewportW)
+            local sanctumHeight = self.sanctumLine:GetStringHeight() or 0
+            y = y - math.max(rowH, math.ceil(sanctumHeight))
+
+            -- Travel button. A multi-line hint puts it at the end of the
+            -- one line that names a routable destination; a single-line
+            -- hint keeps the old end-of-line placement.
+            local hint = self._sanctumHint
+            if self.sanctumButton:IsShown() then
+                local btnSize = self.sanctumButton:GetWidth() or rowH
+                local lineIndex = (hint and hint.buttonLineIndex) or 0
+                local lineText = (hint and hint.buttonLineText)
+                    or self.sanctumLine:GetText()
+                -- A hint whose earlier lines WRAP cannot be indexed from
+                -- the top: lineIndex counts logical lines, the layout needs
+                -- rendered ones. Anything anchored to the final line is
+                -- measured from the bottom of the block instead, which holds
+                -- however much the prose above it wrapped.
+                local lineTop
+                if hint and hint.buttonOnLastLine then
+                    lineTop = hintTop
+                        - (math.max(rowH, math.ceil(sanctumHeight)) - rowH)
+                else
+                    lineTop = hintTop - lineIndex * rowH
+                end
+                self.sanctumButton:ClearAllPoints()
+                self.sanctumButton:SetPoint("TOPLEFT", scrollChild, "TOPLEFT",
+                    MeasureText(lineText) + 4,
+                    lineTop - math.floor((rowH - btnSize) / 2))
+            end
+            sanctumPlaced = true
+        end
+        -- Forward declaration: a marker row inside EmitRows draws a section,
+        -- and a section draws its own rows back through EmitRows.
+        local DrawSection
+        local placedSections = {}
+        local function EmitRows(rows)
+            for _, row in ipairs(rows) do
+                if row.kind == "sanctum" then
+                    PlaceSanctumLine()
+                elseif row.kind == "section" then
+                    for _, section in ipairs(sections) do
+                        if section.key == row.section
+                           and section.rows and #section.rows > 0
+                           and section.label then
+                            DrawSection(section)
+                            placedSections[section.key] = true
+                        end
+                    end
+                elseif row.kind == "blank" then
+                    y = y - rowH
+                elseif row.kind == "divider" then
+                    dividerIdx = dividerIdx + 1
+                    local divider = GetTmogDivider(dividerIdx)
+                    local labelText = row.label and RR.L[row.label] or nil
+                    if labelText then
+                        SetBodyFont(divider.label, renderedSize, "")
+                        labelText = ("|cff%s%s|r"):format(C_PINK_HEX, labelText)
+                    end
+                    y = y - UI.PlaceListDivider(divider, scrollChild, y,
+                        ruleLeft, ruleW, rowH, labelText,
+                        MeasureText(labelText))
+                elseif row.kind == "tierinfo" then
+                    -- Collapsible "Tier / Token Info" subsection: a titled
+                    -- gem divider one font step smaller than the section
+                    -- dividers, with the chevron riding just past the words.
+                    -- Draws nothing when the only would-be content is a
+                    -- vendor line that resolved empty for this boss.
+                    local hasContent = false
+                    for _, infoRow in ipairs(detail.tierInfoRows or {}) do
+                        if infoRow.kind == "sanctum" then
+                            if self.sanctumLine:IsShown() then hasContent = true end
+                        else
+                            hasContent = true
+                        end
+                    end
+                    if hasContent then
+                        local divider = self.tierInfoDivider
+                        local headerSize = math.max(9, renderedSize - 2)
+                        SetBodyFont(divider.label, headerSize, "")
+                        local labelText = ("|cff4dccff%s|r"):format(
+                            RR.L["Redemption Info"])
+                        divider.label:SetText(labelText)
+                        local textW = math.ceil(divider.label:GetStringWidth() or 0)
+                        -- Sub-divider: the rule spans ~60% of the section
+                        -- rules' width, centered, and the cluster reserves
+                        -- chevron room so the right gem clears it.
+                        local subW    = math.floor(ruleW * 0.6)
+                        local subLeft = ruleLeft + math.floor((ruleW - subW) / 2)
+                        local headerTop = y
+                        y = y - UI.PlaceListDivider(divider, scrollChild, y,
+                            subLeft, subW, rowH, labelText,
+                            textW + 4 + headerSize)
+                        -- Placement centered the gems for the full-size
+                        -- asset; drop the smaller ones back onto the line.
+                        local gemDrop = math.floor(
+                            (UI.DIVIDER_GEM_SIZE - UI.DIVIDER_SUBGEM_SIZE) / 2)
+                        for _, gem in ipairs({ divider.gemLeft, divider.gemRight }) do
+                            local pt, rel, relPt, gx, gy = gem:GetPoint(1)
+                            gem:SetPoint(pt, rel, relPt, gx, gy - gemDrop)
+                        end
+                        -- The whole header row is the hit area; the chevron
+                        -- textures sit beside the words.
+                        local toggle = self.tierInfoToggle
+                        toggle:ClearAllPoints()
+                        toggle:SetPoint("TOPLEFT", scrollChild, "TOPLEFT",
+                            subLeft, headerTop - UI.DIVIDER_ABOVE)
+                        toggle:SetSize(subW, rowH)
+                        panel.SetWingChevron(toggle, self._tierInfoExpanded)
+                        for _, chevron in ipairs({ toggle._chevronTex,
+                                                   toggle._chevronHL }) do
+                            chevron:ClearAllPoints()
+                            chevron:SetSize(headerSize, headerSize)
+                            chevron:SetPoint("LEFT", divider.label, "RIGHT", 4, 0)
+                        end
+                        toggle:Show()
+                        if self._tierInfoExpanded then
+                            EmitRows(detail.tierInfoRows)
+                        end
+                    end
+                elseif row.kind == "item" then
+                    slotIdx = slotIdx + 1
+                    local slot = GetTmogRowSlot(slotIdx)
+                    local nameX = (row.colIndicatorW or row.indicatorW) + nameGap
+                    local tagsX = nameX + (row.colNameW or row.nameW) + tagGap
+                    SetBodyFont(slot.indicator, renderedSize, "")
+                    slot.indicator:SetText(row.indicator)
+                    slot.indicator:ClearAllPoints()
+                    slot.indicator:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, y)
+                    slot.indicator:Show()
+                    SetBodyFont(slot.name, renderedSize, "")
+                    slot.name:SetText(row.name)
+                    slot.name:ClearAllPoints()
+                    slot.name:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", nameX, y)
+                    slot.name:Show()
+                    if row.tagsW > 0 then
+                        SetBodyFont(slot.tags, renderedSize, "")
+                        slot.tags:SetText(row.tags)
+                        slot.tags:ClearAllPoints()
+                        slot.tags:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", tagsX, y)
+                        slot.tags:Show()
+                    end
+                    lastNameX = nameX
+                    y = y - rowH
+                elseif row.kind == "text" or row.kind == "note" then
+                    slotIdx = slotIdx + 1
+                    local slot = GetTmogRowSlot(slotIdx)
+                    -- Notes indent to the name column of the row above.
+                    local rowX = (row.kind == "note") and lastNameX or 0
+                    SetBodyFont(slot.wide, renderedSize, "")
+                    slot.wide:SetText(row.text)
+                    slot.wide:ClearAllPoints()
+                    slot.wide:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", rowX, y)
+                    slot.wide:SetWidth(math.max(1, viewportW - rowX))
+                    slot.wide:Show()
+                    local wrappedHeight = slot.wide:GetStringHeight() or 0
+                    y = y - math.max(rowH, math.ceil(wrappedHeight))
+                end
+            end
+        end
+        DrawSection = function(section)
+            y = y - 10
+            SetBodyFont(section.header, renderedSize, "")
+            section.header:SetText(section.label)
+            section.header:ClearAllPoints()
+            section.header:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, y)
+            section.header:Show()
+            section.toggle:SetSize(fontSize, fontSize)
+            section.toggle:ClearAllPoints()
+            section.toggle:SetPoint("LEFT", section.header, "LEFT",
+                MeasureText(section.label) + 4, 0)
+            panel.SetWingChevron(section.toggle, self[section.flag])
+            section.toggle:Show()
+            y = y - rowH
+            if self[section.flag] then
+                y = y - 2
+                EmitRows(section.rows)
+            end
+        end
+
+        -- Does any list carry a placement marker? If so the hint belongs
+        -- where that marker sits, and must NOT also be emitted here --
+        -- placing it twice left a gap above the section it was destined
+        -- for, and showed it above a collapsed section.
+        local hasSanctumMarker = false
+        for _, rows in ipairs({ detail.mainRows or {},
+                                detail.tierInfoRows or {},
+                                detail.trashRows or {},
+                                detail.hardModeRows or {},
+                                detail.factionTierRows or {},
+                                detail.factionRows or {} }) do
+            for _, row in ipairs(rows) do
+                if row.kind == "sanctum" then hasSanctumMarker = true end
+            end
+        end
+
+        EmitRows(detail.mainRows or {})
+
+        -- Raids with no marker at all keep the old spot, below the list.
+        if not sanctumPlaced and not hasSanctumMarker then PlaceSanctumLine() end
+
+        -- Collapsible sections: header (plus chevron toggle just past its
+        -- text), then the section's rows when expanded.
+        for _, section in ipairs(sections) do
+            if placedSections[section.key] then
+                -- Already drawn inline, where its marker sat.
+            elseif section.rows and #section.rows > 0 and section.label then
+                DrawSection(section)
+            else
+                section.header:Hide()
+                section.header:SetText("")
+                section.toggle:Hide()
+            end
+        end
+
+        -- The marker's section is collapsed, so its hint stays hidden with
+        -- the rows it explains rather than floating above them.
+        if not sanctumPlaced and hasSanctumMarker then
+            self.sanctumLine:Hide()
+            self.sanctumButton:Hide()
+        end
+
+        self.tmogContentH = -y
+    end
+
     tmogFrame.RefreshContent = function(self)
         local raid, boss = GetBrowserSelection()
-        local detail, trashBodyText, trashCollected, trashTotal
-        local hardModeBodyText, factionBodyText
+        local detail
         if boss then
-            detail, trashBodyText, trashCollected, trashTotal,
-                hardModeBodyText, factionBodyText =
-                BuildTransmogDetail({ boss = boss })
+            detail = BuildTransmogDetail({ boss = boss })
         else
-            detail = RR.L["Select a raid and boss."]
+            detail = { mainRows = { { kind = "text",
+                text = RR.L["Select a raid and boss."] } } }
         end
-        text:SetText(detail or "")
         local fontSize = RR:GetSetting("fontSize", 12)
-        SetBodyFont(text, fontSize - 1, "")
+        -- Record the layout inputs this render used, so the heartbeat's
+        -- rebuild gate in ApplySettings only fires on a real change.
+        self._lastScale     = RR:GetSetting("windowScale", 1.0)
+        self._lastFontSize  = fontSize
+        self._lastFontStyle = RR:GetSetting("bodyFontStyle", "standard")
 
         -- A nil return hides both widgets. Text without vendorInfo means no
         -- covenant: the line shows, the Flight button doesn't.
-        local sanctumText, sanctumRaid, sanctumCovID, sanctumVendor =
-            BuildSanctumLine(raid, boss)
+        local sanctumText, sanctumRaid, sanctumCovID, sanctumVendor,
+            sanctumKind, sanctumHint = BuildSanctumLine(raid, boss)
+        -- A multi-line hint anchors its travel button to one specific
+        -- line; the layout pass reads these back.
+        self._sanctumHint = sanctumHint
+        -- The covenant hint continues the weapon-token heading above it, so
+        -- it sits tight; a token-vendor hint follows the loot list and needs
+        -- a blank line to read as its own note.
+        self._sanctumNeedsGap = (sanctumKind == "token"
+                                 or sanctumKind == "omni")
         if sanctumText then
             SetBodyFont(sanctumLine, fontSize - 1, "")
             sanctumLine:SetText(sanctumText)
             sanctumLine:Show()
-            if sanctumVendor then
-                -- Anchor against the line's rendered text width. The
-                -- one-frame deferral works around GetStringWidth being
-                -- lazy after SetFont -- needed here because
-                -- RefreshContent only fires on dropdown change.
+            -- A vendor standing inside the instance gets no travel button:
+            -- waypoint providers cannot target an instance map, so the
+            -- button could never route anywhere. Those raids carry a global
+            -- map POI instead. A multi-line hint shows the button only when
+            -- one of its lines names a routable destination.
+            local routable = sanctumVendor and not sanctumVendor.insideRaid
+            if sanctumHint and sanctumHint.travel then routable = true end
+            if routable then
+                -- Positioned by the layout pass, which knows each hint
+                -- line's height and rendered width.
                 local btnSize = math.floor(fontSize * 1.4)
                 sanctumBtn:SetSize(btnSize, btnSize)
-                sanctumBtn:ClearAllPoints()
-                sanctumBtn:SetPoint("LEFT", sanctumLine, "LEFT",
-                    (sanctumLine:GetStringWidth() or 0) + 4, 0)
-                if C_Timer and C_Timer.After then
-                    C_Timer.After(0, function()
-                        if sanctumBtn:IsShown() then
-                            sanctumBtn:ClearAllPoints()
-                            sanctumBtn:SetPoint("LEFT", sanctumLine, "LEFT",
-                                (sanctumLine:GetStringWidth() or 0) + 4, 0)
-                        end
-                    end)
-                end
-                sanctumBtn:SetScript("OnClick", function()
-                    RR:NavigateToSanctum(sanctumRaid, sanctumCovID)
+                sanctumBtn:SetScript("OnClick", function(selfBtn)
+                    -- Waypoints cannot be placed from inside an instance,
+                    -- so say so rather than routing into silence.
+                    if IsInInstance and IsInInstance() then
+                        ShowWaypointToast(selfBtn, RR.L["Zone out first"])
+                        return
+                    end
+                    if sanctumHint and sanctumHint.travel then
+                        -- Per-armor-type merchant: the browser resolved
+                        -- which one from the class being viewed.
+                        local target = sanctumHint.travel
+                        RR:NavigateToDestination(target.mapID, target.x,
+                            target.y,
+                            (RR.L["RetroRuns: %s"]):format(
+                                RR.L[target.vendorName or ""]),
+                            sanctumRaid)
+                    elseif sanctumKind == "token" then
+                        RR:NavigateToTokenVendor(sanctumRaid)
+                    else
+                        RR:NavigateToSanctum(sanctumRaid, sanctumCovID)
+                    end
                 end)
                 sanctumBtn:SetScript("OnEnter", function(selfBtn)
                     CancelTmogHide()
                     GameTooltip:SetOwner(selfBtn, "ANCHOR_RIGHT")
+                    local travelName = (sanctumHint and sanctumHint.travel
+                            and sanctumHint.travel.vendorName)
+                        or sanctumVendor.vendorName
                     GameTooltip:SetText(
                         (RR.L["Travel to %s"]):format(
-                            (sanctumVendor.vendorName and RR.L[sanctumVendor.vendorName])
+                            (travelName and RR.L[travelName])
                                 or RR.L["Sanctum vendor"]),
                         1, 1, 1)
-                    GameTooltip:AddLine(
-                        ("%s -- %s"):format(
-                            RR.L[sanctumVendor.zoneSub or ""],
-                            RR.L[sanctumVendor.zoneMain or ""]),
-                        0.7, 0.7, 0.7, true)
+                    local spotSub = (sanctumHint and sanctumHint.travel
+                            and sanctumHint.travel.zoneSub)
+                        or sanctumVendor.zoneSub
+                    local tooltipSpot = spotSub
+                        and ("%s -- %s"):format(
+                            RR.L[spotSub],
+                            RR.L[sanctumVendor.zoneMain or ""])
+                        or RR.L[sanctumVendor.zoneMain or ""]
+                    if tooltipSpot and tooltipSpot ~= "" then
+                        GameTooltip:AddLine(tooltipSpot, 0.7, 0.7, 0.7, true)
+                    end
                     GameTooltip:Show()
                 end)
                 sanctumBtn:SetScript("OnLeave", function()
@@ -6013,121 +7831,22 @@ GetOrCreateTmogWindow = function()
             sanctumBtn:SetScript("OnLeave", ScheduleTmogHide)
         end
 
-        -- Boss-scoped collapsible sections (hard-mode-only rows, then
-        -- opposite-faction rows), rendered above the raid-level trash
-        -- section. `chainPrev` walks down whichever elements are visible so
-        -- each section anchors to the one above it.
-        local chainPrev = self.sanctumLine:IsShown() and self.sanctumLine
-                          or self.contentText
-        local function RenderSection(header, body, toggle, flagKey,
-                                     labelText, bodyText)
-            if bodyText and bodyText ~= "" then
-                SetBodyFont(header, fontSize - 1, "")
-                header:SetText(("|cff%s%s|r"):format(C_LABEL, labelText))
-                header:ClearAllPoints()
-                header:SetPoint("TOPLEFT",  chainPrev, "BOTTOMLEFT", 0, -10)
-                header:SetPoint("TOPRIGHT", self.contentChild, "TOPRIGHT", 0, 0)
-                header:Show()
-                toggle:SetSize(fontSize, fontSize)
-                local measure = self.lineMeasure
-                SetBodyFont(measure, fontSize - 1, "")
-                measure:SetText(header:GetText() or "")
-                toggle:ClearAllPoints()
-                toggle:SetPoint("LEFT", header, "LEFT",
-                    (measure:GetStringWidth() or 0) + 4, 0)
-                panel.SetWingChevron(toggle, self[flagKey])
-                toggle:Show()
-                if self[flagKey] then
-                    SetBodyFont(body, fontSize - 1, "")
-                    body:SetText(bodyText)
-                    body:Show()
-                    chainPrev = body
-                else
-                    body:Hide()
-                    body:SetText("")
-                    chainPrev = header
-                end
-            else
-                header:Hide()
-                header:SetText("")
-                toggle:Hide()
-                body:Hide()
-                body:SetText("")
-            end
-        end
-        local factionLabel = (UnitFactionGroup
-                and UnitFactionGroup("player") == "Alliance")
-            and RR.L["Horde Appearances"] or RR.L["Alliance Appearances"]
-        RenderSection(self.hardmodeHeader, self.hardmodeBody,
-            self.hardmodeToggle, "_hardmodeExpanded",
-            RR.L["Hard Mode"], hardModeBodyText)
-        RenderSection(self.factionHeader, self.factionBody,
-            self.factionToggle, "_factionExpanded",
-            factionLabel, factionBodyText)
-
-        -- Trash-drops collapsible section. The header shows whenever the raid
-        -- has trash rows; the body only when expanded. Counter is collected /
-        -- total, where "collected" excludes shared appearances (matches the
-        -- gray-dimming rule). Label reuses the translated "Trash Drops:" key
-        -- with its trailing colon stripped so no new locale string is needed.
-        if trashBodyText and trashTotal and trashTotal > 0 then
-            local trashLabel = (RR.L["Trash Drops:"]):gsub("[:：]%s*$", "")
-            SetBodyFont(self.trashHeader, fontSize - 1, "")
-            -- Counter colour tracks completion: yellow while anything is
-            -- missing, collected-green at 100%.
-            local trashCountHex = ((trashCollected or 0) >= trashTotal)
-                and "00ff00" or "ffd100"
-            self.trashHeader:SetText(("|cff%s%s|r |cff%s(%d/%d)|r"):format(
-                C_LABEL, trashLabel, trashCountHex,
-                trashCollected or 0, trashTotal))
-            -- Anchor below the last visible element of the section chain
-            -- (main text -> sanctum line -> hard mode -> faction). Anchoring
-            -- to a hidden element inherits its phantom height and pushes the
-            -- section past the measured content, clipping it at the viewport
-            -- edge -- which is why the chain only ever advances past shown
-            -- widgets.
-            local anchorTo = chainPrev
-            self.trashHeader:ClearAllPoints()
-            self.trashHeader:SetPoint("TOPLEFT",  anchorTo, "BOTTOMLEFT", 0, -10)
-            self.trashHeader:SetPoint("TOPRIGHT", self.contentChild, "TOPRIGHT", 0, 0)
-            self.trashHeader:Show()
-            -- Pink chevron: TriRight collapsed, TriDown expanded, same glyph as
-            -- the LFR wing expanders (via panel.SetWingChevron). Sits just past
-            -- the rendered header text. Width is measured on the hidden
-            -- lineMeasure string because GetStringWidth is lazy immediately
-            -- after SetFont on the header itself.
-            self.trashToggle:SetSize(fontSize, fontSize)
-            local trashMeasure = self.lineMeasure
-            SetBodyFont(trashMeasure, fontSize - 1, "")
-            trashMeasure:SetText(self.trashHeader:GetText() or "")
-            local trashHeaderTextW = trashMeasure:GetStringWidth() or 0
-            self.trashToggle:ClearAllPoints()
-            self.trashToggle:SetPoint("LEFT", self.trashHeader, "LEFT",
-                trashHeaderTextW + 4, 0)
-            panel.SetWingChevron(self.trashToggle, self._trashExpanded)
-            self.trashToggle:Show()
-            if self._trashExpanded then
-                SetBodyFont(self.trashBody, fontSize - 1, "")
-                self.trashBody:SetText(trashBodyText)
-                self.trashBody:Show()
-            else
-                self.trashBody:Hide()
-                self.trashBody:SetText("")
-            end
-        else
-            self.trashHeader:Hide()
-            self.trashHeader:SetText("")
-            self.trashToggle:Hide()
-            self.trashBody:Hide()
-            self.trashBody:SetText("")
-        end
+        -- Lay the structured rows into the pooled widgets. The sanctum
+        -- line's shown state is already final, so the layout can measure
+        -- and position it with the section headers.
+        LayoutTmogContent(self, detail, fontSize)
 
         -- Legend: always rendered, text refreshed here. Position is fixed
         -- (a footer pinned to the popup bottom at construction), so it does
         -- not get re-anchored per boss -- it stays put while the content
         -- above it scrolls.
         SetBodyFont(legendLine, fontSize - 1, "")
-        legendLine:SetText(BuildTmogLegendText())
+        local legendText, legendLines =
+            BuildTmogLegendText(detail and detail.hasFactionPair)
+        legendLine:SetText(legendText)
+        -- The popup sizer reserves the footer from this, so it must be set
+        -- before AutoSize runs at the end of this function.
+        self.legendLineCount = legendLines
 
         -- Refreshed here rather than in RefreshAll: the boss dropdown calls
         -- RefreshContent only, so this is what keeps the control correct on a
@@ -6138,10 +7857,7 @@ GetOrCreateTmogWindow = function()
         if self.RefreshClassDropdownEnabled then
             self:RefreshClassDropdownEnabled()
         end
-        -- Resize popup to fit the new content. We count newlines rather
-        -- than calling GetStringHeight because the latter returns stale
-        -- metrics immediately after a SetFont call, causing the visible
-        -- delayed-resize pop-in.
+        -- Fit the popup around the freshly laid-out content.
         UI.AutoSize()
     end
 
@@ -6153,7 +7869,7 @@ GetOrCreateTmogWindow = function()
     end
 
     -- The "show all class tier" checkbox and the class dropdown are both
-    -- greyed on bosses with no class-gated loot, so the player sees that the
+    -- grayed on bosses with no class-gated loot, so the player sees that the
     -- control doesn't apply rather than clicking into a no-op.
     --
     -- Class-gated means tier tokens in tierSets.tokenSources, OR any row
@@ -6163,27 +7879,46 @@ GetOrCreateTmogWindow = function()
         local raid, boss = GetBrowserSelection()
         local hasClassFiltered = false
         if raid and boss then
-            if raid.tierSets and raid.tierSets.tokenSources then
-                for _, bossIdxVal in pairs(raid.tierSets.tokenSources) do
-                    if type(bossIdxVal) == "table" then
-                        for _, tokenBossIdx in ipairs(bossIdxVal) do
-                            if tokenBossIdx == boss.index then
-                                hasClassFiltered = true
-                                break
-                            end
-                        end
-                        if hasClassFiltered then break end
-                    elseif bossIdxVal == boss.index then
+            -- Test what the dropdown actually changes: rows it gates, and a
+            -- redemption hint whose cost differs per class. Dropping a tier
+            -- token does NOT imply either -- Temple's Imperial Qiraji weapon
+            -- tokens and Castle Nathria's weapon pools serve every class, so
+            -- rows and hint read the same whichever class is picked.
+            if boss.loot then
+                for _, item in ipairs(boss.loot) do
+                    if item.classes or item.equipClasses then
                         hasClassFiltered = true
                         break
                     end
                 end
             end
-            if not hasClassFiltered and boss.loot then
-                for _, item in ipairs(boss.loot) do
-                    if item.classes or item.equipClasses then
-                        hasClassFiltered = true
-                        break
+            local vendorInfo = raid.tokenVendors
+            if not hasClassFiltered and vendorInfo and vendorInfo.locations then
+                local raidGateOpen = true
+                if vendorInfo.bosses then
+                    raidGateOpen = false
+                    for _, gatedIndex in ipairs(vendorInfo.bosses) do
+                        if gatedIndex == boss.index then
+                            raidGateOpen = true
+                            break
+                        end
+                    end
+                end
+                if raidGateOpen then
+                    for _, spot in ipairs(vendorInfo.locations) do
+                        local spotHere = not spot.bosses
+                        if spot.bosses then
+                            for _, gatedIndex in ipairs(spot.bosses) do
+                                if gatedIndex == boss.index then
+                                    spotHere = true
+                                    break
+                                end
+                            end
+                        end
+                        if spotHere and spot.byClass then
+                            hasClassFiltered = true
+                            break
+                        end
                     end
                 end
             end
@@ -6229,19 +7964,6 @@ GetOrCreateTmogWindow = function()
     end)
 
     return tmogFrame
-end
-
-function UI.UpdateTmogWindow(step)
-    if not tmogWindow or not tmogWindow:IsShown() then return end
-    -- If we're in hover mode, sync browser selection to the current step
-    -- before rerendering. Browser mode ignores step and shows the user's
-    -- current dropdown selection.
-    if not browserState.active and step and step.bossIndex and RR.currentRaid then
-        browserState.expansion = RR.currentRaid.expansion
-        browserState.raidKey   = RR.currentRaid.instanceID
-        browserState.bossIndex = step.bossIndex
-    end
-    tmogWindow:RefreshAll()
 end
 
 -- Force a content refresh of the tmog window if it's open. Used by the
@@ -6295,7 +8017,9 @@ function UI.OpenTransmogBrowser()
     window:SetScale(scale)
     -- Collapsible sections always open collapsed.
     window._trashExpanded = false
+    window._tierInfoExpanded = false
     window._hardmodeExpanded = false
+    window._factionTierExpanded = false
     window._factionExpanded = false
     window:RefreshAll()
     window:Show()
@@ -6336,7 +8060,6 @@ function UI.DumpTmogSize()
         return
     end
 
-    local text        = tmogWindow.contentText
     local sanctumLine = tmogWindow.sanctumLine
     local legendLine  = tmogWindow.legendLine
 
@@ -6359,41 +8082,30 @@ function UI.DumpTmogSize()
             label, shown, windowHeight, sh, top, bot))
     end
 
-    widgetSummary("text",        text)
     widgetSummary("sanctumLine", sanctumLine)
     widgetSummary("legendLine",  legendLine)
 
-    -- Mirror the AutoSize calculation so we can compare against actual.
-    -- Must match AutoSize exactly: rendered size is fontSize-1 (RefreshContent
-    -- renders the body at fontSize-1), and the per-line pad is +0.5.
+    -- Mirror the AutoSize height calculation so we can compare against
+    -- actual. Content height comes from the row layout pass; AutoSize
+    -- adds chrome, viewport cap and the legend footer around it.
     local fontSize     = RR:GetSetting("fontSize", 12)
     local renderedSize = math.max(8, fontSize - 1)
     local bodySize     = GetBodyFontSize and GetBodyFontSize(renderedSize) or renderedSize
     local lineHeight   = bodySize + 0.5
-    local content    = (text and text:GetText()) or ""
-    local lineCount  = 1
-    for _ in content:gmatch("\n") do lineCount = lineCount + 1 end
-    local textH = lineCount * lineHeight
-
-    local sanctumH = 0
-    if sanctumLine and sanctumLine:IsShown() then
-        sanctumH = lineHeight + 2
-    end
+    local contentH     = tmogWindow.tmogContentH or 0
     local legendH = 2 * lineHeight + 8
 
-    local chrome = 32 + (4 * 32 - 12) + 10 + 14
-    local desired = chrome + textH + sanctumH + legendH
+    local chrome = 32 + (5 * 32 - 12) + 10 + 14
+    local desired = chrome + contentH + legendH
 
     add("")
     add("AutoSize math:")
     add(("  fontSize=%d  bodySize=%d  lineHeight=%d"):format(
         fontSize, bodySize, lineHeight))
-    add(("  text lineCount (newline-counted) = %d"):format(lineCount))
-    add(("  textH (calculated) = %d"):format(textH))
-    add(("  sanctumH = %d"):format(sanctumH))
+    add(("  contentH (row layout) = %d"):format(contentH))
     add(("  legendH = %d"):format(legendH))
     add(("  chrome = 32 + 88 + 10 + 14 = %d"):format(chrome))
-    add(("  desired = chrome + textH + sanctumH + legendH = %d"):format(desired))
+    add(("  desired = chrome + contentH + legendH = %d"):format(desired))
     add(("  set frame height = %.1f"):format(fH))
 
     -- Geometry comparison: where does the last visible widget actually
@@ -6442,8 +8154,8 @@ function UI.DumpTmogSize()
     add(("  scrollbar via global name:      %s%s"):format(
         barGlobal and "EXISTS" or "nil",
         barGlobal and (barGlobal:IsShown() and " (shown)" or " (hidden)") or ""))
-    -- Report the AutoSize viewportH the bar decision used.
-    add(("  (AutoSize textH estimate=%d -- compare to child.height above)"):format(textH))
+    -- Report the content height the bar decision used.
+    add(("  (row-layout contentH=%d -- compare to child.height above)"):format(contentH))
 
     RR:ShowCopyWindow("tmogsize", table.concat(lines, "\n"))
 end
@@ -6583,7 +8295,7 @@ local SKIPS_COL_NORMAL_X   = 240
 local SKIPS_COL_HEROIC_X   = 300
 local SKIPS_COL_MYTHIC_X   = 360
 
--- Clear space demanded between two neighbouring column headers, and
+-- Clear space demanded between two neighboring column headers, and
 -- between the leftmost header and the info-button column.
 local SKIPS_COL_HEADER_GAP = 12
 
@@ -6591,7 +8303,7 @@ local SKIPS_COL_HEADER_GAP = 12
 -- is the multiplier (rendered line-height = fontSize * SKIPS_LINE_GAP).
 local SKIPS_LINE_GAP       = 1.7
 
--- Moves the divider up into the row band so the text reads as centred between
+-- Moves the divider up into the row band so the text reads as centered between
 -- two dividers -- the FontString's internal top-padding shifts its visual
 -- midpoint upward.
 local SKIPS_ROW_DIVIDER_INSET = 5
@@ -6710,7 +8422,7 @@ local function BuildSkipsRows()
                 -- "na" = not applicable for this raid (only Mythic exists).
 
                 -- Multi-chain raids render as one row with two glyphs per
-                -- cell, centred on the column midline. Each chain cascades
+                -- cell, centered on the column midline. Each chain cascades
                 -- independently and takes its own ceiling.
                 local perChain = RR:GetSkipChainCeilings(raid)
                 local isMultiChain = perChain and #perChain > 1
@@ -6889,6 +8601,13 @@ local function GetSkipsRowSlot(parent, idx)
     slot.divider = parent:CreateTexture(nil, "ARTWORK")
     slot.divider:SetColorTexture(0.4, 0.4, 0.4, 0.25)
     slot.divider:SetHeight(1)
+    -- Pixel-grid snapping can collapse a 1px line to zero pixel rows at
+    -- fractional effective scales, leaving scattered rows with no
+    -- divider. Unsnapped, the line antialiases instead of vanishing.
+    if slot.divider.SetTexelSnappingBias then
+        slot.divider:SetTexelSnappingBias(0)
+        slot.divider:SetSnapToPixelGrid(false)
+    end
 
     -- Active-raid highlight + left accent bar. Same shape as the
     -- achievements window's current-boss highlight: a BORDER-layer
@@ -7262,9 +8981,9 @@ GetOrCreateSkipsWindow = function()
     skipsFrame.colHeaderM = MakeColHeader(SKIPS_COL_MYTHIC_X, RR.L["Mythic"])
 
     -- Fit the columns to the translated headers. The headers are centered
-    -- on their column, so two neighbours collide once the pitch drops below
+    -- on their column, so two neighbors collide once the pitch drops below
     -- half of each one's width plus a gap. Widen the pitch to the worst
-    -- neighbouring pair, then widen the frame to match. English and Spanish
+    -- neighboring pair, then widen the frame to match. English and Spanish
     -- measure under the default pitch and come out unchanged.
     local widthN = skipsFrame.colHeaderN:GetStringWidth() or 0
     local widthH = skipsFrame.colHeaderH:GetStringWidth() or 0
@@ -7355,7 +9074,7 @@ end -- skips do block
 -- What's New (release-notes body builder)
 -- ============================================================================
 --
--- Renders RR.WhatsNew into one colour-coded string for the Settings tab.
+-- Renders RR.WhatsNew into one color-coded string for the Settings tab.
 -- Wrapped in do/end to keep its locals out of UI.lua's top-level scope, which
 -- is near Lua 5.1's 200-local ceiling.
 do
@@ -7373,7 +9092,7 @@ local function BuildWhatsNewBody()
     for i, entry in ipairs(entries) do
         if i > 1 then pushBlank() end
         -- Version + date line. Version in retro pink (matches Skip:
-        -- popup heading + footer Note: convention), date in muted grey.
+        -- popup heading + footer Note: convention), date in muted gray.
         table.insert(lines, ("|cffF259C7v%s|r   |cff9d9d9d%s|r"):format(
             entry.version or "?", entry.date or ""))
         for _, section in ipairs(entry.sections or {}) do
@@ -7386,7 +9105,7 @@ local function BuildWhatsNewBody()
                 -- Render **bold** spans as bright-white inline color.
                 -- The CHANGELOG voice puts the lead-in headline-style
                 -- phrase in **bold** before the supporting prose, so
-                -- bright-white-on-grey gives the same visual emphasis.
+                -- bright-white-on-gray gives the same visual emphasis.
                 local rendered = RR.L[bullet]:gsub("%*%*(.-)%*%*",
                     "|cffffffff%1|r")
                 table.insert(lines, "  - |cffaaaaaa" .. rendered .. "|r")
@@ -7404,7 +9123,7 @@ end -- do block
 
 
 -- Per-raid pill row for the idle list. Same shape as the in-raid row, but
--- coloured by each pill's OWN lockout state: green cleared, amber partial,
+-- colored by each pill's OWN lockout state: green cleared, amber partial,
 -- gray untouched, dim "-" where the difficulty doesn't apply.
 local function BuildIdleListPills(raid)
     local counts = RR:GetPerDifficultyKillCountsForRaid(raid)
@@ -8065,8 +9784,9 @@ RefreshIdleList = function()
                     or RR:IsWUIInstalled()
                     or RR:IsTomTomInstalled()
                 btn:SetAlpha(anyProviderInstalled and 1.0 or 0.4)
+                local rowFS = fs
                 btn:SetScript("OnClick", function(self)
-                    panel.ShowNavChooser(self, raid)
+                    panel.ShowNavChooser(self, raid, rowFS)
                 end)
                 btn:Show()
                 table.insert(panel.entranceButtons, btn)
@@ -8378,9 +10098,14 @@ function UI.Update()
             panel.travel:SetText("")
             panel.exitNote:SetText("")
             panel.exitNote:Hide()
+            panel.skipReturn:SetText("")
+            panel.skipReturn:Hide()
+            panel.skipNote:SetText("")
+            panel.skipNote:Hide()
             panel.encounter.headerPulsing = false
             panel.encounter.header.label:SetText("")
             panel.encounter.header.clickable = false
+            panel.encounter.skip:Hide()
             panel.encounter.header:EnableMouse(false)
             panel.encounter.achievements.label:SetText("")
             panel.encounter.achievements:Hide()
@@ -8419,10 +10144,21 @@ function UI.Update()
             -- above. The boss name itself takes the FontString's default
             -- GameFontNormal gold; the |cffffffff...|r escape paints only
             -- the prefix label white so the boss-name color is unchanged.
-            panel.next:SetText(RR.L["|cffffffffBoss:|r "] .. ((boss and RR:GetLocalizedBossName(boss)) or RR.L["Unknown"]))
+            -- Optional bosses name themselves as such on the header row.
+            -- Appended outside the name so no color code has to nest.
+            local optionalTag = (boss and RR.IsBossOptional
+                and RR:IsBossOptional(boss.index))
+                and (" |cff808080" .. RR.L["(optional)"] .. "|r") or ""
+            panel.next:SetText(RR.L["|cffffffffBoss:|r "]
+                .. ((boss and RR:GetLocalizedBossName(boss)) or RR.L["Unknown"])
+                .. optionalTag)
             panel.travel:SetText(BuildTravelText(step))
             panel.exitNote:SetText("")
             panel.exitNote:Hide()
+            panel.skipReturn:SetText("")
+            panel.skipReturn:Hide()
+            panel.skipNote:SetText("")
+            panel.skipNote:Hide()
             local headerText, achText, specialText, encClickable,
                   headerPulsing = BuildEncounterText(step)
 
@@ -8436,6 +10172,31 @@ function UI.Update()
             panel.encounter.header:EnableMouse(encClickable)
             local headerH = math.max(14, panel.encounter.header.label:GetStringHeight())
             panel.encounter.header:SetHeight(headerH)
+
+            -- Skip control, inline after the header text. Only while the
+            -- note is collapsed: expanded, the header wraps the whole
+            -- soloTip and there is no predictable end-of-line to sit after.
+            local skipBtn = panel.encounter.skip
+            local skipBoss = step and RR.IsBossOptional
+                and RR:IsBossOptional(step.bossIndex)
+                and not RR:GetSetting("encounterExpanded")
+            if skipBoss then
+                skipBtn.bossIndex = step.bossIndex
+                SetBodyFont(skipBtn.label, RR:GetSetting("fontSize", 12), "")
+                -- Leading space rather than a pixel gap: the header text
+                -- ends flush, so one space is exactly one space at any
+                -- font size.
+                skipBtn.label:SetText(" |cffaaaaaa" .. RR.L["or"]
+                    .. "|r |cffF259C7[" .. RR.L["Skip Boss"] .. "]|r")
+                skipBtn:SetSize(math.max(1, skipBtn.label:GetStringWidth()), headerH)
+                skipBtn:ClearAllPoints()
+                skipBtn:SetPoint("TOPLEFT", panel.encounter.header, "TOPLEFT",
+                    panel.encounter.header.label:GetStringWidth(), 0)
+                skipBtn:Show()
+            else
+                skipBtn.bossIndex = nil
+                skipBtn:Hide()
+            end
 
             -- Achievements sub-widget: hyperlinks-only, no toggle. Hidden
             -- entirely when empty so the layout collapses naturally.
@@ -8559,13 +10320,36 @@ function UI.Update()
                 -- inline exit glyph. Wing-aware selection lives in the engine
                 -- (GetActiveExitNote) so the minimized bar shows the same note.
                 local exitNote = RR:GetActiveExitNote()
+                local exitFontSize = RR:GetSetting("fontSize", 12)
+                -- A skip run ends with a boss still alive, so the block under
+                -- the banner invites the player back and says plainly that
+                -- routing stays down for the rest of the lockout. The caveat
+                -- rides its own field: two points down and indented, which
+                -- one FontString cannot express.
+                if isSkip then
+                    panel.skipReturn:SetText(
+                        RR.L["Feel free to return and kill any bosses you skipped!"])
+                    panel.skipReturn:SetTextColor(1, 1, 1)
+                    SetBodyFont(panel.skipReturn, exitFontSize, "")
+                    panel.skipReturn:Show()
+                    panel.skipNote:SetText("|cff9d9d9d"
+                        .. RR.L["Note: Routing will not be available on this lockout"]
+                        .. "|r")
+                    SetBodyFont(panel.skipNote, math.max(8, exitFontSize - 2), "")
+                    panel.skipNote:Show()
+                else
+                    panel.skipReturn:SetText("")
+                    panel.skipReturn:Hide()
+                    panel.skipNote:SetText("")
+                    panel.skipNote:Hide()
+                end
                 if exitNote and exitNote ~= "" then
-                    local exitFontSize = RR:GetSetting("fontSize", 12)
                     local exitGlyphSize = exitFontSize + 3
                     panel.exitNote:SetText(
                         ("|TInterface\\AddOns\\RetroRuns\\Media\\ExitIcon:%d:%d:0:-1:64:64:0:64:0:64:242:89:199|t ")
                             :format(exitGlyphSize, exitGlyphSize) ..
-                        "|cfff259c7" .. RR.L["Exit Note:"] .. "|r " .. HighlightNames(exitNote))
+                        "|cfff259c7" .. RR.L["Exit Note:"] .. "|r "
+                        .. HighlightNames(exitNote))
                     panel.exitNote:SetTextColor(1, 1, 1)
                     SetBodyFont(panel.exitNote, exitFontSize, "")
                     panel.exitNote:Show()
@@ -8573,15 +10357,28 @@ function UI.Update()
                     panel.exitNote:SetText("")
                     panel.exitNote:Hide()
                 end
+                -- The exit note closes the block, so on a skip run it moves
+                -- below the caveat and dedents back to the block's left edge.
+                panel.exitNote:ClearAllPoints()
+                if panel.skipNote:IsShown() then
+                    panel.exitNote:SetPoint("TOPLEFT", panel.skipNote, "BOTTOMLEFT", -12, -13)
+                else
+                    panel.exitNote:SetPoint("TOPLEFT", panel.next, "BOTTOMLEFT", 0, -13)
+                end
             else
                 panel.next:SetText(RR.L["|cffff9333Routing data not yet captured for this raid.|r"])
                 panel.exitNote:SetText("")
                 panel.exitNote:Hide()
+                panel.skipReturn:SetText("")
+                panel.skipReturn:Hide()
+                panel.skipNote:SetText("")
+                panel.skipNote:Hide()
             end
             panel.travel:SetText("")
             panel.encounter.headerPulsing = false
             panel.encounter.header.label:SetText("")
             panel.encounter.header.clickable = false
+            panel.encounter.skip:Hide()
             panel.encounter.header:EnableMouse(false)
             panel.encounter.achievements.label:SetText("")
             panel.encounter.achievements:Hide()
@@ -8602,6 +10399,8 @@ function UI.Update()
             panel.listHeader:ClearAllPoints()
             if panel.exitNote:IsShown() then
                 panel.listHeader:SetPoint("TOPLEFT", panel.exitNote, "BOTTOMLEFT", 0, -12)
+            elseif panel.skipNote:IsShown() then
+                panel.listHeader:SetPoint("TOPLEFT", panel.skipNote, "BOTTOMLEFT", -12, -12)
             else
                 panel.listHeader:SetPoint("TOPLEFT", panel.next, "BOTTOMLEFT", 0, -12)
             end
@@ -8641,9 +10440,14 @@ function UI.Update()
         panel.travel:SetText("")
         panel.exitNote:SetText("")
         panel.exitNote:Hide()
+        panel.skipReturn:SetText("")
+        panel.skipReturn:Hide()
+        panel.skipNote:SetText("")
+        panel.skipNote:Hide()
         panel.encounter.headerPulsing = false
         panel.encounter.header.label:SetText("")
         panel.encounter.header.clickable = false
+        panel.encounter.skip:Hide()
         panel.encounter.header:EnableMouse(false)
         panel.encounter.achievements.label:SetText("")
         panel.encounter.achievements:Hide()
@@ -8695,6 +10499,41 @@ local GetOrCreateAchievementsWindow
 
 -- StaticPopup for the "copy Wowhead URL" dialog (Ctrl+C, dismiss). Addons
 -- can't open URLs directly, so a copy-popup is the standard pattern.
+-- Confirmation for bypassing an optional boss. The choice lasts the whole
+-- lockout and has no in-panel undo, so it asks first.
+StaticPopupDialogs["RETRORUNS_SKIP_BOSS"] = {
+    text         = RR.L["Skip %s for this lockout?\n\nThe route will continue past this boss."],
+    button1      = YES or RR.L["Yes"],
+    button2      = NO or RR.L["No"],
+    timeout      = 0,
+    whileDead    = true,
+    hideOnEscape = true,
+    -- preferredIndex 3 sidesteps the RAID_WARNING taint chain.
+    preferredIndex = 3,
+    OnAccept = function(_, data)
+        if data and data.bossIndex then
+            RR:SetBossSkipped(data.bossIndex, true)
+            UI.Update()
+        end
+    end,
+}
+
+-- Shared entry point for both skip controls (the header button and the
+-- {skip} link inside the note), so they cannot drift apart.
+function UI.ConfirmSkipBoss(bossIndex)
+    if not bossIndex or not RR:IsBossOptional(bossIndex) then return end
+    local boss = RR:GetBossByIndex(bossIndex)
+    local bossName = (boss and RR:GetLocalizedBossName(boss)) or RR.L["Unknown"]
+    -- Say why rather than opening a confirmation that would fail: from here
+    -- the route has nowhere to send them once this step is gone.
+    if not RR:CanSkipBoss(bossIndex) then
+        RR:Print(RR.L["Cannot skip from here -- keep going until the route reaches the next boss."])
+        return
+    end
+    StaticPopup_Show("RETRORUNS_SKIP_BOSS", bossName, nil,
+        { bossIndex = bossIndex })
+end
+
 StaticPopupDialogs["RETRORUNS_WOWHEAD_URL"] = {
     text         = RR.L["%s\n|cffffd200%s|r\n\nWowhead URL (Ctrl+C to copy):"],
     button1      = OKAY or RR.L["Okay"],
@@ -9407,7 +11246,7 @@ function UI.ShowLoadDialog(raidName)
         end
     end
     -- Color the footer green while it's serving as the Continue? hint,
-    -- matching the FULL-side hint; otherwise the default disabled grey.
+    -- matching the FULL-side hint; otherwise the default disabled gray.
     if resumeIsSkip then
         dialog.skipFooter:SetTextColor(0.4, 1, 0.4)
     else
@@ -9753,6 +11592,13 @@ local function GetAchRowSlot(parent, idx)
     slot.divider = parent:CreateTexture(nil, "ARTWORK")
     slot.divider:SetColorTexture(0.4, 0.4, 0.4, 0.25)
     slot.divider:SetHeight(1)
+    -- Pixel-grid snapping can collapse a 1px line to zero pixel rows at
+    -- fractional effective scales, leaving scattered rows with no
+    -- divider. Unsnapped, the line antialiases instead of vanishing.
+    if slot.divider.SetTexelSnappingBias then
+        slot.divider:SetTexelSnappingBias(0)
+        slot.divider:SetSnapToPixelGrid(false)
+    end
 
     -- "Current boss" highlight: a faint full-row blue tint plus a
     -- brighter left-edge accent bar. BORDER draw layer (not BACKGROUND)

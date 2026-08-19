@@ -19,6 +19,11 @@ local MAX_CHEVRONS = 200
 -- from their own pool so their indices never collide with the step segments'.
 local MAX_GLOBAL_POI = 12
 
+-- Global-POI chrome sits a step under the route's own markers and labels, so
+-- reference points read as secondary to the objective.
+local GLOBAL_POI_SIZE = 23.4   -- route markers use 26
+local GLOBAL_POI_FONT = 15     -- shared label size is 17
+
 local overlay = CreateFrame(
     "Frame", "RetroRunsMapOverlay",
     WorldMapFrame.ScrollContainer.Child)
@@ -56,10 +61,10 @@ local function MakeDot(parent)
     return tx
 end
 
-local function MakeLabel(parent)
+local function MakeLabel(parent, fontSize)
     local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     fs:SetTextColor(1.0, 1.0, 1.0, 1.0)
-    fs:SetFont(fs:GetFont(), 17, "OUTLINE")
+    fs:SetFont(fs:GetFont(), fontSize or 17, "OUTLINE")
     fs:Hide()
     return fs
 end
@@ -91,7 +96,7 @@ for i = 1, MAX_LABELS   do overlay.labels[i]   = MakeLabel(overlay)   end
 for i = 1, MAX_RINGS      do overlay.rings[i]     = MakeRing(overlay)  end
 for i = 1, MAX_CHEVRONS   do overlay.chevrons[i]  = MakeChevron(overlay) end
 for i = 1, MAX_GLOBAL_POI do overlay.poiIcons[i]  = MakeIcon(overlay)  end
-for i = 1, MAX_GLOBAL_POI do overlay.poiLabels[i] = MakeLabel(overlay) end
+for i = 1, MAX_GLOBAL_POI do overlay.poiLabels[i] = MakeLabel(overlay, GLOBAL_POI_FONT) end
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -143,7 +148,7 @@ local function PlaceEndMarker(self, icon, pts, dest, W, H, endpointKind)
     end
 
     icon:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\EndTriangle")
-    -- White tint is a no-op, so the asset's baked colours render as authored.
+    -- White tint is a no-op, so the asset's baked colors render as authored.
     icon:SetVertexColor(1.0, 1.0, 1.0, 1.0)
     icon:SetSize(24, 24)
     icon:SetDrawLayer("OVERLAY")
@@ -325,27 +330,63 @@ local GLOBAL_POI_TEXTURES = {
     vendor    = "Interface\\AddOns\\RetroRuns\\Media\\CoinStack",
     repair    = "Interface\\GossipFrame\\VendorRepairGossipIcon",
     innkeeper = "Interface\\GossipFrame\\BinderGossipIcon",
+    alchemy   = "Interface\\Icons\\Trade_Alchemy",
+    -- An NPC who takes a turn-in rather than selling anything. The coin
+    -- stack would read as "buy from me" where nothing is bought.
+    quest     = "Interface\\AddOns\\RetroRuns\\Media\\QuestMarker",
+    -- Sells gear for a token or currency rather than gold. Blizzard's own
+    -- Justice Points icon, which is the helm players already associate
+    -- with a gear quartermaster.
+    quartermaster = "Interface\\Icons\\pvecurrency-justice",
 }
 local GLOBAL_POI_DEFAULT = "Interface\\GossipFrame\\GossipGossipIcon"
+
+-- Class icons come from Blizzard's shared circle sheet, cropped per class.
+local CLASS_ICON_SHEET = "Interface\\TargetingFrame\\UI-Classes-Circles"
 
 function overlay:DrawGlobalPOIsForMap(mapID)
     local raid = RR.currentRaid
     if not raid or not raid.pois then return end
+    -- Read at draw time: at file scope the player unit may not exist yet.
+    local playerFaction = UnitFactionGroup and UnitFactionGroup("player")
+    local _, playerClassToken, playerClassID = UnitClass("player")
+    -- A POI tagged with a faction or class draws only for the player it
+    -- belongs to; untagged entries stay shared. ICC's tier vendors are a
+    -- different NPC per class per faction, so one shared pin sends a Death
+    -- Knight most of a room away from theirs.
+    local function BelongsToPlayer(poi)
+        if poi.faction and poi.faction ~= playerFaction then return false end
+        if poi.class and poi.class ~= playerClassID then return false end
+        return true
+    end
     local iconIdx, labelIdx = 1, 1
     for _, poi in ipairs(raid.pois) do
         if poi.mapID == mapID and poi.points and #poi.points > 0
+            and BelongsToPlayer(poi)
             and iconIdx <= MAX_GLOBAL_POI then
             local mark = poi.navPoint or poi.points[#poi.points]
             if not poi.noMarker then
                 local icon = self.poiIcons[iconIdx]
                 if icon then
                     PlaceAt(icon, self, mark[1], mark[2])
-                    icon:SetTexture(GLOBAL_POI_TEXTURES[poi.poiKind]
-                                    or GLOBAL_POI_DEFAULT)
+                    -- Class-tagged markers wear that class's icon. The pool
+                    -- is shared, so the plain branch clears the crop.
+                    local classCoords = poi.class and CLASS_ICON_TCOORDS
+                        and CLASS_ICON_TCOORDS[playerClassToken]
+                    if classCoords then
+                        icon:SetTexture(CLASS_ICON_SHEET)
+                        icon:SetTexCoord(classCoords[1], classCoords[2],
+                                         classCoords[3], classCoords[4])
+                    else
+                        icon:SetTexture(GLOBAL_POI_TEXTURES[poi.poiKind]
+                                        or GLOBAL_POI_DEFAULT)
+                        icon:SetTexCoord(0, 1, 0, 1)
+                    end
                     icon:SetVertexColor(1, 1, 1, 1)
                     icon:SetRotation(0)
                     icon:SetDrawLayer("ARTWORK")
-                    icon:SetSize(poi.poiSize or 26, poi.poiSize or 26)
+                    icon:SetSize(poi.poiSize or GLOBAL_POI_SIZE,
+                                 poi.poiSize or GLOBAL_POI_SIZE)
                     icon:Show()
                     iconIdx = iconIdx + 1
                 end
@@ -354,7 +395,7 @@ function overlay:DrawGlobalPOIsForMap(mapID)
                 local label = self.poiLabels[labelIdx]
                 if label then
                     self:PlaceLabel(label, poi.mapLabelPos, mark[1], mark[2],
-                        (poi.poiSize or 26) / 2)
+                        (poi.poiSize or GLOBAL_POI_SIZE) / 2)
                     label:SetText(RR.L[poi.mapLabel])
                     label:Show()
                     labelIdx = labelIdx + 1
@@ -382,7 +423,7 @@ function overlay:DrawSegmentsForMap(mapID)
     local chevronIdx = 1
 
     for _, seg in ipairs(segments) do
-        local pts = seg.points
+        local pts = RR:ResolveSegPoints(seg)
         if pts and #pts > 0 then
 
             -- A "go here" pin rather than a path. noMarker suppresses even

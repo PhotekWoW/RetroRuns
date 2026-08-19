@@ -383,20 +383,21 @@ RetroRuns_Data[2569] = {
                 { id=204177, slot="Weapon",   name="Nasz'uro, the Unbound Legacy",     sources={ [17]=185459, [14]=185459, [15]=185459, [16]=185459 }, restrictedToClass=13 },
             },
             soloTip = "Oblivion stacks don't matter anymore, but avoid swirly/portal-looking areas on the ground. Stay away from the edge.",
-            -- Two omnitoken-shaped extras Sarkareth drops alongside his
-            -- regular loot: the Void-Touched Curio (any-tier-slot exchange)
-            -- and the Cracked Titan Gem (starts the quest chain that
-            -- rewards Nasz'uro for Evokers). Each surfaces as its own
-            -- footnote block.
+            -- Void-Touched Curio exchanges for any tier slot. Kaitalla
+            -- takes it; the item's own description names her.
+            omniToken = {
+                text   = "Sarkareth additionally drops {item}, an omnitoken that exchanges for any tier slot. Not tracked here.",
+                itemID = 206046,
+                vendorName = "Kaitalla",
+                zoneMain   = "Zaralek Cavern",
+                zoneSub    = "Obsidian Rest",
+                mapID = 2133, x = 0.520, y = 0.256,
+            },
+            -- Cracked Titan Gem starts the quest chain that rewards
+            -- Nasz'uro for Evokers. Not an omnitoken -- stays a footnote.
             tmogFootnote = {
-                {
-                    text   = "Sarkareth additionally drops {item}, an omnitoken that exchanges for any tier slot. Not tracked here.",
-                    itemID = 206046,
-                },
-                {
-                    text   = "Sarkareth also drops {item}, which starts the quest chain that rewards Nasz'uro, the Unbound Legacy (Evoker only).",
-                    itemID = 204255,
-                },
+                text   = "Sarkareth also drops {item}, which starts the quest chain that rewards Nasz'uro, the Unbound Legacy (Evoker only).",
+                itemID = 204255,
             },
         },
     },

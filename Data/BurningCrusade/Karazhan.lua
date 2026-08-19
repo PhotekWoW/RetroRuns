@@ -346,9 +346,8 @@ RetroRuns_Data[532] = {
             achievements       = {},
             -- Nightbane is a summoned optional boss with no Encounter
             -- Journal entry, so his drops carry no JournalEncounterItem
-            -- rows. Item list cross-referenced from ATT; every sourceID
-            -- resolved from ItemModifiedAppearance the same way as every
-            -- other row here.
+            -- rows. Every sourceID below resolved from
+            -- ItemModifiedAppearance the same way as every other row here.
             loot = {
                 { id = 28601, slot = "Chest", name = "Chestguard of the Conniver", sources = { [14]=12576 } },
                 { id = 28597, slot = "Chest", name = "Panzar'Thar Breastplate", sources = { [14]=12573 } },

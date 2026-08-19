@@ -44,6 +44,7 @@ RetroRuns_Data[754] = {
             [65087] = 2,  -- Shoulders of the Forlorn Protector
             [65088] = 2,  -- Shoulders of the Forlorn Conqueror
             [65089] = 2,  -- Shoulders of the Forlorn Vanquisher
+            [66998] = 2,  -- Essence of the Forlorn
         },
     },
 
@@ -143,6 +144,24 @@ RetroRuns_Data[754] = {
                 { id = 63041, kind = "mount", name = "Reins of the Drake of the South Wind" },
                 { id = 152973, kind = "pet", name = "Zephyr's Call" },
                 { id = 138836, kind = "illusion", name = "Illusion: Windfury", sourceID = 5875 },
+            },
+            -- Essence of the Forlorn buys any of the fifteen Tier 11 set
+            -- tokens -- all five slots, all three armor groups -- from the
+            -- Legacy Justice Quartermaster in either capital. The raid's
+            -- other Forlorn tokens redeem on right-click and need no vendor.
+            omniToken = {
+                text   = "Al'Akir also drops {item}, an omnitoken that allows you to purchase any Tier 11 set piece of matching quality. Not tracked here.",
+                itemID = 66998,
+                alliance = {
+                    vendorName = "Toren Landow",
+                    zoneMain   = "Stormwind City",
+                    mapID = 84, x = 0.757, y = 0.659,
+                },
+                horde = {
+                    vendorName = "Rugok",
+                    zoneMain   = "Orgrimmar",
+                    mapID = 85, x = 0.482, y = 0.716,
+                },
             },
         },
     },

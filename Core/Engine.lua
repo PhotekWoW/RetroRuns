@@ -150,6 +150,25 @@ function RR:GetPersistedRouteVariant()
     return store and store.routeVariant or nil
 end
 
+-- Persist a bypassed optional boss for the current lockout.
+--
+-- `state.bossesSkipped` alone is not enough. It is runtime-only, and unlike
+-- `bossesKilled` -- which a reload rebuilds from the server's saved-instance
+-- data -- a skip has no external source to rebuild from, so it silently
+-- reverted to "(optional)" on every /reload.
+--
+-- Kept on the lockout store rather than the per-variant one, the same way
+-- routeVariant is: the choice is about a BOSS, and bosses are the same
+-- across route variants even where their step numbering is not. The store
+-- is keyed by lockout id, so the per-lockout reset comes for free.
+function RR:PersistBossSkipped(bossIndex, skipped)
+    if not bossIndex then return end
+    local store = self:GetLockoutStore(true)
+    if not store then return end
+    store.skippedBosses = store.skippedBosses or {}
+    store.skippedBosses[bossIndex] = skipped and true or nil
+end
+
 function RR:RestorePersistedProgress()
     self.state.progress       = {}
     self.state.triggersFired  = {}
@@ -181,6 +200,15 @@ function RR:RestorePersistedProgress()
     -- the same route (skip or standard) the player was running.
     if store.routeVariant then
         self.state.activeRouteVariant = store.routeVariant
+    end
+    -- Bypassed optional bosses, so a reload does not quietly put a skipped
+    -- boss back in front of the player.
+    self.state.bossesSkipped = self.state.bossesSkipped or {}
+    wipe(self.state.bossesSkipped)
+    if store.skippedBosses then
+        for bossIndex, isSkipped in pairs(store.skippedBosses) do
+            if isSkipped then self.state.bossesSkipped[bossIndex] = true end
+        end
     end
 end
 
@@ -536,16 +564,52 @@ function RR:PickNoteSeg(step, playerMapID)
     return seg
 end
 
+-- Which authored string a segment shows, before localization.
+--
+-- A step that follows an optional boss is read from two different places: the
+-- player who killed the boss stands at it, the player who bypassed it stands
+-- where the bypass left them. `skipNote` / `skipMinNote` carry the wording for
+-- the second, and `skipWhenBoss` names the boss whose bypass selects them.
+-- The base string is always authored and is what every other reader (the
+-- noted-seg tests, the route linter) still sees.
+local SKIP_VARIANT_FIELD = { note = "skipNote", minNote = "skipMinNote" }
+
+function RR:ResolveSegNote(seg, field)
+    if not seg or not field then return nil end
+    local base = seg[field]
+    local variantField = SKIP_VARIANT_FIELD[field]
+    if not variantField then return base end
+    local variant = seg[variantField]
+    if not variant or variant == "" then return base end
+    if not seg.skipWhenBoss then return base end
+    if not self:IsBossSkipped(seg.skipWhenBoss) then return base end
+    return variant
+end
+
+-- The line a segment draws right now. `skipPoints` is the wording fields'
+-- counterpart: the bypass route is a different path, not just different
+-- prose, so the two readers need different geometry as well.
+function RR:ResolveSegPoints(seg)
+    if not seg then return nil end
+    local base = seg.points
+    local variant = seg.skipPoints
+    if not variant or #variant == 0 then return base end
+    if not seg.skipWhenBoss then return base end
+    if not self:IsBossSkipped(seg.skipWhenBoss) then return base end
+    return variant
+end
+
 -- The minimized bar's short instruction, from the same seg derivation the
 -- travel pane uses. Nil keeps the full wordmark.
 function RR:GetActiveMinNote()
     local step = self.state and self.state.activeStep
     if not step then return nil end
     local seg = self:PickNoteSeg(step)
-    if seg and seg.minNote and seg.minNote ~= "" then
+    local minNote = self:ResolveSegNote(seg, "minNote")
+    if minNote and minNote ~= "" then
         -- Resolved through the locale table at the source so every consumer
         -- (bar body, layout measuring) sees the same translated text.
-        return RR.L[seg.minNote]
+        return RR.L[minNote]
     end
     return nil
 end
@@ -589,8 +653,9 @@ function RR:PickLineSegs(step, mapID)
     local results = {}
     if not step or not step.segments or not mapID then return results end
     for _, seg in ipairs(step.segments) do
+        local points = self:ResolveSegPoints(seg)
         if SegMapID(seg) == mapID
-            and seg.points and #seg.points > 0
+            and points and #points > 0
         then
             table.insert(results, seg)
         end
@@ -712,6 +777,19 @@ function RR:BuildEngineProbeLines(opts)
         add("activeStep: (none)")
     end
 
+    -- Bypassed bosses drive both step selection and the skip note/line
+    -- variants. Without this the only sign of one is a step that quietly
+    -- went missing from the pointer.
+    local skippedNames = {}
+    for _, step in ipairs(raid.routing or {}) do
+        if self:IsBossSkipped(step.bossIndex) then
+            table.insert(skippedNames, ("%s (boss %s)"):format(
+                tostring(step.title), tostring(step.bossIndex)))
+        end
+    end
+    add("bossesSkipped: " .. (#skippedNames > 0
+        and table.concat(skippedNames, ", ") or "(none)"))
+
     add("")
     add("-- Per-Step State --")
     for _, step in ipairs(raid.routing or {}) do
@@ -724,8 +802,13 @@ function RR:BuildEngineProbeLines(opts)
             local state = { mapID = mapID, subZone = subZone }
             local seg, segIdx = ComputeCurrentSeg(step.segments, progress, state)
             if seg then
-                add(("  derived current: seg %d, note=%q"):format(
-                    segIdx, seg.note or "(no note)"))
+                -- Resolved, not authored: a segment following a bypassed boss
+                -- renders its skip variant, and a diagnostic that printed the
+                -- base string would misreport the very thing it is read for.
+                local shown = self:ResolveSegNote(seg, "note")
+                local variantTag = (shown ~= seg.note) and " [skip variant]" or ""
+                add(("  derived current: seg %d%s, note=%q"):format(
+                    segIdx, variantTag, shown or "(no note)"))
             else
                 add("  derived current: (no match)")
             end
@@ -750,9 +833,11 @@ function RR:BuildEngineProbeLines(opts)
         local segs = self:PickLineSegs(activeStep, mapID)
         add(("returned %d seg(s)"):format(#segs))
         for i, seg in ipairs(segs) do
-            add(("  match #%d: when.mapID=%s points=%d"):format(
+            local drawn = self:ResolveSegPoints(seg)
+            local variantTag = (drawn ~= seg.points) and " [skip variant]" or ""
+            add(("  match #%d: when.mapID=%s points=%d%s"):format(
                 i, tostring(SegMapID(seg)),
-                seg.points and #seg.points or 0))
+                drawn and #drawn or 0, variantTag))
         end
     end
 
@@ -775,6 +860,19 @@ function RR:BuildEngineProbeLines(opts)
                         add(("  [%s] lockoutId=%s  routeVariant=%s"):format(
                             tostring(faction), tostring(lockoutId),
                             tostring(store.routeVariant or "standard")))
+                        -- A skip has no external source to rebuild from, so
+                        -- the stored copy is the only record that it survived.
+                        if store.skippedBosses then
+                            local indexes = {}
+                            for bossIndex in pairs(store.skippedBosses) do
+                                table.insert(indexes, bossIndex)
+                            end
+                            table.sort(indexes)
+                            if #indexes > 0 then
+                                add(("    skippedBosses = %s"):format(
+                                    table.concat(indexes, ", ")))
+                            end
+                        end
                         -- Namespaced per-variant progress (current scheme).
                         if store.byVariant then
                             for vkey, vstore in pairs(store.byVariant) do

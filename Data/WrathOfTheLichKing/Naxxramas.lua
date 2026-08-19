@@ -96,10 +96,14 @@ RetroRuns_Data[533] = {
     trashLoot = {
         { id = 40410, slot = "Back", name = "Shadow of the Ghoul", sources = { [3]=19403, [4]=19403 }, bind = "BoP" },
         { id = 40409, slot = "Feet", name = "Boots of the Escaped Captive", sources = { [3]=19402, [4]=19402 }, bind = "BoP" },
+        { id = 39473, slot = "Ranged", name = "Contortion", sources = { [3]=18907, [4]=18907 }, bind = "BoP" },
         { id = 40414, slot = "Shoulder", name = "Shoulderguards of the Undaunted", sources = { [3]=19404, [4]=19404 }, bind = "BoP" },
         { id = 40406, slot = "Two-Hand", name = "Inevitable Defeat", sources = { [3]=19399, [4]=19399 }, bind = "BoP" },
         { id = 40408, slot = "Weapon", name = "Haunting Call", sources = { [3]=19401, [4]=19401 }, bind = "BoP" },
+        { id = 39427, slot = "Weapon", name = "Omen of Ruin", sources = { [3]=18865, [4]=18865 }, bind = "BoP" },
         { id = 40407, slot = "Weapon", name = "Silent Crusader", sources = { [3]=19400, [4]=19400 }, bind = "BoP" },
+        { id = 39468, slot = "Weapon", name = "The Stray", sources = { [3]=18905, [4]=18905 }, bind = "BoP" },
+        { id = 39467, slot = "Wrist", name = "Minion Bracers", sources = { [3]=18904, [4]=18904 }, bind = "BoP" },
     },
     bosses = {
         {

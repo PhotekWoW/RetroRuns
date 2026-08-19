@@ -517,13 +517,12 @@ RetroRuns_Data[2296] = {
             },
             -- Sire Denathrius drops only 4 armor items via the Encounter
             -- Journal (plus 4 weapon-token spherules, a ring, 4 trinkets,
-            -- 12 legendary memories, and 60 conduits). Other data sources
-            -- (e.g. AllTheThings' Instances.lua) have historically listed
-            -- up to 13 armor items for this encounter -- those entries
-            -- reflect pre-patch data that no longer matches the live EJ.
-            -- The 4 items below are the complete armor drop set. The
-            -- ring, trinkets, conduits, and memories aren't tracked here
-            -- because the addon only covers per-class armor and weapons.
+            -- 12 legendary memories, and 60 conduits). Older listings of up
+            -- to 13 armor items for this encounter reflect pre-patch data
+            -- that no longer matches the live EJ. The 4 items below are the
+            -- complete armor drop set. The ring, trinkets, conduits, and
+            -- memories aren't tracked here because the addon only covers
+            -- per-class armor and weapons.
             loot = {
                 { id = 182997, slot = "Head",     name = "Diadem of Imperious Desire", sources = { [17]=115242, [14]=114510, [15]=115243, [16]=115244 } },
                 { id = 182980, slot = "Head",     name = "Sadist's Sinister Mask",     sources = { [17]=115146, [14]=114493, [15]=115147, [16]=115148 } },

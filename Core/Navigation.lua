@@ -137,9 +137,6 @@ function RR:MarkBossKilled(boss)
     if not boss then return end
     self.state.bossesKilled[boss.index] = true
     self.state.bossesKilledViaPairOnly[boss.index] = nil
-    if self.state.manualTargetBossIndex == boss.index then
-        self.state.manualTargetBossIndex = nil
-    end
 end
 
 function RR:MarkBossKilledByEncounterName(encounterName)
@@ -169,6 +166,72 @@ end
 function RR:ClearBossState()
     wipe(self.state.bossesKilled)
     wipe(self.state.bossesKilledViaPairOnly)
+    wipe(self.state.bossesSkipped)
+end
+
+-- True when the active routing reaches this boss through a step flagged
+-- `optional`. The flag lives on the step, not the boss, so every surface
+-- that marks a boss optional resolves it through here.
+function RR:IsBossOptional(bossIndex)
+    if not bossIndex then return false end
+    local routing = self:GetActiveRouting()
+    if not routing then return false end
+    for _, step in ipairs(routing) do
+        if step.bossIndex == bossIndex and step.optional then return true end
+    end
+    return false
+end
+
+function RR:IsBossSkipped(bossIndex)
+    return bossIndex ~= nil and self.state.bossesSkipped[bossIndex] == true
+end
+
+-- True when dropping this step would leave the player somewhere no later
+-- step can guide them from.
+--
+-- An optional step can own the TRAVERSAL to the next area, not just its
+-- boss: ICC routes the "jump in the hole" POI through Valithria's step,
+-- and Sindragosa's opens a floor below. Skip from above the hole and no
+-- segment matches the player's position at all -- no guidance, and no
+-- instruction to jump. The passive cede never exposed this because it
+-- could only fire from a position a later step already matched; the Skip
+-- button can be pressed from anywhere.
+--
+-- Position it cannot evaluate (browsing outside the raid, a transit map)
+-- does NOT block: the player is not leaning on step guidance right then,
+-- and refusing there would be the more surprising answer.
+function RR:CanSkipBoss(bossIndex)
+    if not bossIndex or not self:IsBossOptional(bossIndex) then return false end
+    local routing = self:GetActiveRouting()
+    if not routing then return false end
+    local mapID = C_Map and C_Map.GetBestMapForUnit
+        and C_Map.GetBestMapForUnit("player") or nil
+    if not mapID then return true end
+    local subZone = (GetSubZoneText and GetSubZoneText()) or ""
+    local seen = false
+    for _, step in ipairs(routing) do
+        if seen
+            and not self:IsBossKilled(step.bossIndex)
+            and not self:IsBossSkipped(step.bossIndex)
+            and self:StepLocationMatches(step, mapID, subZone) then
+            return true
+        end
+        if step.bossIndex == bossIndex then seen = true end
+    end
+    return false
+end
+
+-- Bypass an optional boss. Only optional bosses qualify: skipping a
+-- mandatory one would strand the run with no reachable next step.
+-- Restoring one is always allowed -- it can only add guidance back.
+function RR:SetBossSkipped(bossIndex, skipped)
+    if not bossIndex or not self:IsBossOptional(bossIndex) then return false end
+    if skipped and not self:CanSkipBoss(bossIndex) then return false end
+    self.state.bossesSkipped[bossIndex] = skipped and true or nil
+    -- Survives /reload: unlike a kill, nothing external can rebuild this.
+    self:PersistBossSkipped(bossIndex, skipped)
+    self:ComputeNextStep()
+    return true
 end
 
 -------------------------------------------------------------------------------
@@ -248,6 +311,7 @@ function RR:GetAvailableSteps()
             or self:BossAvailableInBucket(boss, activeBucket)
         if availableHere
             and not self:IsBossKilled(step.bossIndex)
+            and not self:IsBossSkipped(step.bossIndex)
             and self:RequirementsMet(step.requires) then
             table.insert(results, step)
         end
@@ -269,16 +333,6 @@ function RR:ComputeNextStep()
     self.state.activeStep = nil
     if not self.currentRaid then return nil end
     local available = self:GetAvailableSteps()
-    if self.state.manualTargetBossIndex then
-        for _, step in ipairs(available) do
-            if step.bossIndex == self.state.manualTargetBossIndex then
-                self.state.activeStep = step
-                self:OnActiveStepChanged(prevStep, step)
-                return step
-            end
-        end
-        self.state.manualTargetBossIndex = nil
-    end
     if #available > 0 then
         -- Every surface reads "no active step" as run-complete.
         if self.IsActiveRouteComplete and self:IsActiveRouteComplete() then
@@ -375,11 +429,6 @@ function RR:ActiveRoutingHasOptionalStep()
     return present
 end
 
-function RR:SetManualTarget(bossIndex)
-    self.state.manualTargetBossIndex = bossIndex
-    self:ComputeNextStep()
-end
-
 -------------------------------------------------------------------------------
 -- Progress
 -------------------------------------------------------------------------------
@@ -393,13 +442,6 @@ function RR:GetRaidProgressCounts()
         if self:IsBossKilled(boss.index) then killed = killed + 1 end
     end
     return killed, total
-end
-
--- Returns "X/Y" -- bosses killed over total. Available for
--- tooltips or alternate UI modes.
-function RR:GetProgressText()
-    local killed, total = self:GetRaidProgressCounts()
-    return ("%d/%d"):format(killed, total)
 end
 
 -- Progress scoped to the active route, deduped by bossIndex.
@@ -569,6 +611,17 @@ function RR:GetProgressLines()
 
     for _, boss in ipairs(order) do
         local displayName = self:GetLocalizedBossName(boss)
+        -- Optional bosses carry a tag in every state, so the list reads the
+        -- same before, during and after the choice is made. Once bypassed it
+        -- turns magenta and reads "(skipped)", tying the row back to the
+        -- magenta control that did it. Appended AFTER the name's closing |r
+        -- -- color codes do not nest.
+        local optionalTag = ""
+        if self:IsBossSkipped(boss.index) then
+            optionalTag = " |cffF259C7" .. RR.L["(skipped)"] .. "|r"
+        elseif self:IsBossOptional(boss.index) then
+            optionalTag = " |cff808080" .. RR.L["(optional)"] .. "|r"
+        end
         local restrictedHere = activeBucket
             and not self:BossAvailableInBucket(boss, activeBucket)
 
@@ -580,23 +633,23 @@ function RR:GetProgressLines()
                 names[#names + 1] = BUCKET_NAME[b] or tostring(b)
             end
             local tag = (#names > 0) and (" |cff808080(" .. table.concat(names, "/") .. " " .. RR.L["only"] .. ")|r") or ""
-            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff808080%s|r%s"):format(
-                PENDING_GLYPH, displayName, tag))
+            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff808080%s|r%s%s"):format(
+                PENDING_GLYPH, displayName, tag, optionalTag))
         elseif self.state.bossesKilled[boss.index] then
             -- Killed: gray brackets framing the green check (native green,
             -- unaffected by color codes). Name green.
-            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff00ff00%s|r"):format(
-                KILLED_GLYPH, displayName))
+            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff00ff00%s|r%s"):format(
+                KILLED_GLYPH, displayName, optionalTag))
         elseif self.state.activeStep
             and self.state.activeStep.bossIndex == boss.index then
             -- Active: gray brackets framing the yellow arrow. Name yellow.
-            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cffffff00%s|r"):format(
-                ACTIVE_GLYPH, displayName))
+            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cffffff00%s|r%s"):format(
+                ACTIVE_GLYPH, displayName, optionalTag))
         else
             -- Pending: gray brackets framing the transparent spacer. Name
             -- gray.
-            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff9d9d9d%s|r"):format(
-                PENDING_GLYPH, displayName))
+            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff9d9d9d%s|r%s"):format(
+                PENDING_GLYPH, displayName, optionalTag))
         end
     end
     return lines

@@ -70,17 +70,48 @@ RetroRuns_Data[720] = {
         rewardKind         = "mount",
     },
 
+    -- Always-on map markers, shown regardless of the current step: vendors,
+    -- doors/tunnels, hand-authored points. Not tied to routing.
+    pois = {
+        { mapID = 367, poiKind = "vendor", mapLabel = "Firestone Vendor",
+          mapLabelPos = "below", points = { { 0.260, 0.905 } } },
+    },
+
+
 
     -- Trash drops. The Encounter Journal indexes boss loot only,
     -- so these carry no journal rows and belong to no encounter.
+    -- `upgrade` is a second appearance bought with a Crystallized
+    -- Firestone; it is not a drop, so it sits outside `sources`.
     trashLoot = {
-        { id = 71366, slot = "Ranged", name = "Lava Bolt Crossbow", sources = { [14]=36619, [15]=36619 }, bind = "BoE" },
-        { id = 71361, slot = "Two-Hand", name = "Ranseur of Hatred", sources = { [14]=36616, [15]=36616 }, bind = "BoE" },
-        { id = 71360, slot = "Two-Hand", name = "Spire of Scarlet Pain", sources = { [14]=36615, [15]=36615 }, bind = "BoE" },
-        { id = 71640, slot = "Waist", name = "Riplimb's Lost Collar", sources = { [14]=36824, [15]=36824 }, bind = "BoE" },
-        { id = 71359, slot = "Weapon", name = "Chelley's Sterilized Scalpel", sources = { [14]=36614, [15]=36614 }, bind = "BoE" },
+        { id = 71366, slot = "Ranged", name = "Lava Bolt Crossbow", sources = { [14]=36619, [15]=36619 }, bind = "BoE", upgrade = { source = 36784, currency = 71617, difficulty = 15, collapseBase = true } },
+        { id = 71361, slot = "Two-Hand", name = "Ranseur of Hatred", sources = { [14]=36616, [15]=36616 }, bind = "BoE", upgrade = { source = 36783, currency = 71617, difficulty = 15, collapseBase = true } },
+        { id = 71360, slot = "Two-Hand", name = "Spire of Scarlet Pain", sources = { [14]=36615, [15]=36615 }, bind = "BoE", upgrade = { source = 36785, currency = 71617, difficulty = 15, collapseBase = true } },
+        { id = 71640, slot = "Waist", name = "Riplimb's Lost Collar", sources = { [14]=36824, [15]=36824 }, bind = "BoE", upgrade = { source = 36825, currency = 71617, difficulty = 15, collapseBase = true } },
+        { id = 71359, slot = "Weapon", name = "Chelley's Sterilized Scalpel", sources = { [14]=36614, [15]=36614 }, bind = "BoE", upgrade = { source = 36786, currency = 71617, difficulty = 15, collapseBase = true } },
         { id = 71362, slot = "Weapon", name = "Obsidium Cleaver", sources = { [14]=36617, [15]=36617 }, bind = "BoE" },
-        { id = 71365, slot = "Wrist", name = "Hide-Bound Chains", sources = { [14]=36618, [15]=36618 }, bind = "BoE" },
+        { id = 71365, slot = "Wrist", name = "Hide-Bound Chains", sources = { [14]=36618, [15]=36618 }, bind = "BoE", upgrade = { source = 36787, currency = 71617, difficulty = 15, collapseBase = true } },
+    },
+
+    -- Legend for the upgrade pill, rendered under the trash rows.
+    trashNote = {
+        text   = "{upArrow} = Trash drops can be upgraded to a Heroic appearance with {item}.",
+        itemID = 71617,
+    },
+
+    -- Lurah Wrathvine keeps two spawns selling the same stock. The hint
+    -- sits under the trash block, since the upgrades are trash-only, and
+    -- the travel button rides the Mount Hyjal spawn -- the only one a
+    -- waypoint can reach.
+    tokenVendors = {
+        below   = "trash",
+        heading = "Redeem at:",
+        locations = {
+            { place = "Inside Firelands", vendorName = "Lurah Wrathvine" },
+            { place = "In Mount Hyjal",   vendorName = "Lurah Wrathvine",
+              zoneSub = "Sulfuron Spire",
+              mapID = 198, x = 0.475, y = 0.774 },
+        },
     },
     bosses = {
         {
@@ -368,6 +399,8 @@ RetroRuns_Data[720] = {
                 { id = 71356, slot = "Head", name = "Crown of Flame", sources = { [14]=36611, [15]=36823 } },
                 { id = 71353, slot = "Ranged", name = "Arathar, the Eye of Flame", sources = { [14]=36609, [15]=36818 } },
                 { id = 70921, slot = "Shoulder", name = "Pauldrons of Roaring Flame", sources = { [14]=36330, [15]=36819 } },
+                { id = 71086, slot = "Two-Hand", name = "Dragonwrath, Tarecgosa's Rest", sources = { [14]=36447, [15]=36447 },
+                  acquisitionNote = "Quest reward from the legendary staff chain; its materials drop throughout Firelands." },
                 { id = 71798, slot = "Two-Hand", name = "Sho'ravon, Greatstaff of Annihilation", sources = { [14]=36873, [15]=36872 } },
                 { id = 71352, slot = "Two-Hand", name = "Sulfuras, the Extinguished Hand", sources = { [14]=36608, [15]=36152 } },
                 { id = 71357, slot = "Waist", name = "Majordomo's Chain of Office", sources = { [14]=36612, [15]=36820 } },
