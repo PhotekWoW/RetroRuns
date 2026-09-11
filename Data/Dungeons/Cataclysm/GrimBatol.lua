@@ -12,7 +12,7 @@ RetroRuns_DungeonData[71] = {
     name              = "Grim Batol",
     expansion         = "Cataclysm",
     difficultyModel   = "dungeonBinary",
-    availableDifficulties = { 14, 15, 16 },
+    availableDifficulties = { 14, 15 },
     patch             = "4.0.3",
 
     entrance = {
@@ -79,6 +79,7 @@ RetroRuns_DungeonData[71] = {
             index              = 4,
             name               = "Erudax, the Duke of Below",
             journalEncounterID = 2619,
+            aliases            = { "Erudax" },
             achievements       = {
                 { id = 5298, name = "Don't Need to Break Eggs to Make an Omelet", meta = true, soloable = "yes" },
             },

@@ -16,7 +16,7 @@ btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
 -- Icon texture
 local texture = btn:CreateTexture(nil, "BACKGROUND")
-texture:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\MinimapIcon")
+texture:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\MinimapIcon")
 texture:SetAllPoints()
 texture:Show()
 

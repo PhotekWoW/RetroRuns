@@ -97,6 +97,7 @@ RetroRuns_DungeonData[547] = {
             index              = 3,
             name               = "Azzakel",
             journalEncounterID = 1216,
+            aliases            = { "Azzakel, Vanguard of the Legion" },
             achievements       = {
                 { id = 9551, name = "Demon's Souls", soloable = "yes" },
             },

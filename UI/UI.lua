@@ -299,8 +299,8 @@ local PANEL_EDGE_SIZE_MINIMIZED = 14
 
 local function PanelBackdrop(edgeSize)
     return {
-        bgFile   = "Interface\\AddOns\\RetroRuns\\Media\\panel-bg",
-        edgeFile = "Interface\\AddOns\\RetroRuns\\Media\\panel-edge",
+        bgFile   = "Interface\\AddOns\\RetroRuns\\Media\\Panel\\panel-bg",
+        edgeFile = "Interface\\AddOns\\RetroRuns\\Media\\Panel\\panel-edge",
         tile = true, tileSize = 64,
         edgeSize = edgeSize,
         insets = { left = 7, right = 7, top = 7, bottom = 7 },
@@ -324,7 +324,7 @@ panel.minbarRight  = panel:CreateTexture(nil, "BORDER")
 for _, key in ipairs({ "minbarLeft", "minbarCenter", "minbarRight" }) do
     local suffix = key == "minbarLeft" and "left"
                 or key == "minbarCenter" and "center" or "right"
-    panel[key]:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\minbar-" .. suffix)
+    panel[key]:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Panel\\minbar-" .. suffix)
     -- Source art is 104px tall in a 128px (power-of-two) texture, so V runs
     -- 0..0.8125; trim the padding here.
     panel[key]:SetTexCoord(0, 1, 0, 104 / 128)
@@ -335,7 +335,7 @@ end
 -- border line behind the raid-name label so it reads as set into the border.
 -- Movable, since raid names vary in width. V trimmed to 0..9/16.
 panel.minbarNotch = panel:CreateTexture(nil, "BORDER", nil, 1)
-panel.minbarNotch:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\minbar-notch")
+panel.minbarNotch:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Panel\\minbar-notch")
 panel.minbarNotch:SetTexCoord(0, 1, 0, 9 / 16)
 panel.minbarNotch:Hide()
 
@@ -404,6 +404,313 @@ local function ApplyBorderArtForState(minimized)
         panel:SetBackdropColor(1, 1, 1, RR:GetSetting("panelOpacity", 1.0))
         panel:SetBackdropBorderColor(1, 1, 1, 1)
     end
+    UI.UpdateAmbientArt()
+end
+
+-- Key art drawn faintly beneath the panel content while an instance of that
+-- expansion is loaded. One texture per expansion; absent means none.
+UI.AMBIENT_ART = {
+    ["Classic"]           = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelArt-Classic",
+    ["Burning Crusade"]   = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelArt-TBC",
+    ["Cataclysm"]         = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelArt-Cata",
+    ["Wrath of the Lich King"] = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelArt-WotLK",
+    ["Mists of Pandaria"] = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelArt-MoP",
+    ["Warlords of Draenor"] = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelArt-WoD",
+    ["Legion"]            = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelArt-Legion",
+    ["Battle for Azeroth"] = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelArt-BfA",
+    ["Shadowlands"]       = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelArt-SL",
+    ["Dragonflight"]      = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelArt-DF",
+}
+-- Source shapes, width over height. The shipped textures hold a 3:4 crop
+-- squashed onto a square and are drawn back at 3:4, so the block runs
+-- from the panel's top edge down to the footer, with its lower part
+-- fading out to make a floor there. Width follows the panel width; the
+-- height is clipped to wherever the footer sits in the current layout.
+UI.AMBIENT_ART_ASPECT  = 0.75
+UI.AMBIENT_ART_ALPHA   = 0.2       -- on the idle list
+UI.AMBIENT_ART_ALPHA_INSTANCE = 0.07 -- under an instance's denser text
+UI.AMBIENT_ART_SOLID   = 0.7       -- fraction of the block above the floor fade
+UI.AMBIENT_ART_CEILING = 0.2       -- fraction of the block fading in at the top
+UI.AMBIENT_ART_TOP     = 48        -- below the title row
+UI.AMBIENT_ART_STRIPS  = 36        -- fade steps below the solid part
+UI.AMBIENT_ART_CEILING_STRIPS = 18 -- fade steps above it
+
+-- Small textures drawn additively over an expansion's art and pulsed by
+-- an animation, any number per picture. Each box is that texture's place
+-- in the picture as fractions of its width and height; `pace` scales the
+-- pulse length and `low` the resting brightness as a share of the peak.
+UI.AMBIENT_ART_GLOW = {
+    ["Warlords of Draenor"] = {
+        {
+            file  = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelGlow-WoD",
+            left  = 737 / 1086, right  = 865 / 1086,
+            top   = 246 / 1448, bottom = 310 / 1448,
+            low   = 0.6,
+        },
+    },
+    ["Mists of Pandaria"] = {
+        {
+            file  = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelGlow-MoP",
+            left  = 914 / 1086, right  = 1042 / 1086,
+            top   = 174 / 1448, bottom = 302 / 1448,
+            low   = 0.6,
+            pace  = 2.0,
+        },
+    },
+    ["Dragonflight"] = {
+        {
+            file  = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelGlow-DF",
+            left  = 577 / 1086, right  = 705 / 1086,
+            top   = 357 / 1448, bottom = 421 / 1448,
+        },
+    },
+    ["Cataclysm"] = {
+        -- The picture is a 923x1231 window of the source at (100, 200).
+        {
+            file  = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelGlow-Cata",
+            left  = 345 / 923, right  = 473 / 923,
+            top   = 247 / 1231, bottom = 311 / 1231,
+        },
+    },
+    ["Classic"] = {
+        {
+            file  = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelGlow-Classic",
+            left  = 630 / 1086, right  = 758 / 1086,
+            top   = 206 / 1448, bottom = 270 / 1448,
+        },
+    },
+    ["Shadowlands"] = {
+        {
+            file  = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelGlow-SL",
+            left  = 641 / 1086, right  = 769 / 1086,
+            top   = 85 / 1448, bottom = 149 / 1448,
+        },
+    },
+    ["Legion"] = {
+        {
+            file  = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelGlow-Legion-L",
+            left  = 598 / 1086, right  = 726 / 1086,
+            top   = 191 / 1448, bottom = 319 / 1448,
+        },
+        {
+            file  = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelGlow-Legion-R",
+            left  = 881 / 1086, right  = 1009 / 1086,
+            top   = 243 / 1448, bottom = 371 / 1448,
+            pace  = 1.3,
+        },
+    },
+    ["Burning Crusade"] = {
+        {
+            file  = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelGlow-TBC",
+            left  = 713 / 1086, right  = 841 / 1086,
+            top   = 187 / 1448, bottom = 251 / 1448,
+        },
+    },
+    ["Wrath of the Lich King"] = {
+        {
+            file  = "Interface\\AddOns\\RetroRuns\\Media\\Art\\PanelGlow-WotLK",
+            left  = 713 / 1086, right  = 841 / 1086,
+            top   = 151 / 1448, bottom = 215 / 1448,
+        },
+    },
+}
+UI.AMBIENT_GLOW_LOW  = 0.45
+UI.AMBIENT_GLOW_PACE = 1.0
+UI.AMBIENT_ART_INSET   = 7         -- past the border's transparent margin
+
+-- Which expansion the panel is showing: the loaded instance's, or on the
+-- idle list the one section the player has open.
+function UI.AmbientArtExpansion()
+    local raid = RR.currentRaid
+    if raid and raid.expansion then return raid.expansion end
+    local expanded = RR.state and RR.state.expandedExpansions
+    if type(expanded) ~= "table" then return nil end
+    for expansionName, isOpen in pairs(expanded) do
+        if isOpen then return expansionName end
+    end
+    return nil
+end
+
+function UI.UpdateAmbientArt()
+    local expansionName = UI.AmbientArtExpansion()
+    local file = expansionName and UI.AMBIENT_ART[expansionName]
+    local glowSpec = expansionName and UI.AMBIENT_ART_GLOW[expansionName]
+    local artAlpha = RR.currentRaid and UI.AMBIENT_ART_ALPHA_INSTANCE or UI.AMBIENT_ART_ALPHA
+    local solid, strips = panel.ambientArt, panel.ambientArtStrips
+    local ceiling = panel.ambientArtCeiling
+    if not file or UI.IsMinimized() then
+        if solid then solid:Hide() end
+        for _, strip in ipairs(strips or {}) do strip:Hide() end
+        for _, strip in ipairs(ceiling or {}) do strip:Hide() end
+        UI.UpdateAmbientGlow(nil)
+        return
+    end
+    local inset = UI.AMBIENT_ART_INSET
+    if not solid then
+        -- Top BACKGROUND sublevel: above the backdrop fill, below content.
+        -- The block is a stack: ceiling strips fading in under the title
+        -- row, the solid part, then floor strips fading out above the
+        -- footer, so the picture dissolves into the backdrop at both ends.
+        local function NewStrip(above)
+            local strip = panel:CreateTexture(nil, "BACKGROUND", nil, 7)
+            if above then
+                strip:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 0, 0)
+                strip:SetPoint("TOPRIGHT", above, "BOTTOMRIGHT", 0, 0)
+            else
+                strip:SetPoint("TOPLEFT", panel, "TOPLEFT", inset, -UI.AMBIENT_ART_TOP)
+                strip:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -inset, -UI.AMBIENT_ART_TOP)
+            end
+            strip:SetTexelSnappingBias(0)
+            strip:SetSnapToPixelGrid(false)
+            return strip
+        end
+        ceiling = {}
+        local above = nil
+        for _ = 1, UI.AMBIENT_ART_CEILING_STRIPS do
+            above = NewStrip(above)
+            table.insert(ceiling, above)
+        end
+        panel.ambientArtCeiling = ceiling
+        solid = NewStrip(above)
+        panel.ambientArt = solid
+        strips = {}
+        above = solid
+        for _ = 1, UI.AMBIENT_ART_STRIPS do
+            above = NewStrip(above)
+            table.insert(strips, above)
+        end
+        panel.ambientArtStrips = strips
+    end
+    if solid.file ~= file then
+        solid:SetTexture(file)
+        for _, strip in ipairs(strips) do strip:SetTexture(file) end
+        for _, strip in ipairs(ceiling) do strip:SetTexture(file) end
+        solid.file = file
+    end
+
+    -- The block is as wide as the panel and as tall as the source's shape
+    -- allows, then clipped to the footer: the legend divider on the idle
+    -- list, the button row inside an instance. The clipped part of the
+    -- source is its bottom, which the fade would have hidden anyway.
+    local blockWidth = (panel:GetWidth() or 0) - 2 * inset
+    if blockWidth <= 0 then UI.UpdateAmbientGlow(nil) return end
+    local left, right, top, bottom = 0, 1, 0, 1
+    local fullHeight = blockWidth / UI.AMBIENT_ART_ASPECT
+    local floorElement = (panel.legendDivider and panel.legendDivider:IsShown())
+        and panel.legendDivider or panel.mapBtn
+    local panelTop = panel:GetTop()
+    local floorTop = floorElement and floorElement:GetTop()
+    local blockHeight = fullHeight
+    if panelTop and floorTop then
+        local room = panelTop - floorTop - UI.AMBIENT_ART_TOP - 4
+        if room > 0 and room < blockHeight then blockHeight = room end
+    end
+    bottom = top + (bottom - top) * (blockHeight / fullHeight)
+
+    local alpha = artAlpha * RR:GetSetting("panelOpacity", 1.0)
+    local ceilingFraction = UI.AMBIENT_ART_CEILING
+    local ceilingCount  = #ceiling
+    local ceilingHeight = blockHeight * ceilingFraction / ceilingCount
+    local ceilingSpan   = (bottom - top) * ceilingFraction / ceilingCount
+    for index, strip in ipairs(ceiling) do
+        local stripTop = top + ceilingSpan * (index - 1)
+        strip:SetHeight(ceilingHeight)
+        strip:SetTexCoord(left, right, stripTop, stripTop + ceilingSpan)
+        strip:SetAlpha(alpha * (index - 0.5) / ceilingCount)
+        strip:Show()
+    end
+
+    local solidFraction = UI.AMBIENT_ART_SOLID
+    local solidStart = top + (bottom - top) * ceilingFraction
+    local split = top + (bottom - top) * solidFraction
+    solid:SetHeight(blockHeight * (solidFraction - ceilingFraction))
+    solid:SetTexCoord(left, right, solidStart, split)
+    solid:SetAlpha(alpha)
+    solid:Show()
+
+    local stripCount  = #strips
+    local stripHeight = blockHeight * (1 - solidFraction) / stripCount
+    local stripSpan   = (bottom - split) / stripCount
+    for index, strip in ipairs(strips) do
+        local stripTop = split + stripSpan * (index - 1)
+        strip:SetHeight(stripHeight)
+        strip:SetTexCoord(left, right, stripTop, stripTop + stripSpan)
+        -- Linear to the floor; anything steeper vanishes at panel alpha.
+        local remaining = 1 - (index - 0.5) / stripCount
+        strip:SetAlpha(alpha * remaining)
+        strip:Show()
+    end
+
+    local ceilingDepth = ceilingFraction * blockHeight / fullHeight
+    UI.UpdateAmbientGlow(glowSpec, blockWidth, fullHeight, blockHeight, alpha, ceilingDepth)
+end
+
+-- The pulsing glows over the art block: one pooled texture per entry in
+-- the expansion's glow list, placed against the top of the picture, with
+-- the pulse peaking at the art's own alpha at that height.
+function UI.NewAmbientGlow()
+    local glow = panel:CreateTexture(nil, "BACKGROUND", nil, 7)
+    glow:SetBlendMode("ADD")
+    glow:SetTexelSnappingBias(0)
+    glow:SetSnapToPixelGrid(false)
+    local anim = glow:CreateAnimationGroup()
+    anim:SetLooping("REPEAT")
+    local rise = anim:CreateAnimation("Alpha")
+    rise:SetOrder(1)
+    rise:SetSmoothing("IN_OUT")
+    local fall = anim:CreateAnimation("Alpha")
+    fall:SetOrder(2)
+    fall:SetSmoothing("IN_OUT")
+    glow.anim, glow.rise, glow.fall = anim, rise, fall
+    return glow
+end
+
+function UI.UpdateAmbientGlow(specs, blockWidth, fullHeight, blockHeight, alpha, ceilingDepth)
+    local pool = panel.ambientArtGlows
+    if not pool then
+        pool = {}
+        panel.ambientArtGlows = pool
+    end
+    local used = 0
+    for _, spec in ipairs(specs or {}) do
+        if spec.bottom * fullHeight <= blockHeight then
+            used = used + 1
+            local glow = pool[used]
+            if not glow then
+                glow = UI.NewAmbientGlow()
+                pool[used] = glow
+            end
+            if glow.file ~= spec.file then
+                glow:SetTexture(spec.file)
+                glow.file = spec.file
+            end
+            local anchor = panel.ambientArtCeiling[1]
+            glow:ClearAllPoints()
+            glow:SetPoint("TOPLEFT", anchor, "TOPLEFT",
+                spec.left * blockWidth, -spec.top * fullHeight)
+            glow:SetSize((spec.right - spec.left) * blockWidth,
+                (spec.bottom - spec.top) * fullHeight)
+
+            local center = (spec.top + spec.bottom) / 2
+            local fade = ceilingDepth > 0 and math.min(1, center / ceilingDepth) or 1
+            local peak = alpha * fade
+            local low  = peak * (spec.low or UI.AMBIENT_GLOW_LOW)
+            local pace = spec.pace or UI.AMBIENT_GLOW_PACE
+            glow.rise:SetDuration(2.0 * pace)
+            glow.fall:SetDuration(2.6 * pace)
+            glow.rise:SetFromAlpha(low)
+            glow.rise:SetToAlpha(peak)
+            glow.fall:SetFromAlpha(peak)
+            glow.fall:SetToAlpha(low)
+            glow:SetAlpha(low)
+            glow:Show()
+            if not glow.anim:IsPlaying() then glow.anim:Play() end
+        end
+    end
+    for index = used + 1, #pool do
+        pool[index].anim:Stop()
+        pool[index]:Hide()
+    end
 end
 
 -- Enables hyperlink clicks so achievement links in the encounter FontString
@@ -445,7 +752,7 @@ panel.logo = panel:CreateTexture(nil, "ARTWORK")
 -- wordmark instead. Sized to sit as a peer to the 12pt title text.
 panel.logo:SetSize(24, 24)
 panel.logo:SetPoint("TOPLEFT", PAD_LEFT - 4, -10 - FRAME_INSET_Y)
-panel.logo:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\LogoSquare")
+panel.logo:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\LogoSquare")
 panel.logo:Hide()
 
 -- Title (two FontStrings, split only at color boundary). Anchored to the
@@ -580,7 +887,7 @@ function UI.MakeRetroCloseButton(parent)
     local button = CreateFrame("Button", nil, parent)
     button:SetSize(24, 24)
     local tex = button:CreateTexture(nil, "OVERLAY")
-    tex:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\CloseIcon")
+    tex:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\CloseIcon")
     tex:SetAllPoints(button)
     button._tex = tex
     button:SetScript("OnEnter", function(self) self._tex:SetVertexColor(1.4, 1.4, 1.4) end)
@@ -616,7 +923,7 @@ panel.minimizeButton:SetSize(24, 24)
 panel.minimizeButton:SetPoint("TOPRIGHT", -36 - FRAME_INSET_X, -4 - FRAME_INSET_Y)
 do
     local tex = panel.minimizeButton:CreateTexture(nil, "OVERLAY")
-    tex:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\MinimizeIcon")
+    tex:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\MinimizeIcon")
     tex:SetAllPoints(panel.minimizeButton)
     panel.minimizeButton._tex = tex
     panel.minimizeButton:SetScript("OnEnter", function(self) self._tex:SetVertexColor(1.4, 1.4, 1.4) end)
@@ -1469,12 +1776,12 @@ local function AcquireEntranceButton()
     btn:SetFrameLevel((panel:GetFrameLevel() or 0) + 10)
     -- Authored white so it can be vertex-tinted, same as the other icons.
     -- Alpha carries the routing-vs-waypoint tier, set in RefreshIdleList.
-    btn:SetNormalTexture("Interface\\AddOns\\RetroRuns\\Media\\PlaneIcon")
+    btn:SetNormalTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\PlaneIcon")
     local nt = btn:GetNormalTexture()
     if nt then nt:SetVertexColor(C_PINK[1], C_PINK[2], C_PINK[3], 1) end
     -- Highlight: same texture in ADD blend for a brighten-on-hover feel.
     btn:SetHighlightTexture(
-        "Interface\\AddOns\\RetroRuns\\Media\\PlaneIcon", "ADD")
+        "Interface\\AddOns\\RetroRuns\\Media\\Icons\\PlaneIcon", "ADD")
     return btn
 end
 
@@ -1510,11 +1817,23 @@ end
 local function ShowWaypointToast(anchorFrame, text, rowFS, rowRight, openRight)
     if not anchorFrame or not text then return end
 
-    local toast = CreateFrame("Frame", nil, UIParent)
-    toast:SetFrameStrata("TOOLTIP")  -- above the addon panel
+    -- One frame for the life of the session; a click while a toast is
+    -- still fading restarts it in place.
+    local toast = UI.waypointToast
+    if not toast then
+        toast = CreateFrame("Frame", nil, UIParent)
+        toast:SetFrameStrata("TOOLTIP")  -- above the addon panel
+        toast.text = toast:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        UI.waypointToast = toast
+    end
+    if toast.ticker then
+        toast.ticker:Cancel()
+        toast.ticker = nil
+    end
     toast:SetSize(180, 18)
 
-    local fs = toast:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local fs = toast.text
+    fs:ClearAllPoints()
     fs:SetText("|cffffd700" .. text .. "|r")  -- gold for friendly notice
 
     toast:ClearAllPoints()
@@ -1557,8 +1876,7 @@ local function ShowWaypointToast(anchorFrame, text, rowFS, rowRight, openRight)
     local TOTAL_TICKS    = FADE_IN_TICKS + HOLD_TICKS + FADE_OUT_TICKS
 
     local tickIndex = 0
-    local ticker
-    ticker = C_Timer.NewTicker(0.05, function()
+    toast.ticker = C_Timer.NewTicker(0.05, function()
         tickIndex = tickIndex + 1
         local alpha
         if tickIndex <= FADE_IN_TICKS then
@@ -1573,7 +1891,8 @@ local function ShowWaypointToast(anchorFrame, text, rowFS, rowRight, openRight)
         if alpha > 1 then alpha = 1 end
         toast:SetAlpha(alpha)
         if tickIndex >= TOTAL_TICKS then
-            ticker:Cancel()
+            if toast.ticker then toast.ticker:Cancel() end
+            toast.ticker = nil
             toast:Hide()
         end
     end, TOTAL_TICKS)
@@ -1779,7 +2098,7 @@ panel.idlePillCellPool     = {}
 -- shown per refresh. The line is a white alpha-mask tinted in code, with
 -- texel snapping disabled to keep the edge crisp.
 panel.legendDivider = panel:CreateTexture(nil, "ARTWORK")
-panel.legendDivider:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-line")
+panel.legendDivider:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Panel\\divider-line")
 panel.legendDivider:SetVertexColor(C_PINK[1], C_PINK[2], C_PINK[3], 0.55)
 panel.legendDivider:SetHeight(6)
 if panel.legendDivider.SetTexelSnappingBias then
@@ -1790,7 +2109,7 @@ panel.legendDivider:Hide()
 
 -- Cyan gem centered on the divider line.
 panel.legendDividerGem = panel:CreateTexture(nil, "OVERLAY")
-panel.legendDividerGem:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-gem")
+panel.legendDividerGem:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Panel\\divider-gem")
 panel.legendDividerGem:SetSize(14, 14)
 panel.legendDividerGem:SetPoint("CENTER", panel.legendDivider, "CENTER", 0, 0)
 if panel.legendDividerGem.SetTexelSnappingBias then
@@ -1804,7 +2123,7 @@ panel.legendDividerGem:Hide()
 -- body rather than heading a section of its own. Width and placement come
 -- from the wordmark at layout time, since both follow the title font.
 panel.titleDivider = panel:CreateTexture(nil, "ARTWORK")
-panel.titleDivider:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-line")
+panel.titleDivider:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Panel\\divider-line")
 panel.titleDivider:SetVertexColor(C_PINK[1], C_PINK[2], C_PINK[3], 0.55)
 panel.titleDivider:SetHeight(6)
 if panel.titleDivider.SetTexelSnappingBias then
@@ -2190,8 +2509,8 @@ do
     -- interactive glyph in the idle list).
     function panel.SetWingChevron(btn, expanded)
         local tex = expanded
-            and "Interface\\AddOns\\RetroRuns\\Media\\TriDown"
-            or  "Interface\\AddOns\\RetroRuns\\Media\\TriRight"
+            and "Interface\\AddOns\\RetroRuns\\Media\\Icons\\TriDown"
+            or  "Interface\\AddOns\\RetroRuns\\Media\\Icons\\TriRight"
         local tx = btn._chevronTex
         if tx then
             tx:SetTexture(tex)
@@ -2318,7 +2637,7 @@ do
     toastStatus.label:SetTextColor(0.62, 0.62, 0.62)
 
     toastStatus.arrow = toastStatus:CreateTexture(nil, "OVERLAY")
-    toastStatus.arrow:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\ArrowDown")
+    toastStatus.arrow:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\ArrowDown")
     toastStatus.arrow:SetSize(10, 10)
 
     -- Center the label+arrow pair as a group on the footer's bottom baseline.
@@ -2421,7 +2740,7 @@ local function MakeActionButton(name, label, icon, x, onClick)
     if btn.SetDisabledTexture   then btn:SetDisabledTexture("")   end
 
     local tex = btn:CreateTexture(nil, "OVERLAY")
-    tex:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\" .. icon)
+    tex:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\" .. icon)
     tex:SetAllPoints(btn)
     btn._tex  = tex
     btn._label = label
@@ -2693,6 +3012,7 @@ function UI.ApplySettings()
     -- The main panel's interior fill is the backdrop bgFile; fade it via the
     -- backdrop color alpha (border stays full opacity for frame legibility).
     if panel.SetBackdropColor then panel:SetBackdropColor(1, 1, 1, opacity) end
+    UI.UpdateAmbientArt()
     ApplyOpacity(tmogWindow)
     ApplyOpacity(skipsWindow)
     ApplyOpacity(achievementsWindow)
@@ -2826,9 +3146,9 @@ local function UpdateMinimizeIcon()
     if not panel.minimizeButton or not panel.minimizeButton._tex then return end
     local tex
     if UI.IsMinimized() then
-        tex = "Interface\\AddOns\\RetroRuns\\Media\\MaximizeIcon"
+        tex = "Interface\\AddOns\\RetroRuns\\Media\\Icons\\MaximizeIcon"
     else
-        tex = "Interface\\AddOns\\RetroRuns\\Media\\MinimizeIcon"
+        tex = "Interface\\AddOns\\RetroRuns\\Media\\Icons\\MinimizeIcon"
     end
     panel.minimizeButton._tex:SetTexture(tex)
 end
@@ -3238,11 +3558,16 @@ end
 -- are explicit "show me the panel" actions, so the open path always fully
 -- expands regardless of launchMode or the minimized setting.
 function UI.TogglePanelExpanded()
-    if RR:GetSetting("showPanel") then
+    -- A panel the instance gate is holding closed counts as closed here:
+    -- the click means "open it", and the gate yields to that until the
+    -- player leaves the instance.
+    local panelVisible = RetroRunsUI and RetroRunsUI:IsShown()
+    if RR:GetSetting("showPanel") and panelVisible then
         RR:SetSetting("showPanel", false)
         if RetroRunsUI then RetroRunsUI:Hide() end
     else
         RR:SetSetting("showPanel", true)
+        RR.state.panelOpenedByHand = true
         -- In a raid with nothing loaded yet, adopt the current raid so the
         -- panel shows its route rather than the idle credit.
         if RR.currentRaid and not RR.state.loadedRaidKey then
@@ -3398,6 +3723,7 @@ function UI.AutoSize()
                 newH = oldH or newH
             else
                 panel:SetHeight(newH)
+                UI.UpdateAmbientArt()
             end
             -- No re-anchor: a TOPLEFT-anchored frame grows downward from a
             -- fixed top edge, which is exactly what the old CENTER maths
@@ -3413,6 +3739,8 @@ function UI.AutoSize()
     if PositionLegendDivider and not panelHeightPinned then
         PositionLegendDivider()
     end
+    -- The art's floor follows the divider, so it is laid out after it.
+    UI.UpdateAmbientArt()
 
     -- TRANSMOG POPUP -------------------------------------------------------
     -- The scroll CHILD takes the full content height so everything is
@@ -3876,7 +4204,7 @@ end
 
 local function BuildTravelText(step)
     local prefix = ("|cff%s%s|r "):format(C_LABEL, RR.L["Traveling:"])
-    if not step then return prefix .. "N/A" end
+    if not step then return prefix .. "|cff888888" .. RR.L["N/A"] .. "|r" end
 
     -- Encounter-freeze: while a boss fight is active, return the last
     -- text we rendered before the fight started. Avoids mid-fight
@@ -4021,7 +4349,7 @@ end
 --   3. Special Loot block, always rendered.
 local function BuildEncounterText(step)
     local prefix = ("|cff%s%s|r "):format(C_LABEL, RR.L["Boss Encounter:"])
-    if not step then return prefix .. RR.L["N/A"], false end
+    if not step then return prefix .. "|cff888888" .. RR.L["N/A"] .. "|r", false end
     local boss = RR:GetBossByIndex(step.bossIndex)
 
     local hasCustom = HasCustomEncounterNote(boss, step)
@@ -4031,13 +4359,13 @@ local function BuildEncounterText(step)
     local clickable
     local headerPulsing = false
     if not hasCustom then
-        headerLine = prefix .. "|cffaaaaaa" .. RR.L["Standard"] .. "|r"
+        headerLine = prefix .. "|cff888888" .. RR.L["Standard"] .. "|r"
         clickable  = false
     elseif not RR:GetSetting("encounterExpanded") then
         -- Yellow [!] marks a boss with a custom soloTip; the link stays gray
         -- so the glyph does the attention work. Drops away when expanded.
         local pulseColor = ENCOUNTER_PULSE_COLORS[encounterPulsePhase] or "|cffffff00"
-        headerLine = prefix .. pulseColor .. "[!]|r |cffaaaaaa" .. RR.L["view special note"] .. "|r"
+        headerLine = prefix .. pulseColor .. "[!]|r |cff888888" .. RR.L["view special note"] .. "|r"
         clickable  = true
         headerPulsing = true
     else
@@ -5185,7 +5513,7 @@ function UI.BuildTransmogSummaryUncached(step)
 
     -- The browse hint rides the header itself so the affordance is visible
     -- without reading to the end of the count lines.
-    local clickHnt = "|cff555555" .. RR.L["[click to browse]"] .. "|r"
+    local clickHnt = "|cff888888" .. RR.L["[click to browse]"] .. "|r"
     local header   = ("|cff%s%s|r %s"):format(
         C_LABEL, RR.L["Transmog Needed:"], clickHnt)
     local activeID = ActiveDifficulty()
@@ -5558,7 +5886,7 @@ end
 -- vertex-tinted texture the skips window uses; a typographic bullet is a
 -- missing glyph in the pixel fonts.
 function UI.ProgressDotGlyph(color)
-    return ("|TInterface\\AddOns\\RetroRuns\\Media\\StatusDot:10:10:0:0:64:64:0:64:0:64:%s|t")
+    return ("|TInterface\\AddOns\\RetroRuns\\Media\\Icons\\StatusDot:10:10:0:0:64:64:0:64:0:64:%s|t")
         :format(UI.UPGRADE_PILL_RGB[color] or UI.UPGRADE_PILL_RGB[DOT_INACTIVE])
 end
 -- The faction-pair caption's words: the two faction names, the viewing
@@ -5792,7 +6120,7 @@ function UI.MakeListDivider(parent)
     local divider = {}
     local function MakeLine()
         local line = parent:CreateTexture(nil, "ARTWORK")
-        line:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-line")
+        line:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Panel\\divider-line")
         line:SetVertexColor(C_PINK[1], C_PINK[2], C_PINK[3], 0.55)
         line:SetHeight(UI.DIVIDER_LINE_H)
         if line.SetTexelSnappingBias then
@@ -5807,7 +6135,7 @@ function UI.MakeListDivider(parent)
 
     local function MakeGem()
         local gem = parent:CreateTexture(nil, "OVERLAY")
-        gem:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-gem")
+        gem:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Panel\\divider-gem")
         gem:SetSize(UI.DIVIDER_GEM_SIZE, UI.DIVIDER_GEM_SIZE)
         if gem.SetTexelSnappingBias then
             gem:SetTexelSnappingBias(0)
@@ -7311,7 +7639,7 @@ BuildTransmogDetail = function(stepOrCtx)
                 noteText = noteText:gsub("{dot}",
                     UI.ProgressDotGlyph(DOT_INACTIVE))
                 noteText = noteText:gsub("{pad}",
-                    "|TInterface\\AddOns\\RetroRuns\\Media\\StatusDot:10:10:0:0:64:64:0:2:0:2|t")
+                    "|TInterface\\AddOns\\RetroRuns\\Media\\Icons\\StatusDot:10:10:0:0:64:64:0:2:0:2|t")
                 if raid.trashNote.itemID then
                     local _, itemLink = C_Item.GetItemInfo(raid.trashNote.itemID)
                     if not itemLink then
@@ -7525,7 +7853,7 @@ BuildTransmogDetail = function(stepOrCtx)
             -- {pad} is a dot-width blank (a transparent corner of the dot
             -- texture) so the words start in one column on every line.
             noteText = noteText:gsub("{pad}",
-                "|TInterface\\AddOns\\RetroRuns\\Media\\StatusDot:10:10:0:0:64:64:0:2:0:2|t")
+                "|TInterface\\AddOns\\RetroRuns\\Media\\Icons\\StatusDot:10:10:0:0:64:64:0:2:0:2|t")
             if raid.tierNote.itemID then
                 local _, itemLink = C_Item.GetItemInfo(raid.tierNote.itemID)
                 if itemLink then noteText = noteText:gsub("{item}", itemLink) end
@@ -9023,7 +9351,7 @@ GetOrCreateTmogWindow = function()
     -- idle list and settings pages use. Fixed to the popup, not the scroll
     -- child, so it stays with the legend footer.
     local legendDivider = tmogFrame:CreateTexture(nil, "ARTWORK")
-    legendDivider:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-line")
+    legendDivider:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Panel\\divider-line")
     legendDivider:SetVertexColor(C_PINK[1], C_PINK[2], C_PINK[3], 0.55)
     legendDivider:SetHeight(6)
     if legendDivider.SetTexelSnappingBias then
@@ -9033,7 +9361,7 @@ GetOrCreateTmogWindow = function()
     tmogFrame.legendDivider = legendDivider
 
     local legendDividerGem = tmogFrame:CreateTexture(nil, "OVERLAY")
-    legendDividerGem:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-gem")
+    legendDividerGem:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Panel\\divider-gem")
     legendDividerGem:SetSize(14, 14)
     legendDividerGem:SetPoint("CENTER", legendDivider, "CENTER", 0, 0)
     if legendDividerGem.SetTexelSnappingBias then
@@ -9066,13 +9394,13 @@ GetOrCreateTmogWindow = function()
     local sanctumBtn = CreateFrame("Button", nil, scrollChild)
     sanctumBtn:RegisterForClicks("LeftButtonUp")
     sanctumBtn:SetFrameLevel((scrollChild:GetFrameLevel() or 0) + 10)
-    sanctumBtn:SetNormalTexture("Interface\\AddOns\\RetroRuns\\Media\\PlaneIcon")
+    sanctumBtn:SetNormalTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\PlaneIcon")
     local planeTexture = sanctumBtn:GetNormalTexture()
     if planeTexture then
         planeTexture:SetVertexColor(C_PINK[1], C_PINK[2], C_PINK[3], 1)
     end
     sanctumBtn:SetHighlightTexture(
-        "Interface\\AddOns\\RetroRuns\\Media\\PlaneIcon", "ADD")
+        "Interface\\AddOns\\RetroRuns\\Media\\Icons\\PlaneIcon", "ADD")
     sanctumBtn:Hide()
     sanctumBtn:HookScript("OnEnter", CancelTmogHide)
     sanctumBtn:HookScript("OnLeave", ScheduleTmogHide)
@@ -10241,85 +10569,45 @@ local SKIP_MARKER_ROW_NONE = "|TInterface\\Common\\Spacer:10:10|t"
 -- cut out, so the panel shows through them. Drawn in the texture's own
 -- white; the source is authored white at 64x64, so a trailing r:g:b
 -- triple can tint it later without re-authoring. Hands are deliberately
--- heavy for the size -- see Media/ClockIcon.tga's generator.
--- An "M+" tag in the same voice as the Timewalking "TW", and sharing its
--- column -- self-explanatory, so it carries no legend line. Same
--- pixel-mapped art rules as the TW tag: 24x12, two-pixel strokes, and the
--- 96x48 crop are part of the art (generate_twtag.py).
--- Dungeon rows seat the tag at yoffset 0; the raid rows' line metrics
--- differ (their leading carries other 12px glyphs) and need -1. The TW
--- tag takes the same split through TimewalkingTag's parameter.
-UI.SEASONAL_MARKER_GLYPH   = "|TInterface\\AddOns\\RetroRuns\\Media\\MPlusTagIcon:12:24:0:0:128:64:0:96:0:48|t"
+-- heavy for the size -- see Media/Icons/ClockIcon.tga's generator.
 -- Timewalking's marker: an hourglass, its own art rather than a second use
 -- of the seasonal clock. Kept as its own constant so the two can never be
 -- changed by one edit.
 -- The 0:-2 is a y offset dropping the glyph onto the text baseline; with
 -- no offset an inline texture rides high against the line it sits in.
-UI.TIMEWALKING_MARKER_GLYPH = "|TInterface\\AddOns\\RetroRuns\\Media\\HourglassIcon:12:12:0:-1|t"
+UI.TIMEWALKING_MARKER_GLYPH = "|TInterface\\AddOns\\RetroRuns\\Media\\Icons\\HourglassIcon:12:12:0:-1|t"
 -- Width the marker occupies at the end of a header string, for placing the
 -- hover region over the glyph rather than over the whole heading.
 UI.TIMEWALKING_MARKER_W = 13
 
--- The "TW" tag at the current urgency tint. A texture because FontStrings
--- cannot shrink a substring; 16x8 and the full-canvas crop are part of the
--- art -- the tag is pixel-mapped at exactly that size and goes muddy at any
--- other (generate_twtag.py). A tag rather than the hourglass: the hourglass
--- belongs to the expansion header, and a live week would otherwise stack
--- seven of them down one column.
-function UI.TimewalkingTag(yOffset)
-    local days = RR:GetTimewalkingEnd()
-    local tint = UI.TIMEWALKING_TINT_OK
-    if days and days <= UI.TIMEWALKING_DAYS_LAST then
-        tint = UI.TIMEWALKING_TINT_LAST
-    elseif days and days <= UI.TIMEWALKING_DAYS_SOON then
-        tint = UI.TIMEWALKING_TINT_SOON
-    end
-    return ("|TInterface\\AddOns\\RetroRuns\\Media\\TWTagIcon:12:24:0:%d:128:64:0:96:0:48:%s|t")
-        :format(yOffset or 0, tint)
-end
-
--- The tag column on an instance row: a fixed-width slot just left of the
--- name (and, on dungeon rows, the plane gutter) holding whichever tag the
--- row earns, so TW and M+ stack in one column rather than two -- and the
--- raid and dungeon lists carry the tag in the same position. All texture,
--- no text space -- a font-sized space would put the alignment at the
--- mercy of the font. Reserved on EVERY row of a list while any week is
--- live, blank where a row earns neither tag, so the name and plane
--- columns never move as the season or the Timewalking week rotates.
---
--- TW wins a row that is both: the week is the perishable half, and the
--- Mythic+ season outlives it by months.
-function UI.InstanceTagSlot(instance)
-    local tag
+-- The "TW" or "M+" tag trailing an instance's name, as text at the row's
+-- own size. TW at the current urgency tint; TW wins a row that is both,
+-- since the week is the perishable half and the Mythic+ season outlives
+-- it by months. A tag rather than the hourglass: the hourglass belongs to
+-- the expansion header, and a live week would otherwise stack seven of
+-- them down one column. Empty where a row earns neither.
+function UI.InstanceTagText(instance)
     if instance and RR:IsTimewalkingLive(instance) then
-        -- Raid rows seat the tag a pixel lower than dungeon rows; see
-        -- the SEASONAL_MARKER_GLYPH note.
-        tag = UI.TimewalkingTag(
-            instance.kind ~= "dungeon" and -1 or 0)
+        local days = RR:GetTimewalkingEnd()
+        local hex = UI.TIMEWALKING_TINT_OK_HEX
+        if days and days <= UI.TIMEWALKING_DAYS_LAST then
+            hex = UI.TIMEWALKING_TINT_LAST_HEX
+        elseif days and days <= UI.TIMEWALKING_DAYS_SOON then
+            hex = UI.TIMEWALKING_TINT_SOON_HEX
+        end
+        return "  |cff" .. hex .. "TW|r"
     elseif instance and RR:IsSeasonalDungeon(instance) then
-        tag = UI.SEASONAL_MARKER_GLYPH
+        return "  |cffffd100M+|r"
     end
-    if not tag then
-        return ("|TInterface\\Common\\Spacer:10:%d|t")
-            :format(UI.INSTANCE_TAG_SLOT_W)
-    end
-    return tag .. ("|TInterface\\Common\\Spacer:10:%d|t")
-        :format(UI.INSTANCE_TAG_SLOT_W - 24)
+    return ""
 end
 -- Width the slot adds ahead of the plane gutter: the 24px tag plus 2px of
 -- breathing room. The plane button anchors at a FIXED inset on the row, so
 -- the same number moves the plane over -- keep the two in step through
 -- this constant.
-UI.INSTANCE_TAG_SLOT_W = 26
 
 -- A raid row's Timewalking tag, trailing the name with a gap, while the
 -- raid's week is live; nothing otherwise. Raid rows reserve no slot.
-function UI.RaidTag(raid)
-    if raid and RR:IsTimewalkingLive(raid) then
-        return "  " .. UI.TimewalkingTag(-1)
-    end
-    return ""
-end
 
 -- Urgency tint: many appearances are Timewalking-only, so how much of the
 -- week is left is real information, not decoration. The asset is white, so
@@ -10328,6 +10616,9 @@ end
 UI.TIMEWALKING_TINT_OK    = "0:255:0"
 UI.TIMEWALKING_TINT_SOON  = "255:255:0"
 UI.TIMEWALKING_TINT_LAST  = "255:0:0"
+UI.TIMEWALKING_TINT_OK_HEX   = "00ff00"   -- the same three, for text
+UI.TIMEWALKING_TINT_SOON_HEX = "ffff00"
+UI.TIMEWALKING_TINT_LAST_HEX = "ff0000"
 UI.TIMEWALKING_DAYS_SOON  = 3        -- at or under this, amber
 UI.TIMEWALKING_DAYS_LAST  = 1        -- at or under this, red
 
@@ -10341,7 +10632,7 @@ function UI.TimewalkingMarker(days)
     elseif days <= UI.TIMEWALKING_DAYS_SOON then
         tint = UI.TIMEWALKING_TINT_SOON
     end
-    return ("|TInterface\\AddOns\\RetroRuns\\Media\\HourglassIcon:12:12:0:-1:64:64:0:64:0:64:%s|t")
+    return ("|TInterface\\AddOns\\RetroRuns\\Media\\Icons\\HourglassIcon:12:12:0:-1:64:64:0:64:0:64:%s|t")
         :format(tint)
 end
 -- Inline texture marker matching the entrance-navigation buttons (the
@@ -10356,7 +10647,7 @@ end
 -- point of the line is that this glyph is that button.
 local function EntranceMarker()
     local size = math.floor(RR:GetSetting("fontSize", 12) * 1.4)
-    return ("|TInterface\\AddOns\\RetroRuns\\Media\\PlaneIcon:%d:%d:0:0:64:64:0:64:0:64:242:89:199|t")
+    return ("|TInterface\\AddOns\\RetroRuns\\Media\\Icons\\PlaneIcon:%d:%d:0:0:64:64:0:64:0:64:242:89:199|t")
         :format(size, size)
 end
 
@@ -10492,7 +10783,7 @@ local SKIPS_ROW_DIVIDER_INSET = 5
 -- unlocked. Vertex-tinted StatusDot textures rather than a typographic
 -- bullet, which renders as a missing glyph in pixel fonts.
 local function StatusDotGlyph(r, g, b)
-    return ("|TInterface\\AddOns\\RetroRuns\\Media\\StatusDot:10:10:0:0:64:64:0:64:0:64:%d:%d:%d|t"):format(r, g, b)
+    return ("|TInterface\\AddOns\\RetroRuns\\Media\\Icons\\StatusDot:10:10:0:0:64:64:0:64:0:64:%d:%d:%d|t"):format(r, g, b)
 end
 local SKIPS_CELL_NA       = StatusDotGlyph(80, 80, 80)
 local SKIPS_CELL_LOCKED   = StatusDotGlyph(255, 255, 255)
@@ -11582,7 +11873,7 @@ local function BuildIdleListRows()
         -- below it start, and every plane shares one column. A live
         -- Timewalking tag trails the name for that week only.
         local label = ("%s|TInterface\\Common\\Spacer:10:6|t%s  |cffffffff%s|r%s")
-            :format(leading, RR.PILL_PLANE_GUTTER, name, UI.RaidTag(raid))
+            :format(leading, RR.PILL_PLANE_GUTTER, name, UI.InstanceTagText(raid))
 
         anyRaidShown = true
         local raidHasPlane = (RR:GetRaidEntrance(raid) ~= nil)
@@ -11673,28 +11964,25 @@ local function BuildIdleListRows()
         -- routing arrives in phases, so the color says which ones can be
         -- run start to finish today.
         local isRouted = RR:InstanceHasRouting(dungeon)
-        -- Timewalking and current-season Mythic+ share one tag column,
-        -- ahead of the plane gutter. Both are runtime-detected, so they
-        -- follow their rotations with no data update.
+        -- A Timewalking or current-season Mythic+ tag trails the name.
+        -- Both are runtime-detected, so they follow their rotations with
+        -- no data update.
         local leading = RR.PILL_SUBLINE_INDENT
         if wingOf then
             leading = leading .. RR.PillSpacer(WING_INDENT - 16)
         end
         table.insert(rows, {
             kind = "raidName",
-            text = (leading .. UI.InstanceTagSlot(dungeon)
-                .. RR.PILL_PLANE_GUTTER .. "  |cff%s%s|r")
-                :format(isRouted and "ffffff" or "8a8a8a", name),
+            text = (leading .. RR.PILL_PLANE_GUTTER .. "  |cff%s%s|r%s")
+                :format(isRouted and "ffffff" or "8a8a8a", name,
+                        UI.InstanceTagText(dungeon)),
             -- Rendered into its own cell at a shared x, not appended here:
             -- the pill column has to line up ACROSS rows.
             pillText = BuildIdleListPills(dungeon),
             raid = dungeon,
             hasPlane = hasPlane,
-            -- The tag slot sits ahead of the plane gutter, so the plane's
-            -- fixed inset clears it; 17 is PositionEntranceButton's own
-            -- default.
-            planeInset = (wingOf and (WING_INDENT + 1) or 17)
-                + UI.INSTANCE_TAG_SLOT_W,
+            -- 17 is PositionEntranceButton's own default, the raid rows'.
+            planeInset = (wingOf and (WING_INDENT + 1) or 17),
         })
     end
 
@@ -11721,11 +12009,10 @@ local function BuildIdleListRows()
             kind = "dungeonGroup",
             groupName = groupName,
             expanded = groupExpanded,
-            -- The same column the member rows put their planes in: this
-            -- row's text reserves the tag slot exactly as theirs does, so
-            -- the expander lands under the planes rather than beside them.
-            planeInset = 17 + UI.INSTANCE_TAG_SLOT_W,
-            text = (RR.PILL_SUBLINE_INDENT .. UI.InstanceTagSlot(nil)
+            -- The same column the member rows put their planes in, so the
+            -- expander lands under the planes rather than beside them.
+            planeInset = 17,
+            text = (RR.PILL_SUBLINE_INDENT
                 .. RR.PILL_PLANE_GUTTER .. "  |cff%s%s|r")
                 :format(anyRouted and "ffffff" or "8a8a8a", heading),
         })
@@ -12693,6 +12980,7 @@ function UI.Update()
 
     panel:Show()
     UI.ApplySettings()
+    UI.UpdateAmbientArt()
 
     local raid   = RR.currentRaid
     local loaded = raid and RR.state.loadedRaidKey == RR:GetRaidContextKey()
@@ -13074,7 +13362,7 @@ function UI.Update()
                 if exitNote and exitNote ~= "" then
                     local exitGlyphSize = exitFontSize + 3
                     panel.exitNote:SetText(
-                        ("|TInterface\\AddOns\\RetroRuns\\Media\\ExitIcon:%d:%d:0:-1:64:64:0:64:0:64:242:89:199|t ")
+                        ("|TInterface\\AddOns\\RetroRuns\\Media\\Icons\\ExitIcon:%d:%d:0:-1:64:64:0:64:0:64:242:89:199|t ")
                             :format(exitGlyphSize, exitGlyphSize) ..
                         "|cfff259c7" .. RR.L["Exit Note:"] .. "|r "
                         .. HighlightNames(exitNote))
@@ -13921,7 +14209,7 @@ function UI._GetOrCreateLoadDialog()
     -- states; the engine swaps them automatically on hover/press/disable.
     -- Cancel is handled by the close [X] in the top-right corner.
     local BTN_W, BTN_H, BTN_GAP = 140, 36, 4
-    local MEDIA = "Interface\\AddOns\\RetroRuns\\Media\\"
+    local MEDIA = "Interface\\AddOns\\RetroRuns\\Media\\Buttons\\"
     local function MakeTextureButton(baseName, anchorX)
         local choiceButton = CreateFrame("Button", nil, loadDialog)
         choiceButton:SetSize(BTN_W, BTN_H)
@@ -14029,7 +14317,7 @@ function UI._GetOrCreateLoadDialog()
     closeBtn:SetPoint("TOPRIGHT", -10 - FRAME_INSET_X, -4 - FRAME_INSET_Y)
     do
         local tex = closeBtn:CreateTexture(nil, "OVERLAY")
-        tex:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\CloseIcon")
+        tex:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\CloseIcon")
         tex:SetAllPoints(closeBtn)
         closeBtn._tex = tex
         closeBtn:SetScript("OnEnter", function(self) self._tex:SetVertexColor(1.4, 1.4, 1.4) end)
@@ -14698,6 +14986,15 @@ local function GetAchRowSlot(parent, idx)
     slot.accent = parent:CreateTexture(nil, "BORDER")
     slot.accent:SetColorTexture(0.45, 0.80, 1.0, 1.0)
     slot.accent:SetWidth(3)
+    -- The bar breathes while it marks the current boss: a bounced alpha
+    -- swing whose 1.6s round trip matches the [!] pulse on the main panel.
+    slot.accentPulse = slot.accent:CreateAnimationGroup()
+    slot.accentPulse:SetLooping("BOUNCE")
+    local accentAlpha = slot.accentPulse:CreateAnimation("Alpha")
+    accentAlpha:SetFromAlpha(1.0)
+    accentAlpha:SetToAlpha(0.35)
+    accentAlpha:SetDuration(0.8)
+    accentAlpha:SetSmoothing("IN_OUT")
 
     achRowPool[idx] = slot
     return slot
@@ -14718,6 +15015,7 @@ local function HideAllAchSlots()
         slot.divider:Hide()
         slot.highlight:Hide()
         slot.accent:Hide()
+        if slot.accentPulse then slot.accentPulse:Stop() end
     end
 end
 
@@ -15713,6 +16011,9 @@ GetOrCreateAchievementsWindow = function()
                     slot.accent:SetPoint("TOPLEFT",    rowParent, "TOPLEFT", 14, y + 1)
                     slot.accent:SetPoint("BOTTOMLEFT", rowParent, "TOPLEFT", 14, y - lineHeight + ACH_ROW_BOTTOM_INSET)
                     slot.accent:Show()
+                    if not slot.accentPulse:IsPlaying() then
+                        slot.accentPulse:Play()
+                    end
                 end
 
                 -- Status cell: [ ✓ ] or [ X ]
@@ -15988,14 +16289,19 @@ end -- achievements do block
 -- re-renders at the new brightness. Purely cosmetic. Runs at 0.1s (not the 1s
 -- heartbeat) so the breathing reads as smooth, and only when the panel is
 -- allowed, a raid is loaded, and the encounter section is collapsed.
+-- The shared phase advances on its own, so every reader -- both [!]
+-- glyphs, the map ring and labels, the toaster glow -- keeps breathing
+-- whether or not the main panel's glyph is showing.
+C_Timer.NewTicker(0.1, function()
+    encounterPulsePhase = (encounterPulsePhase + 1) % ENCOUNTER_PULSE_STEPS
+end)
+
 C_Timer.NewTicker(0.1, function()
     -- Cheap exit if there's nothing to display the pulse on.
-    if not RR:IsPanelAllowed() then return end
+    if not RR:IsPanelAllowed() or not panel:IsShown() then return end
     if not RR.currentRaid then return end
     if RR.state.loadedRaidKey ~= RR:GetRaidContextKey() then return end
     if RR:GetSetting("encounterExpanded") then return end
-
-    encounterPulsePhase = (encounterPulsePhase + 1) % ENCOUNTER_PULSE_STEPS
 
     -- Refresh the header label alone. Content updates are the
     -- heartbeat ticker's job; this only restyles the [!] glyph, so a
@@ -16014,13 +16320,11 @@ end)
 -- in sync, and rewrites in place rather than calling UI.Update. Dismissed
 -- while RetroRunsDB.whatsNewSeenVersion matches the current VERSION.
 C_Timer.NewTicker(0.1, function()
-    if not RR:IsPanelAllowed() then return end
+    if not RR:IsPanelAllowed() or not panel:IsShown() then return end
     if not panel.whatsNewLabel then return end
-    local dismissed = RetroRunsDB
-        and RetroRunsDB.whatsNewSeenVersion == RetroRuns.VERSION
-    if dismissed then
-        -- No marker once dismissed for this version.
-        panel.whatsNewLabel:SetText("")
+    -- Dismissed for this version: the click handler already blanked the
+    -- label, and the label is born blank, so there is nothing to rewrite.
+    if RetroRunsDB and RetroRunsDB.whatsNewSeenVersion == RetroRuns.VERSION then
         return
     end
     local pulseColor = ENCOUNTER_PULSE_COLORS[encounterPulsePhase] or "|cffffff00"

@@ -50,6 +50,7 @@ RetroRuns_DungeonData[279] = {
             index              = 2,
             name               = "Salramm the Fleshcrafter",
             journalEncounterID = 612,
+            aliases            = { "Salram the Fleshcrafter" },
             achievements       = {
             },
             loot = {

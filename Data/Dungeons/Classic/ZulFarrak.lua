@@ -86,6 +86,7 @@ RetroRuns_DungeonData[241] = {
             index              = 5,
             name               = "Gahz'rilla",
             journalEncounterID = 483,
+            aliases            = { "Ghaz'rilla" },
             achievements       = {
             },
             loot = {
@@ -104,6 +105,8 @@ RetroRuns_DungeonData[241] = {
             -- an id this row cannot resolve; the names let the fallback
             -- land it here instead of reporting an unmatched kill.
             aliases            = { "Nekrum Gutchewer", "Shadowpriest Sezz'ziz" },
+            -- The scenario tracks the pair as two "defeated" objectives.
+            scenarioCriteriaIDs = { 24947, 24946 },
             achievements       = {
             },
             loot = {

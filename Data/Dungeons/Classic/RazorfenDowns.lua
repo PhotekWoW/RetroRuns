@@ -40,6 +40,7 @@ RetroRuns_DungeonData[233] = {
             index              = 1,
             name               = "Aarux",
             journalEncounterID = 1142,
+            aliases            = { "Aaurx" },
             achievements       = {
             },
             loot = {

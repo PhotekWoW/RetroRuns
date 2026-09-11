@@ -91,6 +91,7 @@ RetroRuns_DungeonData[1187] = {
             index              = 5,
             name               = "Mordretha, the Endless Empress",
             journalEncounterID = 2417,
+            aliases            = { "Mordretha" },
             -- Criterion prose reads "Mordretha defeated" and does not carry the journal name.
             scenarioCriteriaID = 48440,
             achievements       = {

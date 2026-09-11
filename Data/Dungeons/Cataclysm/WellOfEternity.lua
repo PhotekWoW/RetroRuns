@@ -55,6 +55,7 @@ RetroRuns_DungeonData[185] = {
             index              = 3,
             name               = "Mannoroth and Varo'then",
             journalEncounterID = 292,
+            aliases            = { "Mannoroth" },
             achievements       = {
                 { id = 6070, name = "That's Not Canon!", soloable = "yes" },
             },

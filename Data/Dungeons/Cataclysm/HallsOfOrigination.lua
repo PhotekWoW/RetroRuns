@@ -75,6 +75,7 @@ RetroRuns_DungeonData[70] = {
             index              = 4,
             name               = "Isiset, Construct of Magic",
             journalEncounterID = 127,
+            aliases            = { "Isiset" },
             achievements       = {
             },
             loot = {
@@ -87,6 +88,7 @@ RetroRuns_DungeonData[70] = {
             index              = 5,
             name               = "Ammunae, Construct of Life",
             journalEncounterID = 128,
+            aliases            = { "Ammunae" },
             achievements       = {
             },
             loot = {
@@ -98,6 +100,7 @@ RetroRuns_DungeonData[70] = {
             index              = 6,
             name               = "Setesh, Construct of Destruction",
             journalEncounterID = 129,
+            aliases            = { "Setesh" },
             achievements       = {
             },
             loot = {
@@ -112,6 +115,7 @@ RetroRuns_DungeonData[70] = {
             index              = 7,
             name               = "Rajh, Construct of Sun",
             journalEncounterID = 130,
+            aliases            = { "Rajh" },
             achievements       = {
                 { id = 5295, name = "Sun of a....", meta = true, soloable = "yes" },
                 { id = 5296, name = "Faster Than the Speed of Light", meta = true, soloable = "yes" },

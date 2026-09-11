@@ -84,6 +84,7 @@ RetroRuns_DungeonData[1001] = {
             index              = 4,
             name               = "Harlan Sweete",
             journalEncounterID = 2095,
+            aliases            = { "Lord Harlan Sweete" },
             achievements       = {
                 { id = 12998, name = "That Sweete Booty", meta = true, soloable = "yes" },
             },

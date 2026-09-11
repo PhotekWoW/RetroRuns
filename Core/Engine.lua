@@ -251,6 +251,12 @@ local function ForEachScenarioCriterion(callback)
     end
 end
 
+-- Exposed for the bring-up dump, which lists every live criterion and
+-- which boss it binds to.
+function RR:ForEachScenarioCriterion(callback)
+    return ForEachScenarioCriterion(callback)
+end
+
 -- Whether one scenario objective is complete, by criteriaID -- the stable,
 -- locale-proof key (descriptions are Blizzard prose and drift even in
 -- English: "Golem Lord Argelmach" carries no verb where its siblings say
@@ -302,6 +308,10 @@ function RR:ReadScenarioKills()
     for _, boss in ipairs(bosses) do
         if boss.scenarioCriteriaID then
             byCriteriaID[boss.scenarioCriteriaID] = boss.index
+        end
+        -- A duo the data carries as one boss can be two objectives.
+        for _, criteriaID in ipairs(boss.scenarioCriteriaIDs or {}) do
+            byCriteriaID[criteriaID] = boss.index
         end
     end
 
@@ -398,10 +408,14 @@ local SCENARIO_RETRY_DELAYS = { 0.5, 1.5, 3.0 }
 -- Folds the criteria into the run record. ADDITIVE ONLY: it sets a boss
 -- killed and never clears one, so a partial read cannot walk the record
 -- backwards. Returns changed, answered.
+--
+-- Runs under a lockout too. A lockout records encounters, not deaths: a
+-- boss that dies before its encounter opens leaves the lockout empty while
+-- the scenario criterion still completes, so the criteria are the only
+-- witness there as well.
 function RR:MergeScenarioKills()
     if self.state.testMode then return false, false end
     if not self.currentRaid then return false, false end
-    if self:GetCurrentLockoutId() then return false, false end
     local killed = self:ReadScenarioKills()
     if not killed then return false, false end
     local changed = false
@@ -432,7 +446,6 @@ end
 function RR:ScheduleScenarioKillRetry()
     if self.state.testMode then return end
     if not self.currentRaid then return end
-    if self:GetCurrentLockoutId() then return end
     local raidKeyAtSchedule = self:GetRaidContextKey()
     local function tick(attempt)
         if not self.currentRaid
@@ -555,6 +568,10 @@ end
 -- than late.
 local INSTANCE_HISTORY_LIMIT  = 10
 local INSTANCE_HISTORY_WINDOW = 60 * 60
+-- How long an empty non-saved instance is assumed to survive before the
+-- server drops it. A return after a longer gap is a new spawn. Approximate,
+-- and short on purpose: overcounting warns early, undercounting warns late.
+local INSTANCE_EMPTY_TIMEOUT  = 30 * 60
 
 function RR:TrackInstanceEntry(info)
     if self.state.testMode then
@@ -565,17 +582,31 @@ function RR:TrackInstanceEntry(info)
     if info.instanceType ~= "party" and info.instanceType ~= "raid" then return end
     RetroRunsDB = RetroRunsDB or {}
     RetroRunsDB.instanceHistory = RetroRunsDB.instanceHistory or {}
+    RetroRunsDB.instanceLastSpawn = RetroRunsDB.instanceLastSpawn or {}
+    local now = time()
     local player = (UnitName("player") or "?") .. "-" .. (GetRealmName() or "?")
-    local key = ("%s:%s:%s:%d"):format(player, tostring(info.instanceID),
+    local instanceKey = player .. ":" .. tostring(info.instanceID)
+    local spawnKey = ("%s:%s:%d"):format(instanceKey,
         tostring(info.difficultyID), RetroRunsDB.instanceHistoryGen or 1)
-    local entry = RetroRunsDB.instanceHistory[key]
-    if not entry then
-        entry = { create = time() }
-        RetroRunsDB.instanceHistory[key] = entry
+
+    -- The same spawn only while it is the LAST one used for this instance:
+    -- changing difficulty resets a non-saved instance, so Heroic, Normal,
+    -- Heroic again is three spawns under two keys. A long empty gap is a
+    -- new spawn too.
+    local entry = RetroRunsDB.instanceHistory[spawnKey]
+    local idleGap = entry and (now - (entry.last or entry.create or now)) or 0
+    local sameSpawn = entry
+        and RetroRunsDB.instanceLastSpawn[instanceKey] == spawnKey
+        and idleGap <= INSTANCE_EMPTY_TIMEOUT
+    if not sameSpawn then
+        if entry then spawnKey = spawnKey .. "@" .. now end
+        entry = { create = now }
+        RetroRunsDB.instanceHistory[spawnKey] = entry
         local liveCount = self:GetInstanceUseCount()
         self:ZoneLog(("instance history: new slot, %d live"):format(liveCount))
     end
-    entry.last = time()
+    RetroRunsDB.instanceLastSpawn[instanceKey] = spawnKey
+    entry.last = now
 end
 
 -- ResetInstances cannot touch the instance the player is standing in, so a

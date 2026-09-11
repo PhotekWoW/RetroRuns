@@ -2,6 +2,27 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.1.0] - 2026-09-11
+
+### Added
+- **All MoP Dungeons are in.** Temple of the Jade Serpent, Mogu'shan Palace, Gate of the Setting Sun, Stormstout Brewery, Siege of Niuzao Temple, Shado-Pan Monastery and Scholomance join the two Scarlet halls, which makes 27 guided dungeons so far.
+- **Every expansion has its own custom art behind the main panel.** Open an expansion on the list, or load one of its instances, and a faded picture sits behind the content.
+- **Legacy of Scholomance is in the transmog browser.** The original Scholomance's appearances are listed under every Scholomance boss, with a note on how the attunement starts. The rare who drops the toy that starts it, Doctor Theolen Krastinov, is marked on the map.
+- **RetroRuns stays deactivated on M+ Dungeons.** When zoning into Heroic or Mythic difficulty on a seasonal M+ dungeon, the addon stays down. The minimap button or /rr still opens it by hand.
+- **The instance-limit counter counts difficulty changes.** Switching a dungeon between Normal, Heroic and Mythic spawns a new instance each time, and the counter now reflects that.
+- **Polyformic Acid Science.** This achievement now shows on each of its six bosses across the Mists dungeons, with a solo grade.
+
+### Changed
+- **The addon download is a third smaller.** Media art moved to the game's native compressed format.
+- **The Timewalking and Mythic+ tags on the instance list are text now**, sitting after the instance name on both tabs. They used to draw inconsistently from one row to the next.
+- **Dungeon rows on the list line up with raid rows**: the plane icons share one column across both tabs.
+- **One gray on the main panel.** Several different tints of gray were being used in various places on the main panel. Now they match.
+
+### Fixed
+- **Deadmines lists its six bosses.** Seven bosses from the pre-Cataclysm Deadmines that only appear in the Classic Timewalking event were showing in the list and the browser.
+- **Scholomance, Deadmines and Shadowfang Keep show one row per item with a Normal and a Heroic pill.** The Heroic version of each drop was listed as a second row with no pills.
+- **Mogu'shan Palace's entrance waypoint** pointed at the old Vale of Eternal Blossoms map; it now lands on the current one.
+
 ## [3.0.0] - 2026-09-04
 
 ### Added

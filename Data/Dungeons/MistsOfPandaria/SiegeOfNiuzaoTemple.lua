@@ -35,6 +35,7 @@ RetroRuns_DungeonData[324] = {
             name               = "Vizier Jin'bak",
             journalEncounterID = 693,
             achievements       = {
+                { id = 6715, name = "Polyformic Acid Science", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 144022, slot = "Head", name = "Hood of Viridian Residue", sources = { [14]=84357, [15]=84357 } },
@@ -46,6 +47,7 @@ RetroRuns_DungeonData[324] = {
             index              = 2,
             name               = "Commander Vo'jak",
             journalEncounterID = 738,
+            soloTip            = "Kill 5-6 waves until the boss finally comes. You can bang the ^Challenge Gong^ after each wave to speed up the process.",
             achievements       = {
                 { id = 6688, name = "Where's My Air Support?", meta = true, soloable = "yes" },
             },
@@ -90,6 +92,141 @@ RetroRuns_DungeonData[324] = {
                 { id = 144173, slot = "Waist", name = "Belt of Totemic Binding", sources = { [14]=84450, [15]=84450 } },
                 { id = 144171, slot = "Weapon", name = "Ner'onok's Razor Katar", sources = { [14]=84448, [15]=84448 } },
                 { id = 144219, slot = "Weapon", name = "Tolakesh, Horn of the Black Ox", sources = { [14]=84487, [15]=84487 } },
+            },
+        },
+    },
+
+    exitNote    = "Jump off the ledge behind the final boss to respawn at the ^Challenge Gong^. Run back into the tree, then jump to the lower floor and run out.",
+    minExitNote = "Ledge jump behind final boss",
+
+    routing = {
+        -- 1. Vizier Jin'bak (boss 1)
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Vizier Jin'bak",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 458 },
+                    kind    = "path",
+                    note    = "After zoning in, kill all three trash packs on the way down the path to ^Vizier Jin'bak^.",
+                    minNote = "Clear trash to Jin'bak",
+                    points  = {
+                        { 0.638, 0.792 },
+                        { 0.669, 0.576 },
+                        { 0.649, 0.434 },
+                        { 0.575, 0.281 },
+                        { 0.503, 0.277 },
+                        { 0.478, 0.468 },
+                    },
+                },
+            },
+        },
+        -- 2. Commander Vo'jak (boss 2)
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Commander Vo'jak",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 458 },
+                    kind    = "path",
+                    note    = "After killing ^Vizier Jin'bak^, continue clockwise up the tree path until you reach an exit on your right. Melee attack the ^Hardened Resin^ to break open the path.",
+                    minNote = "Continue up path to exit right",
+                    points  = {
+                        { 0.428, 0.558 },
+                        { 0.305, 0.642 },
+                        { 0.350, 0.738 },
+                        { 0.460, 0.822 },
+                        { 0.559, 0.818 },
+                    },
+                },
+                {
+                    when    = { mapID = 459 },
+                    kind    = "path",
+                    note    = "After killing ^Vizier Jin'bak^, continue clockwise up the tree path until you reach an exit on your right. Melee attack the ^Hardened Resin^ to break open the path.",
+                    minNote = "Continue up path to exit right",
+                    points  = {
+                        { 0.613, 0.746 },
+                        { 0.673, 0.625 },
+                        { 0.672, 0.479 },
+                        { 0.610, 0.316 },
+                        { 0.517, 0.238 },
+                        { 0.371, 0.255 },
+                        { 0.296, 0.407 },
+                        { 0.258, 0.530 },
+                        { 0.179, 0.522 },
+                    },
+                },
+                {
+                    when    = { mapID = 457 },
+                    kind    = "path",
+                    note    = "After killing ^Vizier Jin'bak^, continue clockwise up the tree path until you reach an exit on your right. Melee attack the ^Hardened Resin^ to break open the path.",
+                    minNote = "Continue up path to exit right",
+                    points  = { },
+                },
+                {
+                    when     = { mapID = 457, subZone = "Rear Staging Area" },
+                    kind     = "poi",
+                    noMarker = true,
+                    note     = "Kill the ^Sik'Thik Warden^ to trigger some dialog, and then talk to ^Yang Ironclaw^ to begin the encounter with ^Commander Vo'jak^.",
+                    minNote  = "Talk to Yang for Commander Vo'jak",
+                    points   = {
+                        { 0.450, 0.745 },
+                    },
+                },
+            },
+        },
+        -- 3. General Pa'valak (boss 3)
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "General Pa'valak",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 457 },
+                    kind    = "path",
+                    note    = "After defeating ^Commander Vo'jak^, go down the stairs and wait for the NPCs to open the door. Continue north and you'll find ^General Pa'valak^ on the eastern side of the road.",
+                    minNote = "Follow path to Pa'valak",
+                    points  = {
+                        { 0.453, 0.759 },
+                        { 0.390, 0.766 },
+                        { 0.355, 0.688 },
+                        { 0.356, 0.600 },
+                        { 0.371, 0.534 },
+                        { 0.377, 0.431 },
+                        { 0.431, 0.417 },
+                        { 0.483, 0.398 },
+                        { 0.531, 0.449 },
+                    },
+                },
+            },
+        },
+        -- 4. Wing Leader Ner'onok (boss 4)
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Wing Leader Ner'onok",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 457 },
+                    kind    = "path",
+                    note    = "After killing ^General Pa'valak^, go northeast up the stairs and down the path to ^Wing Leader Ner'onok^.",
+                    minNote = "Northeast to Ner'onok",
+                    points  = {
+                        { 0.497, 0.403 },
+                        { 0.494, 0.340 },
+                        { 0.551, 0.251 },
+                    },
+                },
             },
         },
     },

@@ -52,6 +52,9 @@ RetroRuns_DungeonData[285] = {
             index              = 2,
             name               = "Skarvald & Dalronn",
             journalEncounterID = 639,
+            -- Criterion prose reads "Skarvald and Dalronn defeated".
+            scenarioCriteriaID = 27890,
+            aliases            = { "Skarvold & Dalronn" },
             achievements       = {
             },
             loot = {

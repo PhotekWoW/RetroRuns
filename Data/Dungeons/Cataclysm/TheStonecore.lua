@@ -12,7 +12,7 @@ RetroRuns_DungeonData[67] = {
     name              = "The Stonecore",
     expansion         = "Cataclysm",
     difficultyModel   = "dungeonBinary",
-    availableDifficulties = { 14, 15, 16, 24 },
+    availableDifficulties = { 14, 15, 24 },
     patch             = "4.0.3",
     timewalking       = true,
 

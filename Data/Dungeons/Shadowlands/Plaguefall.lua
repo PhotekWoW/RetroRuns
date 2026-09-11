@@ -80,6 +80,7 @@ RetroRuns_DungeonData[1183] = {
             index              = 4,
             name               = "Margrave Stradama",
             journalEncounterID = 2404,
+            aliases            = { "Stradama Margrave" },
             achievements       = {
                 { id = 14292, name = "Riding with my Slimes", meta = true, soloable = "yes" },
             },

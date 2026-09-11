@@ -65,6 +65,7 @@ RetroRuns_DungeonData[1012] = {
             index              = 3,
             name               = "Rixxa Fluxflame",
             journalEncounterID = 2115,
+            aliases            = { "Rixxa Fluxfume" },
             achievements       = {
             },
             loot = {

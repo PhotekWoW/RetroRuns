@@ -145,6 +145,7 @@ RetroRuns_DungeonData[558] = {
             index              = 4,
             name               = "Skulloc",
             journalEncounterID = 1238,
+            aliases            = { "Skulloc, Son of Gruul" },
             achievements       = {
                 { id = 9082, name = "Take Cover!", meta = true, soloable = "yes" },
                 { id = 9081, name = "Expert Timing", meta = true, soloable = "yes" },

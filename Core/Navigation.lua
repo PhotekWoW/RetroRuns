@@ -933,5 +933,16 @@ function RR:InitDialogTriggers()
 end
 
 function RR:IsPanelAllowed()
-    return self:GetSetting("showPanel") and true or false
+    if not self:GetSetting("showPanel") then return false end
+    -- Inside an instance nothing loaded for -- unsupported, or a seasonal
+    -- dungeon stood down from -- the panel stays out of the way rather
+    -- than opening the idle list over a run.
+    if not self.currentRaid and not self.state.panelOpenedByHand
+        and GetInstanceInfo then
+        local _, instanceType = GetInstanceInfo()
+        if instanceType == "party" or instanceType == "raid" then
+            return false
+        end
+    end
+    return true
 end

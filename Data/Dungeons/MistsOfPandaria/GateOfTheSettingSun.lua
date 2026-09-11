@@ -62,6 +62,7 @@ RetroRuns_DungeonData[303] = {
             name               = "Commander Ri'mok",
             journalEncounterID = 676,
             achievements       = {
+                { id = 6715, name = "Polyformic Acid Science", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 144019, slot = "Head", name = "Swarmcall Helm", sources = { [14]=84354, [15]=84354 } },
@@ -90,6 +91,141 @@ RetroRuns_DungeonData[303] = {
                 { id = 143991, slot = "Shoulder", name = "Shoulders of Engulfing Winds", sources = { [14]=84326, [15]=84326 } },
                 { id = 144101, slot = "Weapon", name = "Carapace Breaker", sources = { [14]=84407, [15]=84407 } },
                 { id = 144142, slot = "Wrist", name = "Frenzyswarm Bracers", sources = { [14]=84430, [15]=84430 } },
+            },
+        },
+    },
+
+    exitNote    = "Exit portal to the east",
+    minExitNote = "Exit portal to the east",
+
+    routing = {
+        -- 1. Saboteur Kip'tilak (boss 1)
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Saboteur Kip'tilak",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 437 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the path straight ahead to find ^Saboteur Kip'tilak^ flying around inside the first building.",
+                    minNote = "Ahead to Kip'tilak",
+                    points  = {
+                        { 0.592, 0.879 },
+                        { 0.484, 0.880 },
+                    },
+                },
+            },
+        },
+        -- 2. Striker Ga'dok (boss 2)
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Striker Ga'dok",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 437 },
+                    kind    = "path",
+                    note    = "After defeating ^Saboteur Kip'tilak^, continue on the linear path until you arrive at an elevator inside of a building. Click the ^Lever^ to take the elevator up.",
+                    minNote = "Path to elevator",
+                    points  = {
+                        { 0.461, 0.843 },
+                        { 0.461, 0.752 },
+                        { 0.413, 0.752 },
+                        { 0.413, 0.680 },
+                        { 0.413, 0.452 },
+                        { 0.462, 0.451 },
+                        { 0.462, 0.356 },
+                    },
+                },
+                {
+                    when        = { mapID = 437 },
+                    kind        = "poi",
+                    mapLabel    = "Click Lever",
+                    mapLabelPos = "right",
+                    points      = {
+                        { 0.472, 0.326 },
+                    },
+                },
+                {
+                    when     = { mapID = 438 },
+                    kind     = "poi",
+                    noMarker = true,
+                    note     = "When you reach the top of the elevator, you'll find ^Striker Ga'dok^ on the north side of the platform.",
+                    minNote  = "Kill Striker Ga'dok",
+                    points   = {
+                        { 0.491, 0.310 },
+                    },
+                },
+            },
+        },
+        -- 3. Commander Ri'mok (boss 3)
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Commander Ri'mok",
+            requires  = { },
+            segments  = {
+                {
+                    when        = { mapID = 438 },
+                    kind        = "poi",
+                    note        = "After defeating ^Striker Ga'dok^, click the nearby ^Lever^ to return to the lower floor.",
+                    minNote     = "Click nearby lever",
+                    mapLabel    = "Click Lever",
+                    mapLabelPos = "above",
+                    points      = {
+                        { 0.529, 0.516 },
+                    },
+                },
+                {
+                    when            = { mapID = 437 },
+                    kind            = "poi",
+                    note            = "At the bottom of the elevator, go north to reach the ^Signal Flame^. Click it to trigger a cutscene.",
+                    minNote         = "North to Signal Flame",
+                    mapLabel        = "Click Signal Flame",
+                    mapLabelPos     = "upper-left",
+                    highlightCircle = true,
+                    completionCheck = true,
+                    points          = {
+                        { 0.480, 0.116 },
+                    },
+                },
+                {
+                    when        = { mapID = 437 },
+                    kind        = "path",
+                    triggeredBy = { dialog = { npc = "Commander Ri'mok", match = "The gates are about to fall" } },
+                    note        = "After the cutscene, backtrack south and you'll run right into ^Commander Ri'mok^.",
+                    minNote     = "South to Commander Ri'mok",
+                    points      = { },
+                },
+            },
+        },
+        -- 4. Raigonn (boss 4)
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Raigonn",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 437 },
+                    kind    = "path",
+                    note    = "After killing ^Commander Ri'mok^, go south and jump carefully down into the main pit to reach ^Raigonn^.",
+                    minNote = "South then jump down to Raigonn",
+                    points  = {
+                        { 0.461, 0.282 },
+                        { 0.463, 0.463 },
+                        { 0.477, 0.506 },
+                        { 0.477, 0.580 },
+                        { 0.463, 0.592 },
+                    },
+                },
             },
         },
     },

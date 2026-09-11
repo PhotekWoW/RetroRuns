@@ -139,7 +139,7 @@ end
 -- Direction-of-travel chevron. The asset points down at rotation 0.
 local function MakeChevron(parent)
     local tx = parent:CreateTexture(nil, "OVERLAY")
-    tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Chevron")
+    tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\Chevron")
     tx:SetVertexColor(0.30, 0.80, 1.00, 1.0)  -- cyan (matches UI.lua C_BLUE)
     tx:SetSize(18, 18)
     tx:Hide()
@@ -149,7 +149,7 @@ end
 -- Soft halo, the same EpicGlow the toaster haloes an appearance with.
 local function MakePoiGlow(parent)
     local tx = parent:CreateTexture(nil, "BACKGROUND", nil, -1)
-    tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\EpicGlow")
+    tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Toast\\EpicGlow")
     tx:SetBlendMode("ADD")
     tx:Hide()
     return tx
@@ -167,7 +167,7 @@ end
 -- are small, and without a backing they sink into it.
 local function MakeSpotBack(parent)
     local tx = parent:CreateTexture(nil, "ARTWORK", nil, -2)
-    tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\StatusDot")
+    tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\StatusDot")
     tx:SetVertexColor(0, 0, 0, 0.55)
     tx:SetSize(SPOT_SIZE + 5, SPOT_SIZE + 5)
     tx:Hide()
@@ -178,7 +178,7 @@ end
 -- Its alpha breathes while shown (see SetSpotPulse).
 local function MakeSpotRing(parent)
     local tx = parent:CreateTexture(nil, "ARTWORK", nil, -1)
-    tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\RingCircle")
+    tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\RingCircle")
     tx:SetSize(SPOT_SIZE + 8, SPOT_SIZE + 8)
     tx:Hide()
     return tx
@@ -366,7 +366,7 @@ end
 
 local function MakeRing(parent)
     local tx = parent:CreateTexture(nil, "OVERLAY")
-    tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\RingCircle")
+    tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\RingCircle")
     tx:SetVertexColor(1.0, 0.0, 0.0, 1.0)
     tx:SetSize(42, 42)
     tx:Hide()
@@ -437,7 +437,7 @@ local function PlaceEndMarker(self, icon, pts, dest, W, H, endpointKind)
         return
     end
 
-    icon:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\EndTriangle")
+    icon:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\EndTriangle")
     -- White tint is a no-op, so the asset's baked colors render as authored.
     icon:SetVertexColor(1.0, 1.0, 1.0, 1.0)
     icon:SetSize(24, 24)
@@ -683,13 +683,13 @@ end
 -- for anything unlisted. Static (no pulse/completion) so they read as
 -- reference points, not the current objective.
 local GLOBAL_POI_TEXTURES = {
-    vendor    = "Interface\\AddOns\\RetroRuns\\Media\\CoinStack",
+    vendor    = "Interface\\AddOns\\RetroRuns\\Media\\Icons\\CoinStack",
     repair    = "Interface\\GossipFrame\\VendorRepairGossipIcon",
     innkeeper = "Interface\\GossipFrame\\BinderGossipIcon",
     alchemy   = "Interface\\Icons\\Trade_Alchemy",
     -- An NPC who takes a turn-in rather than selling anything. The coin
     -- stack would read as "buy from me" where nothing is bought.
-    quest     = "Interface\\AddOns\\RetroRuns\\Media\\QuestMarker",
+    quest     = "Interface\\AddOns\\RetroRuns\\Media\\Icons\\QuestMarker",
     -- Sells gear for a token or currency rather than gold. Blizzard's own
     -- Justice Points icon, which is the helm players already associate
     -- with a gear quartermaster.
@@ -699,7 +699,7 @@ local GLOBAL_POI_TEXTURES = {
     rare      = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8",
     -- A static container the player has to click for its loot, rather
     -- than a mob to kill.
-    chest     = "Interface\\AddOns\\RetroRuns\\Media\\ChestIcon",
+    chest     = "Interface\\AddOns\\RetroRuns\\Media\\Icons\\ChestIcon",
 }
 -- Tint per kind, multiplied over the texture. Blizzard's skull is white,
 -- so a multiply lands on the exact color asked for. Untinted kinds draw
@@ -877,10 +877,11 @@ function overlay:DrawGlobalPOIsForMap(mapID)
                     end
                     icon:SetVertexColor(tint[1], tint[2], tint[3], 1)
                     icon:SetRotation(0)
-                    -- One sublevel above the route dots, which share the
-                    -- layer, so a path drawn through a rare's room passes
-                    -- under the skull rather than across its face.
-                    icon:SetDrawLayer("ARTWORK", 1)
+                    -- Above the route entirely: the lines and dots sit on
+                    -- ARTWORK and the chevrons and end markers on OVERLAY,
+                    -- so a path drawn through a rare's room passes under
+                    -- the skull rather than across its face.
+                    icon:SetDrawLayer("OVERLAY", 2)
                     local iconSize = poi.poiSize or GLOBAL_POI_SIZE
                     icon:SetSize(iconSize, iconSize)
                     icon:Show()
@@ -1215,7 +1216,7 @@ local function BuildWorldMapButton()
     -- the art into an opening it was never cut for.
     button:SetSize(31, 31)
     local brandIcon = button:CreateTexture(nil, "BACKGROUND")
-    brandIcon:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\MinimapIcon")
+    brandIcon:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\MinimapIcon")
     brandIcon:SetAllPoints()
     local highlight = button:CreateTexture(nil, "HIGHLIGHT")
     highlight:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
@@ -1401,29 +1402,27 @@ C_Timer.NewTicker(1.0, function()
     end
 end)
 
--- Re-tints pulsing labels. Same 0.1s cadence as the panel's [!] glyphs.
+-- Re-tints pulsing labels and breathes the rings (red channel only), both
+-- off the panel's shared phase, in one 0.1s ticker.
 C_Timer.NewTicker(0.1, function()
     if not WorldMapFrame or not WorldMapFrame:IsShown() then return end
-    if not RR.GetLabelPulseColor then return end
-    local color = RR:GetLabelPulseColor()
-    for _, label in ipairs(overlay.labels) do
-        if label:IsShown()
-            and label.flashState == "pulsing"
-            and label.flashBase
-        then
-            label:SetText(color .. label.flashBase .. "|r")
+    if RR.GetLabelPulseColor then
+        local color = RR:GetLabelPulseColor()
+        for _, label in ipairs(overlay.labels) do
+            if label:IsShown()
+                and label.flashState == "pulsing"
+                and label.flashBase
+            then
+                label:SetText(color .. label.flashBase .. "|r")
+            end
         end
     end
-end)
-
--- Breathes the rings by modulating red only, on the same shared phase.
-C_Timer.NewTicker(0.1, function()
-    if not WorldMapFrame or not WorldMapFrame:IsShown() then return end
-    if not RR.GetRingPulseRed then return end
-    local pulseRed = RR:GetRingPulseRed()
-    for _, ring in ipairs(overlay.rings) do
-        if ring:IsShown() and not ring.completeState then
-            ring:SetVertexColor(pulseRed, 0, 0, 1)
+    if RR.GetRingPulseRed then
+        local pulseRed = RR:GetRingPulseRed()
+        for _, ring in ipairs(overlay.rings) do
+            if ring:IsShown() and not ring.completeState then
+                ring:SetVertexColor(pulseRed, 0, 0, 1)
+            end
         end
     end
 end)

@@ -215,9 +215,9 @@ local function ConstructToastFrame(parent)
     -- Glow: soft rectangular halo (EpicGlow), additive, tinted/pulsed per
     -- quality (forced pink for appearances). Anchored wider than the frame.
     toastFrame.glow = toastFrame:CreateTexture(nil, "BACKGROUND", nil, -1)
-    toastFrame.glow:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\EpicGlow")
-    toastFrame.glow:SetPoint("TOPLEFT", -180, 50)
-    toastFrame.glow:SetPoint("BOTTOMRIGHT", 180, -50)
+    toastFrame.glow:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Toast\\EpicGlow")
+    toastFrame.glow:SetPoint("TOPLEFT", -115, 115)
+    toastFrame.glow:SetPoint("BOTTOMRIGHT", 115, -115)
     toastFrame.glow:SetBlendMode("ADD")
     toastFrame.glow:Hide()
 
@@ -257,7 +257,7 @@ local function ConstructToastFrame(parent)
     -- Quality-tinted icon ring (the rarity cue the banner doesn't carry).
     -- Tint/show set in ApplyContent.
     toastFrame.iconRing = toastFrame:CreateTexture(nil, "OVERLAY")
-    toastFrame.iconRing:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\icon-border-white")
+    toastFrame.iconRing:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\icon-border-white")
     toastFrame.iconRing:SetPoint("TOPLEFT", toastFrame.icon, "TOPLEFT", -5, 5)
     toastFrame.iconRing:SetPoint("BOTTOMRIGHT", toastFrame.icon, "BOTTOMRIGHT", 5, -5)
     toastFrame.iconRing:Hide()
@@ -432,13 +432,14 @@ end
 -- Banner art paths per toast kind. No kind (preview/overlay) falls back to the
 -- code-drawn frame.
 local BANNER_BY_KIND = {
-    appearance = "Interface\\AddOns\\RetroRuns\\Media\\toast-bg-appearance",
-    special    = "Interface\\AddOns\\RetroRuns\\Media\\toast-bg-special",
-    token      = "Interface\\AddOns\\RetroRuns\\Media\\toast-bg-token",
+    appearance = "Interface\\AddOns\\RetroRuns\\Media\\Toast\\toast-bg-appearance",
+    special    = "Interface\\AddOns\\RetroRuns\\Media\\Toast\\toast-bg-special",
+    token      = "Interface\\AddOns\\RetroRuns\\Media\\Toast\\toast-bg-token",
 }
 
--- Apply the per-kind banner art. With a banner, hide the edge slivers, glow,
--- and bg fill (the icon ring stays). With no kind, leave the legacy frame.
+-- Apply the per-kind banner art. With a banner, hide the edge slivers and
+-- bg fill (the icon ring stays); the glow is StyleByQuality's call. With no
+-- kind, leave the legacy frame.
 local function StyleBannerByKind(toastFrame, toast)
     local kind
     if toast then
@@ -452,8 +453,6 @@ local function StyleBannerByKind(toastFrame, toast)
         toastFrame.bg:Hide()
         toastFrame.edgeT:Hide(); toastFrame.edgeB:Hide(); toastFrame.edgeL:Hide(); toastFrame.edgeR:Hide()
         toastFrame.iconEdge:Hide()
-        toastFrame.glow:Hide()        -- the banner art supplies its own glow
-        toastFrame.glowOn = false
         toastFrame.useBanner = true
         -- Seat the icon in the art's baked well.
         toastFrame.icon:SetSize(BANNER_ICON_SIZE, BANNER_ICON_SIZE)
@@ -494,8 +493,10 @@ local function StyleByQuality(toastFrame, quality, glowColor)
     -- Glow color: forced override if given, else the quality color.
     toastFrame.glowColor = glowColor or { r, g, b }
 
-    -- Glow shows for epic+ or a forced color, never with banner art.
-    if not toastFrame.useBanner and (glowColor or (quality and quality >= GLOW_QUALITY_FLOOR)) then
+    -- Glow shows for a forced color, for epic+ on the legacy frame, and
+    -- behind every banner toast; the pulse ticker breathes it.
+    if glowColor or toastFrame.useBanner
+        or (quality and quality >= GLOW_QUALITY_FLOOR) then
         toastFrame.glowOn = true
         toastFrame.glow:Show()
     else
@@ -1177,9 +1178,12 @@ local function StartFade(toastFrame)
     end)
 end
 
--- Pulse every live glowing toast off the same cosine phase as the map rings.
+-- Pulse every live glowing toast. Its own clock, at half the map ring's
+-- pace (3.2s round trip), so the halo breathes rather than flickers.
+local GLOW_PULSE_PERIOD = 3.2
 C_Timer.NewTicker(0.05, function()
-    local pulse = (RR.GetRingPulseRed and RR:GetRingPulseRed()) or 1.0
+    if #Presenter.live == 0 then return end
+    local pulse = 0.65 + 0.10 * math.cos(GetTime() * 2 * math.pi / GLOW_PULSE_PERIOD)   -- 0.55 .. 0.75
     for _, f in ipairs(Presenter.live) do
         if f.glowOn and f.glow then
             local glow = f.glowColor or GLOW_PINK
@@ -2390,6 +2394,20 @@ function RR:ToasterDebug()
     add("flushTimer     = " .. tostring(Summary.flushTimer ~= nil))
     add("toasterEnabled setting = " .. tostring(RR:GetSetting("toasterEnabled", false)))
     add("lootSummary    setting = " .. tostring(RR:GetSetting("toasterLootSummary", true)))
+    add("")
+    add("== Live toasts (top to bottom) ==")
+    if #Presenter.live == 0 then
+        add("(none on screen)")
+    end
+    for i, f in ipairs(Presenter.live) do
+        local glowShown = f.glow and f.glow:IsShown() or false
+        local r, g, b, a = 0, 0, 0, 0
+        if f.glow and f.glow.GetVertexColor then r, g, b, a = f.glow:GetVertexColor() end
+        add(("  [%d] %s  banner=%s  glowOn=%s  glowShown=%s  glowRGBA=%.2f,%.2f,%.2f,%.2f  frameAlpha=%.2f")
+            :format(i, tostring(f.itemNameText and f.itemNameText:GetText() or "?"),
+                    tostring(f.useBanner), tostring(f.glowOn), tostring(glowShown),
+                    r or 0, g or 0, b or 0, a or 0, f:GetAlpha()))
+    end
     add("")
     add("== Recent trace (oldest first) ==")
     if #Trace == 0 then

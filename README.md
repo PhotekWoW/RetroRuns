@@ -1,6 +1,6 @@
 # RetroRuns
 
-RetroRuns is a legacy companion for raids & dungeons in World of Warcraft retail.
+RetroRuns is a companion for legacy raids & dungeons: step-by-step guides with transmog and achievement tracking.
 
 Zone into an old raid or dungeon and RetroRuns guides you boss by boss to the end: the standard route, the LFR wing, or a skip straight to the final bosses on eligible raids. Enjoy searchable transmog and achievement tracking along the way!
 
@@ -79,15 +79,17 @@ Currently supports:
 
 That is every legacy raid in the game, Classic through Dragonflight.
 
-**Dungeons** get the same guided routing. Twenty are routed so far: every
-Classic dungeon (Ragefire Chasm, Wailing Caverns, The Stockade, Blackfathom
-Deeps, Gnomeregan, Razorfen Kraul, Razorfen Downs, Uldaman, Zul'Farrak,
-Maraudon, The Temple of Atal'Hakkar, Blackrock Depths, Lower Blackrock
-Spire, the three Dire Maul wings and both Stratholme entrances) plus
-Scarlet Halls and Scarlet Monastery. The rest of the 123 legacy dungeons,
-Classic through Dragonflight, are in the transmog browser with their bosses
-and drops, and their entrances are on the travel plane; routes for them are
-being added.
+**Dungeons** get the same guided routing. Twenty-seven are routed so far:
+every Classic dungeon (Ragefire Chasm, Wailing Caverns, The Stockade,
+Blackfathom Deeps, Gnomeregan, Razorfen Kraul, Razorfen Downs, Uldaman,
+Zul'Farrak, Maraudon, The Temple of Atal'Hakkar, Blackrock Depths, Lower
+Blackrock Spire, the three Dire Maul wings and both Stratholme entrances)
+and every Mists of Pandaria dungeon (Temple of the Jade Serpent, Stormstout
+Brewery, Shado-Pan Monastery, Mogu'shan Palace, Gate of the Setting Sun,
+Siege of Niuzao Temple, Scarlet Halls, Scarlet Monastery and Scholomance).
+The rest of the 123 legacy dungeons, Classic through Dragonflight, are in
+the transmog browser with their bosses and drops, and their entrances are on
+the travel plane; routes for them are being added.
 
 ## Installation
 
@@ -160,7 +162,7 @@ Main commands, type in chat:
 
 ## Status
 
-Version **3.0.0**
+Version **3.1.0**
 
 ## Reporting bugs / requesting features
 

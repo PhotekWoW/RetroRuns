@@ -78,6 +78,7 @@ RetroRuns_DungeonData[1186] = {
             index              = 4,
             name               = "Devos, Paragon of Doubt",
             journalEncounterID = 2412,
+            aliases            = { "Devos, Paragon of Loyalty" },
             -- Criterion prose reads "Devos defeated" and does not carry the journal name.
             scenarioCriteriaID = 48048,
             achievements       = {

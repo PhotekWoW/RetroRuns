@@ -12,7 +12,7 @@ RetroRuns_DungeonData[68] = {
     name              = "The Vortex Pinnacle",
     expansion         = "Cataclysm",
     difficultyModel   = "dungeonBinary",
-    availableDifficulties = { 14, 15, 16 },
+    availableDifficulties = { 14, 15 },
     patch             = "4.0.3",
     timewalking       = true,
 
@@ -77,6 +77,7 @@ RetroRuns_DungeonData[68] = {
             index              = 3,
             name               = "Asaad, Caliph of Zephyrs",
             journalEncounterID = 116,
+            aliases            = { "Asaad" },
             achievements       = {
                 { id = 5288, name = "No Static at All", meta = true, soloable = "yes" },
                 { id = 5289, name = "Extra Credit Bonus Stage", meta = true, soloable = "yes" },

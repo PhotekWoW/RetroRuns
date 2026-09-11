@@ -12,7 +12,7 @@ RetroRuns_DungeonData[278] = {
     name              = "Pit of Saron",
     expansion         = "Wrath of the Lich King",
     difficultyModel   = "dungeonBinary",
-    availableDifficulties = { 14, 15, 16, 24 },
+    availableDifficulties = { 14, 15, 24 },
     patch             = "3.3.0",
     timewalking       = true,
 

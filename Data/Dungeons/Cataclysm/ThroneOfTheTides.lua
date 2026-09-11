@@ -12,7 +12,7 @@ RetroRuns_DungeonData[65] = {
     name              = "Throne of the Tides",
     expansion         = "Cataclysm",
     difficultyModel   = "dungeonBinary",
-    availableDifficulties = { 14, 15, 16, 24 },
+    availableDifficulties = { 14, 15, 24 },
     patch             = "4.0.3",
     timewalking       = true,
 
@@ -48,6 +48,7 @@ RetroRuns_DungeonData[65] = {
             index              = 2,
             name               = "Commander Ulthok, the Festering Prince",
             journalEncounterID = 102,
+            aliases            = { "Commander Ulthok" },
             scenarioCriteriaID = 24799,
             achievements       = {
             },

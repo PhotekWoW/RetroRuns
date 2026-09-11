@@ -1,4 +1,4 @@
-﻿## Interface: 120100
+﻿## Interface: 120100, 120105
 ## Title: RetroRuns
 ## Title-esES: RetroRuns
 ## Title-esMX: RetroRuns
@@ -6,22 +6,22 @@
 ## Title-frFR: RetroRuns
 ## Title-ruRU: RetroRuns
 ## Title-zhCN: RetroRuns
-## Notes: A legacy companion for raids & dungeons: routing, tips, transmog, and achievements
-## Notes-esES: Navegador de bandas antiguas en solitario: rutas, consejos y seguimiento de logros
-## Notes-esMX: Navegador de bandas antiguas en solitario: rutas, consejos y seguimiento de logros
-## Notes-deDE: Solo-Navigator für alte Schlachtzüge: Routen, Tipps und Erfolgstracking
-## Notes-frFR: Navigateur de raids d'antan en solo : itinéraires, conseils et suivi des hauts faits
-## Notes-ruRU: Навигатор по старым рейдам для игры соло: маршруты, советы и отслеживание достижений
-## Notes-zhCN: 旧版团队副本单刷导航器：路线指引、技巧与成就追踪
-## Notes-ptBR: Navegador solo de raides antigos: rotas, dicas e acompanhamento de conquistas
-## Notes-zhTW: 單人舊版團隊副本導覽：路線、提示與成就追蹤
-## Notes-koKR: 옛 공격대 솔로 탐색기: 경로 안내, 팁 및 업적 추적
-## Notes-itIT: Navigatore per bande legacy in solitaria: percorsi, consigli e monitoraggio delle imprese
+## Notes: RetroRuns is a companion for legacy raids & dungeons: step-by-step guides with transmog and achievement tracking.
+## Notes-esES: RetroRuns es un compañero para bandas y mazmorras antiguas: guías paso a paso con seguimiento de transfiguración y logros.
+## Notes-esMX: RetroRuns es un compañero para bandas y mazmorras antiguas: guías paso a paso con seguimiento de transfiguración y logros.
+## Notes-deDE: RetroRuns ist ein Begleiter für alte Schlachtzüge und Dungeons: Schritt-für-Schritt-Guides mit Transmog- und Erfolgsverfolgung.
+## Notes-frFR: RetroRuns accompagne vos anciens raids et donjons : guides étape par étape avec suivi de la transmogrification et des hauts faits.
+## Notes-ruRU: RetroRuns — помощник для старых рейдов и подземелий: пошаговые маршруты с отслеживанием трансмогрификации и достижений.
+## Notes-zhCN: RetroRuns 是旧版团队副本和地下城的辅助工具：提供分步指南，并追踪幻化与成就。
+## Notes-ptBR: RetroRuns é um companheiro para raides e masmorras antigos: guias passo a passo com acompanhamento de transmogrificação e conquistas.
+## Notes-zhTW: RetroRuns 是舊版團隊副本和地城的輔助工具：提供逐步指南，並追蹤塑形與成就。
+## Notes-koKR: RetroRuns는 이전 공격대와 던전을 위한 동반자입니다. 단계별 가이드와 형상변환 및 업적 추적을 제공합니다.
+## Notes-itIT: RetroRuns è un compagno per incursioni e spedizioni precedenti: guide passo passo con monitoraggio di trasmogrificazioni e imprese.
 ## Author: Photek
-## Version: 3.0.0
+## Version: 3.1.0
 ## X-License: MIT
 ## SavedVariables: RetroRunsDB, RetroRunsDebug
-## IconTexture: Interface\AddOns\RetroRuns\Media\MinimapIcon
+## IconTexture: Interface\AddOns\RetroRuns\Media\Icons\MinimapIcon
 ## OptionalDeps: TomTom
 
 # ── Libs ──────────────────────────────────────────────────────────────────────────────

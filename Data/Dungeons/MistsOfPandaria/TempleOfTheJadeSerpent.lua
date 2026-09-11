@@ -12,7 +12,7 @@ RetroRuns_DungeonData[313] = {
     name              = "Temple of the Jade Serpent",
     expansion         = "Mists of Pandaria",
     difficultyModel   = "dungeonBinary",
-    availableDifficulties = { 14, 15, 16 },
+    availableDifficulties = { 14, 15 },
     patch             = "5.0.4",
     timewalking       = true,
 
@@ -63,6 +63,7 @@ RetroRuns_DungeonData[313] = {
             name               = "Liu Flameheart",
             journalEncounterID = 658,
             achievements       = {
+                { id = 6715, name = "Polyformic Acid Science", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 144094, slot = "Back", name = "Cape of Entanglement", sources = { [14]=84400, [15]=84400 } },
@@ -93,6 +94,128 @@ RetroRuns_DungeonData[313] = {
             },
             specialLoot = {
                 { id = 246846, kind = "decor", name = "Tome of Pandaren Wisdom", decorID = 2512 },
+            },
+        },
+    },
+
+    exitNote    = "None available",
+    minExitNote = "None available",
+
+    routing = {
+        -- 1. Wise Mari (boss 1)
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Wise Mari",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 429 },
+                    kind    = "path",
+                    note    = "After zoning in, go left and follow the path to reach ^Wise Mari^.",
+                    minNote = "Left path to Wise Mari",
+                    points  = {
+                        { 0.338, 0.458 },
+                        { 0.371, 0.295 },
+                        { 0.315, 0.263 },
+                        { 0.338, 0.139 },
+                        { 0.420, 0.177 },
+                    },
+                },
+            },
+        },
+        -- 2. Liu Flameheart (boss 3)
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Liu Flameheart",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 429 },
+                    kind    = "path",
+                    note    = "After defeating ^Wise Mari^, continue on the path behind him until you reach ^Terrace of the Twin Dragons^. Clear trash to start the fight with ^Liu Flameheart^.",
+                    minNote = "Clear trash for Liu Flameheart",
+                    points  = {
+                        { 0.485, 0.211 },
+                        { 0.578, 0.254 },
+                        { 0.600, 0.231 },
+                        { 0.617, 0.236 },
+                        { 0.627, 0.257 },
+                        { 0.630, 0.285 },
+                        { 0.660, 0.300 },
+                        { 0.645, 0.342 },
+                        { 0.625, 0.375 },
+                        { 0.600, 0.388 },
+                        { 0.563, 0.380 },
+                        { 0.531, 0.365 },
+                        { 0.516, 0.431 },
+                        { 0.468, 0.486 },
+                    },
+                },
+            },
+        },
+        -- 3. Lorewalker Stonestep (boss 2)
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Lorewalker Stonestep",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 429 },
+                    kind    = "path",
+                    note    = "After killing ^Liu Flameheart^, take the southeast exit and follow it around to reach ^Lorewalker Stonestep^. Kill the ^Corrupted Scroll^ to trigger the roleplay event which leads to the boss fight.",
+                    minNote = "Southeast to Lorewalker Stonestep",
+                    points  = {
+                        { 0.468, 0.578 },
+                        { 0.472, 0.637 },
+                        { 0.455, 0.707 },
+                        { 0.518, 0.750 },
+                        { 0.537, 0.799 },
+                        { 0.537, 0.879 },
+                        { 0.504, 0.859 },
+                        { 0.487, 0.891 },
+                        { 0.459, 0.891 },
+                        { 0.439, 0.829 },
+                        { 0.290, 0.756 },
+                    },
+                },
+            },
+        },
+        -- 4. Sha of Doubt (boss 4)
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Sha of Doubt",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 429 },
+                    kind    = "path",
+                    note    = "After defeating the ^Lorewalker Stonestep^ encounter, backtrack to ^Liu Flameheart^'s room and go east to find ^Sha of Doubt^.",
+                    minNote = "Path to Sha of Doubt",
+                    points  = {
+                        { 0.324, 0.776 },
+                        { 0.448, 0.834 },
+                        { 0.472, 0.804 },
+                        { 0.496, 0.818 },
+                        { 0.508, 0.868 },
+                        { 0.536, 0.880 },
+                        { 0.539, 0.834 },
+                        { 0.535, 0.792 },
+                        { 0.526, 0.755 },
+                        { 0.497, 0.727 },
+                        { 0.455, 0.702 },
+                        { 0.483, 0.572 },
+                        { 0.539, 0.561 },
+                        { 0.582, 0.580 },
+                    },
+                },
             },
         },
     },

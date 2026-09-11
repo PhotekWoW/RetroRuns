@@ -39,8 +39,8 @@ local RETRO_FONT    = "Interface\\AddOns\\RetroRuns\\Media\\Fonts\\04B_03.TTF"
 local CANVAS_FONT   = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 local CONTROL_FONT_SIZE = 15   -- shared label size for all settings controls
 
-local ICON_BUG      = "Interface\\AddOns\\RetroRuns\\Media\\BugIcon"
-local ICON_CHAT     = "Interface\\AddOns\\RetroRuns\\Media\\ChatIcon"
+local ICON_BUG      = "Interface\\AddOns\\RetroRuns\\Media\\Icons\\BugIcon"
+local ICON_CHAT     = "Interface\\AddOns\\RetroRuns\\Media\\Icons\\ChatIcon"
 local URL_GITHUB    = "https://github.com/PhotekWoW/RetroRuns/issues"
 local URL_CURSE     = "https://www.curseforge.com/wow/addons/retroruns/comments"
 local URL_DISCORD   = "https://discord.gg/achievements"
@@ -396,7 +396,7 @@ do
 
     -- Horizontal divider separating the tagline from the controls below.
     local div = pageToaster:CreateTexture(nil, "ARTWORK")
-    div:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-line")
+    div:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Panel\\divider-line")
     div:SetVertexColor(COLOR_PINK[1], COLOR_PINK[2], COLOR_PINK[3], 0.55)
     div:SetHeight(6)
     div:SetPoint("TOPLEFT", 0, pageCursor[pageToaster])
@@ -407,7 +407,7 @@ do
     end
 
     local gem = pageToaster:CreateTexture(nil, "OVERLAY")
-    gem:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-gem")
+    gem:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Panel\\divider-gem")
     gem:SetSize(14, 14)
     gem:SetPoint("CENTER", div, "CENTER", 0, 0)
     if gem.SetTexelSnappingBias then
@@ -420,7 +420,7 @@ end
 
 -- Read-only Status line: "Status:" + a state word set by Refresh.
 local statusArrow, statusValue
-local ARROW_TEX = "Interface\\AddOns\\RetroRuns\\Media\\ArrowDown"
+local ARROW_TEX = "Interface\\AddOns\\RetroRuns\\Media\\Icons\\ArrowDown"
 do
     local lbl = pageToaster:CreateFontString(nil, "ARTWORK")
     RR.SafeSetFont(lbl, CANVAS_FONT, SEG_FONT_SIZE, "")
@@ -580,7 +580,7 @@ do
     pageCursor[pageToaster] = pageCursor[pageToaster] - 10
 
     local div = pageToaster:CreateTexture(nil, "ARTWORK")
-    div:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-line")
+    div:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Panel\\divider-line")
     div:SetVertexColor(COLOR_PINK[1], COLOR_PINK[2], COLOR_PINK[3], 0.55)
     div:SetHeight(6)
     div:SetPoint("TOPLEFT", 0, pageCursor[pageToaster])
@@ -591,7 +591,7 @@ do
     end
 
     local gem = pageToaster:CreateTexture(nil, "OVERLAY")
-    gem:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\divider-gem")
+    gem:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Panel\\divider-gem")
     gem:SetSize(14, 14)
     gem:SetPoint("CENTER", div, "CENTER", 0, 0)
     if gem.SetTexelSnappingBias then
@@ -1313,7 +1313,7 @@ local function MakeTab(index, text, page, withStatusDot, indented, yOffset)
     -- state reads without opening the tab.
     if withStatusDot then
         local dot = tab:CreateTexture(nil, "ARTWORK")
-        dot:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\StatusDot")
+        dot:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\StatusDot")
         dot:SetSize(9, 9)
         dot:SetPoint("RIGHT", -8, 0)
         tab.statusDot = dot

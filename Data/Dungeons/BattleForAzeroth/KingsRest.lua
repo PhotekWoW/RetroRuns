@@ -74,6 +74,7 @@ RetroRuns_DungeonData[1041] = {
             index              = 4,
             name               = "Dazar, The First King",
             journalEncounterID = 2172,
+            aliases            = { "King Dazar" },
             achievements       = {
             },
             loot = {
