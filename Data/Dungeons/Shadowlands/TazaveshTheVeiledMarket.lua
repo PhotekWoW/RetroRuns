@@ -26,7 +26,6 @@ RetroRuns_DungeonData[1194] = {
             index              = 1,
             name               = "Zo'phex the Sentinel",
             journalEncounterID = 2437,
-            -- Criterion prose reads "Zo'phex defeated" and does not carry the journal name.
             scenarioCriteriaID = 52836,
             achievements       = {
                 { id = 15109, name = "Will it Blend?", soloable = "no" },
@@ -44,7 +43,6 @@ RetroRuns_DungeonData[1194] = {
             index              = 2,
             name               = "The Grand Menagerie",
             journalEncounterID = 2454,
-            -- Criterion prose reads "Venza Goldfuse defeated" and does not carry the journal name.
             scenarioCriteriaID = 52839,
             achievements       = {
             },
@@ -62,7 +60,6 @@ RetroRuns_DungeonData[1194] = {
             index              = 3,
             name               = "Mailroom Mayhem",
             journalEncounterID = 2436,
-            -- Criterion prose reads "P.O.S.T. Master defeated" and does not carry the journal name.
             scenarioCriteriaID = 52838,
             achievements       = {
             },
@@ -81,7 +78,6 @@ RetroRuns_DungeonData[1194] = {
             index              = 4,
             name               = "Myza's Oasis",
             journalEncounterID = 2452,
-            -- Criterion prose reads "Zo'gron defeated" and does not carry the journal name.
             scenarioCriteriaID = 52837,
             achievements       = {
             },
@@ -155,6 +151,8 @@ RetroRuns_DungeonData[1194] = {
                 { id = 15190, name = "Mischief!", soloable = "yes" },
             },
             loot = {
+                { id = 185785, slot = "Chest", name = "Embrace of the Relicbinder", sources = { [15]=116665, [16]=116665 } },
+                { id = 185784, slot = "Chest", name = "Novaburst Warplate", sources = { [15]=116664, [16]=116664 } },
                 { id = 185801, slot = "Legs", name = "Anomalous Starlit Breeches", sources = { [15]=116681, [16]=116681 } },
                 { id = 185799, slot = "Legs", name = "Hyperlight Leggings", sources = { [15]=116679, [16]=116679 } },
                 { id = 185822, slot = "Two-Hand", name = "Staff of Fractured Spacetime", sources = { [15]=116699, [16]=116699 } },

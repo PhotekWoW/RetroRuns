@@ -35,7 +35,6 @@ RetroRuns_DungeonData[1185] = {
             index              = 1,
             name               = "Halkias, the Sin-Stained Goliath",
             journalEncounterID = 2406,
-            -- Criterion prose reads "Halkias defeated" and does not carry the journal name.
             scenarioCriteriaID = 48110,
             achievements       = {
             },

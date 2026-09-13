@@ -88,8 +88,11 @@ RetroRuns_DungeonData[1022] = {
             },
             loot = {
                 { id = 159241, slot = "Chest", name = "Blood-Drenched Robes", sources = { [14]=94978, [15]=94979, [16]=95759 } },
+                { id = 206199, slot = "Chest", name = "Blood-Drenched Robes", sources = { [14]=187867, [15]=187867, [16]=187867 }, mythicPlusOnly = true },
                 { id = 159432, slot = "Chest", name = "Breastplate of Arterial Protection", sources = { [14]=95233, [15]=95234, [16]=95731 } },
+                { id = 206197, slot = "Chest", name = "Breastplate of Arterial Protection", sources = { [14]=187862, [15]=187862, [16]=187862 }, mythicPlusOnly = true },
                 { id = 159330, slot = "Chest", name = "Gore-Splattered Vest", sources = { [14]=95095, [15]=95725, [16]=95726 } },
+                { id = 206198, slot = "Chest", name = "Gore-Splattered Vest", sources = { [14]=187866, [15]=187866, [16]=187866 }, mythicPlusOnly = true },
                 { id = 159253, slot = "Hands", name = "Gloves of Staunched Wounds", sources = { [14]=94996, [15]=95708, [16]=95709 } },
                 { id = 159446, slot = "Head", name = "Greathelm of the Putrid Path", sources = { [14]=95255, [15]=95738, [16]=95739 } },
                 { id = 159381, slot = "Head", name = "Visage of Bloody Horrors", sources = { [14]=95163, [15]=98415, [16]=98416 } },

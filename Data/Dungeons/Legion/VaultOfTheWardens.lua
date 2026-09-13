@@ -58,7 +58,7 @@ RetroRuns_DungeonData[707] = {
             index              = 3,
             name               = "Ash'golm",
             journalEncounterID = 1468,
-            -- Criterion prose reads "Ash'Golm defeated" and spells the name differently.
+            aliases            = { "Ash'Golm" },
             scenarioCriteriaID = 29370,
             achievements       = {
             },
@@ -90,7 +90,6 @@ RetroRuns_DungeonData[707] = {
             index              = 5,
             name               = "Cordana Felsong",
             journalEncounterID = 1470,
-            -- Criterion prose reads "Cordana defeated" and does not carry the journal name.
             scenarioCriteriaID = 34462,
             achievements       = {
             },

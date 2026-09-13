@@ -1185,6 +1185,60 @@ do
         end
     end
 
+    -- A dungeon routed since the account last opened its expansion
+    -- brightens from the unsupported gray to white the first time the
+    -- expansion is opened, then stays white. Rows are rewritten in place
+    -- from a template carrying one color slot.
+    UI.REVEAL_DELAY = 1.0
+    UI.REVEAL_DURATION = 1.5
+    UI.REVEAL_FROM = 0x8a
+
+    -- Current hex for a row mid-reveal; nil once it has settled (or never
+    -- started). Expired entries drop out of the state table here.
+    function UI.RevealHex(instance)
+        local reveals = RR.state and RR.state.rowReveals
+        local key = instance and instance.journalInstanceID
+        local start = reveals and key and reveals[key]
+        if not start then return nil end
+        local t = (GetTime() - start - UI.REVEAL_DELAY) / UI.REVEAL_DURATION
+        if t >= 1 then
+            reveals[key] = nil
+            return nil
+        end
+        if t < 0 then t = 0 end
+        local v = math.floor(UI.REVEAL_FROM + (0xff - UI.REVEAL_FROM) * t + 0.5)
+        return ("%02x%02x%02x"):format(v, v, v)
+    end
+
+    function UI.BeginRowReveal(instances)
+        RR.state = RR.state or {}
+        RR.state.rowReveals = RR.state.rowReveals or {}
+        local now = GetTime()
+        for _, instance in ipairs(instances) do
+            RR.state.rowReveals[instance.journalInstanceID] = now
+        end
+        if UI.revealTicker then return end
+        UI.revealTicker = C_Timer.NewTicker(0.03, function()
+            for _, fs in ipairs(panel.idleListLines or {}) do
+                if fs._revealTemplate and fs:IsShown() then
+                    local hex = UI.RevealHex(fs._revealInstance)
+                    fs:SetText(fs._revealTemplate:format(hex or "ffffff"))
+                    if not hex then fs._revealTemplate = nil end
+                end
+            end
+            -- Rows that never rendered (panel hidden) still expire.
+            for key, start in pairs(RR.state.rowReveals) do
+                if GetTime() - start >= UI.REVEAL_DELAY + UI.REVEAL_DURATION then
+                    RR.state.rowReveals[key] = nil
+                end
+            end
+            if not next(RR.state.rowReveals) then
+                UI.revealTicker:Cancel()
+                UI.revealTicker = nil
+            end
+        end)
+    end
+
     function UI.SelectIdleSearchResult(entry)
         RR.state = RR.state or {}
         -- A jump REPLACES the expand state rather than adding to it, so
@@ -2320,6 +2374,11 @@ end
 -- entrance button pools).
 panel.pillHoverFrames    = {}
 panel.pillHoverFramePool = {}
+-- The dungeon list's NEW tag: a FontString of its own, so it can sit
+-- smaller than the header it follows (one FontString holds one size).
+panel.newTagLabels       = {}
+panel.newTagLabelPool    = {}
+UI.NEW_TAG_SIZE_DROP = 3
 
 -- Strikethrough line textures drawn over dead boss names in the wing rows.
 -- One per dead boss currently shown. Pooled and recycled per idle-list
@@ -2457,6 +2516,24 @@ local function ReleasePillHoverFrames()
         table.insert(panel.pillHoverFramePool, hoverFrame)
     end
     wipe(panel.pillHoverFrames)
+end
+
+function UI.AcquireNewTagLabel()
+    local label = table.remove(panel.newTagLabelPool)
+    if not label then
+        label = panel:CreateFontString(nil, "OVERLAY")
+    end
+    table.insert(panel.newTagLabels, label)
+    return label
+end
+
+function UI.ReleaseNewTagLabels()
+    for _, label in ipairs(panel.newTagLabels) do
+        label:Hide()
+        label:ClearAllPoints()
+        table.insert(panel.newTagLabelPool, label)
+    end
+    wipe(panel.newTagLabels)
 end
 
 -- Wing-row strikethrough lines and wing-expand chevrons. Both helper sets
@@ -4486,17 +4563,26 @@ end
 
 -- True when the appearance is collected via any source. Iterated with `pairs`:
 -- GetAllAppearanceSources is not always a contiguous array, and `ipairs` would
--- stop at the first gap.
-local function HasAppearanceViaAnySource(appearanceID)
+-- stop at the first gap. The second result is true when an owned source is
+-- a same-named twin of the row's item: Blizzard re-issues legacy drops
+-- under new item ids, and owning the twin is owning this row.
+local function HasAppearanceViaAnySource(appearanceID, ownName)
     if not appearanceID or not C_TransmogCollection then return false end
     local sourceIDs = C_TransmogCollection.GetAllAppearanceSources(appearanceID)
     if not sourceIDs then return false end
+    local owned = false
     for _, srcID in pairs(sourceIDs) do
         if C_TransmogCollection.PlayerHasTransmogItemModifiedAppearance(srcID) == true then
-            return true
+            owned = true
+            if ownName and C_TransmogCollection.GetSourceInfo then
+                local info = C_TransmogCollection.GetSourceInfo(srcID)
+                if info and info.name == ownName then
+                    return true, true
+                end
+            end
         end
     end
-    return false
+    return owned, false
 end
 
 -- Account-wide "does the player already own this look", by source: the
@@ -4558,8 +4644,13 @@ local function CollectionStateForSource(sourceID, itemID)
     if HasSource(sourceID) then return "collected" end
     local appearanceID = GetAppearanceIDForSource(sourceID)
                       or GetAppearanceIDForItem(itemID)
-    if appearanceID and HasAppearanceViaAnySource(appearanceID) then
-        return "shared"
+    if appearanceID then
+        local ownInfo = C_TransmogCollection.GetSourceInfo
+            and C_TransmogCollection.GetSourceInfo(sourceID)
+        local owned, viaTwin = HasAppearanceViaAnySource(appearanceID,
+            ownInfo and ownInfo.name)
+        if viaTwin then return "collected" end
+        if owned then return "shared" end
     end
     return "missing"
 end
@@ -5152,6 +5243,16 @@ local function ItemIsOtherFaction(item)
     return item.faction ~= nil and item.faction ~= UnitFactionGroup("player")
 end
 
+-- The source a row is reachable through at a difficulty. A Timewalking
+-- reprint that shares the walk-in look rides the row as twSource: it makes
+-- the row count in a Timewalking run without earning a pill of its own.
+function UI.SourceAt(item, diffID)
+    if not item or not item.sources then return nil end
+    local src = item.sources[diffID]
+    if src == nil and diffID == 24 then src = item.twSource end
+    return src
+end
+
 -- The "active" (current in-game) difficulty, folded to its display
 -- bucket so it lines up with the 14/15/16/17 keys the source data uses.
 -- Under a size-folding model a live size variant (e.g. 25-player Heroic)
@@ -5248,7 +5349,7 @@ function UI.RowNameColor(item)
     if not item.sources then return DOT_ACTIVE end
     local activeDiff = ActiveDifficulty()
     if activeDiff then
-        local src = item.sources[activeDiff]
+        local src = UI.SourceAt(item, activeDiff)
         if src and CollectionStateForSource(src, item.id) == "missing" then
             return DOT_ACTIVE
         end
@@ -5326,7 +5427,7 @@ local function CountBossLootForDifficulty(boss, diffID, classOverride)
                 -- the folded per-item state rather than this difficulty's
                 -- source in isolation -- so an item collected via Heroic
                 -- reads collected under Normal too, matching the browser.
-                if item.sources and item.sources[diffID] then
+                if UI.SourceAt(item, diffID) then
                     total = total + 1
                     local foldedState = RR.BinaryFoldedState(item)
                     if foldedState == "missing" then
@@ -5352,7 +5453,7 @@ local function CountBossLootForDifficulty(boss, diffID, classOverride)
                 -- Perdiff (distinct appearance per difficulty) or single
                 -- source: evaluate this difficulty's source on its own, so
                 -- each difficulty's recolor is counted under its own line.
-                local src = item.sources and item.sources[diffID]
+                local src = UI.SourceAt(item, diffID)
                 if src then
                     total = total + 1
                     local collectionState = CollectionStateForSource(src, item.id)
@@ -8308,60 +8409,6 @@ UI.QueryTmogSearch = function(query, maxResults)
     return matches, overflow
 end
 
--- Lenient-count helpers: summed across nested levels. For dropdown labels.
-local function CountRaidLoot(raid)
-    if not raid or not raid.bosses then return 0, 0, 0 end
-    local needed, shared, total = 0, 0, 0
-    for _, boss in ipairs(raid.bosses) do
-        local bossNeeded, bossShared, bossTotal = CountBossLoot(boss)
-        if bossNeeded then
-            needed = needed + bossNeeded
-            shared = shared + bossShared
-            total  = total  + bossTotal
-        end
-    end
-    -- Trash drops belong to the raid, not to any one encounter, so they are
-    -- added once here rather than inside the loop -- summing them per boss
-    -- would multiply every trash appearance by the boss count. CountBossLoot
-    -- reads nothing but the `loot` array off what it is handed, so a table
-    -- carrying only that field counts the same way a boss does.
-    if raid.trashLoot and #raid.trashLoot > 0 then
-        -- Cross-listed rows are already counted on their boss.
-        local bossCarried = UI.BossCarriedSourceSet(raid)
-        local countedTrash = {}
-        for _, item in ipairs(raid.trashLoot) do
-            if not UI.TrashRowIsBossCarried(item, bossCarried) then
-                countedTrash[#countedTrash + 1] = item
-            end
-        end
-        local trashNeeded, trashShared, trashTotal =
-            CountBossLoot({ loot = countedTrash })
-        if trashNeeded then
-            needed = needed + trashNeeded
-            shared = shared + trashShared
-            total  = total  + trashTotal
-        end
-    end
-    return needed, shared, total
-end
-
-local function CountExpansionLoot(expansion, byExpansion)
-    local raids = byExpansion and byExpansion[expansion]
-    if not raids then return 0, 0, 0 end
-    local n, s, t = 0, 0, 0
-    for _, raid in ipairs(raids) do
-        local rn, rs, rt = CountRaidLoot(raid)
-        n, s, t = n + rn, s + rs, t + rt
-    end
-    return n, s, t
-end
-
--- Dropdown label suffix. Currently a no-op; the three browser dropdowns
--- (expansion, raid, boss) render their entries without a per-entry count.
-local function FormatCountSuffix(_, _, _)
-    return ""
-end
-
 local function GetBrowserSelection()
     local raid = browserState.raidKey and UI.BrowserInstanceByKey(browserState.raidKey)
     local boss
@@ -8927,6 +8974,19 @@ GetOrCreateTmogWindow = function()
         -- the arrow never overlaps the longest string.
         local ARROW_PAD = 34
 
+        -- Measured once per session. The Encounter Journal walk below is
+        -- too slow for the script time limit in combat, so a combat
+        -- measurement uses the authored names and is redone out of combat.
+        local widths = self._dropdownWidths
+        if widths and not widths.provisional then
+            ddRaid:SetWidth(widths.wide)
+            ddBoss:SetWidth(widths.wide)
+            ddExp:SetWidth(widths.narrow)
+            ddClass:SetWidth(widths.narrow)
+            return
+        end
+        local inCombat = InCombatLockdown and InCombatLockdown() or false
+
         -- Expansion: full constant list (future names included), measured
         -- as displayed -- the dropdown renders localized names where the
         -- locale carries them.
@@ -8943,7 +9003,8 @@ GetOrCreateTmogWindow = function()
                 if raid.instanceID and raid.instanceID > 0 then
                     raidNames[#raidNames + 1] = RR:GetLocalizedRaidName(raid) or ""
                     for _, boss in ipairs(raid.bosses or {}) do
-                        bossNames[#bossNames + 1] = RR:GetLocalizedBossName(boss) or ""
+                        bossNames[#bossNames + 1] = inCombat and boss.name
+                            or RR:GetLocalizedBossName(boss) or ""
                     end
                 end
             end
@@ -8965,12 +9026,14 @@ GetOrCreateTmogWindow = function()
         -- those two (the "1" slots). This keeps clean uniform pairs while
         -- still fitting the longest content in each pair -- ragged per-bar
         -- widths would look messy.
-        local wide   = math.max(raidW, bossW)
-        local narrow = math.max(expW, classW)
-        ddRaid:SetWidth(math.ceil(wide)   + ARROW_PAD)
-        ddBoss:SetWidth(math.ceil(wide)   + ARROW_PAD)
-        ddExp:SetWidth(math.ceil(narrow) + ARROW_PAD)
-        ddClass:SetWidth(math.ceil(narrow) + ARROW_PAD)
+        local wide   = math.ceil(math.max(raidW, bossW)) + ARROW_PAD
+        local narrow = math.ceil(math.max(expW, classW)) + ARROW_PAD
+        self._dropdownWidths = { wide = wide, narrow = narrow,
+                                 provisional = inCombat }
+        ddRaid:SetWidth(wide)
+        ddBoss:SetWidth(wide)
+        ddExp:SetWidth(narrow)
+        ddClass:SetWidth(narrow)
     end
 
     -- Class display order for the dropdown: ascending class ID, matching the
@@ -9448,8 +9511,7 @@ GetOrCreateTmogWindow = function()
         -- Expansion dropdown
         ddExp:SetupMenu(function(_, rootDescription)
             for _, expName in ipairs(expList) do
-                local n, s, t = CountExpansionLoot(expName, byExp)
-                UI.MenuRadio(rootDescription, RR.L[expName] .. FormatCountSuffix(n, s, t),
+                UI.MenuRadio(rootDescription, RR.L[expName],
                 function() return expName == browserState.expansion end,
                 function()
                     if browserState.expansion == expName then return end
@@ -9468,10 +9530,9 @@ GetOrCreateTmogWindow = function()
         ddRaid:SetupMenu(function(_, rootDescription)
             local raids = byExp[browserState.expansion] or {}
             for _, raid in ipairs(raids) do
-                local n, s, t = CountRaidLoot(raid)
                 local entryKey = UI.BrowserKeyOf(raid)
-                UI.MenuRadio(rootDescription, 
-                    (RR:GetLocalizedRaidName(raid) or "?") .. FormatCountSuffix(n, s, t),
+                UI.MenuRadio(rootDescription,
+                    RR:GetLocalizedRaidName(raid) or "?",
                     function() return entryKey == browserState.raidKey end,
                     function()
                         if browserState.raidKey == entryKey then return end
@@ -9491,10 +9552,8 @@ GetOrCreateTmogWindow = function()
             local raid = browserState.raidKey and UI.BrowserInstanceByKey(browserState.raidKey)
             if not raid or not raid.bosses then return end
             for idx, boss in ipairs(raid.bosses) do
-                local n, s, t = CountBossLoot(boss)
-                UI.MenuRadio(rootDescription, 
-                    (RR:GetLocalizedBossName(boss) or ("Boss " .. idx))
-                        .. FormatCountSuffix(n or 0, s or 0, t or 0),
+                UI.MenuRadio(rootDescription,
+                    RR:GetLocalizedBossName(boss) or ("Boss " .. idx),
                     function() return idx == browserState.bossIndex end,
                     function()
                         if browserState.bossIndex == idx then return end
@@ -10378,6 +10437,25 @@ end
 -- anywhere" callers. Opens the popup in BROWSE mode: it stays until the
 -- user clicks the close button; the grace-timer auto-hide doesn't apply.
 function UI.OpenTransmogBrowser()
+    -- The first paint asks the collection API about every row it draws,
+    -- and in combat those answers arrive slowly enough to trip the script
+    -- time limit. Hold the open until combat ends and finish it then.
+    if InCombatLockdown and InCombatLockdown() then
+        if not UI._tmogOpenAfterCombat then
+            UI._tmogOpenAfterCombat = {  }
+            RR:Print(RR.L["Browse locked in combat"])
+            if not UI._tmogCombatFrame then
+                UI._tmogCombatFrame = CreateFrame("Frame")
+                UI._tmogCombatFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+                UI._tmogCombatFrame:SetScript("OnEvent", function()
+                    local pending = UI._tmogOpenAfterCombat
+                    UI._tmogOpenAfterCombat = nil
+                    if pending then UI.OpenTransmogBrowser(unpack(pending)) end
+                end)
+            end
+        end
+        return
+    end
     -- Mutex with other auxiliary windows. See UI.OpenSkipsWindow for
     -- rationale.
     if skipsWindow and skipsWindow:IsShown() then skipsWindow:Hide() end
@@ -11971,11 +12049,19 @@ local function BuildIdleListRows()
         if wingOf then
             leading = leading .. RR.PillSpacer(WING_INDENT - 16)
         end
+        local revealHex = isRouted and UI.RevealHex(dungeon) or nil
+        local revealTemplate
+        if revealHex then
+            revealTemplate = (leading .. RR.PILL_PLANE_GUTTER .. "  |cff%s"
+                .. name:gsub("%%", "%%%%") .. "|r"
+                .. UI.InstanceTagText(dungeon):gsub("%%", "%%%%"))
+        end
         table.insert(rows, {
             kind = "raidName",
             text = (leading .. RR.PILL_PLANE_GUTTER .. "  |cff%s%s|r%s")
-                :format(isRouted and "ffffff" or "8a8a8a", name,
+                :format(revealHex or (isRouted and "ffffff" or "8a8a8a"), name,
                         UI.InstanceTagText(dungeon)),
+            revealTemplate = revealTemplate,
             -- Rendered into its own cell at a shared x, not appended here:
             -- the pill column has to line up ACROSS rows.
             pillText = BuildIdleListPills(dungeon),
@@ -12033,6 +12119,9 @@ local function BuildIdleListRows()
             kind     = "expansionHeader",
             exp      = exp,
             expanded = isExpanded(exp),
+            -- Routed dungeons the account has not opened this expansion
+            -- for since they shipped; the header wears NEW until then.
+            newInstances = dungeonMode and RR:UnseenRoutedDungeons(instances) or nil,
         })
         if isExpanded(exp) then
             if dungeonMode then
@@ -12216,6 +12305,7 @@ RefreshIdleList = function()
     ReleaseExpansionToggleButtons()
     ReleaseEntranceButtons()
     ReleasePillHoverFrames()
+    UI.ReleaseNewTagLabels()
     panel.ReleaseWingStrikes()
     panel.ReleaseWingToggleButtons()
 
@@ -12312,8 +12402,20 @@ RefreshIdleList = function()
                     twDays = RR:GetTimewalkingEnd()
                     twMark = " " .. UI.TimewalkingMarker(twDays)
                 end
-                fs:SetText(("    |cff00ffff%s|r%s")
-                    :format(RR.L[row.exp], twMark))
+                local newMark, newLabel = "", nil
+                if row.newInstances then
+                    newLabel = UI.AcquireNewTagLabel()
+                    SetBodyFont(newLabel, fontSize - UI.NEW_TAG_SIZE_DROP, "")
+                    newLabel:SetText("|cffF259C7NEW|r")
+                    fs:SetText(("    |cff00ffff%s|r  "):format(RR.L[row.exp]))
+                    local nameWidth = fs:GetStringWidth() or 0
+                    newLabel:ClearAllPoints()
+                    newLabel:SetPoint("BOTTOMLEFT", fs, "BOTTOMLEFT", nameWidth, 1)
+                    newLabel:Show()
+                    newMark = "  " .. RR.PillSpacer(newLabel:GetStringWidth() or 0)
+                end
+                fs:SetText(("    |cff00ffff%s|r%s%s")
+                    :format(RR.L[row.exp], newMark, twMark))
                 -- Hover the GLYPH, not the heading: the marker sits at the
                 -- end of the string, so the region is the last few pixels
                 -- of the rendered width. Measured after SetText or the
@@ -12368,6 +12470,8 @@ RefreshIdleList = function()
 
             -- Search-jump target: the flash finds this row by instance.
             fs._searchInstanceID = row.raid and row.raid.instanceID or nil
+            fs._revealTemplate = row.revealTemplate
+            fs._revealInstance = row.revealTemplate and row.raid or nil
 
             -- Anchor: top of the list for the first row, BOTTOMLEFT of
             -- the previous row otherwise. The previous row may have set
@@ -12541,7 +12645,14 @@ RefreshIdleList = function()
                 local btn = AcquireExpansionToggleButton()
                 PositionExpansionToggleButton(btn, fs, row.expanded)
                 local expName = row.exp
+                local newInstances = row.newInstances
                 btn:SetScript("OnClick", function()
+                    -- Opening the expansion is what counts as seeing its
+                    -- new dungeons; the NEW tag goes with this click.
+                    if newInstances then
+                        RR:MarkRoutedDungeonsSeen(newInstances)
+                        UI.BeginRowReveal(newInstances)
+                    end
                     -- Single-expand accordion: opening one expansion
                     -- closes any other that's currently open. Keeps
                     -- the supported-raids list short and focused; the

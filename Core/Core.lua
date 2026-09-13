@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "3.1.0"
+local VERSION    = "3.1.1"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -288,6 +288,30 @@ function RR:InstanceHasRouting(instance)
     return type(instance) == "table"
         and type(instance.routing) == "table"
         and #instance.routing > 0
+end
+
+-- Routed dungeons among `instances` the account has not seen yet, or nil.
+-- The dungeon list stamps NEW on the expansion header until it is opened.
+function RR:UnseenRoutedDungeons(instances)
+    local seen = RetroRunsDB and RetroRunsDB.seenRoutedDungeons
+    if not seen then return nil end
+    local unseen
+    for _, instance in ipairs(instances or {}) do
+        if instance.kind == "dungeon" and self:InstanceHasRouting(instance)
+           and not seen[instance.journalInstanceID] then
+            unseen = unseen or {}
+            unseen[#unseen + 1] = instance
+        end
+    end
+    return unseen
+end
+
+function RR:MarkRoutedDungeonsSeen(instances)
+    local seen = RetroRunsDB and RetroRunsDB.seenRoutedDungeons
+    if not seen then return end
+    for _, instance in ipairs(instances or {}) do
+        seen[instance.journalInstanceID] = true
+    end
 end
 
 -- Which expansion's Timewalking is running right now, as one of our own
@@ -887,9 +911,11 @@ function RR:NormalizeName(name)
     local primary = name:gsub("[^%w%s%-]", "")
     primary = primary:gsub("%s+", " ")
     primary = primary:match("^%s*(.-)%s*$")
-    if primary ~= "" then return primary end
+    if primary:find("%w") then return primary end
     -- Lua character classes are ASCII-only, so %w destroys a name written
-    -- entirely in Hangul, CJK or Cyrillic. Keeping bytes >= 128 stays
+    -- entirely in Hangul, CJK or Cyrillic; one that also carries a hyphen
+    -- or a digit would survive the primary fold as just that character
+    -- and collide with every other such name. Keeping bytes >= 128 stays
     -- symmetric.
     local fallback = name:gsub("[^%w%s%-\128-\255]", "")
     fallback = fallback:gsub("%s+", " ")
@@ -1333,8 +1359,23 @@ end
 -------------------------------------------------------------------------------
 
 function RR:InitializeDB()
+    local existingAccount = type(RetroRunsDB) == "table" and next(RetroRunsDB) ~= nil
     RetroRunsDB = RetroRunsDB or {}
     MergeDefaults(RetroRunsDB, self.defaults)
+
+    -- Routed dungeons this account has opened an expansion for. Absent on
+    -- the first run: every routed dungeon counts as seen, except the ones
+    -- routed in this very version on an account that ran an earlier one.
+    if not RetroRunsDB.seenRoutedDungeons then
+        local seen = {}
+        for _, dungeon in pairs(RetroRuns_DungeonData or {}) do
+            if self:InstanceHasRouting(dungeon)
+               and not (existingAccount and dungeon.routedIn == RetroRuns.VERSION) then
+                seen[dungeon.journalInstanceID] = true
+            end
+        end
+        RetroRunsDB.seenRoutedDungeons = seen
+    end
 
     -- launchMode is applied from PLAYER_ENTERING_WORLD on initial login, not
     -- here: this runs on /reload too, and a reload is not a login. Applying
@@ -3191,6 +3232,7 @@ function RR:ResolveFactionEncounters()
     end
     applyToTable(RetroRuns_Data)
     applyToTable(RetroRuns_DataHorde)
+    applyToTable(RetroRuns_DungeonData)
 end
 
 -------------------------------------------------------------------------------
@@ -3961,11 +4003,147 @@ end
 
 
 
-
-
 -------------------------------------------------------------------------------
+-- Copyable dump window
+--
+-- Shared across all debug/probe tools. Any command that produces text the
+-- user needs to copy/paste should call RR:ShowCopyWindow(title, text)
+-- rather than spamming chat. Chat is lossy (line wraps, scroll-off, no way
+-- to select); this window opens with all text visible and a Select All
+-- button for immediate Ctrl+C.
+-------------------------------------------------------------------------------
+
+local function GetOrCreateCopyWindow()
+    if RetroRunsCopyFrame then return RetroRunsCopyFrame end
+
+    local copyFrame = CreateFrame("Frame", "RetroRunsCopyFrame", UIParent, "BackdropTemplate")
+    copyFrame:SetSize(600, 500)
+    copyFrame:SetPoint("CENTER")
+    copyFrame:SetMovable(true)
+    copyFrame:EnableMouse(true)
+    copyFrame:RegisterForDrag("LeftButton")
+    copyFrame:SetClampedToScreen(true)
+    copyFrame:SetScript("OnDragStart", copyFrame.StartMoving)
+    copyFrame:SetScript("OnDragStop",  copyFrame.StopMovingOrSizing)
+    copyFrame:SetFrameStrata("DIALOG")
+    copyFrame:SetBackdrop({
+        bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
+        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    copyFrame:SetBackdropColor(0.05, 0.05, 0.05, 0.95)
+
+    copyFrame.title = copyFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    copyFrame.title:SetPoint("TOPLEFT", 12, -10)
+
+    local closeBtn = CreateFrame("Button", nil, copyFrame, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", -4, -4)
+    closeBtn:SetScript("OnClick", function() copyFrame:Hide() end)
+
+    local hint = copyFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    hint:SetPoint("TOPLEFT", 12, -28)
+    hint:SetText("Click inside the box, press Ctrl+A to select all, then Ctrl+C to copy.")
+
+    local selBtn = CreateFrame("Button", nil, copyFrame, "UIPanelButtonTemplate")
+    selBtn:SetSize(90, 22)
+    selBtn:SetPoint("TOPRIGHT", -36, -24)
+    selBtn:SetText("Select All")
+
+    local scrollFrame = CreateFrame("ScrollFrame", nil, copyFrame, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", 10, -48)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -30, 10)
+
+    local editBox = CreateFrame("EditBox", nil, scrollFrame)
+    editBox:SetMultiLine(true)
+    editBox:SetMaxLetters(0)
+    editBox:SetAutoFocus(false)
+    editBox:SetFontObject(GameFontHighlightSmall)
+    editBox:SetWidth(scrollFrame:GetWidth())
+    editBox:SetScript("OnEscapePressed", function() copyFrame:Hide() end)
+    scrollFrame:SetScrollChild(editBox)
+
+    selBtn:SetScript("OnClick", function()
+        editBox:SetFocus()
+        editBox:HighlightText()
+    end)
+
+    copyFrame.editBox = editBox
+    copyFrame:Hide()
+    return copyFrame
+end
+
+-- A multiline EditBox renders NOTHING when SetText receives a string
+-- containing an invalid UTF-8 sequence or a stray control byte -- one bad
+-- byte anywhere blanks the entire window, which presented as "/rr diag is
+-- blank" on a koKR client. Diagnostic text is by nature arbitrary (raw API
+-- returns, captured names, ring-buffer content), so the window sanitizes:
+-- every valid UTF-8 sequence passes through untouched; invalid bytes and
+-- control characters (except newline and tab) are replaced with a visible
+-- \xNN marker, so corrupt input renders AND shows exactly where the
+-- corruption sits instead of hiding it.
+local function SanitizeForEditBox(text)
+    local pieces = {}
+    local byteIndex = 1
+    local length = #text
+    while byteIndex <= length do
+        local byte = text:byte(byteIndex)
+        local sequenceLength
+        if byte < 0x80 then
+            sequenceLength = 1
+        elseif byte >= 0xC2 and byte <= 0xDF then
+            sequenceLength = 2
+        elseif byte >= 0xE0 and byte <= 0xEF then
+            sequenceLength = 3
+        elseif byte >= 0xF0 and byte <= 0xF4 then
+            sequenceLength = 4
+        end
+        local valid = sequenceLength ~= nil
+        if valid and sequenceLength == 1 then
+            -- Control characters other than \n and \t also break rendering.
+            if byte < 0x20 and byte ~= 0x0A and byte ~= 0x09 then
+                valid = false
+            end
+        elseif valid then
+            if byteIndex + sequenceLength - 1 > length then
+                valid = false
+            else
+                for continuation = 1, sequenceLength - 1 do
+                    local contByte = text:byte(byteIndex + continuation)
+                    if not contByte or contByte < 0x80 or contByte > 0xBF then
+                        valid = false
+                        break
+                    end
+                end
+            end
+        end
+        if valid then
+            pieces[#pieces + 1] = text:sub(byteIndex, byteIndex + sequenceLength - 1)
+            byteIndex = byteIndex + sequenceLength
+        else
+            pieces[#pieces + 1] = ("\\x%02X"):format(byte)
+            byteIndex = byteIndex + 1
+        end
+    end
+    return table.concat(pieces)
+end
+
+-- Public helper usable from any module. Pass any title + any body text.
+function RR:ShowCopyWindow(title, text)
+    local win = GetOrCreateCopyWindow()
+    win.title:SetText(title or "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaDebug Output|r")
+    win.editBox:SetText(SanitizeForEditBox(text or ""))
+    win.editBox:SetCursorPosition(0)
+    win:Show()
+end
+
 -- Slash commands
 -------------------------------------------------------------------------------
+
+local DEV_COMMANDS = {
+    sessionlog = true, mapicons = true, lfrwing = true, ej = true, newtag = true,
+    locale = true, localeharvest = true, devtools = true, dt = true, record = true,
+}
 
 SLASH_RETRORUNS1 = "/retroruns"
 SLASH_RETRORUNS2 = "/rr"
@@ -3976,6 +4154,10 @@ SlashCmdList["RETRORUNS"] = function(input)
     for word in msg:gmatch("%S+") do table.insert(args, word) end
     local cmd  = args[1] or ""
     local rest = RR.Trim(msg:sub(#cmd + 1))
+
+    -- These commands are defined in DevTools, which the release build does
+    -- not carry; without it they fall through to the help text.
+    if DEV_COMMANDS[cmd] and not RR.ToggleDevTools then cmd = "help" end
 
     if cmd == "" then
         -- Always opens the full panel; same toggle as the minimap button.
@@ -4178,6 +4360,9 @@ SlashCmdList["RETRORUNS"] = function(input)
     elseif cmd == "lockprobe" then
         RR:LockProbe()
 
+    elseif cmd == "newtag" and RR.NewTagCommand then
+        RR:NewTagCommand(args[2], RR.Trim(rest:sub(#(args[2] or "") + 1)))
+
     elseif cmd == "locale" then
         RR:DevLocaleCommand(rest)
 
@@ -4314,6 +4499,11 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         if ... == ADDON_NAME then
             RR:InitializeDB()
             RR:ApplyLocale()
+            -- The locale choice is final once the saved override has been
+            -- read, and RR.L holds the active strings, so the ten source
+            -- tables (nine of them for other clients) can go to the
+            -- collector instead of living in memory all session.
+            RR.LocaleTables = {}
             if RR:GetSetting("debug") then ValidateRaidData() end
             C_Timer.After(0, function()
                 RR:RestorePanelPosition("addon-loaded")

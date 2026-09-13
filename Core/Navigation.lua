@@ -51,13 +51,21 @@ function RR:ResolveBoss(name)
             end
         end
     end
-    -- Last resort: compare against our own translations.
+    -- Last resort: compare against our own translations. A locale whose
+    -- saved-instance lockout spells a boss differently from its journal
+    -- carries that spelling under "<name> (lockout)".
     local needle = self:NormalizeName(name)
     if needle then
         for _, candidate in ipairs(self.currentRaid.bosses) do
             local translated = RR.L[candidate.name]
             if translated ~= candidate.name
                 and self:NormalizeName(translated) == needle then
+                return candidate
+            end
+            local lockoutKey = candidate.name .. " (lockout)"
+            local lockoutForm = RR.L[lockoutKey]
+            if lockoutForm ~= lockoutKey
+                and self:NormalizeName(lockoutForm) == needle then
                 return candidate
             end
             if candidate.aliases then
@@ -930,6 +938,9 @@ function RR:InitDialogTriggers()
     dialogTriggerFrame:RegisterEvent("CHAT_MSG_MONSTER_YELL")
     dialogTriggerFrame:RegisterEvent("CHAT_MSG_MONSTER_SAY")
     dialogTriggerFrame:RegisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
+    -- Door and mechanism emotes ("You hear a faint echo...") arrive as
+    -- monster emotes from an unseen controller NPC, not as boss emotes.
+    dialogTriggerFrame:RegisterEvent("CHAT_MSG_MONSTER_EMOTE")
 end
 
 function RR:IsPanelAllowed()

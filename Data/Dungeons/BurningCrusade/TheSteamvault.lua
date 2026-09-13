@@ -14,6 +14,7 @@ RetroRuns_DungeonData[261] = {
     difficultyModel   = "dungeonBinary",
     availableDifficulties = { 14, 15 },
     patch             = "2.0.3",
+    routedIn          = "3.1.1",
 
     entrance = {
         mapID = 102,
@@ -70,6 +71,120 @@ RetroRuns_DungeonData[261] = {
                 { id = 27737, slot = "Shoulder", name = "Moonglade Shoulders", sources = { [14]=12028, [15]=12028 } },
                 { id = 29463, slot = "Wrist", name = "Amber Bands of the Aggressor", sources = { [14]=13156, [15]=13156 } },
                 { id = 29243, slot = "Wrist", name = "Wave-Fury Vambraces", sources = { [14]=13038, [15]=13038 } },
+            },
+        },
+    },
+
+    exitNote    = "None available",
+    minExitNote = "None available",
+
+    routing = {
+        -- 1. Hydromancer Thespia (boss 1)
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Hydromancer Thespia",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 263 },
+                    kind    = "path",
+                    note    = "After zoning in, proceed east through the room, climbing a short ramp to the north which leads to ^Hydromancer Thespia^.",
+                    minNote = "East to Hydromancer",
+                    points  = {
+                        { 0.200, 0.280 },
+                        { 0.262, 0.284 },
+                        { 0.301, 0.276 },
+                        { 0.338, 0.233 },
+                        { 0.496, 0.230 },
+                        { 0.530, 0.189 },
+                    },
+                },
+            },
+        },
+        -- 2. Mekgineer Steamrigger (boss 2)
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Mekgineer Steamrigger",
+            requires  = { },
+            segments  = {
+                {
+                    when        = { mapID = 263 },
+                    kind        = "poi",
+                    note        = "After killing ^Hydromancer Thespia^, click the ^Main Chambers Access Panel^ behind her.",
+                    minNote     = "Click access panel",
+                    mapLabel    = "Click Access Panel",
+                    mapLabelPos = "right",
+                    completionCheck = true,
+                    triggeredBy = { dialog = { npc = "Coilfang Door Controller", match = "faint echo" } },
+                    points      = {
+                        { 0.541, 0.096 },
+                    },
+                },
+                {
+                    when    = { mapID = 263 },
+                    kind    = "path",
+                    note    = "After clicking the access panel, follow the long path south all the way to ^Mekgineer Steamrigger^.",
+                    minNote = "Path south to Steamrigger",
+                    points  = {
+                        { 0.530, 0.186 },
+                        { 0.424, 0.318 },
+                        { 0.442, 0.398 },
+                        { 0.481, 0.425 },
+                        { 0.560, 0.443 },
+                        { 0.530, 0.551 },
+                        { 0.479, 0.557 },
+                        { 0.480, 0.671 },
+                        { 0.401, 0.671 },
+                        { 0.392, 0.702 },
+                        { 0.375, 0.716 },
+                        { 0.356, 0.755 },
+                        { 0.349, 0.785 },
+                    },
+                },
+            },
+        },
+        -- 3. Warlord Kalithresh (boss 3)
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Warlord Kalithresh",
+            requires  = { },
+            segments  = {
+                {
+                    when        = { mapID = 263 },
+                    kind        = "poi",
+                    note        = "After defeating ^Mekgineer Steamrigger^, click the ^Main Chambers Access Panel^ behind him.",
+                    minNote     = "Click access chamber",
+                    mapLabel    = "Click Access Chamber",
+                    mapLabelPos = "below",
+                    completionCheck = true,
+                    triggeredBy = { dialog = { npc = "Coilfang Door Controller", match = "loud rumble" } },
+                    points      = {
+                        { 0.313, 0.839 },
+                    },
+                },
+                {
+                    when    = { mapID = 263 },
+                    kind    = "path",
+                    note    = "After clicking the access panel, the door to the final boss will open. Backtrack northeast and follow the path east to ^Warlord Kalithresh^.",
+                    minNote = "Northeast to Kalithresh",
+                    points  = {
+                        { 0.344, 0.772 },
+                        { 0.382, 0.708 },
+                        { 0.406, 0.675 },
+                        { 0.474, 0.668 },
+                        { 0.489, 0.556 },
+                        { 0.536, 0.549 },
+                        { 0.571, 0.417 },
+                        { 0.663, 0.434 },
+                        { 0.737, 0.434 },
+                    },
+                },
             },
         },
     },

@@ -52,7 +52,6 @@ RetroRuns_DungeonData[286] = {
             index              = 2,
             name               = "Gortok Palehoof",
             journalEncounterID = 642,
-            -- Criterion prose reads "Gortok Palehook defeated" and does not carry the journal name.
             scenarioCriteriaID = 27886,
             achievements       = {
             },

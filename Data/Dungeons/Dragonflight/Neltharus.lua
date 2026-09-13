@@ -35,7 +35,6 @@ RetroRuns_DungeonData[1199] = {
             index              = 1,
             name               = "Chargath, Bane of Scales",
             journalEncounterID = 2490,
-            -- Criterion prose reads "Chargath defeated" and does not carry the journal name.
             scenarioCriteriaID = 54028,
             achievements       = {
                 { id = 16438, name = "Knowledge is... Preserved?", meta = true, soloable = "yes" },

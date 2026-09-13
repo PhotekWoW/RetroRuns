@@ -44,7 +44,6 @@ RetroRuns_DungeonData[900] = {
             index              = 2,
             name               = "Thrashbite the Scornful",
             journalEncounterID = 1906,
-            -- Criterion prose reads "Thrashbite defeated" and does not carry the journal name.
             scenarioCriteriaID = 36202,
             achievements       = {
                 { id = 11769, name = "A Steamy Romance Saga", soloable = "no" },

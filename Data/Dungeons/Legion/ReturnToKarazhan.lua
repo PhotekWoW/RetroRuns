@@ -26,7 +26,7 @@ RetroRuns_DungeonData[860] = {
             index              = 1,
             name               = "Opera Hall: Wikket",
             journalEncounterID = 1820,
-            -- Criterion prose reads "Opera Hall" and does not carry the journal name.
+            aliases            = { "Opera Hall" },
             scenarioCriteriaID = 35483,
             achievements       = {
             },
@@ -45,6 +45,7 @@ RetroRuns_DungeonData[860] = {
             index              = 2,
             name               = "Opera Hall: Westfall Story",
             journalEncounterID = 1826,
+            aliases            = { "Opera Hall" },
             achievements       = {
             },
             loot = {
@@ -58,6 +59,7 @@ RetroRuns_DungeonData[860] = {
             index              = 3,
             name               = "Opera Hall: Beautiful Beast",
             journalEncounterID = 1827,
+            aliases            = { "Opera Hall" },
             achievements       = {
             },
             loot = {

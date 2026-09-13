@@ -52,6 +52,7 @@ RetroRuns_DungeonData[284] = {
             index              = 2,
             name               = "Eadric the Pure",
             journalEncounterID = 635,
+            aliases            = { "Grand Champions" },
             achievements       = {
             },
             loot = {
@@ -82,6 +83,7 @@ RetroRuns_DungeonData[284] = {
             index              = 3,
             name               = "Argent Confessor Paletress",
             journalEncounterID = 636,
+            aliases            = { "Grand Champions" },
             achievements       = {
             },
             loot = {

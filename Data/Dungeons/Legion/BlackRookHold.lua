@@ -28,7 +28,6 @@ RetroRuns_DungeonData[740] = {
             name               = "The Amalgam of Souls",
             journalEncounterID = 1518,
             aliases            = { "Amalgam of Souls" },
-            -- Criterion prose reads "Amalgam of Souls defeated" and does not carry the journal name.
             scenarioCriteriaID = 29464,
             achievements       = {
             },
@@ -81,7 +80,6 @@ RetroRuns_DungeonData[740] = {
             index              = 4,
             name               = "Lord Kur'talos Ravencrest",
             journalEncounterID = 1672,
-            -- Criterion prose reads "Lord Ravencrest redeemed" and does not carry the journal name.
             scenarioCriteriaID = 29467,
             achievements       = {
             },

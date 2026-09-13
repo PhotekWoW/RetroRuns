@@ -83,6 +83,7 @@ RetroRuns_DungeonData[279] = {
             index              = 4,
             name               = "Mal'Ganis",
             journalEncounterID = 614,
+            aliases            = { "Mal'ganis" },
             achievements       = {
                 { id = 1817, name = "The Culling of Time", meta = true, soloable = "yes" },
                 { id = 1872, name = "Zombiefest!", meta = true, soloable = "yes" },

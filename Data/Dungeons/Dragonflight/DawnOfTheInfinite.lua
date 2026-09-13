@@ -75,7 +75,6 @@ RetroRuns_DungeonData[1209] = {
             name               = "Iridikron the Stonescaled",
             journalEncounterID = 2537,
             aliases            = { "Iridikron" },
-            -- Criterion prose reads "Iridikron defeated" and does not carry the journal name.
             scenarioCriteriaID = 60679,
             achievements       = {
             },

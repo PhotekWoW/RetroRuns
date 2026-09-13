@@ -35,6 +35,7 @@ RetroRuns_DungeonData[1188] = {
             index              = 1,
             name               = "Hakkar the Soulflayer",
             journalEncounterID = 2408,
+            aliases            = { "Hakkar, the Soulflayer" },
             achievements       = {
             },
             loot = {

@@ -79,14 +79,16 @@ Currently supports:
 
 That is every legacy raid in the game, Classic through Dragonflight.
 
-**Dungeons** get the same guided routing. Twenty-seven are routed so far:
+**Dungeons** get the same guided routing. Thirty are routed so far:
 every Classic dungeon (Ragefire Chasm, Wailing Caverns, The Stockade,
 Blackfathom Deeps, Gnomeregan, Razorfen Kraul, Razorfen Downs, Uldaman,
 Zul'Farrak, Maraudon, The Temple of Atal'Hakkar, Blackrock Depths, Lower
-Blackrock Spire, the three Dire Maul wings and both Stratholme entrances)
-and every Mists of Pandaria dungeon (Temple of the Jade Serpent, Stormstout
-Brewery, Shado-Pan Monastery, Mogu'shan Palace, Gate of the Setting Sun,
-Siege of Niuzao Temple, Scarlet Halls, Scarlet Monastery and Scholomance).
+Blackrock Spire, the three Dire Maul wings and both Stratholme entrances),
+the three Coilfang dungeons in Burning Crusade (The Slave Pens, The Underbog
+and The Steamvault) and every Mists of Pandaria dungeon (Temple of the Jade
+Serpent, Stormstout Brewery, Shado-Pan Monastery, Mogu'shan Palace, Gate of
+the Setting Sun, Siege of Niuzao Temple, Scarlet Halls, Scarlet Monastery
+and Scholomance).
 The rest of the 123 legacy dungeons, Classic through Dragonflight, are in
 the transmog browser with their bosses and drops, and their entrances are on
 the travel plane; routes for them are being added.
@@ -162,7 +164,7 @@ Main commands, type in chat:
 
 ## Status
 
-Version **3.1.0**
+Version **3.1.1**
 
 ## Reporting bugs / requesting features
 

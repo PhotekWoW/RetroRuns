@@ -67,9 +67,8 @@ RetroRuns_DungeonData[276] = {
             index              = 3,
             name               = "Escape from Arthas",
             journalEncounterID = 603,
-            -- Criterion prose reads "Escape from the Lich King".
-            scenarioCriteriaID = 27917,
             aliases            = { "Escaped from Arthas" },
+            scenarioCriteriaID = 27917,
             achievements       = {
                 { id = 4526, name = "We're Not Retreating; We're Advancing in a Different Direction.", soloable = "yes" },
             },

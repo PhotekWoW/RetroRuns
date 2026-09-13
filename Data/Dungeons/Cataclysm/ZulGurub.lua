@@ -57,6 +57,7 @@ RetroRuns_DungeonData[76] = {
             index              = 3,
             name               = "Cache of Madness - Gri'lek",
             journalEncounterID = 177,
+            aliases            = { "Edge of Madness" },
             achievements       = {
             },
             loot = {
@@ -71,6 +72,7 @@ RetroRuns_DungeonData[76] = {
             index              = 4,
             name               = "Cache of Madness - Hazza'rah",
             journalEncounterID = 178,
+            aliases            = { "Edge of Madness" },
             achievements       = {
             },
             loot = {
@@ -86,6 +88,7 @@ RetroRuns_DungeonData[76] = {
             index              = 5,
             name               = "Cache of Madness - Renataki",
             journalEncounterID = 179,
+            aliases            = { "Edge of Madness" },
             achievements       = {
             },
             loot = {
@@ -101,6 +104,7 @@ RetroRuns_DungeonData[76] = {
             index              = 6,
             name               = "Cache of Madness - Wushoolay",
             journalEncounterID = 180,
+            aliases            = { "Edge of Madness" },
             achievements       = {
             },
             loot = {

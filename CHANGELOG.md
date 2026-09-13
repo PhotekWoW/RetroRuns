@@ -2,6 +2,22 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.1.1] - 2026-09-12
+
+### Added
+- **The three Coilfang dungeons are added in TBC.** The Slave Pens, The Underbog and The Steamvault, with the Steamvault's two access panels tracked on the map.
+
+### Changed
+- **Timewalking pills mean Timewalking-only looks.** A drop whose Timewalking version is the same look as the walk-in version no longer shows a TW pill; inside a Timewalking run the boss counts still include it.
+
+### Fixed
+- **The transmog browser opens faster.** Every open was recounting collection state for every item in the tree before drawing anything.
+- **Opening the browser in combat could throw errors.** Now we hold the request until combat ends.
+- **A re-issued drop reads as collected.** Blizzard has re-issued hundreds of legacy items under new item numbers (Gauntlets of the Bold in The Steamvault, most of Vault of Archavon and Naxxramas). Looting one used to show gold, as if the look came from some other item; it now shows green.
+- **Translations match the game.** Around 290 boss names in Spanish, French and Russian now read exactly as the Encounter Journal spells them, which also keeps their kills across a reload; Italian and Portuguese gain the names of every Classic dungeon rare; every highlighted name in the guides is translated in all nine languages.
+- **New drops from the current journal**: Grim Batol, Skyreach, Siege of Boralus, Atal'Dazar, The Underrot and Tazavesh gained rows the browser did not list.
+- **The addon uses about 20 MB less memory.** The nine translation tables for other languages are released once yours is loaded.
+
 ## [3.1.0] - 2026-09-11
 
 ### Added

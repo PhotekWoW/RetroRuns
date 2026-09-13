@@ -34,7 +34,6 @@ RetroRuns_DungeonData[1187] = {
             index              = 1,
             name               = "An Affront of Challengers",
             journalEncounterID = 2397,
-            -- Criterion prose reads "Affront of Challengers defeated" and does not carry the journal name.
             scenarioCriteriaID = 48437,
             achievements       = {
             },
@@ -92,7 +91,6 @@ RetroRuns_DungeonData[1187] = {
             name               = "Mordretha, the Endless Empress",
             journalEncounterID = 2417,
             aliases            = { "Mordretha" },
-            -- Criterion prose reads "Mordretha defeated" and does not carry the journal name.
             scenarioCriteriaID = 48440,
             achievements       = {
                 { id = 14533, name = "Royal Rumble", meta = true, soloable = "yes" },

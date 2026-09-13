@@ -34,7 +34,6 @@ RetroRuns_DungeonData[727] = {
             index              = 1,
             name               = "Ymiron, the Fallen King",
             journalEncounterID = 1502,
-            -- Criterion prose reads "Ymiron defeated" and does not carry the journal name.
             scenarioCriteriaID = 29340,
             achievements       = {
                 { id = 10413, name = "Instant Karma", meta = true, soloable = "yes" },

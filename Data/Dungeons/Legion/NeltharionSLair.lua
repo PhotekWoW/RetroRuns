@@ -77,7 +77,6 @@ RetroRuns_DungeonData[767] = {
             index              = 4,
             name               = "Dargrul the Underking",
             journalEncounterID = 1687,
-            -- Criterion prose reads "Dargrul" and does not carry the journal name.
             scenarioCriteriaID = 31405,
             achievements       = {
             },

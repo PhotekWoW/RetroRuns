@@ -50,7 +50,6 @@ RetroRuns_DungeonData[1182] = {
             index              = 2,
             name               = "Amarth, The Harvester",
             journalEncounterID = 2391,
-            -- Criterion prose reads "Amarth defeated" and does not carry the journal name.
             scenarioCriteriaID = 48001,
             achievements       = {
                 { id = 14295, name = "Bountiful Harvest", meta = true, soloable = "yes" },

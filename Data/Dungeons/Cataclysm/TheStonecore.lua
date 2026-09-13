@@ -38,11 +38,11 @@ RetroRuns_DungeonData[67] = {
             achievements       = {
             },
             loot = {
-                { id = 56331, slot = "Hands", name = "Dolomite Adorned Gloves", sources = { [14]=27666, [15]=27666 } },
-                { id = 56330, slot = "Shoulder", name = "Cinnabar Shoulders", sources = { [14]=27665, [15]=27665 } },
-                { id = 157592, slot = "Weapon", name = "Crackling Geode Mace", sources = { [14]=93782, [15]=93782 } },
-                { id = 56329, slot = "Weapon", name = "Fist of Pained Senses", sources = { [14]=27664, [15]=27664 } },
-                { id = 157590, slot = "Wrist", name = "Crystalgrinder Bracers", sources = { [14]=93781, [15]=93781 } },
+                { id = 56331, slot = "Hands", name = "Dolomite Adorned Gloves", sources = { [14]=27666, [15]=27666 }, twSource = 76587 },
+                { id = 56330, slot = "Shoulder", name = "Cinnabar Shoulders", sources = { [14]=27665, [15]=27665 }, twSource = 76586 },
+                { id = 157592, slot = "Weapon", name = "Crackling Geode Mace", sources = { [14]=93782, [15]=93782 }, twSource = 76692 },
+                { id = 56329, slot = "Weapon", name = "Fist of Pained Senses", sources = { [14]=27664, [15]=27664 }, twSource = 76585 },
+                { id = 157590, slot = "Wrist", name = "Crystalgrinder Bracers", sources = { [14]=93781, [15]=93781 }, twSource = 76680 },
             },
         },
         {
@@ -53,12 +53,12 @@ RetroRuns_DungeonData[67] = {
             },
             loot = {
                 { id = 133231, slot = "Back", name = "Skin of Stone", sources = { [24]=76602 } },
-                { id = 56334, slot = "Hands", name = "Deep Delving Gloves", sources = { [14]=27667, [15]=27667 } },
-                { id = 56336, slot = "Hands", name = "Hematite Plate Gloves", sources = { [14]=27669, [15]=27669 } },
-                { id = 157594, slot = "Legs", name = "Earth-Strength Legguards", sources = { [14]=93784, [15]=93784 } },
+                { id = 56334, slot = "Hands", name = "Deep Delving Gloves", sources = { [14]=27667, [15]=27667 }, twSource = 76588 },
+                { id = 56336, slot = "Hands", name = "Hematite Plate Gloves", sources = { [14]=27669, [15]=27669 }, twSource = 76590 },
+                { id = 157594, slot = "Legs", name = "Earth-Strength Legguards", sources = { [14]=93784, [15]=93784 }, twSource = 76681 },
                 { id = 133230, slot = "Ranged", name = "Wand of Dark Worship", sources = { [24]=76601 } },
-                { id = 157593, slot = "Shoulder", name = "Crystalpowder Amice", sources = { [14]=93783, [15]=93783 } },
-                { id = 56335, slot = "Weapon", name = "Quicksilver Blade", sources = { [14]=27668, [15]=27668 } },
+                { id = 157593, slot = "Shoulder", name = "Crystalpowder Amice", sources = { [14]=93783, [15]=93783 }, twSource = 76686 },
+                { id = 56335, slot = "Weapon", name = "Quicksilver Blade", sources = { [14]=27668, [15]=27668 }, twSource = 76589 },
             },
             specialLoot = {
                 { id = 63043, kind = "mount", name = "Reins of the Vitreous Stone Drake" },
@@ -71,10 +71,10 @@ RetroRuns_DungeonData[67] = {
             achievements       = {
             },
             loot = {
-                { id = 56342, slot = "Two-Hand", name = "Sword of the Bottomless Pit", sources = { [14]=27672, [15]=27672 } },
-                { id = 56341, slot = "Waist", name = "Belt of the Ringworm", sources = { [14]=27671, [15]=27671 } },
+                { id = 56342, slot = "Two-Hand", name = "Sword of the Bottomless Pit", sources = { [14]=27672, [15]=27672 }, twSource = 76593 },
+                { id = 56341, slot = "Waist", name = "Belt of the Ringworm", sources = { [14]=27671, [15]=27671 }, twSource = 76592 },
                 { id = 133229, slot = "Weapon", name = "Heavy Geode Mace", sources = { [24]=76600 } },
-                { id = 56340, slot = "Wrist", name = "Elementium Scale Bracers", sources = { [14]=27670, [15]=27670 } },
+                { id = 56340, slot = "Wrist", name = "Elementium Scale Bracers", sources = { [14]=27670, [15]=27670 }, twSource = 76591 },
             },
         },
         {
@@ -85,12 +85,12 @@ RetroRuns_DungeonData[67] = {
                 { id = 5287, name = "Rotten to the Core", meta = true, soloable = "yes" },
             },
             loot = {
-                { id = 56348, slot = "Feet", name = "Slippers of the Twilight Prophet", sources = { [14]=27676, [15]=27676 } },
-                { id = 56352, slot = "Head", name = "Cowl of the Unseen World", sources = { [14]=27678, [15]=27678 } },
-                { id = 56344, slot = "Head", name = "Helm of Numberless Shadows", sources = { [14]=27674, [15]=27674 } },
-                { id = 56349, slot = "Off-hand", name = "Prophet's Scepter", sources = { [14]=27677, [15]=27677 } },
-                { id = 56343, slot = "Two-Hand", name = "Darkling Staff", sources = { [14]=27673, [15]=27673 } },
-                { id = 56346, slot = "Weapon", name = "Elementium Fang", sources = { [14]=27675, [15]=27675 } },
+                { id = 56348, slot = "Feet", name = "Slippers of the Twilight Prophet", sources = { [14]=27676, [15]=27676 }, twSource = 76597 },
+                { id = 56352, slot = "Head", name = "Cowl of the Unseen World", sources = { [14]=27678, [15]=27678 }, twSource = 76599 },
+                { id = 56344, slot = "Head", name = "Helm of Numberless Shadows", sources = { [14]=27674, [15]=27674 }, twSource = 76595 },
+                { id = 56349, slot = "Off-hand", name = "Prophet's Scepter", sources = { [14]=27677, [15]=27677 }, twSource = 76598 },
+                { id = 56343, slot = "Two-Hand", name = "Darkling Staff", sources = { [14]=27673, [15]=27673 }, twSource = 76594 },
+                { id = 56346, slot = "Weapon", name = "Elementium Fang", sources = { [14]=27675, [15]=27675 }, twSource = 76596 },
             },
         },
     },
