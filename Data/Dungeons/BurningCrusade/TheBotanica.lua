@@ -14,6 +14,7 @@ RetroRuns_DungeonData[257] = {
     difficultyModel   = "dungeonBinary",
     availableDifficulties = { 14, 15 },
     patch             = "2.0.3",
+    routedIn          = "3.1.2",
     timewalking       = true,
 
     entrance = {
@@ -97,6 +98,145 @@ RetroRuns_DungeonData[257] = {
                 { id = 28367, slot = "Two-Hand", name = "Greatsword of Forlorn Visions", sources = { [14]=12423, [15]=12423 }, twSource = 165712 },
                 { id = 28341, slot = "Two-Hand", name = "Warpstaff of Arcanum", sources = { [14]=12410, [15]=12410 }, twSource = 165705 },
                 { id = 28345, slot = "Weapon", name = "Warp Splinter's Thorn", sources = { [14]=12413, [15]=12413 }, twSource = 165707 },
+            },
+        },
+    },
+
+    exitNote    = "There is an exit portal through the tunnel to the north",
+    minExitNote = "Exit portal through north tunnel",
+
+    routing = {
+        -- 1. Commander Sarannis (boss 1)
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Commander Sarannis",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 266 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the long, linear path all the way to ^Commander Sarannis^.",
+                    minNote = "Follow path to Sarannis",
+                    points  = {
+                        { 0.871, 0.446 },
+                        { 0.842, 0.491 },
+                        { 0.649, 0.492 },
+                        { 0.638, 0.459 },
+                        { 0.599, 0.460 },
+                        { 0.589, 0.493 },
+                        { 0.528, 0.493 },
+                        { 0.525, 0.536 },
+                        { 0.506, 0.558 },
+                        { 0.478, 0.559 },
+                        { 0.480, 0.312 },
+                        { 0.492, 0.224 },
+                        { 0.496, 0.187 },
+                        { 0.471, 0.187 },
+                        { 0.461, 0.200 },
+                    },
+                },
+            },
+        },
+        -- 2. High Botanist Freywinn (boss 2)
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "High Botanist Freywinn",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 266 },
+                    kind    = "path",
+                    note    = "After defeating ^Commander Sarannis^, follow the linear path to the west until you reach ^High Botanist Freywinn^.",
+                    minNote = "West to Freywinn",
+                    points  = {
+                        { 0.462, 0.201 },
+                        { 0.482, 0.174 },
+                        { 0.462, 0.150 },
+                        { 0.416, 0.172 },
+                        { 0.260, 0.173 },
+                        { 0.217, 0.149 },
+                        { 0.211, 0.183 },
+                        { 0.219, 0.194 },
+                    },
+                },
+            },
+        },
+        -- 3. Thorngrin the Tender (boss 3)
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Thorngrin the Tender",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 266 },
+                    kind    = "path",
+                    note    = "After killing ^High Botanist Freywinn^, continue south on the linear path until you reach ^Thorngrin the Tender^.",
+                    minNote = "South to Thorngrin",
+                    points  = {
+                        { 0.219, 0.193 },
+                        { 0.204, 0.187 },
+                        { 0.188, 0.199 },
+                        { 0.198, 0.232 },
+                        { 0.208, 0.344 },
+                        { 0.206, 0.438 },
+                        { 0.190, 0.510 },
+                        { 0.175, 0.509 },
+                        { 0.173, 0.477 },
+                        { 0.155, 0.446 },
+                        { 0.136, 0.441 },
+                        { 0.097, 0.482 },
+                    },
+                },
+            },
+        },
+        -- 4. Laj (boss 4)
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Laj",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 266 },
+                    kind    = "path",
+                    note    = "After defeating ^Thorngrin the Tender^, continue south on the linear path until you reach ^Laj^.",
+                    minNote = "South to Laj",
+                    points  = {
+                        { 0.095, 0.517 },
+                        { 0.146, 0.717 },
+                        { 0.217, 0.807 },
+                        { 0.283, 0.819 },
+                        { 0.300, 0.870 },
+                        { 0.318, 0.885 },
+                    },
+                },
+            },
+        },
+        -- 5. Warp Splinter (boss 5)
+        {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 5,
+            title     = "Warp Splinter",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 266 },
+                    kind    = "path",
+                    note    = "After killing ^Laj^, take the path north and you will run right into ^Warp Splinter^.",
+                    minNote = "North to Warp Splinter",
+                    points  = {
+                        { 0.339, 0.805 },
+                        { 0.341, 0.404 },
+                    },
+                },
             },
         },
     },

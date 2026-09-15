@@ -2,6 +2,17 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.1.2] - 2026-09-14
+
+### Added
+- **The three Tempest Keep dungeons are added in TBC.** The Arcatraz, The Mechanar and The Botanica.
+- **New dungeons announce themselves.** Useful while releasing dungeons in a phased manner. The first time you open an expansion on the dungeon list after an update adds guided dungeons to it, the header carries a NEW tag and the new dungeons brighten from gray to white.
+
+### Fixed
+- **Expanding an expansion on the instance list no longer stalls the first time.** The boss data every expansion needs is loaded quietly in the background after login instead of on the click.
+- **Green rows no longer start out gold on a fresh login.** Drops you own through Blizzard's re-issued copy of the same item could paint gold for a moment after logging in, then correct to green. They now paint green from the start.
+- **Map marker loot no longer shows as plain text on the first hover.** Items the game had not loaded yet appeared as white names instead of colored item links until the next hover.
+
 ## [3.1.1] - 2026-09-12
 
 ### Added

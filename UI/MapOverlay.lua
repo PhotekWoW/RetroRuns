@@ -311,14 +311,17 @@ local function ShowSpotTooltip(btn)
     if loot and #loot > 0 then
         GameTooltip:AddLine(" ")
         for _, row in ipairs(loot) do
-            -- Cold item cache: GetItemInfo answers nil until the client has
-            -- seen the item, and a placeholder reads as a broken row. The
-            -- data row's own name covers the gap, and the request warms the
-            -- cache so the next hover gets the real localized link.
+            -- An uncached item shows its data-row name and the tooltip
+            -- redraws once the item arrives, while the mouse is still here.
             local _, link = C_Item.GetItemInfo(row.id)
-            if not link then
-                if C_Item and C_Item.RequestLoadItemDataByID then
-                    C_Item.RequestLoadItemDataByID(row.id)
+            if not link and Item and Item.CreateFromItemID then
+                local pending = Item:CreateFromItemID(row.id)
+                if not pending:IsItemEmpty() then
+                    pending:ContinueOnItemLoad(function()
+                        if GameTooltip:IsOwned(btn) and btn:IsMouseOver() then
+                            ShowSpotTooltip(btn)
+                        end
+                    end)
                 end
             end
             -- White explicitly: AddLine with no color defaults to YELLOW,

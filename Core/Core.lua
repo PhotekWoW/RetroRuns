@@ -5,7 +5,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "3.1.1"
+local VERSION    = "3.1.2"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -1714,6 +1714,46 @@ function RR:GetEJNameMapForJournalInstance(journalInstanceID)
     if not journalInstanceID or journalInstanceID == 0 then return nil end
     GetEJMapForJournalInstance(journalInstanceID)
     return ejNameMapCache[journalInstanceID]
+end
+
+-- Warms the EJ map cache for every loaded instance after login, a few
+-- instances per tick, pausing while the Encounter Journal is open.
+local EJ_WARM_TICK_SECONDS  = 0.1
+local EJ_WARM_TICK_BUDGET_MS = 20
+
+function RR:WarmEncounterJournalMaps()
+    if not EJ_GetEncounterInfoByIndex then return end
+    local pending = {}
+    for _, registry in ipairs({ RetroRuns_Data, RetroRuns_DungeonData }) do
+        for _, instance in pairs(registry or {}) do
+            local journalInstanceID = instance.journalInstanceID
+            if journalInstanceID and journalInstanceID ~= 0
+               and not ejMapCache[journalInstanceID] then
+                pending[#pending + 1] = journalInstanceID
+            end
+        end
+    end
+    if #pending == 0 then return end
+    table.sort(pending)
+
+    local nextIndex = 1
+    local ticker
+    ticker = C_Timer.NewTicker(EJ_WARM_TICK_SECONDS, function()
+        if _G.EncounterJournal and _G.EncounterJournal:IsShown() then
+            return
+        end
+        local tickStart = debugprofilestop()
+        while nextIndex <= #pending do
+            GetEJMapForJournalInstance(pending[nextIndex])
+            nextIndex = nextIndex + 1
+            if debugprofilestop() - tickStart >= EJ_WARM_TICK_BUDGET_MS then
+                break
+            end
+        end
+        if nextIndex > #pending then
+            ticker:Cancel()
+        end
+    end)
 end
 
 -- Live difficulty IDs and the display bucket each folds into. Buckets are
@@ -4626,6 +4666,10 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         end
 
         C_Timer.After(1.0, function() RR:HandleLocationChange() end)
+
+        -- The EJ map cache is per session, so both a login and a /reload
+        -- start cold. Warm it once the location settle has run.
+        C_Timer.After(3.0, function() RR:WarmEncounterJournalMaps() end)
 
     elseif event == "LFG_LOCK_INFO_RECEIVED" then
         RR:RefreshTimewalkingFromLockInfo()

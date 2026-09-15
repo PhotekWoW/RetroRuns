@@ -79,13 +79,14 @@ Currently supports:
 
 That is every legacy raid in the game, Classic through Dragonflight.
 
-**Dungeons** get the same guided routing. Thirty are routed so far:
+**Dungeons** get the same guided routing. Thirty-three are routed so far:
 every Classic dungeon (Ragefire Chasm, Wailing Caverns, The Stockade,
 Blackfathom Deeps, Gnomeregan, Razorfen Kraul, Razorfen Downs, Uldaman,
 Zul'Farrak, Maraudon, The Temple of Atal'Hakkar, Blackrock Depths, Lower
 Blackrock Spire, the three Dire Maul wings and both Stratholme entrances),
-the three Coilfang dungeons in Burning Crusade (The Slave Pens, The Underbog
-and The Steamvault) and every Mists of Pandaria dungeon (Temple of the Jade
+the three Coilfang dungeons (The Slave Pens, The Underbog and The
+Steamvault) and the three Tempest Keep dungeons (The Arcatraz, The Mechanar
+and The Botanica) in Burning Crusade, and every Mists of Pandaria dungeon (Temple of the Jade
 Serpent, Stormstout Brewery, Shado-Pan Monastery, Mogu'shan Palace, Gate of
 the Setting Sun, Siege of Niuzao Temple, Scarlet Halls, Scarlet Monastery
 and Scholomance).
@@ -164,7 +165,7 @@ Main commands, type in chat:
 
 ## Status
 
-Version **3.1.1**
+Version **3.1.2**
 
 ## Reporting bugs / requesting features
 

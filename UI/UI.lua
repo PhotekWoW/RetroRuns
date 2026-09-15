@@ -4561,12 +4561,33 @@ local function HasSource(sourceID)
     return C_TransmogCollection.PlayerHasTransmogItemModifiedAppearance(sourceID) == true
 end
 
+-- Requests an item whose name is not cached yet and repaints the collection
+-- views once it lands, at most once per item per session.
+UI.twinNameLoadsRequested = {}
+function UI.RepaintWhenItemNamed(itemID)
+    if not itemID or UI.twinNameLoadsRequested[itemID] then return end
+    if not (Item and Item.CreateFromItemID) then return end
+    UI.twinNameLoadsRequested[itemID] = true
+    local pending = Item:CreateFromItemID(itemID)
+    if pending:IsItemEmpty() then return end
+    pending:ContinueOnItemLoad(function()
+        UI.collectionGeneration = UI.collectionGeneration + 1
+        if UI.twinRepaintPending then return end
+        UI.twinRepaintPending = true
+        C_Timer.After(0.05, function()
+            UI.twinRepaintPending = nil
+            UI.RefreshTmogWindowIfShown()
+            if RR.RefreshAll then RR:RefreshAll() end
+        end)
+    end)
+end
+
 -- True when the appearance is collected via any source. Iterated with `pairs`:
 -- GetAllAppearanceSources is not always a contiguous array, and `ipairs` would
 -- stop at the first gap. The second result is true when an owned source is
 -- a same-named twin of the row's item: Blizzard re-issues legacy drops
 -- under new item ids, and owning the twin is owning this row.
-local function HasAppearanceViaAnySource(appearanceID, ownName)
+local function HasAppearanceViaAnySource(appearanceID, ownName, ownItemID)
     if not appearanceID or not C_TransmogCollection then return false end
     local sourceIDs = C_TransmogCollection.GetAllAppearanceSources(appearanceID)
     if not sourceIDs then return false end
@@ -4574,10 +4595,17 @@ local function HasAppearanceViaAnySource(appearanceID, ownName)
     for _, srcID in pairs(sourceIDs) do
         if C_TransmogCollection.PlayerHasTransmogItemModifiedAppearance(srcID) == true then
             owned = true
-            if ownName and C_TransmogCollection.GetSourceInfo then
+            if C_TransmogCollection.GetSourceInfo then
                 local info = C_TransmogCollection.GetSourceInfo(srcID)
-                if info and info.name == ownName then
-                    return true, true
+                if ownName and ownName ~= "" then
+                    if info and info.name == ownName then
+                        return true, true
+                    end
+                    if info and (not info.name or info.name == "") then
+                        UI.RepaintWhenItemNamed(info.itemID)
+                    end
+                elseif ownItemID then
+                    UI.RepaintWhenItemNamed(ownItemID)
                 end
             end
         end
@@ -4648,7 +4676,7 @@ local function CollectionStateForSource(sourceID, itemID)
         local ownInfo = C_TransmogCollection.GetSourceInfo
             and C_TransmogCollection.GetSourceInfo(sourceID)
         local owned, viaTwin = HasAppearanceViaAnySource(appearanceID,
-            ownInfo and ownInfo.name)
+            ownInfo and ownInfo.name, ownInfo and ownInfo.itemID or itemID)
         if viaTwin then return "collected" end
         if owned then return "shared" end
     end

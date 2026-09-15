@@ -14,6 +14,7 @@ RetroRuns_DungeonData[254] = {
     difficultyModel   = "dungeonBinary",
     availableDifficulties = { 14, 15 },
     patch             = "2.0.3",
+    routedIn          = "3.1.2",
 
     entrance = {
         mapID = 109,
@@ -83,6 +84,127 @@ RetroRuns_DungeonData[254] = {
                 { id = 29241, slot = "Waist", name = "Belt of Depravity", sources = { [14]=13036, [15]=13036 } },
                 { id = 29360, slot = "Weapon", name = "Vileblade of the Betrayer", sources = { [14]=13103, [15]=13103 } },
                 { id = 29252, slot = "Wrist", name = "Bracers of Dignity", sources = { [14]=13047, [15]=13047 } },
+            },
+        },
+    },
+
+    exitNote    = "None available",
+    minExitNote = "None available",
+
+    routing = {
+        -- 1. Zereketh the Unbound (boss 1)
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Zereketh the Unbound",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 269 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the linear path until you reach ^Zereketh the Unbound^.",
+                    minNote = "Follow path Zereketh",
+                    points  = {
+                        { 0.415, 0.752 },
+                        { 0.414, 0.445 },
+                        { 0.450, 0.394 },
+                        { 0.599, 0.393 },
+                        { 0.602, 0.284 },
+                    },
+                },
+            },
+        },
+        -- 2. Dalliah the Doomsayer (boss 2)
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Dalliah the Doomsayer",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 269 },
+                    kind    = "path",
+                    note    = "After defeating ^Zereketh^, go up the spiral ramp on the east side of the room.",
+                    minNote = "East to spiral ramp",
+                    points  = {
+                        { 0.618, 0.309 },
+                        { 0.645, 0.358 },
+                        { 0.667, 0.352 },
+                        { 0.689, 0.329 },
+                        { 0.689, 0.298 },
+                        { 0.674, 0.263 },
+                    },
+                },
+                {
+                    when    = { mapID = 270 },
+                    kind    = "path",
+                    note    = "Follow the linear path until you reach ^Dalliah the Doomsayer^.",
+                    minNote = "Follow path to Dalliah",
+                    points  = {
+                        { 0.896, 0.469 },
+                        { 0.894, 0.419 },
+                        { 0.863, 0.386 },
+                        { 0.605, 0.386 },
+                        { 0.421, 0.292 },
+                        { 0.322, 0.292 },
+                        { 0.285, 0.361 },
+                        { 0.285, 0.640 },
+                        { 0.346, 0.750 },
+                    },
+                },
+            },
+        },
+        -- 3. Wrath-Scryer Soccothrates (boss 3)
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Wrath-Scryer Soccothrates",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 270 },
+                    kind    = "path",
+                    note    = "With ^Dalliah^ dead, turn around to kill ^Wrath-Scryer Soccothrates^ behind you.",
+                    minNote = "Soccothrates behind you",
+                    points  = { },
+                },
+            },
+        },
+        -- 4. Harbinger Skyriss (boss 4)
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Harbinger Skyriss",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 270 },
+                    kind    = "path",
+                    note    = "After killing ^Soccothrates^, backtrack a little and go up the stairs to the east.",
+                    minNote = "Backtrack to east stairs",
+                    points  = {
+                        { 0.227, 0.759 },
+                        { 0.320, 0.573 },
+                        { 0.456, 0.571 },
+                    },
+                },
+                {
+                    when    = { mapID = 271 },
+                    kind    = "path",
+                    note    = "Follow the linear path until you reach ^Harbinger Skyriss^. Tag ^Warden Mellichar^ to start the encounter.",
+                    minNote = "Follow path to Skyriss",
+                    points  = {
+                        { 0.238, 0.883 },
+                        { 0.302, 0.883 },
+                        { 0.303, 0.363 },
+                        { 0.339, 0.306 },
+                        { 0.594, 0.305 },
+                    },
+                },
             },
         },
     },

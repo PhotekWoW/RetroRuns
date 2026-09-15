@@ -18,7 +18,7 @@
 ## Notes-koKR: RetroRuns는 이전 공격대와 던전을 위한 동반자입니다. 단계별 가이드와 형상변환 및 업적 추적을 제공합니다.
 ## Notes-itIT: RetroRuns è un compagno per incursioni e spedizioni precedenti: guide passo passo con monitoraggio di trasmogrificazioni e imprese.
 ## Author: Photek
-## Version: 3.1.1
+## Version: 3.1.2
 ## X-License: MIT
 ## SavedVariables: RetroRunsDB, RetroRunsDebug
 ## IconTexture: Interface\AddOns\RetroRuns\Media\Icons\MinimapIcon
