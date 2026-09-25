@@ -1,0 +1,12 @@
+package-as: RetroRuns
+
+ignore:
+    - HANDOFF.md
+    - .gitignore
+    - .gitattributes
+    - .github
+    - DevTools
+
+manual-changelog:
+    filename: CHANGELOG.md
+    markup-type: markdown

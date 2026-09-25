@@ -1,0 +1,242 @@
+﻿## Interface: 120100, 120105
+## Title: RetroRuns
+## Title-esES: RetroRuns
+## Title-esMX: RetroRuns
+## Title-deDE: RetroRuns
+## Title-frFR: RetroRuns
+## Title-ruRU: RetroRuns
+## Title-zhCN: RetroRuns
+## Notes: RetroRuns is a companion for legacy raids & dungeons: step-by-step guides with transmog and achievement tracking.
+## Notes-esES: RetroRuns es un compañero para bandas y mazmorras antiguas: guías paso a paso con seguimiento de transfiguración y logros.
+## Notes-esMX: RetroRuns es un compañero para bandas y mazmorras antiguas: guías paso a paso con seguimiento de transfiguración y logros.
+## Notes-deDE: RetroRuns ist ein Begleiter für alte Schlachtzüge und Dungeons: Schritt-für-Schritt-Guides mit Transmog- und Erfolgsverfolgung.
+## Notes-frFR: RetroRuns accompagne vos anciens raids et donjons : guides étape par étape avec suivi de la transmogrification et des hauts faits.
+## Notes-ruRU: RetroRuns — помощник для старых рейдов и подземелий: пошаговые маршруты с отслеживанием трансмогрификации и достижений.
+## Notes-zhCN: RetroRuns 是旧版团队副本和地下城的辅助工具：提供分步指南，并追踪幻化与成就。
+## Notes-ptBR: RetroRuns é um companheiro para raides e masmorras antigos: guias passo a passo com acompanhamento de transmogrificação e conquistas.
+## Notes-zhTW: RetroRuns 是舊版團隊副本和地城的輔助工具：提供逐步指南，並追蹤塑形與成就。
+## Notes-koKR: RetroRuns는 이전 공격대와 던전을 위한 동반자입니다. 단계별 가이드와 형상변환 및 업적 추적을 제공합니다.
+## Notes-itIT: RetroRuns è un compagno per incursioni e spedizioni precedenti: guide passo passo con monitoraggio di trasmogrificazioni e imprese.
+## Author: Photek
+## Version: 3.3.0
+## X-License: All Rights Reserved
+## SavedVariables: RetroRunsDB, RetroRunsDebug
+## IconTexture: Interface\AddOns\RetroRuns\Media\Icons\MinimapIcon
+## OptionalDeps: TomTom
+
+# ── Libs ──────────────────────────────────────────────────────────────────────────────
+Libs\LibStub\LibStub.lua
+Libs\Krowi_WorldMapButtons-1.4\Krowi_WorldMapButtons-1.4.lua
+
+# ── Data ──────────────────────────────────────────────────────────────────────
+Data\Raids\BattleForAzeroth\NyalothaTheWakingCity.lua
+Data\Raids\BattleForAzeroth\EternalPalace.lua
+Data\Raids\BattleForAzeroth\CrucibleOfStorms.lua
+Data\Raids\BattleForAzeroth\BattleOfDazaralor.lua
+Data\Raids\BattleForAzeroth\BattleOfDazaralorHorde.lua
+Data\Raids\BattleForAzeroth\Uldir.lua
+Data\Raids\Shadowlands\CastleNathria.lua
+Data\Raids\Shadowlands\SanctumOfDomination.lua
+Data\Raids\Shadowlands\SepulcherOfTheFirstOnes.lua
+Data\Raids\Dragonflight\VaultOfTheIncarnates.lua
+Data\Raids\Dragonflight\AberrusTheShadowedCrucible.lua
+Data\Raids\Dragonflight\AmirdrassilTheDreamsHope.lua
+Data\Raids\Legion\EmeraldNightmare.lua
+Data\Raids\Legion\TrialOfValor.lua
+Data\Raids\Legion\Nighthold.lua
+Data\Raids\Legion\TombOfSargeras.lua
+Data\Raids\Legion\AntorusTheBurningThrone.lua
+Data\Raids\WarlordsOfDraenor\HellfireCitadel.lua
+Data\Raids\WarlordsOfDraenor\BlackrockFoundry.lua
+Data\Raids\WarlordsOfDraenor\Highmaul.lua
+Data\Raids\MistsOfPandaria\MogushanVaults.lua
+Data\Raids\MistsOfPandaria\HeartOfFear.lua
+Data\Raids\MistsOfPandaria\TerraceOfEndlessSpring.lua
+Data\Raids\MistsOfPandaria\ThroneofThunder.lua
+Data\Raids\MistsOfPandaria\SiegeOfOrgrimmar.lua
+Data\Raids\Cataclysm\BaradinHold.lua
+Data\Raids\Cataclysm\BastionOfTwilight.lua
+Data\Raids\Cataclysm\BlackwingDescent.lua
+Data\Raids\Cataclysm\ThroneOfTheFourWinds.lua
+Data\Raids\Cataclysm\Firelands.lua
+Data\Raids\Cataclysm\DragonSoul.lua
+Data\Raids\WrathOfTheLichKing\Naxxramas.lua
+Data\Raids\WrathOfTheLichKing\EyeOfEternity.lua
+Data\Raids\WrathOfTheLichKing\ObsidianSanctum.lua
+Data\Raids\WrathOfTheLichKing\OnyxiasLair.lua
+Data\Raids\WrathOfTheLichKing\Ulduar.lua
+Data\Raids\WrathOfTheLichKing\TrialOfTheCrusader.lua
+Data\Raids\WrathOfTheLichKing\IcecrownCitadel.lua
+Data\Raids\WrathOfTheLichKing\RubySanctum.lua
+Data\Raids\WrathOfTheLichKing\VaultOfArchavon.lua
+Data\Raids\BurningCrusade\BlackTemple.lua
+Data\Raids\BurningCrusade\GruulsLair.lua
+Data\Raids\BurningCrusade\Karazhan.lua
+Data\Raids\BurningCrusade\MagtheridonsLair.lua
+Data\Raids\BurningCrusade\SerpentshrineCavern.lua
+Data\Raids\BurningCrusade\SunwellPlateau.lua
+Data\Raids\BurningCrusade\TheBattleForMountHyjal.lua
+Data\Raids\BurningCrusade\TheEye.lua
+Data\Raids\Classic\MoltenCore.lua
+Data\Raids\Classic\BlackwingLair.lua
+Data\Raids\Classic\RuinsOfAhnQiraj.lua
+Data\Raids\Classic\TempleOfAhnQiraj.lua
+
+# -- Dungeons
+Data\Dungeons\_meta\ChallengeMaps.lua
+Data\Dungeons\Classic\BlackfathomDeeps.lua
+Data\Dungeons\Classic\BlackrockDepths.lua
+Data\Dungeons\Classic\DireMaulCapitalGardens.lua
+Data\Dungeons\Classic\DireMaulGordokCommons.lua
+Data\Dungeons\Classic\DireMaulWarpwoodQuarter.lua
+Data\Dungeons\Classic\Gnomeregan.lua
+Data\Dungeons\Classic\LowerBlackrockSpire.lua
+Data\Dungeons\Classic\Maraudon.lua
+Data\Dungeons\Classic\RagefireChasm.lua
+Data\Dungeons\Classic\RazorfenDowns.lua
+Data\Dungeons\Classic\RazorfenKraul.lua
+Data\Dungeons\Classic\StratholmeMainGate.lua
+Data\Dungeons\Classic\StratholmeServiceEntrance.lua
+Data\Dungeons\Classic\TheStockade.lua
+Data\Dungeons\Classic\TheTempleOfAtalHakkar.lua
+Data\Dungeons\Classic\Uldaman.lua
+Data\Dungeons\Classic\WailingCaverns.lua
+Data\Dungeons\Classic\ZulFarrak.lua
+Data\Dungeons\BurningCrusade\AuchenaiCrypts.lua
+Data\Dungeons\BurningCrusade\HellfireRamparts.lua
+Data\Dungeons\BurningCrusade\MagistersTerrace.lua
+Data\Dungeons\BurningCrusade\ManaTombs.lua
+Data\Dungeons\BurningCrusade\OldHillsbradFoothills.lua
+Data\Dungeons\BurningCrusade\SethekkHalls.lua
+Data\Dungeons\BurningCrusade\ShadowLabyrinth.lua
+Data\Dungeons\BurningCrusade\TheArcatraz.lua
+Data\Dungeons\BurningCrusade\TheBlackMorass.lua
+Data\Dungeons\BurningCrusade\TheBloodFurnace.lua
+Data\Dungeons\BurningCrusade\TheBotanica.lua
+Data\Dungeons\BurningCrusade\TheMechanar.lua
+Data\Dungeons\BurningCrusade\TheShatteredHalls.lua
+Data\Dungeons\BurningCrusade\TheSlavePens.lua
+Data\Dungeons\BurningCrusade\TheSteamvault.lua
+Data\Dungeons\BurningCrusade\TheUnderbog.lua
+Data\Dungeons\WrathOfTheLichKing\AhnKahetTheOldKingdom.lua
+Data\Dungeons\WrathOfTheLichKing\AzjolNerub.lua
+Data\Dungeons\WrathOfTheLichKing\DrakTharonKeep.lua
+Data\Dungeons\WrathOfTheLichKing\Gundrak.lua
+Data\Dungeons\WrathOfTheLichKing\HallsOfLightning.lua
+Data\Dungeons\WrathOfTheLichKing\HallsOfReflection.lua
+Data\Dungeons\WrathOfTheLichKing\HallsOfStone.lua
+Data\Dungeons\WrathOfTheLichKing\PitOfSaron.lua
+Data\Dungeons\WrathOfTheLichKing\TheCullingOfStratholme.lua
+Data\Dungeons\WrathOfTheLichKing\TheForgeOfSouls.lua
+Data\Dungeons\WrathOfTheLichKing\TheNexus.lua
+Data\Dungeons\WrathOfTheLichKing\TheOculus.lua
+Data\Dungeons\WrathOfTheLichKing\TheVioletHold.lua
+Data\Dungeons\WrathOfTheLichKing\TrialOfTheChampion.lua
+Data\Dungeons\WrathOfTheLichKing\UtgardeKeep.lua
+Data\Dungeons\WrathOfTheLichKing\UtgardePinnacle.lua
+Data\Dungeons\Cataclysm\BlackrockCaverns.lua
+Data\Dungeons\Cataclysm\Deadmines.lua
+Data\Dungeons\Cataclysm\EndTime.lua
+Data\Dungeons\Cataclysm\GrimBatol.lua
+Data\Dungeons\Cataclysm\HallsOfOrigination.lua
+Data\Dungeons\Cataclysm\HourOfTwilight.lua
+Data\Dungeons\Cataclysm\LostCityOfTheTolVir.lua
+Data\Dungeons\Cataclysm\ShadowfangKeep.lua
+Data\Dungeons\Cataclysm\TheStonecore.lua
+Data\Dungeons\Cataclysm\TheVortexPinnacle.lua
+Data\Dungeons\Cataclysm\ThroneOfTheTides.lua
+Data\Dungeons\Cataclysm\WellOfEternity.lua
+Data\Dungeons\Cataclysm\ZulAman.lua
+Data\Dungeons\Cataclysm\ZulGurub.lua
+Data\Dungeons\MistsOfPandaria\GateOfTheSettingSun.lua
+Data\Dungeons\MistsOfPandaria\MoguShanPalace.lua
+Data\Dungeons\MistsOfPandaria\ScarletHalls.lua
+Data\Dungeons\MistsOfPandaria\ScarletMonastery.lua
+Data\Dungeons\MistsOfPandaria\Scholomance.lua
+Data\Dungeons\MistsOfPandaria\ShadoPanMonastery.lua
+Data\Dungeons\MistsOfPandaria\SiegeOfNiuzaoTemple.lua
+Data\Dungeons\MistsOfPandaria\StormstoutBrewery.lua
+Data\Dungeons\MistsOfPandaria\TempleOfTheJadeSerpent.lua
+Data\Dungeons\WarlordsOfDraenor\Auchindoun.lua
+Data\Dungeons\WarlordsOfDraenor\BloodmaulSlagMines.lua
+Data\Dungeons\WarlordsOfDraenor\GrimrailDepot.lua
+Data\Dungeons\WarlordsOfDraenor\IronDocks.lua
+Data\Dungeons\WarlordsOfDraenor\ShadowmoonBurialGrounds.lua
+Data\Dungeons\WarlordsOfDraenor\Skyreach.lua
+Data\Dungeons\WarlordsOfDraenor\TheEverbloom.lua
+Data\Dungeons\WarlordsOfDraenor\UpperBlackrockSpire.lua
+Data\Dungeons\Legion\AssaultOnVioletHold.lua
+Data\Dungeons\Legion\BlackRookHold.lua
+Data\Dungeons\Legion\CathedralOfEternalNight.lua
+Data\Dungeons\Legion\CourtOfStars.lua
+Data\Dungeons\Legion\DarkheartThicket.lua
+Data\Dungeons\Legion\EyeOfAzshara.lua
+Data\Dungeons\Legion\HallsOfValor.lua
+Data\Dungeons\Legion\MawOfSouls.lua
+Data\Dungeons\Legion\NeltharionSLair.lua
+Data\Dungeons\Legion\ReturnToKarazhan.lua
+Data\Dungeons\Legion\SeatOfTheTriumvirate.lua
+Data\Dungeons\Legion\TheArcway.lua
+Data\Dungeons\Legion\VaultOfTheWardens.lua
+Data\Dungeons\BattleForAzeroth\AtalDazar.lua
+Data\Dungeons\BattleForAzeroth\Freehold.lua
+Data\Dungeons\BattleForAzeroth\KingsRest.lua
+Data\Dungeons\BattleForAzeroth\OperationMechagon.lua
+Data\Dungeons\BattleForAzeroth\ShrineOfTheStorm.lua
+Data\Dungeons\BattleForAzeroth\SiegeOfBoralus.lua
+Data\Dungeons\BattleForAzeroth\TempleOfSethraliss.lua
+Data\Dungeons\BattleForAzeroth\TheMotherlode.lua
+Data\Dungeons\BattleForAzeroth\TheUnderrot.lua
+Data\Dungeons\BattleForAzeroth\TolDagor.lua
+Data\Dungeons\BattleForAzeroth\WaycrestManor.lua
+Data\Dungeons\Shadowlands\DeOtherSide.lua
+Data\Dungeons\Shadowlands\HallsOfAtonement.lua
+Data\Dungeons\Shadowlands\MistsOfTirnaScithe.lua
+Data\Dungeons\Shadowlands\Plaguefall.lua
+Data\Dungeons\Shadowlands\SanguineDepths.lua
+Data\Dungeons\Shadowlands\SpiresOfAscension.lua
+Data\Dungeons\Shadowlands\TazaveshTheVeiledMarket.lua
+Data\Dungeons\Shadowlands\TheNecroticWake.lua
+Data\Dungeons\Shadowlands\TheaterOfPain.lua
+Data\Dungeons\Dragonflight\AlgethArAcademy.lua
+Data\Dungeons\Dragonflight\BrackenhideHollow.lua
+Data\Dungeons\Dragonflight\DawnOfTheInfinite.lua
+Data\Dungeons\Dragonflight\HallsOfInfusion.lua
+Data\Dungeons\Dragonflight\Neltharus.lua
+Data\Dungeons\Dragonflight\RubyLifePools.lua
+Data\Dungeons\Dragonflight\TheAzureVault.lua
+Data\Dungeons\Dragonflight\TheNokhudOffensive.lua
+Data\Dungeons\Dragonflight\UldamanLegacyOfTyr.lua
+
+# ── Core ──────────────────────────────────────────────────────────────────────
+Core\Core.lua
+Locales\enUS.lua
+Locales\esES.lua
+Locales\deDE.lua
+Locales\frFR.lua
+Locales\ruRU.lua
+Locales\zhCN.lua
+Locales\ptBR.lua
+Locales\zhTW.lua
+Locales\koKR.lua
+Locales\itIT.lua
+Locales\Apply.lua
+Core\Navigation.lua
+Core\Engine.lua
+Core\RaidState.lua
+Core\WhatsNew.lua
+Core\Toaster.lua
+
+# ── Dev Tools ────────────────────────────────────────────────────────────────
+#@do-not-package@
+DevTools\Recorder.lua
+DevTools\Harvester.lua
+DevTools\LocaleHarvest.lua
+DevTools\DevTools.lua
+#@end-do-not-package@
+
+# ── UI ────────────────────────────────────────────────────────────────────────
+UI\UI.lua
+UI\SettingsCanvas.lua
+UI\MinimapButton.lua
+UI\MapOverlay.lua

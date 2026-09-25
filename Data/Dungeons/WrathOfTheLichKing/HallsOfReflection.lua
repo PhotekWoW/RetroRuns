@@ -1,0 +1,226 @@
+-------------------------------------------------------------------------------
+-- RetroRuns Data -- Halls of Reflection
+-- Copyright (c) 2026 Chris Trost (Photek). All rights reserved. See LICENSE.
+-- Wrath of the Lich King dungeon, Patch 3.3.0  |  instanceID: 668  |  journalInstanceID: 276
+-------------------------------------------------------------------------------
+
+RetroRuns_DungeonData = RetroRuns_DungeonData or {}
+
+RetroRuns_DungeonData[276] = {
+    kind              = "dungeon",
+    instanceID        = 668,
+    journalInstanceID = 276,
+    name              = "Halls of Reflection",
+    expansion         = "Wrath of the Lich King",
+    difficultyModel   = "dungeonBinary",
+    availableDifficulties = { 14, 15 },
+    patch             = "3.3.0",
+
+    entrance = {
+        mapID = 123,
+        x     = 0.7973,
+        y     = 0.0450,
+    },
+
+    trashLoot = {
+        { id = 49855, slot = "Hands", name = "Plated Grips of Korth'azz", sources = { [14]=24428 }, bind = "BoP" },
+        { id = 49852, slot = "Ranged", name = "Coffin Nail", sources = { [14]=24425 }, bind = "BoP" },
+        { id = 49854, slot = "Shoulder", name = "Mantle of Tattered Feathers", sources = { [14]=24427 }, bind = "BoP" },
+        { id = 49853, slot = "Waist", name = "Titanium Links of Lore", sources = { [14]=24426 }, bind = "BoP" },
+        { id = 50315, slot = "Weapon", name = "Seven-Fingered Claws", sources = { [15]=24688 }, bind = "BoP" },
+        { id = 50319, slot = "Weapon", name = "Unsharpened Ice Razor", sources = { [15]=24690 }, bind = "BoP" },
+        { id = 50318, slot = "Wrist", name = "Ghostly Wristwraps", sources = { [15]=24689 }, bind = "BoP" },
+    },
+
+    bosses = {
+        {
+            index              = 1,
+            name               = "Falric",
+            journalEncounterID = 601,
+            dungeonEncounterID = 1992,
+            achievements       = {
+            },
+            loot = {
+                { id = 49832, slot = "Back", name = "Eerie Runeblade Polisher", sources = { [14]=24406, [15]=24406 } },
+                { id = 50294, slot = "Chest", name = "Chestpiece of High Treason", sources = { [14]=24672, [15]=24672 } },
+                { id = 49831, slot = "Feet", name = "Muddied Boots of Brill", sources = { [14]=24405, [15]=24405 } },
+                { id = 50295, slot = "Feet", name = "Spiked Toestompers", sources = { [14]=24673, [15]=24673 } },
+                { id = 49828, slot = "Hands", name = "Marwyn's Macabre Fingertips", sources = { [14]=24402, [15]=24402 } },
+                { id = 49830, slot = "Head", name = "Fallen Sentry's Hood", sources = { [14]=24404, [15]=24404 } },
+                { id = 50291, slot = "Ranged", name = "Soulsplinter", sources = { [14]=24669, [15]=24669 } },
+                { id = 50293, slot = "Shoulder", name = "Spaulders of Black Betrayal", sources = { [14]=24671, [15]=24671 } },
+                { id = 49829, slot = "Shoulder", name = "Valonforth's Tarnished Pauldrons", sources = { [14]=24403, [15]=24403 } },
+                { id = 50290, slot = "Weapon", name = "Falric's Wrist-Chopper", sources = { [14]=24668, [15]=24668 } },
+                { id = 49827, slot = "Weapon", name = "Ghoulslicer", sources = { [14]=24401, [15]=24401 } },
+                { id = 50292, slot = "Wrist", name = "Bracer of Worn Molars", sources = { [14]=24670, [15]=24670 } },
+            },
+        },
+        {
+            index              = 2,
+            name               = "Marwyn",
+            journalEncounterID = 602,
+            dungeonEncounterID = 1993,
+            achievements       = {
+            },
+            loot = {
+                { id = 50300, slot = "Chest", name = "Choking Hauberk", sources = { [14]=24678, [15]=24678 } },
+                { id = 50297, slot = "Chest", name = "Frostsworn Bone Chestpiece", sources = { [14]=24675, [15]=24675 } },
+                { id = 49838, slot = "Hands", name = "Carpal Tunnelers", sources = { [14]=24412, [15]=24412 } },
+                { id = 49837, slot = "Hands", name = "Mitts of Burning Hail", sources = { [14]=24411, [15]=24411 } },
+                { id = 50299, slot = "Hands", name = "Suspiciously Soft Gloves", sources = { [14]=24677, [15]=24677 } },
+                { id = 50298, slot = "Head", name = "Sightless Crown of Ulmaas", sources = { [14]=24676, [15]=24676 } },
+                { id = 49836, slot = "Legs", name = "Frostsworn Bone Leggings", sources = { [14]=24410, [15]=24410 } },
+                { id = 49835, slot = "Off-hand", name = "Splintered Door of the Citadel", sources = { [14]=24409, [15]=24409 } },
+                { id = 49834, slot = "Shoulder", name = "Frayed Abomination Stitching Shoulders", sources = { [14]=24408, [15]=24408 } },
+                { id = 50296, slot = "Two-Hand", name = "Orca-Hunter's Harpoon", sources = { [14]=24674, [15]=24674 } },
+                { id = 49833, slot = "Weapon", name = "Splintered Icecrown Parapet", sources = { [14]=24407, [15]=24407 } },
+            },
+        },
+        {
+            index              = 3,
+            name               = "Escape from Arthas",
+            journalEncounterID = 603,
+            dungeonEncounterID = 1990,
+            aliases            = { "Escaped from Arthas" },
+            scenarioCriteriaID = 27917,
+            achievements       = {
+                { id = 4526, name = "We're Not Retreating; We're Advancing in a Different Direction.", soloable = "yes" },
+            },
+            loot = {
+                { id = 49842, slot = "Back", name = "Tapestry of the Frozen Throne", sources = { [14]=24416, [15]=24416 } },
+                { id = 49841, slot = "Chest", name = "Blackened Geist Ribs", sources = { [14]=24415, [15]=24415 } },
+                { id = 50312, slot = "Chest", name = "Chestguard of Broken Branches", sources = { [14]=24686, [15]=24686 } },
+                { id = 50308, slot = "Feet", name = "Blighted Leather Footpads", sources = { [14]=24683, [15]=24683 } },
+                { id = 50305, slot = "Feet", name = "Grinning Skull Boots", sources = { [14]=24682, [15]=24682 } },
+                { id = 49843, slot = "Hands", name = "Crystalline Citadel Gauntlets", sources = { [14]=24417, [15]=24417 } },
+                { id = 50304, slot = "Hands", name = "Hoarfrost Gauntlets", sources = { [14]=24681, [15]=24681 } },
+                { id = 49851, slot = "Head", name = "Greathelm of the Silver Hand", sources = { [14]=24424, [15]=24424 } },
+                { id = 50311, slot = "Head", name = "Second Helm of the Executioner", sources = { [14]=24685, [15]=24685 } },
+                { id = 49849, slot = "Head", name = "Tattered Glacial-Woven Hood", sources = { [14]=24423, [15]=24423 } },
+                { id = 49847, slot = "Legs", name = "Legguards of Untimely Demise", sources = { [14]=24421, [15]=24421 } },
+                { id = 50309, slot = "Off-hand", name = "Shriveled Heart", sources = { [14]=24684, [15]=24684 } },
+                { id = 49844, slot = "Ranged", name = "Crypt Fiend Slayer", sources = { [14]=24418, [15]=24418 } },
+                { id = 49848, slot = "Shoulder", name = "Grim Lasher Shoulderguards", sources = { [14]=24422, [15]=24422 } },
+                { id = 49839, slot = "Two-Hand", name = "Mourning Malice", sources = { [14]=24413, [15]=24413 } },
+                { id = 50314, slot = "Waist", name = "Strip of Remorse", sources = { [14]=24687, [15]=24687 } },
+                { id = 50303, slot = "Weapon", name = "Black Icicle", sources = { [14]=24680, [15]=24680 } },
+                { id = 49845, slot = "Weapon", name = "Bone Golem Scapula", sources = { [14]=24419, [15]=24419 } },
+                { id = 49846, slot = "Weapon", name = "Chilled Heart of the Glacier", sources = { [14]=24420, [15]=24420 } },
+                { id = 49840, slot = "Weapon", name = "Hate-Forged Cleaver", sources = { [14]=24414, [15]=24414 } },
+                { id = 50302, slot = "Weapon", name = "Liar's Tongue", sources = { [14]=24679, [15]=24679 } },
+            },
+        },
+    },
+
+    exitNote    = "Jump off to your death and you will respawn at the entrance",
+    minExitNote = "Death jump to respawn at entrance",
+
+    routing = {
+        -- 1. Falric (boss 1). The faction leader starts the event.
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Falric",
+            requires  = { },
+            segments  = {
+                {
+                    when        = { mapID = 185 },
+                    kind        = "poi",
+                    faction     = "Alliance",
+                    note        = "After zoning in, talk to ^Jaina^ to start the instance.",
+                    minNote     = "Talk to Jaina",
+                    mapLabel    = "Talk to Jaina",
+                    mapLabelPos = "above",
+                    points      = {
+                        { 0.448, 0.752 },
+                    },
+                },
+                {
+                    when        = { mapID = 185 },
+                    kind        = "poi",
+                    faction     = "Horde",
+                    note        = "After zoning in, talk to ^Sylvanas^ to start the instance.",
+                    minNote     = "Talk to Sylvanas",
+                    mapLabel    = "Talk to Sylvanas",
+                    mapLabelPos = "above",
+                    points      = {
+                        { 0.448, 0.752 },
+                    },
+                },
+                {
+                    when        = { mapID = 185 },
+                    kind        = "path",
+                    triggeredBy = {
+                        dialog = { npc = "The Lich King", match = "So you wish to commune with the dead" },
+                    },
+                    note        = "Clear waves 1-5 to activate ^Falric^.",
+                    minNote     = "Clear waves 1-5 for Falric",
+                },
+            },
+        },
+        -- 2. Marwyn (boss 2). The second half of the waves.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Marwyn",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 185 },
+                    kind    = "path",
+                    note    = "Clear waves 6-10 to activate ^Marwyn^.",
+                    minNote = "Clear waves 6-10 for Marwyn",
+                },
+            },
+        },
+        -- 3. Escape from Arthas (boss 3).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Escape from Arthas",
+            requires  = { },
+            -- The escape encounter opens at Marwyn's death and runs to
+            -- the end, so the notes must keep moving inside it.
+            liveNotesInEncounter = true,
+            segments  = {
+                {
+                    when    = { mapID = 185 },
+                    kind    = "path",
+                    note    = "After killing ^Marwyn^, go down the northwest hallway and attack ^The Lich King^.",
+                    minNote = "Down hallway to attack Lich King",
+                },
+                {
+                    when    = { mapID = 185, subZone = "The Shadow Throne" },
+                    kind    = "path",
+                    faction = "Alliance",
+                    note    = "Talk to ^Jaina^ to begin the ^Escape from the Lich King^.",
+                    minNote = "Talk to Jaina to begin Escape",
+                },
+                {
+                    when    = { mapID = 185, subZone = "The Shadow Throne" },
+                    kind    = "path",
+                    faction = "Horde",
+                    note    = "Talk to ^Sylvanas^ to begin the ^Escape from the Lich King^.",
+                    minNote = "Talk to Sylvanas to begin Escape",
+                },
+                {
+                    when    = { mapID = 185, subZone = "The Hidden Passage" },
+                    kind    = "path",
+                    faction = "Alliance",
+                    note    = "Follow ^Jaina^ down the passage, defeating each wave of undead until the escape is complete.",
+                    minNote = "Follow Jaina, clear each wave",
+                },
+                {
+                    when    = { mapID = 185, subZone = "The Hidden Passage" },
+                    kind    = "path",
+                    faction = "Horde",
+                    note    = "Follow ^Sylvanas^ down the passage, defeating each wave of undead until the escape is complete.",
+                    minNote = "Follow Sylvanas, clear each wave",
+                },
+            },
+        },
+    },
+}

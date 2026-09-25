@@ -1,0 +1,854 @@
+-------------------------------------------------------------------------------
+-- RetroRuns Data -- Uldir
+-- Copyright (c) 2026 Chris Trost (Photek). All rights reserved. See LICENSE.
+-- Battle for Azeroth, Patch 8.0.1  |  instanceID: 1861  |  journalInstanceID: 1031
+-------------------------------------------------------------------------------
+
+RetroRuns_Data = RetroRuns_Data or {}
+
+RetroRuns_Data[1861] = {
+    instanceID        = 1861,
+    journalInstanceID = 1031,
+    name              = "Uldir",
+    expansion         = "Battle for Azeroth",
+    patch             = "8.0.1",
+
+    exitNote = "None available",
+
+    -- Entrance is at the base of the titan pyramid in central Nazmir
+    -- (uiMapID 863), in the Heart of Darkness sub-area.
+    entrance = {
+        mapID = 863,
+        x     = 0.539,
+        y     = 0.627,
+    },
+
+    maps = {
+        [1148] = "Ruin's Descent",
+        [1149] = "Hall of Sanitation",
+        [1150] = "Ring of Containment",
+        [1151] = "Archives of Eternity",
+        [1152] = "Plague Vault",
+        [1153] = "Gallery of Failures",
+        [1154] = "The Oblivion Door",
+        [1155] = "The Festering Core",
+    },
+
+    tierSets = {
+        labels       = {},
+        tokenSources = {},
+    },
+
+    -- No skip mechanic on this raid.
+
+    -- Glory of the Raider meta -- 8 criteria, awards the Bloodgorged Crawg mount.
+    gloryMeta = {
+        id   = 12806,
+        name = "Glory of the Uldir Raider",
+        rewardItemID       = 163216,
+        rewardMountSpellID = 250735,
+        rewardName         = "Bloodgorged Crawg",
+    },
+
+
+    -- Trash drops. The Encounter Journal indexes boss loot only,
+    -- so these carry no journal rows and belong to no encounter.
+    trashLoot = {
+        { id = 161075, slot = "Hands", name = "Antiseptic Specimen Handlers", sources = { [14]=97012, [15]=98920, [16]=98921, [17]=98919 }, bind = "BoE" },
+        { id = 161077, slot = "Hands", name = "Fluid-Resistant Specimen Handlers", sources = { [14]=97016, [15]=97017, [16]=97018, [17]=98999 }, bind = "BoE" },
+        { id = 161076, slot = "Hands", name = "Iron-Grip Specimen Handlers", sources = { [14]=97013, [15]=97014, [16]=97015, [17]=98966 }, bind = "BoE" },
+        { id = 160612, slot = "Hands", name = "Spellbound Specimen Handlers", sources = { [14]=96539, [15]=96540, [16]=96541, [17]=98855 }, bind = "BoE" },
+        { id = 161071, slot = "Wrist", name = "Bloody Experimenter's Wraps", sources = { [14]=97002, [15]=97003, [16]=97004, [17]=98873 }, bind = "BoE" },
+        { id = 161074, slot = "Wrist", name = "Crushproof Vambraces", sources = { [14]=97009, [15]=97010, [16]=97011, [17]=98998 }, bind = "BoE" },
+        { id = 161073, slot = "Wrist", name = "Reinforced Test Subject Shackles", sources = { [14]=97008, [15]=98964, [16]=98965, [17]=98963 }, bind = "BoE" },
+        { id = 161072, slot = "Wrist", name = "Splatterguards", sources = { [14]=97005, [15]=97006, [16]=97007, [17]=98918 }, bind = "BoE" },
+    },
+    bosses = {
+        {
+            index              = 1,
+            name               = "Taloc",
+            journalEncounterID = 2168,
+            dungeonEncounterID = 2144,
+            aliases            = {},
+            achievements       = {
+                { id = 12937, name = "Elevator Music", meta = true, soloable = "kinda" },
+            },
+            loot = {
+                { id = 160714, slot = "Feet",     name = "Volatile Walkers",               sources = { [17]=98861, [14]=96691, [15]=98862, [16]=98863 } },
+                { id = 160618, slot = "Hands",    name = "Gloves of Descending Madness",   sources = { [17]=98890, [14]=96557, [15]=98891, [16]=98892 } },
+                { id = 160639, slot = "Legs",     name = "Greaves of Unending Vigil",      sources = { [17]=98990, [14]=96604, [15]=96605, [16]=96606 } },
+                { id = 160631, slot = "Legs",     name = "Legguards of Coalescing Plasma", sources = { [17]=98953, [14]=96580, [15]=96581, [16]=96582 } },
+                { id = 160680, slot = "Ranged",   name = "Titanspark Animator",            sources = { [17]=99209, [14]=96631, [15]=96632, [16]=96633 } },
+                { id = 160679, slot = "Two-Hand", name = "Khor, Hammer of the Corrupted",  sources = { [17]=99126, [14]=96628, [15]=96629, [16]=96630 } },
+                { id = 160622, slot = "Waist",    name = "Bloodstorm Buckle",              sources = { [17]=98898, [14]=96565, [15]=98899, [16]=98900 } },
+                { id = 160637, slot = "Wrist",    name = "Crimson Colossus Armguards",     sources = { [17]=98988, [14]=96598, [15]=96599, [16]=96600 } },
+                { id = 160629, slot = "Wrist",    name = "Rubywrought Sparkguards",        sources = { [17]=98947, [14]=96578, [15]=98948, [16]=98949 } },
+            },
+        },
+        {
+            index              = 2,
+            name               = "MOTHER",
+            journalEncounterID = 2167,
+            dungeonEncounterID = 2141,
+            aliases            = { "M.O.T.H.E.R." },
+            achievements       = {
+                { id = 12938, name = "Parental Controls", meta = true, soloable = "yes" },
+            },
+            loot = {
+                { id = 160626, slot = "Hands",            name = "Gloves of Involuntary Amputation",  sources = { [17]=98942, [14]=96571, [15]=96572, [16]=96573 } },
+                { id = 160634, slot = "Head",             name = "Gridrunner Galea",                  sources = { [17]=98985, [14]=96589, [15]=96590, [16]=96591 } },
+                { id = 160695, slot = "Held In Off-hand", name = "Uldir Subject Manifest",            sources = { [17]=99127, [14]=96676, [15]=96677, [16]=96678 } },
+                { id = 160615, slot = "Legs",             name = "Leggings of Lingering Infestation", sources = { [17]=98858, [14]=96548, [15]=96549, [16]=96550 } },
+                { id = 160625, slot = "Legs",             name = "Pathogenic Legwraps",               sources = { [17]=98905, [14]=96570, [15]=98906, [16]=98907 } },
+                { id = 160632, slot = "Shoulder",         name = "Flame-Sterilized Spaulders",        sources = { [17]=98954, [14]=96583, [15]=96584, [16]=96585 } },
+                { id = 160638, slot = "Waist",            name = "Decontaminator's Greatbelt",        sources = { [17]=98989, [14]=96601, [15]=96602, [16]=96603 } },
+                { id = 160681, slot = "Weapon",           name = "Glaive of the Keepers",             sources = { [17]=99090, [14]=96634, [15]=96635, [16]=96636 } },
+                { id = 160683, slot = "Weapon",           name = "Latticework Scalpel",               sources = { [17]=99125, [14]=96640, [15]=96641, [16]=96642 } },
+                { id = 160682, slot = "Weapon",           name = "Mother's Twin Gaze",                sources = { [17]=99112, [14]=96637, [15]=96638, [16]=96639 } },
+            },
+        },
+        {
+            index              = 3,
+            name               = "Fetid Devourer",
+            journalEncounterID = 2146,
+            dungeonEncounterID = 2128,
+            aliases            = {},
+            achievements       = {
+                { id = 12823, name = "Thrash Mouth - All Stars", meta = true, soloable = "yes" },
+            },
+            loot = {
+                { id = 160643, slot = "Back",     name = "Fetid Horror's Tanglecloak",         sources = { [17]=99202, [14]=96614, [15]=99203, [16]=99204 } },
+                { id = 160619, slot = "Chest",    name = "Jerkin of the Aberrant Chimera",     sources = { [17]=98893, [14]=96558, [15]=98894, [16]=98895 } },
+                { id = 160628, slot = "Feet",     name = "Fused Monstrosity Stompers",         sources = { [17]=98946, [14]=96575, [15]=96576, [16]=96577 } },
+                { id = 160635, slot = "Hands",    name = "Waste Disposal Crushers",            sources = { [17]=98986, [14]=96592, [15]=96593, [16]=96594 } },
+                { id = 160616, slot = "Head",     name = "Horrific Amalgam's Hood",            sources = { [17]=98859, [14]=96551, [15]=96552, [16]=96553 } },
+                { id = 160689, slot = "Two-Hand", name = "Regurgitated Purifier's Flamestaff", sources = { [17]=99120, [14]=96658, [15]=96659, [16]=96660 } },
+                { id = 160685, slot = "Weapon",   name = "Biomelding Cleaver",                 sources = { [17]=99074, [14]=96646, [15]=96647, [16]=96648 } },
+            },
+        },
+        {
+            index              = 4,
+            name               = "Zek'voz, Herald of N'Zoth",
+            journalEncounterID = 2169,
+            dungeonEncounterID = 2136,
+            aliases            = { "Zek'voz" },
+            achievements       = {
+                { id = 12828, name = "What's in the Box?", meta = true, soloable = "kinda" },
+            },
+            loot = {
+                { id = 160627, slot = "Chest",    name = "Chainvest of Assured Quality",     sources = { [17]=98943, [14]=96574, [15]=98944, [16]=98945 } },
+                { id = 160624, slot = "Feet",     name = "Quarantine Protocol Treads",       sources = { [17]=98902, [14]=96569, [15]=98903, [16]=98904 } },
+                { id = 160640, slot = "Feet",     name = "Warboots of Absolute Eradication", sources = { [17]=98991, [14]=96607, [15]=96608, [16]=96609 } },
+                { id = 160718, slot = "Legs",     name = "Greaves of Creeping Darkness",     sources = { [17]=98993, [14]=96699, [15]=96700, [16]=96701 } },
+                { id = 160613, slot = "Shoulder", name = "Mantle of Contained Corruption",   sources = { [17]=98856, [14]=96542, [15]=96543, [16]=96544 } },
+                { id = 160688, slot = "Two-Hand", name = "Void-Binder",                      sources = { [17]=99116, [14]=96655, [15]=96656, [16]=96657 } },
+                { id = 160717, slot = "Waist",    name = "Replicated Chitin Cord",           sources = { [17]=98908, [14]=96698, [15]=98909, [16]=98910 } },
+                { id = 160633, slot = "Waist",    name = "Titanspark Energy Girdle",         sources = { [17]=98955, [14]=96586, [15]=96587, [16]=96588 } },
+                { id = 160687, slot = "Weapon",   name = "Containment Analysis Baton",       sources = { [17]=99115, [14]=96652, [15]=96653, [16]=96654 } },
+                { id = 160617, slot = "Wrist",    name = "Void-Lashed Wristband",            sources = { [17]=98860, [14]=96554, [15]=96555, [16]=96556 } },
+            },
+        },
+        {
+            index              = 5,
+            name               = "Vectis",
+            journalEncounterID = 2166,
+            dungeonEncounterID = 2134,
+            aliases            = {},
+            achievements       = {
+                { id = 12772, name = "Now We Got Bad Blood", meta = true, soloable = "yes" },
+            },
+            loot = {
+                { id = 160644, slot = "Back",     name = "Plasma-Spattered Greatcloak",     sources = { [17]=99201, [14]=96615, [15]=99199, [16]=99200 } },
+                { id = 160636, slot = "Chest",    name = "Chestguard of Virulent Mutagens", sources = { [17]=98987, [14]=96595, [15]=96596, [16]=96597 } },
+                { id = 160715, slot = "Hands",    name = "Mutagenic Protofluid Handwraps",  sources = { [17]=98864, [14]=96692, [15]=96693, [16]=96694 } },
+                { id = 160623, slot = "Head",     name = "Hood of Pestilent Ichor",         sources = { [17]=98901, [14]=96566, [15]=96567, [16]=96568 } },
+                { id = 160716, slot = "Legs",     name = "Blighted Anima Greaves",          sources = { [17]=98956, [14]=96695, [15]=96696, [16]=96697 } },
+                { id = 160698, slot = "Off-hand", name = "Vector Deflector",                sources = { [17]=99208, [14]=96683, [15]=96684, [16]=96685 } },
+                { id = 160678, slot = "Ranged",   name = "Bow of Virulent Infection",       sources = { [17]=99089, [14]=96625, [15]=96626, [16]=96627 } },
+                { id = 160734, slot = "Waist",    name = "Cord of Animated Contagion",      sources = { [17]=98870, [14]=96736, [15]=98871, [16]=98872 } },
+                { id = 160621, slot = "Wrist",    name = "Wristwraps of Coursing Miasma",   sources = { [17]=98897, [14]=96562, [15]=96563, [16]=96564 } },
+            },
+        },
+        {
+            index              = 6,
+            name               = "Zul, Reborn",
+            journalEncounterID = 2195,
+            dungeonEncounterID = 2145,
+            aliases            = { "Zul" },
+            achievements       = {
+                { id = 12830, name = "Edgelords", meta = true, soloable = "yes" },
+            },
+            loot = {
+                { id = 160642, slot = "Back",     name = "Cloak of Rippling Whispers",             sources = { [17]=99205, [14]=96613, [15]=99206, [16]=99207 } },
+                { id = 160722, slot = "Chest",    name = "Chestplate of Apocalyptic Machinations", sources = { [17]=98994, [14]=96711, [15]=96712, [16]=96713 } },
+                { id = 160630, slot = "Head",     name = "Crest of the Undying Visionary",         sources = { [17]=98950, [14]=96579, [15]=98951, [16]=98952 } },
+                { id = 160719, slot = "Head",     name = "Visage of the Ascended Prophet",         sources = { [17]=98865, [14]=96702, [15]=96703, [16]=96704 } },
+                { id = 160620, slot = "Shoulder", name = "Usurper's Bloodcaked Spaulders",         sources = { [17]=98896, [14]=96559, [15]=96560, [16]=96561 } },
+                { id = 160724, slot = "Waist",    name = "Cincture of Profane Deeds",              sources = { [17]=98958, [14]=96717, [15]=96718, [16]=96719 } },
+                { id = 160684, slot = "Weapon",   name = "Pursax, the Backborer",                  sources = { [17]=99110, [14]=96643, [15]=96644, [16]=96645 } },
+                { id = 160691, slot = "Weapon",   name = "Tusk of the Reborn Prophet",             sources = { [17]=99107, [14]=96664, [15]=96665, [16]=96666 } },
+                { id = 160720, slot = "Wrist",    name = "Armbands of Sacrosanct Acts",            sources = { [17]=98911, [14]=96705, [15]=96706, [16]=96707 } },
+                { id = 160723, slot = "Wrist",    name = "Imperious Vambraces",                    sources = { [17]=98995, [14]=96714, [15]=96715, [16]=96716 } },
+            },
+        },
+        {
+            index              = 7,
+            name               = "Mythrax the Unraveler",
+            journalEncounterID = 2194,
+            dungeonEncounterID = 2135,
+            aliases            = { "Mythrax", "Mythrax the Unraveler (lockout)" },
+            achievements       = {
+                { id = 12836, name = "Existential Crisis", meta = true, soloable = "yes" },
+            },
+            loot = {
+                { id = 160725, slot = "Chest",            name = "C'thraxxi General's Hauberk",           sources = { [17]=98959, [14]=96720, [15]=98960, [16]=98961 } },
+                { id = 160614, slot = "Chest",            name = "Robes of the Unraveler",                sources = { [17]=98857, [14]=96545, [15]=96546, [16]=96547 } },
+                { id = 160721, slot = "Hands",            name = "Oblivion Crushers",                     sources = { [17]=98957, [14]=96708, [15]=96709, [16]=96710 } },
+                { id = 163596, slot = "Head",             name = "Cowl of Dark Portents",                 sources = { [17]=99247, [14]=99244, [15]=99245, [16]=99246 } },
+                { id = 160696, slot = "Held In Off-hand", name = "Codex of Imminent Ruin",                sources = { [17]=99128, [14]=96679, [15]=96680, [16]=96681 } },
+                { id = 160641, slot = "Shoulder",         name = "Chitinspine Pauldrons",                 sources = { [17]=98992, [14]=96610, [15]=96611, [16]=96612 } },
+                { id = 160686, slot = "Two-Hand",         name = "Voror, Gleaming Blade of the Stalwart", sources = { [17]=99124, [14]=96649, [15]=96650, [16]=96651 } },
+                { id = 160692, slot = "Weapon",           name = "Luminous Edge of Virtue",               sources = { [17]=99123, [14]=96667, [15]=96668, [16]=96669 } },
+            },
+        },
+        {
+            index              = 8,
+            name               = "G'huun",
+            journalEncounterID = 2147,
+            dungeonEncounterID = 2122,
+            aliases            = {},
+            achievements       = {
+                { id = 12551, name = "Double Dribble", meta = true, soloable = "yes" },
+            },
+            soloTip            = "The goal is to collect (2) orbs from opposite sides of the room and deposit them into slots on each side of the boss. Next, the boss will become available to kill.",
+            loot = {
+                { id = 160728, slot = "Chest",    name = "Tunic of the Sanguine Deity",             sources = { [17]=98912, [14]=96725, [15]=98913, [16]=98914 } },
+                { id = 160733, slot = "Feet",     name = "Hematocyst Stompers",                     sources = { [17]=98997, [14]=96733, [15]=96734, [16]=96735 } },
+                { id = 160729, slot = "Feet",     name = "Striders of the Putrescent Path",         sources = { [17]=98915, [14]=96726, [15]=98916, [16]=98917 } },
+                { id = 160732, slot = "Head",     name = "Helm of the Defiled Laboratorium",        sources = { [17]=98996, [14]=96730, [15]=96731, [16]=96732 } },
+                { id = 160699, slot = "Off-hand", name = "Barricade of Purifying Resolve",          sources = { [17]=99198, [14]=96686, [15]=96687, [16]=96688 } },
+                { id = 160694, slot = "Ranged",   name = "Re-Origination Pulse Rifle",              sources = { [17]=99070, [14]=96673, [15]=96674, [16]=96675 } },
+                { id = 160726, slot = "Shoulder", name = "Amice of Corrupting Horror",              sources = { [17]=98866, [14]=96721, [15]=96722, [16]=96723 } },
+                { id = 160731, slot = "Shoulder", name = "Spaulders of Coagulated Viscera",         sources = { [17]=98962, [14]=96727, [15]=96728, [16]=96729 } },
+                { id = 160690, slot = "Two-Hand", name = "Heptavium, Staff of Torturous Knowledge", sources = { [17]=99117, [14]=96661, [15]=96662, [16]=96663 } },
+                { id = 160727, slot = "Waist",    name = "Cord of Septic Envelopment",              sources = { [17]=98867, [14]=96724, [15]=98868, [16]=98869 } },
+                { id = 160693, slot = "Weapon",   name = "Lancet of the Deft Hand",                 sources = { [17]=99197, [14]=96670, [15]=96671, [16]=96672 } },
+            },
+        },
+    },
+
+    routing = {
+        -- DAG:
+        --   1. Taloc       requires {}
+        --   2. MOTHER      requires { 1 }
+        --   3. Fetid       requires { 2 }   (parallel)
+        --   4. Vectis      requires { 2 }   (parallel)
+        --   5. Zek'voz     requires { 2 }   (parallel)
+        --   6. Zul         requires { 3, 4, 5 }
+        --   7. Mythrax     requires { 6 }
+        --   8. G'huun      requires { 7 }
+        --
+        -- The parallel-three (3, 4, 5) all branch from the central Ring
+        -- of Containment hub. The route below visits them in geographic
+        -- order (Fetid east, Vectis north, Zek'voz west), each with a
+        -- backtrack to the Ring before the next branch. Two backtrack
+        -- legs total -- the unavoidable minimum for three dead-end
+        -- branches off a hub.
+
+        -- 1. Taloc
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Taloc",
+            requires  = {},
+            segments  = {
+                {
+                    when    = { mapID = 1148 },
+                    kind    = "path",
+                    note    = "After zoning in, walk straight ahead and kill the Tendrils to start the encounter with ^Taloc^.",
+                    minNote = "Ahead to Taloc",
+                    points  = {
+                        { 0.521, 0.828 },
+                        { 0.520, 0.346 },
+                    },
+                },
+            },
+        },
+
+        -- 2. MOTHER
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "MOTHER",
+            requires  = { 1 },
+            segments  = {
+                {
+                    when            = { mapID = 1149 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    mapLabel        = "Click Titan Console",
+                    mapLabelPos     = "middle",
+                    completionCheck = true,
+                    note     = "After killing ^Taloc^, the floor will start to descend. Once you reach the bottom, go straight ahead and click the ^Titan Console^.",
+                    minNote  = "Click Titan Console",
+                    points   = {
+                        { 0.499, 0.583 },
+                    },
+                },
+                {
+                    when    = { mapID = 1149 },
+                    kind    = "path",
+                    note    = "After activating the ^Titan Console^, kill several waves of adds from the previous room to unlock the door to the next room.",
+                    minNote = "Kill Trash to Unlock Door",
+                    triggeredBy = { dialog = { npc = "Brann Bronzebeard", match = "get these doors open" } },
+                    points  = {},
+                },
+                {
+                    when    = { mapID = 1149 },
+                    kind    = "poi",
+                    poiSize = 35,
+                    note    = "After finishing the adds, proceed forward and defeat ^MOTHER^.",
+                    minNote = "Ahead to MOTHER",
+                    triggeredBy = { dialog = { npc = "MOTHER", match = "decontamination chamber" } },
+                    points  = {
+                        { 0.507, 0.568 },
+                    },
+                },
+            },
+        },
+
+        -- 3. Fetid Devourer (parallel branch east)
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Fetid Devourer",
+            requires  = { 2 },
+            segments  = {
+                {
+                    when    = { mapID = 1149 },
+                    kind    = "path",
+                    note    = "After defeating ^MOTHER^, continue forward to the map exit labeled ^Ring of Containment^.",
+                    minNote = "Ahead to Ring of Containment",
+                    points  = {
+                        { 0.508, 0.402 },
+                        { 0.509, 0.133 },
+                    },
+                },
+                {
+                    when    = { mapID = 1150 },
+                    kind    = "path",
+                    note    = "Once you reach the ^Ring of Containment^, take a right and head for the map exit labeled ^Gallery of Failures^.",
+                    minNote = "Right to Gallery of Failures",
+                    points  = {
+                        { 0.475, 0.842 },
+                        { 0.552, 0.839 },
+                        { 0.700, 0.621 },
+                        { 0.704, 0.502 },
+                    },
+                },
+                {
+                    when    = { mapID = 1153 },
+                    kind    = "path",
+                    note    = "Continue following the path to engage ^Fetid Devourer^.",
+                    minNote = "Path to Fetid Devourer",
+                    points  = {
+                        { 0.113, 0.495 },
+                        { 0.144, 0.554 },
+                        { 0.184, 0.479 },
+                        { 0.631, 0.487 },
+                    },
+                },
+            },
+        },
+
+        -- 4. Vectis (parallel branch north)
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 5,
+            title     = "Vectis",
+            requires  = { 2 },
+            segments  = {
+                {
+                    when    = { mapID = 1153 },
+                    kind    = "path",
+                    note    = "After killing ^Fetid Devourer^, go back the way you came to arrive back in the ^Ring of Containment^.",
+                    minNote = "Backtrack to Ring of Containment",
+                    points  = {
+                        { 0.627, 0.484 },
+                        { 0.181, 0.476 },
+                        { 0.145, 0.403 },
+                        { 0.113, 0.450 },
+                    },
+                },
+                {
+                    when    = { mapID = 1150 },
+                    kind    = "path",
+                    note    = "Back in the ^Ring of Containment^, head north to the map exit labeled ^Plague Vault^.",
+                    minNote = "North to Plague Vault",
+                    points  = {
+                        { 0.702, 0.500 },
+                        { 0.701, 0.385 },
+                        { 0.553, 0.164 },
+                        { 0.476, 0.164 },
+                    },
+                },
+                {
+                    when    = { mapID = 1152 },
+                    kind    = "path",
+                    note    = "Continue following the path to reach ^Vectis^.",
+                    minNote = "Path to Vectis",
+                    points  = {
+                        { 0.537, 0.915 },
+                        { 0.564, 0.879 },
+                        { 0.527, 0.838 },
+                        { 0.523, 0.342 },
+                    },
+                },
+            },
+        },
+
+        -- 5. Zek'voz (parallel branch west)
+        {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Zek'voz, Herald of N'Zoth",
+            requires  = { 2 },
+            segments  = {
+                {
+                    when    = { mapID = 1152 },
+                    kind    = "path",
+                    note    = "After killing ^Vectis^, go back the way you came to arrive back in the ^Ring of Containment^.",
+                    minNote = "Backtrack to Ring of Containment",
+                    points  = {
+                        { 0.525, 0.343 },
+                        { 0.527, 0.842 },
+                        { 0.490, 0.879 },
+                        { 0.514, 0.914 },
+                    },
+                },
+                {
+                    when    = { mapID = 1150 },
+                    kind    = "path",
+                    note    = "After back in the ^Ring of Containment^, head to the leftmost map exit labeled ^Archives of Eternity^.",
+                    minNote = "Left to Archives of Eternity",
+                    points  = {
+                        { 0.475, 0.165 },
+                        { 0.401, 0.163 },
+                        { 0.250, 0.384 },
+                        { 0.245, 0.502 },
+                    },
+                },
+                {
+                    when    = { mapID = 1151 },
+                    kind    = "path",
+                    note    = "Continue following the path to reach ^Zek'voz, Herald of N'Zoth^. Clear trash to start the encounter.",
+                    minNote = "Trash then Zek'voz",
+                    points  = {
+                        { 0.867, 0.507 },
+                        { 0.834, 0.428 },
+                        { 0.794, 0.506 },
+                        { 0.405, 0.509 },
+                    },
+                },
+            },
+        },
+
+        -- 6. Zul, Reborn (gated on parallel-three completion)
+        {
+            step      = 6,
+            priority  = 1,
+            bossIndex = 6,
+            title     = "Zul, Reborn",
+            requires  = { 3, 4, 5 },
+            segments  = {
+                {
+                    when    = { mapID = 1151 },
+                    kind    = "path",
+                    note    = "After killing ^Zek'voz^, go back the way you came to arrive back in the ^Ring of Containment^.",
+                    minNote = "Backtrack to Ring of Containment",
+                    points  = {
+                        { 0.405, 0.508 },
+                        { 0.798, 0.511 },
+                        { 0.836, 0.426 },
+                        { 0.870, 0.508 },
+                    },
+                },
+                {
+                    when    = { mapID = 1150 },
+                    kind    = "path",
+                    note    = "After arriving back in the ^Ring of Containment^, head straight ahead towards the map exit labeled ^The Oblivion Door^.",
+                    minNote = "Ahead to Oblivion Door",
+                    points  = {
+                        { 0.246, 0.503 },
+                        { 0.378, 0.504 },
+                    },
+                },
+                {
+                    when    = { mapID = 1154 },
+                    kind    = "path",
+                    note    = "After arriving in ^The Oblivion Door^, clear all trash to start the encounter with ^Zul, Reborn^.",
+                    minNote = "Trash then Zul",
+                    points  = {
+                        { 0.341, 0.531 },
+                        { 0.487, 0.533 },
+                    },
+                },
+            },
+        },
+
+        -- 7. Mythrax the Unraveler (POI star: Titan Console)
+        {
+            step      = 7,
+            priority  = 1,
+            bossIndex = 7,
+            title     = "Mythrax the Unraveler",
+            requires  = { 6 },
+            segments  = {
+                {
+                    when            = { mapID = 1154 },
+                    kind            = "poi",
+                    poiSize         = 35,
+                    mapLabel        = "Click Titan Console",
+                    completionCheck = true,
+                    note     = "After killing ^Zul^, activate the ^Titan Console^ on the south end of the platform. Then jump into ^The Festering Core^ to fight ^Mythrax the Unraveler^.",
+                    minNote  = "Click Titan Console then Jump In",
+                    points   = {
+                        { 0.512, 0.752 },
+                    },
+                },
+            },
+        },
+
+        -- 8. G'huun
+        {
+            step      = 8,
+            priority  = 1,
+            bossIndex = 8,
+            title     = "G'huun",
+            requires  = { 7 },
+            segments  = {
+                {
+                    when    = { mapID = 1155 },
+                    kind    = "path",
+                    note    = "After defeating ^Mythrax^, follow the path north to engage the final boss, ^G'huun^.",
+                    minNote = "North to G'huun",
+                    points  = {
+                        { 0.527, 0.809 },
+                        { 0.523, 0.258 },
+                    },
+                },
+            },
+        },
+    },
+
+    lfrWings = {
+        -- Halls of Containment: Taloc(1), MOTHER(2), Zek'voz(4). LFR wing
+        -- order does not match encounter order -- Zek'voz (encounter 4)
+        -- is grouped into wing 1 while Fetid Devourer (encounter 3) drops
+        -- to wing 2. LFR zones into mapID 1148, so Taloc and MOTHER import
+        -- verbatim from the standard opening. Zek'voz's standard entry
+        -- assumes arrival from Vectis's room (a wing-2 boss not killed
+        -- here), so its MOTHER->Ring transition awaits the verbatim LFR
+        -- note + points; the Archives of Eternity approach imports verbatim.
+        [1731] = {
+            name   = "Halls of Containment",
+            bosses = { 1, 2, 4 },   -- Taloc, MOTHER, Zek'voz, Herald of N'Zoth
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Taloc->7, MOTHER->6, Zek'voz->5.
+            lockoutBits = { [1] = 7, [2] = 6, [4] = 5 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 1,
+                    title     = "Taloc",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1148 },
+                            kind    = "path",
+                            note    = "After zoning in, walk straight ahead and kill the Tendrils to start the encounter with ^Taloc^.",
+                            minNote = "Ahead to Taloc",
+                            points  = {
+                                { 0.521, 0.828 },
+                                { 0.520, 0.346 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 2,
+                    title     = "MOTHER",
+                    requires  = { 1 },
+                    segments  = {
+                        {
+                            when            = { mapID = 1149 },
+                            kind            = "poi",
+                            noMarker        = true,
+                            mapLabel        = "Click Titan Console",
+                            mapLabelPos     = "middle",
+                            completionCheck = true,
+                            note     = "After killing ^Taloc^, the floor will start to descend. Once you reach the bottom, go straight ahead and click the ^Titan Console^.",
+                            minNote  = "Click Titan Console",
+                            points   = {
+                                { 0.499, 0.583 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1149 },
+                            kind    = "path",
+                            note    = "After activating the ^Titan Console^, kill several waves of adds from the previous room to unlock the door to the next room.",
+                            minNote = "Kill Trash to Unlock Door",
+                            triggeredBy = { dialog = { npc = "Brann Bronzebeard", match = "get these doors open" } },
+                            points  = {},
+                        },
+                        {
+                            when    = { mapID = 1149 },
+                            kind    = "poi",
+                            poiSize = 35,
+                            note    = "After finishing the adds, proceed forward and defeat ^MOTHER^.",
+                            minNote = "Ahead to MOTHER",
+                            triggeredBy = { dialog = { npc = "MOTHER", match = "decontamination chamber" } },
+                            points  = {
+                                { 0.507, 0.568 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 4,
+                    title     = "Zek'voz, Herald of N'Zoth",
+                    requires  = { 2 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1149 },
+                            kind    = "path",
+                            note    = "After defeating ^MOTHER^, continue forward to the map exit labeled ^Ring of Containment^.",
+                            minNote = "Ahead to Ring of Containment",
+                            points  = {
+                                { 0.508, 0.402 },
+                                { 0.509, 0.133 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1150, subZone = "Ring of Containment" },
+                            kind    = "path",
+                            note    = "Once in the ^Ring of Containment^, head to the leftmost map exit labeled ^Archives of Eternity^.",
+                            minNote = "Left to Archives of Eternity",
+                            points  = {
+                                { 0.476, 0.842 },
+                                { 0.403, 0.839 },
+                                { 0.250, 0.617 },
+                                { 0.250, 0.506 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1151 },
+                            kind    = "path",
+                            note    = "Continue following the path to reach ^Zek'voz, Herald of N'Zoth^. Clear trash to start the encounter.",
+                            minNote = "Trash then Zek'voz",
+                            points  = {
+                                { 0.867, 0.507 },
+                                { 0.834, 0.428 },
+                                { 0.794, 0.506 },
+                                { 0.405, 0.509 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Crimson Descent: Fetid Devourer(3), Vectis(5), Zul(6). LFR wing
+        -- order does not match encounter order. LFR zones into mapID 1150
+        -- (Ring of Containment), so Fetid's standard entry (the MOTHER->Ring
+        -- leg) is dropped and the first step starts in the Ring heading for
+        -- the Gallery of Failures. Vectis chains off Fetid and imports
+        -- verbatim. Zul's standard entry assumes arrival from Zek'voz (a
+        -- wing-1 boss), so its Vectis->Ring transition awaits the verbatim
+        -- LFR note + points; the Oblivion Door approach imports verbatim.
+        [1732] = {
+            name   = "Crimson Descent",
+            bosses = { 3, 5, 6 },   -- Fetid Devourer, Vectis, Zul, Reborn
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Fetid Devourer->2, Vectis->3, Zul->8.
+            lockoutBits = { [3] = 2, [5] = 3, [6] = 8 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 3,
+                    title     = "Fetid Devourer",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1150 },
+                            kind    = "path",
+                            note    = "After zoning in, take a right and head for the map exit labeled ^Gallery of Failures^.",
+                            minNote = "Right to Gallery of Failures",
+                            points  = {
+                                { 0.475, 0.842 },
+                                { 0.552, 0.839 },
+                                { 0.700, 0.621 },
+                                { 0.704, 0.502 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1153 },
+                            kind    = "path",
+                            note    = "Continue following the path to engage ^Fetid Devourer^.",
+                            minNote = "Path to Fetid Devourer",
+                            points  = {
+                                { 0.113, 0.495 },
+                                { 0.144, 0.554 },
+                                { 0.184, 0.479 },
+                                { 0.631, 0.487 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 5,
+                    title     = "Vectis",
+                    requires  = { 3 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1153 },
+                            kind    = "path",
+                            note    = "After killing ^Fetid Devourer^, go back the way you came to arrive back in the ^Ring of Containment^.",
+                            minNote = "Backtrack to Ring of Containment",
+                            points  = {
+                                { 0.627, 0.484 },
+                                { 0.181, 0.476 },
+                                { 0.145, 0.403 },
+                                { 0.113, 0.450 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1150 },
+                            kind    = "path",
+                            note    = "Back in the ^Ring of Containment^, head north to the map exit labeled ^Plague Vault^.",
+                            minNote = "North to Plague Vault",
+                            points  = {
+                                { 0.702, 0.500 },
+                                { 0.701, 0.385 },
+                                { 0.553, 0.164 },
+                                { 0.476, 0.164 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1152 },
+                            kind    = "path",
+                            note    = "Continue following the path to reach ^Vectis^.",
+                            minNote = "Path to Vectis",
+                            points  = {
+                                { 0.537, 0.915 },
+                                { 0.564, 0.879 },
+                                { 0.527, 0.838 },
+                                { 0.523, 0.342 },
+                            },
+                        },
+                    },
+                },
+                {
+                    step      = 3,
+                    priority  = 1,
+                    bossIndex = 6,
+                    title     = "Zul, Reborn",
+                    requires  = { 3, 5 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1152 },
+                            kind    = "path",
+                            note    = "After killing ^Vectis^, go back the way you came to arrive back in the ^Ring of Containment^.",
+                            minNote = "Backtrack to Ring of Containment",
+                            points  = {
+                                { 0.525, 0.343 },
+                                { 0.527, 0.842 },
+                                { 0.490, 0.879 },
+                                { 0.514, 0.914 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1150, subZone = "Ring of Containment" },
+                            kind    = "path",
+                            note    = "After arriving back in the ^Ring of Containment^, head straight ahead towards the map exit labeled ^The Oblivion Door^.",
+                            minNote = "Ahead to Oblivion Door",
+                            points  = {
+                                { 0.477, 0.177 },
+                                { 0.476, 0.361 },
+                            },
+                        },
+                        {
+                            when    = { mapID = 1154 },
+                            kind    = "path",
+                            note    = "After arriving in ^The Oblivion Door^, clear all trash to start the encounter with ^Zul, Reborn^.",
+                            minNote = "Trash then Zul",
+                        },
+                    },
+                },
+            },
+        },
+
+        -- Heart of Corruption: Mythrax(7), G'huun(8). The final wing. LFR
+        -- zones into mapID 1154 (The Oblivion Door), the same map Mythrax's
+        -- standard entry uses, but without having killed Zul first -- so the
+        -- standard "After killing Zul" lead-in doesn't apply and Mythrax's
+        -- entry awaits the verbatim LFR zone-in note. G'huun chains off
+        -- Mythrax and imports verbatim.
+        [1733] = {
+            name   = "Heart of Corruption",
+            bosses = { 7, 8 },   -- Mythrax the Unraveler, G'huun
+            -- Per-boss lockout bits, captured one kill at a time on a fresh
+            -- lockout: Mythrax->4, G'huun->1.
+            lockoutBits = { [7] = 4, [8] = 1 },
+            routing = {
+                {
+                    step      = 1,
+                    priority  = 1,
+                    bossIndex = 7,
+                    title     = "Mythrax the Unraveler",
+                    requires  = {},
+                    segments  = {
+                        {
+                            when    = { mapID = 1154 },
+                            kind    = "path",
+                            note    = "After zoning in, jump into ^The Festering Core^ to fight ^Mythrax the Unraveler^.",
+                            minNote = "Jump in to meet Mythrax",
+                        },
+                    },
+                },
+                {
+                    step      = 2,
+                    priority  = 1,
+                    bossIndex = 8,
+                    title     = "G'huun",
+                    requires  = { 7 },
+                    segments  = {
+                        {
+                            when    = { mapID = 1155 },
+                            kind    = "path",
+                            note    = "After defeating ^Mythrax^, follow the path north to engage the final boss, ^G'huun^.",
+                            minNote = "North to G'huun",
+                            points  = {
+                                { 0.527, 0.809 },
+                                { 0.523, 0.258 },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+}
