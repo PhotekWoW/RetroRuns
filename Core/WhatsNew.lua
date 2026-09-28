@@ -26,12 +26,13 @@
 local RR = RetroRuns
 RR.WhatsNew = {
 {
-    version  = "3.3.1",
+    version  = "3.3.2",
     date     = "2026-09-28",
     sections = {
         {
             heading = "Added",
             bullets = {
+                "**The Vortex Pinnacle is guided.** The route follows each Slipstream flight to the next platform.",
                 "**Throne of the Tides is guided.** The first Cataclysm dungeon with a route.",
                 "**Trash drops for every Cataclysm dungeon.**",
                 "**Pets, mounts and toys that drop from trash show in Trash Drops**, such as the Deviate Hatchling in Wailing Caverns, the Filthy Bucket in Tol Dagor and the Qiraji Resonating Crystals in Ahn'Qiraj, tagged with the difficulty they need.",

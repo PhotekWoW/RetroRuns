@@ -16,6 +16,7 @@ RetroRuns_DungeonData[68] = {
     availableDifficulties = { 14, 15, 24 },
     patch             = "4.0.3",
     timewalking       = true,
+    routedIn          = "3.3.2",
 
     entrance = {
         mapID = 249,
@@ -90,6 +91,111 @@ RetroRuns_DungeonData[68] = {
                 { id = 56367, slot = "Legs", name = "Legguards of Winnowing Wind", sources = { [14]=27690, [15]=27690 }, twSource = 76611 },
                 { id = 56366, slot = "Ranged", name = "Lightningflash", sources = { [14]=27689, [15]=27689 }, twSource = 76610 },
                 { id = 56376, slot = "Ranged", name = "Thundercall", sources = { [14]=27696, [15]=27696 } },
+            },
+        },
+    },
+
+    exitNote    = "Use the slipstream outside of the boss room to return to the entrance",
+    minExitNote = "Slipstream to entrance",
+
+    routing = {
+        -- 1. Grand Vizier Ertan (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Grand Vizier Ertan",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 325 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the linear path until you reach ^Grand Vizier Ertan^.",
+                    minNote = "Follow path to Ertan",
+                    points  = {
+                        { 0.555, 0.185 },
+                        { 0.640, 0.314 },
+                        { 0.570, 0.414 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Altairus (boss 2). The Slipstream flies the player to Nimbus
+        -- Rise, which is reachable no other way.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Altairus",
+            requires  = { },
+            segments  = {
+                {
+                    when        = { mapID = 325 },
+                    kind        = "poi",
+                    note        = "After defeating ^Grand Vizier Ertan^, click the ^Slipstream^ on the southeast side of the platform to be flown to the next area.",
+                    minNote     = "Click Slipstream nearby",
+                    mapLabel    = "Click Slipstream",
+                    mapLabelPos = "below",
+                    points      = {
+                        { 0.583, 0.493 },
+                    },
+                },
+                {
+                    when    = { mapID = 325, subZone = "Nimbus Rise" },
+                    kind    = "path",
+                    note    = "After landing on ^Nimbus Rise^, follow the path to reach ^Altairus^.",
+                    minNote = "Follow path to Altairus",
+                    points  = {
+                        { 0.625, 0.615 },
+                        { 0.604, 0.611 },
+                        { 0.586, 0.626 },
+                        { 0.579, 0.657 },
+                        { 0.589, 0.683 },
+                        { 0.525, 0.773 },
+                        { 0.513, 0.784 },
+                        { 0.497, 0.797 },
+                        { 0.493, 0.816 },
+                        { 0.495, 0.838 },
+                        { 0.509, 0.856 },
+                    },
+                },
+            },
+        },
+
+        -- 3. Asaad, Caliph of Zephyrs (boss 3). A second Slipstream flies
+        -- the player to Thunder's Rise.
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Asaad, Caliph of Zephyrs",
+            requires  = { },
+            segments  = {
+                {
+                    when        = { mapID = 325 },
+                    kind        = "poi",
+                    note        = "After killing ^Altairus^, click the ^Slipstream^ on the west side of the platform to be flown to the next area.",
+                    minNote     = "Click Slipstream nearby",
+                    mapLabel    = "Click Slipstream",
+                    mapLabelPos = "above",
+                    points      = {
+                        { 0.483, 0.800 },
+                    },
+                },
+                {
+                    when    = { mapID = 325, subZone = "Thunder's Rise" },
+                    kind    = "path",
+                    note    = "After landing on ^Thunder's Rise^, follow the path north until you reach the final boss, ^Asaad, Caliph of Zephyrs^.",
+                    minNote = "Follow path north to Asaad",
+                    points  = {
+                        { 0.303, 0.773 },
+                        { 0.316, 0.671 },
+                        { 0.261, 0.593 },
+                        { 0.315, 0.531 },
+                        { 0.302, 0.432 },
+                    },
+                },
             },
         },
     },

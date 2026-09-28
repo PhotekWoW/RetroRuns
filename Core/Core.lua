@@ -6,7 +6,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "3.3.1"
+local VERSION    = "3.3.2"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -4715,13 +4715,18 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print(RR.L["  /rr  test | next | real          (test-mode stepping)"])
             RR:Print(RR.L["  /rr  resetsegments               (clear persisted segment state)"])
             RR:Print(RR.L["  /rr  kill <name> | unkill <name> (manual kill-state override)"])
-            RR:Print(RR.L["  /rr  record [start|stop|dump|reset|status]"])
-            RR:Print(RR.L["  /rr  sessionlog [all]            (recorder session log; omit `all` for current-instance only)"])
+            -- DevTools-only commands are listed only when DevTools is loaded.
+            if RR.ToggleDevTools then
+                RR:Print(RR.L["  /rr  record [start|stop|dump|reset|status]"])
+                RR:Print(RR.L["  /rr  sessionlog [all]            (recorder session log; omit `all` for current-instance only)"])
+            end
             RR:Print(RR.L["  /rr  lintroute [instance name]   (structural lint of instance routing data)"])
             RR:Print(RR.L["  /rr  diag                        (consolidated engine, zone and session logs)"])
-            RR:Print(RR.L["  /rr  mapicons                    (dump exact coords of every Blizzard icon on the visible map)"])
-            RR:Print(RR.L["  /rr  ej                          (EJ + instance-info dump for bring-up)"])
-            RR:Print(RR.L["  /rr  devtools (or dt)             (toggle the DevTools panel)"])
+            if RR.ToggleDevTools then
+                RR:Print(RR.L["  /rr  mapicons                    (dump exact coords of every Blizzard icon on the visible map)"])
+                RR:Print(RR.L["  /rr  ej                          (EJ + instance-info dump for bring-up)"])
+                RR:Print(RR.L["  /rr  devtools (or dt)             (toggle the DevTools panel)"])
+            end
             RR:Print(RR.L["  /rr  cancelnav                   (cancel an active entrance-navigation route)"])
             RR:Print(RR.L["  /rr  reset | refresh             (reset settings to defaults | re-render the main panel)"])
         else
