@@ -2047,14 +2047,6 @@ RR.LocaleTables.koKR = {
     ["faint echo"] = "희미한 메아리가 들립니다",
     ["loud rumble"] = "금속으로 돌을 가는 시끄러운 소리가 들립니다",
 
-    ["**A re-issued drop reads as collected.** Blizzard has re-issued hundreds of legacy items under new item numbers (Gauntlets of the Bold in The Steamvault, most of Vault of Archavon and Naxxramas). Looting one used to show gold, as if the look came from some other item; it now shows green."] = "**재출시된 전리품도 수집됨으로 표시됩니다.** Blizzard가 수백 개의 과거 아이템을 새 아이템 번호로 재출시했습니다(Gauntlets of the Bold in The Steamvault, Vault of Archavon과 Naxxramas의 대부분). 예전에는 하나를 획득하면 외형이 다른 아이템에서 온 것처럼 금색으로 표시됐지만, 이제는 초록색으로 표시됩니다.",
-    ["**New drops from the current journal**: Grim Batol, Skyreach, Siege of Boralus, Atal'Dazar, The Underrot and Tazavesh gained rows the browser did not list."] = "**현재 안내서의 신규 전리품**: Grim Batol, Skyreach, Siege of Boralus, Atal'Dazar, The Underrot, Tazavesh에 브라우저가 표시하지 않던 항목이 추가되었습니다.",
-    ["**Opening the browser in combat could throw errors.** Now we hold the request until combat ends."] = "**전투 중 브라우저를 열면 오류가 날 수 있었습니다.** 이제 전투가 끝날 때까지 요청을 보류합니다.",
-    ["**The addon uses about 20 MB less memory.** The nine translation tables for other languages are released once yours is loaded."] = "**애드온의 메모리 사용량이 약 20MB 줄었습니다.** 사용자의 언어가 로드되면 다른 언어용 번역 테이블 9개를 메모리에서 해제합니다.",
-    ["**The three Coilfang dungeons are added in TBC.** The Slave Pens, The Underbog and The Steamvault, with the Steamvault's two access panels tracked on the map."] = "**TBC의 갈퀴송곳니 저수지 던전 3곳이 추가되었습니다.** The Slave Pens, The Underbog, The Steamvault가 추가되었고, The Steamvault의 접근 패널 2개도 지도에 표시됩니다.",
-    ["**The transmog browser opens faster.** Every open was recounting collection state for every item in the tree before drawing anything."] = "**형상변환 브라우저가 더 빨리 열립니다.** 이전에는 열 때마다 아무것도 그리기 전에 트리의 모든 아이템에 대해 수집 상태를 다시 계산했습니다.",
-    ["**Timewalking pills mean Timewalking-only looks.** A drop whose Timewalking version is the same look as the walk-in version no longer shows a TW pill; inside a Timewalking run the boss counts still include it."] = "**시간여행 알약은 시간여행 전용 외형을 뜻합니다.** 시간여행 버전의 외형이 일반 입장 버전과 같으면 더 이상 TW 알약을 표시하지 않습니다. 시간여행 던전 안에서는 우두머리 개수에 계속 포함됩니다.",
-    ["**Translations match the game.** Around 290 boss names in Spanish, French and Russian now read exactly as the Encounter Journal spells them, which also keeps their kills across a reload; Italian and Portuguese gain the names of every Classic dungeon rare; every highlighted name in the guides is translated in all nine languages."] = "**번역이 게임과 일치합니다.** 스페인어, 프랑스어, 러시아어 우두머리 이름 약 290개가 이제 모험 안내서의 표기와 정확히 일치해 재접속 후에도 처치 기록이 유지됩니다. 이탈리아어와 포르투갈어에는 모든 Classic 던전 희귀 몬스터 이름이 추가되었고, 가이드에서 강조된 모든 이름은 9개 언어로 번역되었습니다.",
 
     -- Sourced names
     ["Gatewatcher Gyro-Kill"] = "문지기 회전톱날",

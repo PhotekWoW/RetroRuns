@@ -2058,14 +2058,6 @@ RR.LocaleTables.zhTW = {
     ["faint echo"] = "你聽到微弱的回音",
     ["loud rumble"] = "你聽到金屬磨在石頭上的響亮隆隆聲",
 
-    ["**A re-issued drop reads as collected.** Blizzard has re-issued hundreds of legacy items under new item numbers (Gauntlets of the Bold in The Steamvault, most of Vault of Archavon and Naxxramas). Looting one used to show gold, as if the look came from some other item; it now shows green."] = "**重新推出的掉落會顯示為已收藏。** Blizzard 已用新的物品編號重新推出數百件舊物品（The Steamvault 的 Gauntlets of the Bold，以及 Vault of Archavon 和 Naxxramas 中的大部分物品）。以前拾取其中一件時會顯示為金色，就像該外觀來自其他物品；現在會顯示為綠色。",
-    ["**New drops from the current journal**: Grim Batol, Skyreach, Siege of Boralus, Atal'Dazar, The Underrot and Tazavesh gained rows the browser did not list."] = "**目前指南中的新掉落**：Grim Batol、Skyreach、Siege of Boralus、Atal'Dazar、The Underrot 和 Tazavesh 新增了瀏覽器之前未列出的項目。",
-    ["**Opening the browser in combat could throw errors.** Now we hold the request until combat ends."] = "**戰鬥中開啟瀏覽器可能會發生錯誤。** 現在會把請求延後到戰鬥結束後再處理。",
-    ["**The addon uses about 20 MB less memory.** The nine translation tables for other languages are released once yours is loaded."] = "**插件的記憶體使用量減少約 20 MB。** 你的語言載入後，就會釋放其他九種語言的翻譯表。",
-    ["**The three Coilfang dungeons are added in TBC.** The Slave Pens, The Underbog and The Steamvault, with the Steamvault's two access panels tracked on the map."] = "**TBC 的三個盤牙蓄湖副本已加入。** The Slave Pens、The Underbog 和 The Steamvault，並在地圖上追蹤 The Steamvault 的兩個通道面板。",
-    ["**The transmog browser opens faster.** Every open was recounting collection state for every item in the tree before drawing anything."] = "**塑形瀏覽器開啟得更快了。** 以前每次開啟時，在顯示任何內容之前都會重新計算樹狀清單中每件物品的收藏狀態。",
-    ["**Timewalking pills mean Timewalking-only looks.** A drop whose Timewalking version is the same look as the walk-in version no longer shows a TW pill; inside a Timewalking run the boss counts still include it."] = "**時光漫遊藥丸代表只有時光漫遊才有的外觀。** 如果掉落物的時光漫遊版本和直接進入副本時的版本外觀相同，就不再顯示 TW 藥丸；在時光漫遊副本中，首領計數仍會包含它。",
-    ["**Translations match the game.** Around 290 boss names in Spanish, French and Russian now read exactly as the Encounter Journal spells them, which also keeps their kills across a reload; Italian and Portuguese gain the names of every Classic dungeon rare; every highlighted name in the guides is translated in all nine languages."] = "**翻譯與遊戲一致。** 約 290 個西班牙文、法文和俄文首領名稱現在與冒險指南中的拼法完全一致，因此重新載入後擊殺紀錄也能保留；義大利文和葡萄牙文補齊了所有 Classic 副本稀有怪名稱；指南中每個醒目標示的名稱都已翻譯成全部九種語言。",
 
     -- Sourced names
     ["Gatewatcher Gyro-Kill"] = "看守者蓋洛奇歐",
