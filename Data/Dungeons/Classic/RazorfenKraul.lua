@@ -34,6 +34,8 @@ RetroRuns_DungeonData[234] = {
         { id = 12974, slot = "Weapon", name = "The Black Knight", sources = { [14]=4619 }, bind = "BoE", rareNpc = "Enormous Bullfrog" },
         { id = 776, slot = "Weapon", name = "Vendetta", sources = { [14]=84 }, bind = "BoE" },
         { id = 4438, slot = "Wrist", name = "Pugilist Bracers", sources = { [14]=1722 }, bind = "BoE" },
+        { id = 11026, kind = "pet", name = "Tree Frog Box", rareNpc = "Enormous Bullfrog" },
+        { id = 11027, kind = "pet", name = "Wood Frog Box", rareNpc = "Enormous Bullfrog" },
     },
 
     bosses = {

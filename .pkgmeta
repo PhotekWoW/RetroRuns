@@ -1,7 +1,6 @@
 package-as: RetroRuns
 
 ignore:
-    - HANDOFF.md
     - .gitignore
     - .gitattributes
     - .github

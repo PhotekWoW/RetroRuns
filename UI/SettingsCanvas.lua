@@ -752,7 +752,7 @@ do
         local leftBottom = legendTop - blockHeight(legend, 16)
 
         -- The summary line (always shown, carries the [view] link), then the
-        -- "From that kill:" expansion that [view] reveals. Both are single
+        -- "Looted:" expansion that [view] reveals. Both are single
         -- lines with word-wrap off so [view] stays inline.
         local PREFIX = "|cff4DCCFFR|cffF259C7R|r|cff7f7f7f:|r "
         local summaryRow = container:CreateFontString(nil, "ARTWORK", "GameFontNormal")

@@ -22,6 +22,11 @@ RetroRuns_DungeonData[186] = {
         y     = 0.2885,
     },
 
+    trashLoot = {
+        { id = 76160, slot = "Back", name = "Drapes of the Dragonshrine", sources = { [15]=38418 }, bind = "BoE" },
+        { id = 76161, slot = "Hands", name = "Gauntlets of the Twilight Hour", sources = { [15]=38419 }, bind = "BoE" },
+    },
+
     bosses = {
         {
             index              = 1,

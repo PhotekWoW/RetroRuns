@@ -31,6 +31,22 @@ RetroRuns_DungeonData[63] = {
         rewardName         = "Volcanic Stone Drake",
     },
 
+    trashLoot = {
+        { id = 1930, slot = "Back", name = "Stonemason Cloak", sources = { [14]=497 }, bind = "BoE" },
+        { id = 10401, slot = "Hands", name = "Blackened Defias Gloves", sources = { [14]=3953 }, bind = "BoE" },
+        { id = 1944, slot = "Hands", name = "Metalworking Gloves", sources = { [14]=505 }, bind = "BoE" },
+        { id = 1945, slot = "Hands", name = "Woodworking Gloves", sources = { [14]=506 }, bind = "BoE" },
+        { id = 7997, slot = "Head", name = "Red Defias Mask", sources = { [14]=3008 }, bind = "BoP" },
+        { id = 10400, slot = "Legs", name = "Blackened Defias Leggings", sources = { [14]=3952 }, bind = "BoE" },
+        { id = 1943, slot = "Legs", name = "Goblin Mail Leggings", sources = { [14]=504 }, bind = "BoE" },
+        { id = 1928, slot = "Two-Hand", name = "Defias Mage Staff", sources = { [14]=495 }, bind = "BoE" },
+        { id = 1951, slot = "Weapon", name = "Blackwater Cutlass", sources = { [14]=507 }, bind = "BoE" },
+        { id = 1925, slot = "Weapon", name = "Defias Rapier", sources = { [14]=492 }, bind = "BoE" },
+        { id = 1936, slot = "Weapon", name = "Goblin Screwdriver", sources = { [14]=501 }, bind = "BoE" },
+        { id = 1926, slot = "Weapon", name = "Weighted Sap", sources = { [14]=493 }, bind = "BoE" },
+        { id = 8492, kind = "pet", name = "Parrot Cage (Green Wing Macaw)", normalOnly = true },
+    },
+
     bosses = {
         {
             index              = 1,

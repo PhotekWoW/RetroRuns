@@ -1539,6 +1539,11 @@ local function TriggerMatches(seg, event, eventData)
         return event == "taxi-landed"
     end
 
+    -- triggeredBy.cinematic matches a cutscene starting.
+    if seg.triggeredBy.cinematic then
+        return event == "cinematic-started"
+    end
+
     -- triggeredBy.vehicle opens on boarding, or on a load already aboard.
     if seg.triggeredBy.vehicle then
         return event == "vehicle-entered"
@@ -1676,6 +1681,15 @@ local function ComputeAdvancedProgress(segments, progress, state, event, eventDa
                     then
                         gatePasses = true
                     end
+                elseif event == "cinematic-started" then
+                    -- A cutscene plays where the player clicked.
+                    local nextSeg = segments[progress + 1]
+                    if nextSeg and nextSeg.triggeredBy
+                        and nextSeg.triggeredBy.cinematic
+                        and TriggerMatches(nextSeg, event, eventData)
+                    then
+                        gatePasses = true
+                    end
                 elseif event == "scenario" then
                     -- Same narrow shape: a player at the objective has not
                     -- moved, so the completion itself must release
@@ -1732,7 +1746,8 @@ local function ComputeAdvancedProgress(segments, progress, state, event, eventDa
         -- map only says where its points draw.
         local heardNow = seg.triggeredBy
             and (seg.triggeredBy.dialog or seg.triggeredBy.encounter
-                 or seg.triggeredBy.taxi or seg.triggeredBy.vehicle)
+                 or seg.triggeredBy.taxi or seg.triggeredBy.vehicle
+                 or seg.triggeredBy.cinematic)
             and TriggerMatches(seg, event, eventData) or false
         -- A landed counter is proof of the same kind, on record or live.
         if not heardNow and seg.triggeredBy and seg.triggeredBy.widget
@@ -1783,6 +1798,17 @@ function RR:AdvanceProgress(event, eventData)
     -- swap seeds the new route itself, so the event is consumed.
     if event == "npc-dialog" and self:CheckAltRoute(eventData) then
         return true
+    end
+
+    -- The step was seeded before the game named a map. Seed again now it
+    -- has one, unless the route already moved on its own.
+    local provisional = self.state.provisionalSeed
+    if provisional and mapID then
+        self.state.provisionalSeed = nil
+        if provisional.step == stepIndex
+            and self:GetProgress(stepIndex) == provisional.progress then
+            self:SeedProgress(step)
+        end
     end
 
     local oldProgress = self:GetProgress(stepIndex)
@@ -2127,6 +2153,10 @@ function RR:SeedProgress(step)
     -- like a state change on the next tick.
     if self.state then
         self.state.lastPolledMapID = mapID
+        -- A seed taken on the loading screen has no map to place the player
+        -- by; the first advance with a map seeds again (AdvanceProgress).
+        self.state.provisionalSeed = (mapID == nil)
+            and { step = stepIndex, progress = effective } or nil
     end
 
     if self.ZoneLog then

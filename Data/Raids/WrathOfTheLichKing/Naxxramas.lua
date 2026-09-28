@@ -390,6 +390,9 @@ RetroRuns_Data[533] = {
                 { id = 40323, slot = "Wrist", name = "Esteemed Bindings", sources = { [4]=19345 } },
                 { id = 39307, slot = "Wrist", name = "Iron Rings of Endurance", sources = { [3]=18785 } },
             },
+            specialLoot = {
+                { id = 206585, kind = "mount", name = "Reins of Valiance", size10Only = true },
+            },
         },
         {
             index              = 8,

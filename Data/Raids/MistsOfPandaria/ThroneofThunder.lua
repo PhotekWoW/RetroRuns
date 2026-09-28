@@ -148,6 +148,8 @@ RetroRuns_Data[1098] = {
         { id = 95506, slot = "Weapon", name = "Nadagast's Exsanguinator", sources = { [17]=50120, [14]=50120, [15]=50120 }, bind = "BoP" },
         { id = 97126, slot = "Weapon", name = "Tia-Tia, the Scything Star", sources = { [17]=51415, [14]=51412, [15]=51413 }, bind = "BoP" },
         { id = 95504, slot = "Weapon", name = "Zeeg's Ancient Kegsmasher", sources = { [17]=50353, [14]=50118, [15]=50977 }, bind = "BoP" },
+        { id = 98136, kind = "toy", name = "Gastropod Shell" },
+        { id = 94125, kind = "pet", name = "Living Sandling" },
     },
     bosses = {
         {

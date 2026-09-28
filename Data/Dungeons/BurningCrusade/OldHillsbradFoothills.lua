@@ -23,6 +23,10 @@ RetroRuns_DungeonData[251] = {
         y     = 0.3440,
     },
 
+    trashLoot = {
+        { id = 134019, kind = "toy", name = "Don Carlos' Famous Hat", heroicOnly = true, tag = "Don Carlos" },
+    },
+
     bosses = {
         {
             index              = 1,

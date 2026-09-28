@@ -273,6 +273,10 @@ RetroRuns_Data[531] = {
         { id = 21889, slot = "Hands", name = "Gloves of the Redeemed Prophecy", sources = { [14]=8654 }, bind = "BoP", restrictedToClass = 2 },
         { id = 21856, slot = "Two-Hand", name = "Neretzek, The Blood Drinker", sources = { [14]=8636 }, bind = "BoP" },
         { id = 21837, slot = "Weapon", name = "Anubisath Warhammer", sources = { [14]=8623 }, bind = "BoP" },
+        { id = 21218, kind = "mount", name = "Blue Qiraji Resonating Crystal" },
+        { id = 21323, kind = "mount", name = "Green Qiraji Resonating Crystal" },
+        { id = 21321, kind = "mount", name = "Red Qiraji Resonating Crystal" },
+        { id = 21324, kind = "mount", name = "Yellow Qiraji Resonating Crystal" },
     },
 
     bosses = {

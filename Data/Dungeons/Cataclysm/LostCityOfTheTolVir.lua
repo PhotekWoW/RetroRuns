@@ -31,6 +31,10 @@ RetroRuns_DungeonData[69] = {
         rewardName         = "Volcanic Stone Drake",
     },
 
+    trashLoot = {
+        { id = 55882, slot = "Wrist", name = "Oasis Bracers", sources = { [14]=27442, [15]=27442 }, bind = "BoP", twSource = 76636 },
+    },
+
     bosses = {
         {
             index              = 1,
@@ -59,7 +63,6 @@ RetroRuns_DungeonData[69] = {
                 { id = 56386, slot = "Legs", name = "Balkar's Waders", sources = { [14]=27703, [15]=27703 }, twSource = 76624 },
                 { id = 133278, slot = "Waist", name = "Evelyn's Belt", sources = { [24]=76635 } },
                 { id = 56384, slot = "Weapon", name = "Resonant Kris", sources = { [14]=27702, [15]=27702 }, twSource = 76623 },
-                { id = 133280, slot = "Wrist", name = "Oasis Bracers", sources = { [24]=76636 } },
             },
         },
         {

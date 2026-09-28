@@ -259,14 +259,44 @@ end
 -- Mounting here and now
 -------------------------------------------------------------------------------
 
--- Summon Random Favorite Mount. Its usability is the client's own answer to
--- "can I mount where I stand", the same check the action bar dims on.
+-- Summon Random Favorite Mount; its usability is the fallback read.
 local MOUNT_SUMMON_SPELL = 150544
+-- The mount journal's random-favorite button, as an action-bar mount id.
+local RANDOM_FAVORITE_MOUNT_ID = 268435455
+local ACTION_SLOT_COUNT = 180
+
+-- The action-bar slot holding a mount button, random-favorite preferred;
+-- false when the bars hold none. Cleared when the bars change.
+local mountActionSlot
+
+local function FindMountActionSlot()
+    if not GetActionInfo then return false end
+    local anyMount = false
+    for slot = 1, ACTION_SLOT_COUNT do
+        local actionType, id = GetActionInfo(slot)
+        if actionType == "summonmount" then
+            if id == RANDOM_FAVORITE_MOUNT_ID then return slot end
+            anyMount = anyMount or slot
+        end
+    end
+    return anyMount
+end
+
+function RR:ForgetMountActionSlot()
+    mountActionSlot = nil
+end
 
 -- True when the player can mount at their current position, false when
--- not, nil when the client cannot say. Read fresh on every call; the
--- answer changes with position and nothing announces the change.
+-- not, nil when the client cannot say. Read fresh on every call, from a
+-- mount button on the bars when there is one, else the summon spell.
 function RR:CanMountHere()
+    if mountActionSlot == nil then mountActionSlot = FindMountActionSlot() end
+    if mountActionSlot and IsUsableAction then
+        if GetActionInfo(mountActionSlot) == "summonmount" then
+            return IsUsableAction(mountActionSlot) and true or false
+        end
+        mountActionSlot = nil
+    end
     if not (C_Spell and C_Spell.IsSpellUsable) then return nil end
     local usable = C_Spell.IsSpellUsable(MOUNT_SUMMON_SPELL)
     if usable == nil then return nil end
@@ -308,6 +338,42 @@ local function MountRowUnresolved(item)
     return true
 end
 
+-- True while any of the boss's loot rows has no item data yet. Requests the
+-- load and re-judges the collected skips once it lands.
+local function LootRowsUnloaded(boss)
+    if not (C_Item and C_Item.IsItemDataCachedByID) then return false end
+    local unloaded = false
+    for _, item in ipairs(boss.loot or {}) do
+        if item.id and not C_Item.IsItemDataCachedByID(item.id) then
+            unloaded = true
+            if Item and Item.CreateFromItemID then
+                local pending = Item:CreateFromItemID(item.id)
+                if pending and pending.ContinueOnItemLoad then
+                    pending:ContinueOnItemLoad(function()
+                        -- Several items land together; re-judge once.
+                        if RR.state.collectedSkipLoadPending or not C_Timer then return end
+                        RR.state.collectedSkipLoadPending = true
+                        C_Timer.After(0.2, function()
+                            RR.state.collectedSkipLoadPending = nil
+                            if RR.currentRaid and RR.ClearCollectedSkips then
+                                RR:ClearCollectedSkips()
+                                RR:ComputeNextStep()
+                                if RR.RefreshAll then RR:RefreshAll() end
+                            end
+                        end)
+                    end)
+                end
+            end
+        end
+    end
+    return unloaded
+end
+
+-- False for a special-loot row that belongs to the other faction.
+function RR:SpecialLootForPlayer(item)
+    return not item.faction or item.faction == UnitFactionGroup("player")
+end
+
 -- True when the boss offers this character nothing: every special-loot
 -- row collected, every achievement on the row earned, and every loot row's
 -- own source collected. A boss with loot the counter cannot judge is never
@@ -318,8 +384,10 @@ function RR:BossHasNothingLeft(boss)
     if not boss then return false, true end
     local stateOf = self.SpecialCollectionStateForItem
     for _, item in ipairs(boss.specialLoot or {}) do
-        if MountRowUnresolved(item) then return false, false end
-        if not stateOf or stateOf(item) ~= "collected" then return false, true end
+        if self:SpecialLootForPlayer(item) then
+            if MountRowUnresolved(item) then return false, false end
+            if not stateOf or stateOf(item) ~= "collected" then return false, true end
+        end
     end
     for _, achievement in ipairs(boss.achievements or {}) do
         if not GetAchievementInfo then return false, true end
@@ -327,6 +395,7 @@ function RR:BossHasNothingLeft(boss)
         if not completed then return false, true end
     end
     if boss.loot and #boss.loot > 0 then
+        if LootRowsUnloaded(boss) then return false, false end
         -- Shared rows count as uncollected: the item itself is still owed.
         local needed = self.BossSourcesNotCollected
             and self:BossSourcesNotCollected(boss)
@@ -350,8 +419,29 @@ function RR:IsStepCollectedSkipped(step)
     if verdict == nil then
         local known
         verdict, known = self:BossHasNothingLeft(self:GetBossByIndex(step.bossIndex))
+        -- Before the difficulty is known the count covers every difficulty,
+        -- Timewalking included, so the verdict is asked again later.
+        if not self.state.currentDifficultyID then known = false end
         -- An unknown verdict is asked again next time, not remembered.
         if known then self.state.collectedSkip[step.bossIndex] = verdict end
+        if self.ZoneLog then
+            -- What the count saw, so a wrong verdict names its cause: rows
+            -- still owed, and loot whose item data had not loaded yet.
+            local boss = self:GetBossByIndex(step.bossIndex)
+            local owed = self.BossSourcesNotCollected
+                and self:BossSourcesNotCollected(boss)
+            local uncached = 0
+            for _, item in ipairs(boss and boss.loot or {}) do
+                if item.id and C_Item and C_Item.IsItemDataCachedByID
+                    and not C_Item.IsItemDataCachedByID(item.id) then
+                    uncached = uncached + 1
+                end
+            end
+            self:ZoneLog(("collected-skip: boss %d nothingLeft=%s known=%s difficulty=%s owed=%s uncachedItems=%d")
+                :format(step.bossIndex, tostring(verdict), tostring(known),
+                    tostring(self.state.currentDifficultyID), tostring(owed),
+                    uncached))
+        end
     end
     return verdict
 end

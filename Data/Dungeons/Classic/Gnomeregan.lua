@@ -40,6 +40,7 @@ RetroRuns_DungeonData[231] = {
         { id = 9457, slot = "Weapon", name = "Royal Diplomatic Scepter", sources = { [14]=3296 }, bind = "BoP", rareNpc = "Dark Iron Ambassador" },
         { id = 9485, slot = "Weapon", name = "Vibroblade", sources = { [14]=3315 }, bind = "BoE" },
         { id = 9455, slot = "Wrist", name = "Emissary Cuffs", sources = { [14]=3294 }, bind = "BoP", rareNpc = "Dark Iron Ambassador" },
+        { id = 141331, kind = "toy", name = "Vial of Green Goo", tag = "Endgineer Omegaplugg" },
     },
 
     bosses = {

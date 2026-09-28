@@ -30,6 +30,11 @@ RetroRuns_DungeonData[71] = {
         rewardName         = "Volcanic Stone Drake",
     },
 
+    trashLoot = {
+        { id = 56219, slot = "Back", name = "Shroud of Dark Memories", sources = { [14]=27609, [15]=27609 }, bind = "BoE" },
+        { id = 56218, slot = "Legs", name = "Curse-Tainted Leggings", sources = { [14]=27608, [15]=27608 }, bind = "BoE" },
+    },
+
     bosses = {
         {
             index              = 1,

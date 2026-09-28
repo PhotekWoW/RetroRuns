@@ -22,6 +22,12 @@ RetroRuns_DungeonData[185] = {
         y     = 0.6415,
     },
 
+    trashLoot = {
+        { id = 76158, slot = "Feet", name = "Courtier's Slippers", sources = { [15]=38416 }, bind = "BoE" },
+        { id = 76157, slot = "Hands", name = "Waterworn Handguards", sources = { [15]=38415 }, bind = "BoE" },
+        { id = 76159, slot = "Wrist", name = "Legion Bindings", sources = { [15]=38417 }, bind = "BoE" },
+    },
+
     bosses = {
         {
             index              = 1,

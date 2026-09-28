@@ -22,6 +22,11 @@ RetroRuns_DungeonData[945] = {
         y     = 0.5561,
     },
 
+    trashLoot = {
+        { id = 153004, kind = "toy", name = "Unstable Portal Emitter", heroicOnly = true, rareNpc = "Vixx the Collector" },
+        { id = 152982, kind = "toy", name = "Vixx's Chest of Tricks", heroicOnly = true, rareNpc = "Vixx the Collector" },
+    },
+
     bosses = {
         {
             index              = 1,

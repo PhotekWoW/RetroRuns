@@ -30,6 +30,10 @@ RetroRuns_DungeonData[70] = {
         rewardName         = "Volcanic Stone Drake",
     },
 
+    trashLoot = {
+        { id = 56109, slot = "Off-hand", name = "Book of Origination", sources = { [14]=27559, [15]=27559 }, bind = "BoE" },
+    },
+
     bosses = {
         {
             index              = 1,

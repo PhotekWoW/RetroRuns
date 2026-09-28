@@ -1572,11 +1572,17 @@ local Summary = {
     store      = {},     -- lineID -> { items = {...} }
     nextID     = 1,      -- monotonic line id within a lockout
     clickHooked = false,
+    expected   = 0,      -- item slots seen in the loot windows of this batch
+    received   = 0,      -- loot lines captured in this batch
+    windowCounted = false, -- this window's slots already added to expected
 }
 -- Flush once no new drop has arrived for this long. The longer grace after
 -- LOOT_CLOSED catches the straggler wave.
 local QUIET_FLUSH = 0.5
 local POST_CLOSE_GRACE = 1.5
+-- Once every counted item has its loot line and the window is shut, only the
+-- appearance events are still to come, a few frames behind their lines.
+local COMPLETE_TAIL = 0.2
 
 local FlushBatch  -- forward declaration (defined below, after the formatters)
 local QualityColoredLink  -- forward declaration (FlushBatch needs it as an upvalue)
@@ -1597,7 +1603,14 @@ local function ArmFlush(delay)
     if Summary.flushTimer then
         Summary.flushTimer:Cancel()
     end
-    Summary.flushTimer = C_Timer.NewTimer(delay or QUIET_FLUSH, function()
+    delay = delay or QUIET_FLUSH
+    -- Every counted item has arrived: nothing but the appearance events is
+    -- left to wait for, so the straggler grace no longer applies.
+    if Summary.expected > 0 and Summary.received >= Summary.expected
+        and not Summary.windowOpen and delay > COMPLETE_TAIL then
+        delay = COMPLETE_TAIL
+    end
+    Summary.flushTimer = C_Timer.NewTimer(delay, function()
         Summary.flushTimer = nil
         -- Don't flush while the loot window is still open; re-arm instead.
         if Summary.windowOpen then
@@ -2019,6 +2032,8 @@ FlushBatch = function()
     Summary.links = nil
     Summary.newApp = nil
     Summary.seenVisual = nil
+    Summary.expected = 0
+    Summary.received = 0
 
     -- Partition captured links into tier tokens, vendor-grade, and excluded
     -- appearance dupes. One copy per appearance itemID is the appearance;
@@ -2225,7 +2240,7 @@ local function ShowVendorList(id)
         return
     end
 
-    RR:Print(RR.L["|cff999999From that kill:|r"])
+    RR:Print(RR.L["|cff999999Looted:|r"])
     for _, it in ipairs(entry.items) do
         if it.kind == "appearance" then
             -- Prefer the source link (correct collection state); fall back to a
@@ -2437,20 +2452,36 @@ local function OnLootBracket(_, event, ...)
         return
     end
 
-    if event == "LOOT_OPENED" then
-        -- Open the vendor-capture gate; don't reset the toast batch.
+    if event == "LOOT_OPENED" or event == "LOOT_READY" then
+        -- Open the vendor-capture gate on either event; don't reset the
+        -- toast batch.
         Summary.capturing = true
         Summary.windowOpen = true
-        T("LOOT_OPENED  capturing=on  currentRaid=" .. tostring(RR.currentRaid and RR.currentRaid.name or "nil"))
+        -- Count the window's item slots once per window; the counts add up
+        -- until the flush.
+        if not Summary.windowCounted then
+            Summary.windowCounted = true
+            local itemType = Enum.LootSlotType and Enum.LootSlotType.Item or 1
+            for slot = 1, (GetNumLootItems and GetNumLootItems() or 0) do
+                if GetLootSlotType(slot) == itemType then
+                    Summary.expected = Summary.expected + 1
+                end
+            end
+        end
+        T(event .. "  capturing=on  expected=" .. Summary.expected
+            .. "  currentRaid=" .. tostring(RR.currentRaid and RR.currentRaid.name or "nil"))
         ArmFlush()
 
     elseif event == "LOOT_CLOSED" then
         -- Don't close the gate here; capture stays open until the flush runs
         -- so the post-close straggler wave is still captured. Arm the longer
         -- post-close grace: the wave can lag the close by ~1s, and plain-item
-        -- toasts in it do not re-arm the timer themselves.
+        -- toasts in it do not re-arm the timer themselves. ArmFlush cuts it
+        -- short when every counted item has already arrived.
         Summary.windowOpen = false
-        T("LOOT_CLOSED")
+        Summary.windowCounted = false
+        T(("LOOT_CLOSED  expected=%d  received=%d"):format(
+            Summary.expected, Summary.received))
         ArmFlush(POST_CLOSE_GRACE)
 
     elseif event == "CHAT_MSG_LOOT" then
@@ -2469,7 +2500,9 @@ local function OnLootBracket(_, event, ...)
             if link then
                 if not Summary.links then Summary.links = {} end
                 Summary.links[#Summary.links + 1] = { link = link, qty = qty }
-                T("CHAT_MSG_LOOT captured item:" .. tostring(itemID) .. " x" .. qty)
+                Summary.received = Summary.received + 1
+                T(("CHAT_MSG_LOOT captured item:%s x%d  received=%d/%d"):format(
+                    tostring(itemID), qty, Summary.received, Summary.expected))
                 ArmFlush()
             else
                 T("CHAT_MSG_LOOT no link extracted (raw kept out)")
@@ -2504,6 +2537,7 @@ local function ActivateToaster()
         Summary.frame = CreateFrame("Frame")
         Summary.frame:SetScript("OnEvent", OnLootBracket)
     end
+    Protected(Summary.frame.RegisterEvent, Summary.frame, "LOOT_READY")
     Protected(Summary.frame.RegisterEvent, Summary.frame, "LOOT_OPENED")
     Protected(Summary.frame.RegisterEvent, Summary.frame, "LOOT_CLOSED")
     Protected(Summary.frame.RegisterEvent, Summary.frame, "CHAT_MSG_LOOT")
@@ -2539,6 +2573,9 @@ local function DeactivateToaster()
     if Summary.frame then Summary.frame:UnregisterAllEvents() end
     Summary.capturing = false
     Summary.windowOpen = false
+    Summary.windowCounted = false
+    Summary.expected = 0
+    Summary.received = 0
     Summary.batch  = nil
     Summary.links  = nil
     Summary.newApp = nil
@@ -2576,6 +2613,7 @@ function RR:ToasterDebug()
     add("enabled        = " .. tostring(M.enabled))
     add("currentRaid    = " .. tostring(RR.currentRaid and RR.currentRaid.name or "nil"))
     add("capturing      = " .. tostring(Summary.capturing))
+    add(("loot lines     = %d of %d counted"):format(Summary.received, Summary.expected))
     add("windowOpen     = " .. tostring(Summary.windowOpen))
     add("batch size     = " .. tostring(Summary.batch and #Summary.batch or 0))
     add("loot captured  = " .. tostring(Summary.links and #Summary.links or 0))
@@ -2795,11 +2833,11 @@ function RR:BuildPreviewBatch(parent)
     function group:GetSummaryLine()
         return RR.FormatCollectionSummaryLine(#self.specials, #self.appearanceIDs, 0, self.vendorCount, 0)
     end
-    -- Expansion rows for "From that kill:": appearances (pink [New!]) and the
+    -- Expansion rows for "Looted:": appearances (pink [New!]) and the
     -- special. Returns rows, allResolved.
     function group:GetExpansionRows()
         local rows, allResolved = {}, true
-        rows[#rows + 1] = RR.L["|cff999999From that kill:|r"]
+        rows[#rows + 1] = RR.L["|cff999999Looted:|r"]
         for _, apprID in ipairs(self.appearanceIDs) do
             local name = C_Item.GetItemInfo("item:" .. apprID)
             if not name then allResolved = false end

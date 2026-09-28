@@ -31,6 +31,11 @@ RetroRuns_DungeonData[66] = {
         rewardName         = "Volcanic Stone Drake",
     },
 
+    trashLoot = {
+        { id = 55789, slot = "Two-Hand", name = "Berto's Staff", sources = { [14]=27388, [15]=27388 }, bind = "BoE" },
+        { id = 55790, slot = "Weapon", name = "Toxidunk Dagger", sources = { [14]=27389, [15]=27389 }, bind = "BoE" },
+    },
+
     bosses = {
         {
             index              = 1,

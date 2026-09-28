@@ -6,7 +6,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "3.3.0"
+local VERSION    = "3.3.1"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -1139,7 +1139,9 @@ local function CollectRaidDataIssues(scopeFilter)
                         for si, item in ipairs(boss.specialLoot) do
                             local bp = ("boss #%s specialLoot[%d]:"):format(
                                 tostring(boss.index), si)
-                            if not item.id then
+                            -- A mount with no item behind it keys on mountID.
+                            if not item.id
+                               and not (item.kind == "mount" and item.mountID) then
                                 add("error", raidLabel, bp .. " missing id")
                             end
                             if not item.kind then
@@ -1353,6 +1355,11 @@ local function CollectRaidDataIssues(scopeFilter)
                                 if seg.triggeredBy.vehicle ~= true then
                                     add("error", raidLabel,
                                         sp .. (" segment %d triggeredBy.vehicle must be true"):format(si))
+                                end
+                            elseif seg.triggeredBy.cinematic ~= nil then
+                                if seg.triggeredBy.cinematic ~= true then
+                                    add("error", raidLabel,
+                                        sp .. (" segment %d triggeredBy.cinematic must be true"):format(si))
                                 end
                             elseif seg.triggeredBy.widget then
                                 if type(seg.triggeredBy.widget) ~= "number"
@@ -5077,6 +5084,11 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         -- mount lock loses it on the ground. The taxi flag can trail the
         -- event by a frame, so it is read again a moment later.
         RR.state.taxiInFlight = (UnitOnTaxi and UnitOnTaxi("player")) or false
+        if RR.currentRaid then
+            RR:ZoneLog(("control lost (taxi=%s vehicle=%s)"):format(
+                tostring(RR.state.taxiInFlight),
+                tostring(UnitInVehicle and UnitInVehicle("player") or false)))
+        end
         if not RR.state.taxiInFlight and C_Timer then
             C_Timer.After(0.5, function()
                 if UnitOnTaxi and UnitOnTaxi("player") then
@@ -5086,6 +5098,7 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         end
 
     elseif event == "PLAYER_CONTROL_GAINED" then
+        if RR.currentRaid then RR:ZoneLog("control gained") end
         -- Landing. Only a seg waiting on a taxi acts on it.
         if RR.state.taxiInFlight then
             RR.state.taxiInFlight = false
@@ -5105,6 +5118,20 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
             RR:AdvanceProgress("vehicle-entered")
             RR:RefreshAll()
         end
+
+    elseif event == "CINEMATIC_START" or event == "PLAY_MOVIE" then
+        -- A cutscene starting opens a cinematic gate: in-engine scenes fire
+        -- CINEMATIC_START, pre-rendered ones PLAY_MOVIE.
+        if RR.currentRaid and RR.state.loadedRaidKey
+            and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
+            RR:ZoneLog("cinematic started (" .. event .. ")")
+            RR:AdvanceProgress("cinematic-started")
+            RR:RefreshAll()
+        end
+
+    elseif event == "ACTIONBAR_SLOT_CHANGED" then
+        -- The mount button may have moved, arrived or gone.
+        RR:ForgetMountActionSlot()
 
     elseif event == "BAG_UPDATE_DELAYED" then
         -- A bag change can open an item gate; the check itself reads the
@@ -5133,6 +5160,24 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
             RR:RefreshAll()
         end
 
+    elseif event == "TRANSMOG_COLLECTION_SOURCE_ADDED" then
+        -- A new appearance can finish a boss the same way. They arrive in
+        -- bursts, so the re-judge runs once after the burst settles.
+        if RR.currentRaid and RR.state.loadedRaidKey and RR.ClearCollectedSkips then
+            RR:ClearCollectedSkips()
+            if not RR.state.collectedSkipRejudge and C_Timer then
+                RR.state.collectedSkipRejudge = true
+                C_Timer.After(0.5, function()
+                    RR.state.collectedSkipRejudge = nil
+                    if RR.currentRaid then
+                        RR:ClearCollectedSkips()
+                        RR:ComputeNextStep()
+                        RR:RefreshAll()
+                    end
+                end)
+            end
+        end
+
     elseif event == "AREA_POIS_UPDATED" then
         -- A map marker came or went (the Culling's wave flags); the
         -- overlay rings them and should follow at once, not on its next
@@ -5142,9 +5187,10 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
             RetroRunsMapOverlay:Refresh()
         end
 
-    elseif event == "LOOT_OPENED" then
+    elseif event == "LOOT_OPENED" or event == "LOOT_READY" then
         -- A boss corpse in the loot window proves its kill where the
-        -- encounter events and the scenario criteria report nothing.
+        -- encounter events and the scenario criteria report nothing. Fast
+        -- looting can skip LOOT_OPENED, so LOOT_READY reads it too.
         if not RR.state.testMode
             and RR.currentRaid
             and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
@@ -5233,17 +5279,22 @@ RR.frame:RegisterEvent("SCENARIO_CRITERIA_UPDATE")
 RR.frame:RegisterEvent("BOSS_KILL")
 RR.frame:RegisterEvent("ENCOUNTER_START")
 RR.frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+RR.frame:RegisterEvent("LOOT_READY")
 RR.frame:RegisterEvent("LOOT_OPENED")
 RR.frame:RegisterEvent("AREA_POIS_UPDATED")
 RR.frame:RegisterEvent("ACHIEVEMENT_EARNED")
 RR.frame:RegisterEvent("NEW_MOUNT_ADDED")
 RR.frame:RegisterEvent("NEW_PET_ADDED")
 RR.frame:RegisterEvent("NEW_TOY_ADDED")
+RR.frame:RegisterEvent("TRANSMOG_COLLECTION_SOURCE_ADDED")
 RR.frame:RegisterEvent("BAG_UPDATE_DELAYED")
+RR.frame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
 RR.frame:RegisterEvent("UPDATE_UI_WIDGET")
 RR.frame:RegisterEvent("PLAYER_CONTROL_LOST")
 RR.frame:RegisterEvent("PLAYER_CONTROL_GAINED")
 RR.frame:RegisterEvent("UNIT_ENTERED_VEHICLE")
+RR.frame:RegisterEvent("CINEMATIC_START")
+RR.frame:RegisterEvent("PLAY_MOVIE")
 RR.frame:RegisterEvent("PLAYER_LOGOUT")
 
 -------------------------------------------------------------------------------

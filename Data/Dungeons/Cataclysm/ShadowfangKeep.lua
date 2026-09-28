@@ -35,8 +35,18 @@ RetroRuns_DungeonData[64] = {
     },
 
     trashLoot = {
+        { id = 2292, slot = "Chest", name = "Necrology Robes", sources = { [14]=728 }, bind = "BoE" },
         { id = 6642, slot = "Chest", name = "Phantom Armor", sources = { [14]=2550 }, bind = "BoP", rareNpc = "Deathsworn Captain" },
+        { id = 3194, slot = "Two-Hand", name = "Black Malice", sources = { [14]=1118 }, bind = "BoE" },
+        { id = 2205, slot = "Two-Hand", name = "Duskbringer", sources = { [14]=668 }, bind = "BoE" },
         { id = 6641, slot = "Two-Hand", name = "Haunting Blade", sources = { [14]=2549 }, bind = "BoP", rareNpc = "Deathsworn Captain" },
+        { id = 1318, slot = "Two-Hand", name = "Night Reaver", sources = { [14]=237 }, bind = "BoE" },
+        { id = 1484, slot = "Two-Hand", name = "Witching Stave", sources = { [14]=307 }, bind = "BoE" },
+        { id = 1935, slot = "Weapon", name = "Assassin's Blade", sources = { [14]=500 }, bind = "BoE" },
+        { id = 1483, slot = "Weapon", name = "Face Smasher", sources = { [14]=306 }, bind = "BoE" },
+        { id = 2807, slot = "Weapon", name = "Guillotine Axe", sources = { [14]=955 }, bind = "BoE" },
+        { id = 1482, slot = "Weapon", name = "Shadowfang", sources = { [14]=305 }, bind = "BoE" },
+        { id = 1974, slot = "Wrist", name = "Mindthrust Bracers", sources = { [14]=514 }, bind = "BoE" },
     },
 
     bosses = {

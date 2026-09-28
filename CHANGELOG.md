@@ -2,6 +2,17 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.3.1] - 2026-09-28
+
+### Added
+- **Throne of the Tides is guided.** The first Cataclysm dungeon with a route.
+- **Trash drops for every Cataclysm dungeon.**
+- **Pets, mounts and toys that drop from trash show in Trash Drops**, such as the Deviate Hatchling in Wailing Caverns, the Filthy Bucket in Tol Dagor and the Qiraji Resonating Crystals in Ahn'Qiraj, tagged with the difficulty they need.
+
+### Fixed
+- **The trash loot summary works alongside faster auto-loot addons**, which could empty the loot window before the summary started listening.
+- **The Mount Indicator matches your mount button.** Where the game refuses a mount but still calls the mount spell usable, as in parts of Throne of the Tides, the horse no longer shows.
+
 ## [3.3.0] - 2026-09-25
 
 ### Added

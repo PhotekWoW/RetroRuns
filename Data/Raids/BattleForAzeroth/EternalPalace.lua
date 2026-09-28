@@ -69,6 +69,7 @@ RetroRuns_Data[2164] = {
         { id = 169935, slot = "Wrist", name = "Brutish Myrmidon's Vambraces", sources = { [14]=105306, [15]=105307, [16]=105308, [17]=105309 }, bind = "BoE" },
         { id = 169929, slot = "Wrist", name = "Cuffs of Soothing Currents", sources = { [14]=105282, [15]=105283, [16]=105284, [17]=105285 }, bind = "BoE" },
         { id = 169931, slot = "Wrist", name = "Skulker's Blackwater Bands", sources = { [14]=105290, [15]=105291, [16]=105292, [17]=105293 }, bind = "BoE" },
+        { id = 170199, kind = "toy", name = "Zanj'ir Weapon Rack" },
     },
     bosses = {
         {

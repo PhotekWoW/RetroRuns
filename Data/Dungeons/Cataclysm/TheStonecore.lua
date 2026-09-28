@@ -13,7 +13,7 @@ RetroRuns_DungeonData[67] = {
     name              = "The Stonecore",
     expansion         = "Cataclysm",
     difficultyModel   = "dungeonBinary",
-    availableDifficulties = { 14, 15, 24 },
+    availableDifficulties = { 14, 15 },
     patch             = "4.0.3",
     timewalking       = true,
 
@@ -29,6 +29,12 @@ RetroRuns_DungeonData[67] = {
         rewardItemID       = 62900,
         rewardMountSpellID = 88331,
         rewardName         = "Volcanic Stone Drake",
+    },
+
+    trashLoot = {
+        { id = 55824, slot = "Back", name = "Skin of Stone", sources = { [14]=27407, [15]=27407 }, bind = "BoE", twSource = 76602 },
+        { id = 55823, slot = "Ranged", name = "Wand of Dark Worship", sources = { [14]=27406, [15]=27406 }, bind = "BoE", twSource = 76601 },
+        { id = 55822, slot = "Weapon", name = "Heavy Geode Mace", sources = { [14]=27405, [15]=27405 }, bind = "BoE", twSource = 76600 },
     },
 
     bosses = {
@@ -55,11 +61,9 @@ RetroRuns_DungeonData[67] = {
             achievements       = {
             },
             loot = {
-                { id = 133231, slot = "Back", name = "Skin of Stone", sources = { [24]=76602 } },
                 { id = 56334, slot = "Hands", name = "Deep Delving Gloves", sources = { [14]=27667, [15]=27667 }, twSource = 76588 },
                 { id = 56336, slot = "Hands", name = "Hematite Plate Gloves", sources = { [14]=27669, [15]=27669 }, twSource = 76590 },
                 { id = 157594, slot = "Legs", name = "Earth-Strength Legguards", sources = { [14]=93784, [15]=93784 }, twSource = 76681 },
-                { id = 133230, slot = "Ranged", name = "Wand of Dark Worship", sources = { [24]=76601 } },
                 { id = 157593, slot = "Shoulder", name = "Crystalpowder Amice", sources = { [14]=93783, [15]=93783 }, twSource = 76686 },
                 { id = 56335, slot = "Weapon", name = "Quicksilver Blade", sources = { [14]=27668, [15]=27668 }, twSource = 76589 },
             },
@@ -77,7 +81,6 @@ RetroRuns_DungeonData[67] = {
             loot = {
                 { id = 56342, slot = "Two-Hand", name = "Sword of the Bottomless Pit", sources = { [14]=27672, [15]=27672 }, twSource = 76593 },
                 { id = 56341, slot = "Waist", name = "Belt of the Ringworm", sources = { [14]=27671, [15]=27671 }, twSource = 76592 },
-                { id = 133229, slot = "Weapon", name = "Heavy Geode Mace", sources = { [24]=76600 } },
                 { id = 56340, slot = "Wrist", name = "Elementium Scale Bracers", sources = { [14]=27670, [15]=27670 }, twSource = 76591 },
             },
         },

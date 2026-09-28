@@ -22,6 +22,12 @@ RetroRuns_DungeonData[76] = {
         y     = 0.3291,
     },
 
+    trashLoot = {
+        { id = 69796, slot = "Back", name = "Spiritcaller Cloak", sources = { [14]=35564, [15]=35564 }, bind = "BoE" },
+        { id = 69800, slot = "Back", name = "Spiritguard Drape", sources = { [14]=35567, [15]=35567 }, bind = "BoE" },
+        { id = 69803, slot = "Weapon", name = "Gurubashi Punisher", sources = { [14]=35569, [15]=35569 }, bind = "BoE" },
+    },
+
     bosses = {
         {
             index              = 1,

@@ -22,6 +22,10 @@ RetroRuns_DungeonData[860] = {
         y     = 0.7066,
     },
 
+    trashLoot = {
+        { id = 142552, kind = "mount", name = "Smoldering Ember Wyrm", mythicOnly = true, bossNpc = "Nightbane" },
+    },
+
     bosses = {
         {
             index              = 1,

@@ -31,6 +31,7 @@ RetroRuns_DungeonData[240] = {
         { id = 208020, slot = "Hands", name = "Dagmire Gloves", sources = { [14]=189072 }, bind = "BoE", tag = "Stuffed Deviate Scale Pouch" },
         { id = 208021, slot = "Ranged", name = "Sizzling Stick", sources = { [14]=189073 }, bind = "BoE", tag = "Stuffed Deviate Scale Pouch" },
         { id = 208018, slot = "Weapon", name = "Fangblade", sources = { [14]=189070 }, bind = "BoE", tag = "Stuffed Deviate Scale Pouch" },
+        { id = 48114, kind = "pet", name = "Deviate Hatchling" },
     },
 
     bosses = {

@@ -29,6 +29,10 @@ RetroRuns_DungeonData[1002] = {
         rewardName         = "Reins of the Obsidian Krolusk",
     },
 
+    trashLoot = {
+        { id = 160704, kind = "pet", name = "Filthy Bucket", mythicOnly = true, rareNpc = "Gol'than the Malodorous" },
+    },
+
     bosses = {
         {
             index              = 1,

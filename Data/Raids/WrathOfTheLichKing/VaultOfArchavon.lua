@@ -264,7 +264,8 @@ RetroRuns_Data[624] = {
                 { id = 40556, slot = "Legs", name = "Valorous Scourgeborne Legplates", sources = { [4]=19523 }, classes = { 6 } },
             },
             specialLoot = {
-                { id = 44083, kind = "mount", name = "Reins of the Grand Black War Mammoth" },
+                { id = 43959, kind = "mount", name = "Reins of the Grand Black War Mammoth", faction = "Alliance" },
+                { id = 44083, kind = "mount", name = "Reins of the Grand Black War Mammoth", faction = "Horde" },
             },
         },
         {
@@ -491,7 +492,8 @@ RetroRuns_Data[624] = {
                 { id = 41225, slot = "Wrist", name = "Furious Gladiator's Wristguards of Triumph", sources = { [4]=19942 }, equipClasses = { 3, 7, 13 } },
             },
             specialLoot = {
-                { id = 44083, kind = "mount", name = "Reins of the Grand Black War Mammoth" },
+                { id = 43959, kind = "mount", name = "Reins of the Grand Black War Mammoth", faction = "Alliance" },
+                { id = 44083, kind = "mount", name = "Reins of the Grand Black War Mammoth", faction = "Horde" },
             },
         },
         {
@@ -718,7 +720,8 @@ RetroRuns_Data[624] = {
                 { id = 41226, slot = "Wrist", name = "Relentless Gladiator's Wristguards of Triumph", sources = { [4]=19943 }, equipClasses = { 3, 7, 13 } },
             },
             specialLoot = {
-                { id = 44083, kind = "mount", name = "Reins of the Grand Black War Mammoth" },
+                { id = 43959, kind = "mount", name = "Reins of the Grand Black War Mammoth", faction = "Alliance" },
+                { id = 44083, kind = "mount", name = "Reins of the Grand Black War Mammoth", faction = "Horde" },
             },
         },
         {
@@ -945,7 +948,8 @@ RetroRuns_Data[624] = {
                 { id = 51352, slot = "Wrist", name = "Wrathful Gladiator's Wristguards of Triumph", sources = { [4]=25217 }, equipClasses = { 3, 7, 13 } },
             },
             specialLoot = {
-                { id = 44083, kind = "mount", name = "Reins of the Grand Black War Mammoth" },
+                { id = 43959, kind = "mount", name = "Reins of the Grand Black War Mammoth", faction = "Alliance" },
+                { id = 44083, kind = "mount", name = "Reins of the Grand Black War Mammoth", faction = "Horde" },
             },
         },
     },

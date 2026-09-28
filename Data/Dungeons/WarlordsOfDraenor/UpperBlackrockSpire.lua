@@ -30,6 +30,10 @@ RetroRuns_DungeonData[559] = {
         rewardName         = "Frostplains Battleboar",
     },
 
+    trashLoot = {
+        { id = 117528, kind = "pet", name = "Lanticore Spawnling", heroicOnly = true, rareNpc = "The Lanticore" },
+    },
+
     bosses = {
         {
             index              = 1,

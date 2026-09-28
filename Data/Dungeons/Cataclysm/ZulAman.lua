@@ -22,6 +22,12 @@ RetroRuns_DungeonData[77] = {
         y     = 0.6431,
     },
 
+    trashLoot = {
+        { id = 69797, slot = "Hands", name = "Charmbinder Grips", sources = { [14]=35565, [15]=35565 }, bind = "BoE" },
+        { id = 69798, slot = "Hands", name = "Knotted Handwraps", sources = { [14]=35566, [15]=35566 }, bind = "BoE" },
+        { id = 69801, slot = "Wrist", name = "Amani Armguards", sources = { [14]=35568, [15]=35568 }, bind = "BoE" },
+    },
+
     bosses = {
         {
             index              = 1,

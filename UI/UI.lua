@@ -5026,7 +5026,12 @@ local SPECIAL_GLYPH_PARTIAL     = "|TInterface\\RaidFrame\\ReadyCheck-Waiting:14
 -- Returns "collected" or "missing" for a specialLoot item. Branches on
 -- item.kind.
 local function SpecialCollectionStateForItem(item)
-    if not item or not item.id or not item.kind then return "missing" end
+    if not item or not item.kind then return "missing" end
+    -- A mount taught with no item behind it (Plaguefall's Slime Serpent)
+    -- keys on mountID alone.
+    if not item.id and not (item.kind == "mount" and item.mountID) then
+        return "missing"
+    end
 
     if item.kind == "mount" then
         if not C_MountJournal then return "missing" end
@@ -5123,8 +5128,15 @@ BuildSpecialLootSection = function(boss)
         return nil
     end
 
-    local lines = { ("|cff%s%s|r"):format(C_LABEL, RR.L["Special Loot:"]) }
+    -- A faction-split drop lists only the player's own side.
+    local rows = {}
     for _, item in ipairs(boss.specialLoot) do
+        if RR:SpecialLootForPlayer(item) then rows[#rows + 1] = item end
+    end
+    if #rows == 0 then return nil end
+
+    local lines = { ("|cff%s%s|r"):format(C_LABEL, RR.L["Special Loot:"]) }
+    for _, item in ipairs(rows) do
         -- Barter items (e.g. Iskaara Trader's Ottuk -- two-ingredient
         -- purchase) render the mount row with per-ingredient sub-rows
         -- showing in-bag status. Already-collected mounts skip the
@@ -5203,58 +5215,128 @@ BuildSpecialLootSection = function(boss)
         else
             -- Standard (non-barter or mount-already-collected) path. Same
             -- rendering as before: single row, collected or not.
-            local state = SpecialCollectionStateForItem(item)
-            local isCollected = (state == "collected")
-            local stateColor = isCollected and SPECIAL_COLLECTED
-                                            or SPECIAL_UNCOLLECTED
-            local stateGlyph = isCollected and SPECIAL_GLYPH_COLLECTED
-                                            or SPECIAL_GLYPH_UNCOLLECTED
-
-            -- Prefer the real itemLink so clicking opens the tooltip.
-            -- GetItemInfo is async -- if it returns nil, fall back to the
-            -- schema's name field and a plain-text display. The 1s UI
-            -- heartbeat will re-render once the cache warms up.
-            local _, itemLink = C_Item.GetItemInfo(item.id)
-            local display = itemLink or item.name or (RR.L["Item "]..tostring(item.id))
-
-            local kindLabel = SPECIAL_KIND_LABEL[item.kind] or item.kind or "?"
-            local kindColor = SPECIAL_KIND_COLOR[item.kind] or "ffaaaaaa"
-
-            -- "(Pet)", or "(Pet, Mythic only)" with the restriction in brand
-            -- pink -- epic purple is the item link's own color and blurs into
-            -- the name. Spliced inside the kindColor wrapper so the parens
-            -- keep the kind's color.
-            local kindInner = kindLabel
-            if item.mythicOnly then
-                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Mythic only"] .. "|r|c" .. kindColor
-            elseif item.lfrOnly then
-                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["LFR only"] .. "|r|c" .. kindColor
-            elseif item.normalHeroicOnly then
-                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Normal/Heroic only"] .. "|r|c" .. kindColor
-            elseif item.heroicOnly then
-                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Heroic only"] .. "|r|c" .. kindColor
-            elseif item.heroic25Only then
-                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["25 Player Heroic only"] .. "|r|c" .. kindColor
-            elseif item.size10Only then
-                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["10 Player only"] .. "|r|c" .. kindColor
-            elseif item.size25Only then
-                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["25 Player only"] .. "|r|c" .. kindColor
-            elseif item.hardModeOnly then
-                kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Hard mode only"] .. "|r|c" .. kindColor
-            end
+            local stateColor, stateGlyph, display, kindColor, kindInner =
+                UI.FormatSpecialRowParts(item)
 
             -- Bracketed state indicator before the name, matching the
             -- per-difficulty dot row. The itemLink keeps its native
             -- quality color in BOTH states so collected rows stay
             -- clickable (players still want preview/link access).
-            local nameRender = display
-
             table.insert(lines,
                 ("|cff777777[ |r|c%s%s|r|cff777777 ]|r %s |c%s(%s)|r"):format(
-                    stateColor, stateGlyph, nameRender, kindColor, kindInner))
+                    stateColor, stateGlyph, display, kindColor, kindInner))
         end
     end
     return table.concat(lines, "\n")
+end
+
+-- The pieces of one special-loot row: state color and glyph, the display
+-- name (item link when cached), and the kind tag's color and inner text.
+-- Shared by the boss Special Loot line and the browser's trash section.
+function UI.FormatSpecialRowParts(item)
+    local state = SpecialCollectionStateForItem(item)
+    local isCollected = (state == "collected")
+    local stateColor = isCollected and SPECIAL_COLLECTED or SPECIAL_UNCOLLECTED
+    local stateGlyph = isCollected and SPECIAL_GLYPH_COLLECTED
+        or SPECIAL_GLYPH_UNCOLLECTED
+
+    -- Prefer the real itemLink so clicking opens the tooltip.
+    -- GetItemInfo is async -- if it returns nil, fall back to the
+    -- schema's name field and a plain-text display. The 1s UI
+    -- heartbeat will re-render once the cache warms up.
+    local itemLink
+    if item.id then
+        itemLink = select(2, C_Item.GetItemInfo(item.id))
+    elseif item.mountID and C_MountJournal then
+        -- No item: link the mount's summon spell, the way the Toaster does.
+        local _, spellID = C_MountJournal.GetMountInfoByID(item.mountID)
+        itemLink = spellID and C_Spell.GetSpellLink(spellID)
+    end
+    local display = itemLink or item.name or (RR.L["Item "]..tostring(item.id))
+
+    local kindLabel = SPECIAL_KIND_LABEL[item.kind] or item.kind or "?"
+    local kindColor = SPECIAL_KIND_COLOR[item.kind] or "ffaaaaaa"
+
+    -- "(Pet)", or "(Pet, Mythic only)" with the restriction in brand
+    -- pink -- epic purple is the item link's own color and blurs into
+    -- the name. Spliced inside the kindColor wrapper so the parens
+    -- keep the kind's color.
+    local kindInner = kindLabel
+    if item.mythicOnly then
+        kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Mythic only"] .. "|r|c" .. kindColor
+    elseif item.lfrOnly then
+        kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["LFR only"] .. "|r|c" .. kindColor
+    elseif item.normalHeroicOnly then
+        kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Normal/Heroic only"] .. "|r|c" .. kindColor
+    elseif item.heroicOnly then
+        kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Heroic only"] .. "|r|c" .. kindColor
+    elseif item.heroic25Only then
+        kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["25 Player Heroic only"] .. "|r|c" .. kindColor
+    elseif item.size10Only then
+        kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["10 Player only"] .. "|r|c" .. kindColor
+    elseif item.size25Only then
+        kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["25 Player only"] .. "|r|c" .. kindColor
+    elseif item.hardModeOnly then
+        kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Hard mode only"] .. "|r|c" .. kindColor
+    elseif item.normalOnly then
+        kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Normal only"] .. "|r|c" .. kindColor
+    elseif item.heroicMythicOnly then
+        kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Heroic/Mythic only"] .. "|r|c" .. kindColor
+    end
+    return stateColor, stateGlyph, display, kindColor, kindInner
+end
+
+-- A trash-section row for a special drop: the collected glyph in the
+-- indicator column, the item link as the name, the kind tag and any
+-- acquisition tag after it.
+function UI.SpecialTrashRow(item)
+    local stateColor, stateGlyph, display, kindColor, kindInner =
+        UI.FormatSpecialRowParts(item)
+    local tagParts = { ("|c%s(%s)|r"):format(kindColor, kindInner) }
+    UI.AppendAcquisitionTags(item, tagParts)
+    return { kind = "item", itemID = item.id,
+        indicator = ("|cff777777[ |r|c%s%s|r|cff777777 ]|r"):format(
+            stateColor, stateGlyph),
+        name = display, tags = table.concat(tagParts, " ") }
+end
+
+-- Acquisition tags, appended to tagParts. `rareNpc` marks a drop held by one
+-- named rare spawn rather than the zone's trash pool; `tag` is a short
+-- authored label for anything else (Dire Maul's Tribute chest). Gold, so the
+-- tag reads as "special acquisition" against the white class parens.
+function UI.AppendAcquisitionTags(item, tagParts)
+    if item.rareNpc then
+        -- Label gold, npc name white: color codes do not nest, so the name
+        -- closes gold and reopens it after itself.
+        table.insert(tagParts, ("|cffffd100(%s)|r"):format(
+            (RR.L["Rare: %s"]):format(
+                "|cffffffff" .. RR.L[item.rareNpc] .. "|r|cffffd100")))
+    end
+    if item.bossNpc then
+        -- Same shape as the rare tag: label gold, name white.
+        table.insert(tagParts, ("|cffffd100(%s)|r"):format(
+            (RR.L["Boss: %s"]):format(
+                "|cffffffff" .. RR.L[item.bossNpc] .. "|r|cffffd100")))
+    end
+    -- A summoned encounter: nothing roams, so neither Rare nor Boss is
+    -- honest. Same two-tone shape as both.
+    if item.eventNpc then
+        table.insert(tagParts, ("|cffffd100(%s)|r"):format(
+            (RR.L["Event: %s"]):format(
+                "|cffffffff" .. RR.L[item.eventNpc] .. "|r|cffffd100")))
+    end
+    -- `tag` renders as a gold suffix on TRASH rows, where there is no titled
+    -- section to name the acquisition. Boss-loot tag rows partition into
+    -- their own section instead, so the suffix would repeat the header there
+    -- and is suppressed.
+    if item.tag and not UI._inTaggedSection then
+        -- Typed like the rare/boss/event tags: a bare source name read as a
+        -- mystery ("Sothos & Jarien"). "From:" covers the whole remaining
+        -- family -- named trash mobs and lootable objects alike.
+        table.insert(tagParts, ("|cffffd100(%s)|r"):format(
+            (RR.L["From: %s"]):format(
+                "|cffffffff" .. RR.L[item.tag] .. "|r|cffffd100")))
+    end
 end
 
 -- Visibility filter for the transmog popup. Two independent class fields gate
@@ -5619,7 +5701,7 @@ end
 -- bucket too, and no other bucket carries a needed look this one lacks.
 -- Collected looks drop out of the comparison, since the collapsed line
 -- counts only what is still needed: a walk-in-only row the character
--- already owns cannot make "Any difficulty" overclaim, while one still
+-- already owns cannot make the collapsed line overclaim, while one still
 -- missing keeps the pair, because Timewalking cannot supply it.
 function UI.SourcesIdenticalAcrossBuckets(boss, activeID, otherIDs, classOverride)
     if not boss or not boss.loot or #boss.loot == 0 then return false end
@@ -5992,15 +6074,13 @@ function UI.BuildTransmogSummaryUncached(step)
     local curDone = (curNeeded == 0 and curShared == 0)
     local othDone = (not othTotal) or (othNeeded == 0 and othShared == 0)
     if curDone and othDone then
-        return Finish(("- %s: %s"):format(RR.L["Any difficulty"],
-            FormatStatsFragment(0, 0)), true)
+        return Finish("- " .. FormatStatsFragment(0, 0), true)
     end
 
     -- Other difficulties that would only repeat the current one collapse
     -- into a single line; the pair only shows where it says something.
     if UI.SourcesIdenticalAcrossBuckets(boss, activeID, otherIDs, RR.PlayerClassID()) then
-        return Finish("- " .. RR.L["Any difficulty"] .. ": "
-            .. FormatStatsFragment(curNeeded, curShared), false)
+        return Finish("- " .. FormatStatsFragment(curNeeded, curShared), false)
     end
 
     -- Header + two dash lines, matching the Achievements section format.
@@ -7576,45 +7656,7 @@ BuildTransmogDetail = function(stepOrCtx)
                 table.insert(tagParts, ("|cffffffff(|r|cff9d9d9d%s|r|cffffffff)|r"):format(
                     RR.L[item.setName]))
             end
-            -- Acquisition tags. `rareNpc` marks a drop held by one named
-            -- rare spawn rather than the zone's trash pool; `tag` is a
-            -- short authored label for anything else (Dire Maul's Tribute
-            -- chest). Gold, so the tag reads as "special acquisition"
-            -- against the white class parens.
-            if item.rareNpc then
-                -- Label gold, npc name white: color codes do not nest, so
-                -- the name closes gold and reopens it after itself.
-                table.insert(tagParts, ("|cffffd100(%s)|r"):format(
-                    (RR.L["Rare: %s"]):format(
-                        "|cffffffff" .. RR.L[item.rareNpc] .. "|r|cffffd100")))
-            end
-            if item.bossNpc then
-                -- Same shape as the rare tag: label gold, name white. Color
-                -- codes do not nest, so the name closes gold and reopens it.
-                table.insert(tagParts, ("|cffffd100(%s)|r"):format(
-                    (RR.L["Boss: %s"]):format(
-                        "|cffffffff" .. RR.L[item.bossNpc] .. "|r|cffffd100")))
-            end
-            -- A summoned encounter: nothing roams, so neither Rare nor
-            -- Boss is honest. Same two-tone shape as both.
-            if item.eventNpc then
-                table.insert(tagParts, ("|cffffd100(%s)|r"):format(
-                    (RR.L["Event: %s"]):format(
-                        "|cffffffff" .. RR.L[item.eventNpc] .. "|r|cffffd100")))
-            end
-            -- `tag` renders as a gold suffix on TRASH rows, where there is
-            -- no titled section to name the acquisition. Boss-loot tag rows
-            -- partition into their own section instead, so the suffix would
-            -- repeat the header there and is suppressed.
-            if item.tag and not UI._inTaggedSection then
-                -- Typed like the rare/boss/event tags: a bare source name
-                -- read as a mystery ("Sothos & Jarien"). "From:" covers the
-                -- whole remaining family -- named trash mobs and lootable
-                -- objects alike.
-                table.insert(tagParts, ("|cffffd100(%s)|r"):format(
-                    (RR.L["From: %s"]):format(
-                        "|cffffffff" .. RR.L[item.tag] .. "|r|cffffd100")))
-            end
+            UI.AppendAcquisitionTags(item, tagParts)
 
             -- Wearable-class tag, always: these rows show for every class
             -- (the appearance is collectible regardless), so the tag is
@@ -7988,20 +8030,29 @@ BuildTransmogDetail = function(stepOrCtx)
     if raid and raid.trashLoot and #raid.trashLoot > 0 then
         UI._equipGateExempt = UI.EquipGateExemptFor(raid.trashLoot,
             ActiveClassFilter())
-        local trashItems = {}
+        -- Mounts, pets and toys bundle with their source like gear but stay
+        -- out of the collected/total count.
+        local trashItems, trashSpecials = {}, {}
         for _, item in ipairs(raid.trashLoot) do
-            if ItemIsTransmogCandidate(item, nil, true) then
+            if item.kind then
+                if RR:SpecialLootForPlayer(item) then
+                    table.insert(trashSpecials, item)
+                end
+            elseif ItemIsTransmogCandidate(item, nil, true) then
                 table.insert(trashItems, item)
             end
         end
-        if #trashItems > 0 then
+        if #trashItems + #trashSpecials > 0 then
             -- Bundled by acquisition: rows held by one named rare, event,
             -- boss or object mechanism sit together, a blank line between
             -- bundles, plain pool trash leading -- the legacy section's
             -- grouping shape. One slot-sorted pass scattered the source
             -- tags through the list.
             local plainTrash, groupOrder, groupsByKey = {}, {}, {}
-            for _, item in ipairs(trashItems) do
+            local bundleItems = {}
+            for _, item in ipairs(trashItems) do table.insert(bundleItems, item) end
+            for _, item in ipairs(trashSpecials) do table.insert(bundleItems, item) end
+            for _, item in ipairs(bundleItems) do
                 local key = item.rareNpc or item.eventNpc or item.bossNpc
                     or item.tag
                 if key then
@@ -8040,17 +8091,20 @@ BuildTransmogDetail = function(stepOrCtx)
             -- renders as a strip, so it groups with the pilled rows.
             local emittedAny = false
             local function EmitTrashBundle(items, blankBetweenShapes)
-                local binaryRows, pilledRows = {}, {}
+                local binaryRows, pilledRows, specialRows = {}, {}, {}
                 for _, item in ipairs(items) do
-                    if ItemShape(item) == "binary" and not item.upgrade then
+                    if item.kind then
+                        table.insert(specialRows, item)
+                    elseif ItemShape(item) == "binary" and not item.upgrade then
                         table.insert(binaryRows, item)
                     else
                         table.insert(pilledRows, item)
                     end
                 end
-                if #binaryRows + #pilledRows == 0 then return end
+                if #binaryRows + #pilledRows + #specialRows == 0 then return end
                 table.sort(binaryRows, CompareRegularRows)
                 table.sort(pilledRows, CompareRegularRows)
+                table.sort(specialRows, function(a, b) return a.name < b.name end)
                 if emittedAny then
                     table.insert(trashSectionRows, { kind = "blank" })
                 end
@@ -8060,6 +8114,9 @@ BuildTransmogDetail = function(stepOrCtx)
                     table.insert(trashSectionRows, { kind = "blank" })
                 end
                 for _, item in ipairs(pilledRows) do EmitTrashRow(item) end
+                for _, item in ipairs(specialRows) do
+                    table.insert(trashSectionRows, UI.SpecialTrashRow(item))
+                end
                 emittedAny = true
             end
             EmitTrashBundle(plainTrash, true)
@@ -9963,7 +10020,8 @@ GetOrCreateTmogWindow = function()
                     detail.trashCollected or 0, detail.trashTotal)
             else
                 -- Every row here is cross-listed and counted on its boss,
-                -- so the header keeps its name and drops the counter.
+                -- or a special drop, which never counts, so the header
+                -- keeps its name and drops the counter.
                 trashHeaderText = ("|cff%s%s|r"):format(C_LABEL, trashLabel)
             end
         end

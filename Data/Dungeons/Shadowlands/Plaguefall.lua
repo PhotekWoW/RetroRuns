@@ -99,6 +99,7 @@ RetroRuns_DungeonData[1183] = {
             },
             specialLoot = {
                 { id = 181271, kind = "pet", name = "Sludge Feeler", mythicOnly = true },
+                { kind = "mount", mountID = 1445, name = "Slime Serpent", heroicMythicOnly = true },
             },
         },
     },

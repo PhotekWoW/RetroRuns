@@ -17,9 +17,6 @@ Thumbs.db
 scratch/
 *.local
 *.local.*
-_*.md
 
-# Dev tooling -- tracked locally, never pushed to GitHub or shipped to
-# CurseForge. The folder stays on disk for development; this keeps it out
-# of the public repo.
+# Dev tooling
 DevTools/
