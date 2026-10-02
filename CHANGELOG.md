@@ -2,6 +2,16 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.3.3] - 2026-10-01
+
+### Added
+- **Four more Cataclysm dungeons.** Lost City of the Tol'vir, Halls of Origination, The Stonecore and Shadowfang Keep.
+
+### Changed
+- **Optional bosses the route skips as fully collected now read "(ignored: fully collected)" in Boss Progress, and the run-complete screen lists them under their own heading.**
+- **The current boss's arrow in Boss Progress pulses.**
+- **Transmog browser: single-checkbox rows and difficulty-strip rows now align on their own**, so a lone checkbox row no longer sits far from its name.
+
 ## [3.3.2] - 2026-09-28
 
 ### Added

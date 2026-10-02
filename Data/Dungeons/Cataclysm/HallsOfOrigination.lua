@@ -15,6 +15,7 @@ RetroRuns_DungeonData[70] = {
     difficultyModel   = "dungeonBinary",
     availableDifficulties = { 14, 15 },
     patch             = "4.0.3",
+    routedIn          = "3.3.3",
 
     entrance = {
         mapID = 249,
@@ -85,6 +86,7 @@ RetroRuns_DungeonData[70] = {
             journalEncounterID = 127,
             dungeonEncounterID = 1077,
             aliases            = { "Isiset" },
+            scenarioCriteriaID = 24831,
             achievements       = {
             },
             loot = {
@@ -140,6 +142,305 @@ RetroRuns_DungeonData[70] = {
                 { id = 56429, slot = "Waist", name = "Red Beam Cord", sources = { [14]=27729, [15]=27729 } },
                 { id = 56433, slot = "Weapon", name = "Blade of the Burning Sun", sources = { [14]=27731, [15]=27731 } },
                 { id = 56430, slot = "Weapon", name = "Sun Strike", sources = { [14]=27730, [15]=27730 } },
+            },
+        },
+    },
+
+    exitNote    = "None available",
+    minExitNote = "None available",
+
+    routing = {
+        -- 1. Temple Guardian Anhuur (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Temple Guardian Anhuur",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 297 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the linear path to the north until you reach ^Temple Guardian Anhuur^.",
+                    minNote = "Follow path north to Anhuur",
+                    points  = {
+                        { 0.483, 0.924 },
+                        { 0.482, 0.735 },
+                        { 0.502, 0.735 },
+                        { 0.502, 0.629 },
+                        { 0.561, 0.630 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Anraphet (boss 3). Brann opens the door; four elementals in
+        -- the room beyond spawn Anraphet once dead.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Anraphet",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 297 },
+                    kind    = "path",
+                    note    = "After killing ^Temple Guardian Anhuur^, continue past him to the east. At the junction, go west to find ^Brann^ standing at a door. Talk to him to proceed.",
+                    minNote = "Follow path to Brann",
+                    points  = {
+                        { 0.608, 0.627 },
+                        { 0.672, 0.629 },
+                        { 0.674, 0.498 },
+                        { 0.563, 0.498 },
+                    },
+                },
+                {
+                    -- Noteless, so the note above stands until the door
+                    -- opens; his line moves the route past it.
+                    when            = { mapID = 297 },
+                    kind            = "poi",
+                    mapLabel        = "Talk to Brann",
+                    mapLabelPos     = "right",
+                    completionCheck = true,
+                    points          = {
+                        { 0.561, 0.428 },
+                    },
+                },
+                {
+                    when          = { mapID = 297 },
+                    kind          = "poi",
+                    note          = "With the door open, work your way around the room killing all four elementals to spawn ^Anraphet^.",
+                    minNote       = "Kill four elementals for Anraphet",
+                    triggeredBy   = { dialog = { npc = "Brann Bronzebeard", match = "Just need to input the final entry sequence into the door mechanism" } },
+                    drawWhenOpen  = true,
+                    markAllPoints = true,
+                    poiIcon       = "Interface\\AddOns\\RetroRuns\\Media\\Icons\\QuestMarker",
+                    poiSize       = 18,
+                    points        = {
+                        { 0.494, 0.324 },
+                        { 0.632, 0.324 },
+                        { 0.632, 0.211 },
+                        { 0.494, 0.212 },
+                    },
+                },
+            },
+        },
+
+        -- 3. Earthrager Ptah (boss 2). The Transit Device in the Vault of
+        -- Lights carries the player down to the Tomb of the Earthrager.
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Earthrager Ptah",
+            requires  = { },
+            segments  = {
+                {
+                    when     = { mapID = 297 },
+                    kind     = "poi",
+                    note     = "After killing ^Anraphet^, click the ^Halls of Origination Transit Device^ in the middle of the room.",
+                    minNote  = "Click Transit Device in middle of room",
+                    mapLabel = "Click Transit Device",
+                    points   = {
+                        { 0.561, 0.280 },
+                    },
+                },
+                {
+                    when    = { mapID = 297, subZone = "The Maker's Rise" },
+                    kind    = "path",
+                    note    = "After teleporting, go east to the next area.",
+                    minNote = "After teleporting go east",
+                    points  = {
+                        { 0.703, 0.497 },
+                        { 0.915, 0.496 },
+                    },
+                },
+                {
+                    when    = { mapID = 298 },
+                    kind    = "path",
+                    note    = "Continue ahead to reach ^Earthrager Ptah^.",
+                    minNote = "Ahead to Earthrager Ptah",
+                    points  = {
+                        { 0.327, 0.492 },
+                        { 0.473, 0.492 },
+                    },
+                },
+            },
+        },
+
+        -- 4. Isiset, Construct of Magic (boss 4).
+        -- Carries the way up, for when earlier Constructs are left out.
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Isiset, Construct of Magic",
+            requires  = { },
+            skipWhenCollected = true,
+            segments  = {
+                {
+                    when     = { mapID = 298 },
+                    kind     = "poi",
+                    note     = "After bringing down ^Earthrager Ptah^, go slightly west and click on the ^Halls of Origination Transit Device^ to teleport back to the main corridor.",
+                    minNote  = "West to Transit Device",
+                    mapLabel = "Click Transit Device",
+                    points   = {
+                        { 0.383, 0.493 },
+                    },
+                },
+                {
+                    when        = { mapID = 297 },
+                    kind        = "poi",
+                    note        = "After teleporting back to ^The Maker's Rise^, click ^The Maker's Lift Controller^ on the northwest side of the room and take it to the second floor.",
+                    minNote     = "Take Lift to Second Floor",
+                    mapLabel    = "Take Lift",
+                    mapLabelPos = "above",
+                    points      = {
+                        { 0.660, 0.473 },
+                    },
+                },
+                {
+                    when    = { mapID = 299 },
+                    kind    = "path",
+                    note    = "Visit the west wing to kill ^Isiset, Construct of Magic^.",
+                    minNote = "West to Isiset",
+                    points  = {
+                        { 0.445, 0.493 },
+                        { 0.334, 0.493 },
+                    },
+                },
+            },
+        },
+
+        -- 5. Ammunae, Construct of Life (boss 5).
+        -- Carries the way up, for when earlier Constructs are left out.
+        {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 5,
+            title     = "Ammunae, Construct of Life",
+            requires  = { },
+            skipWhenCollected = true,
+            segments  = {
+                {
+                    when     = { mapID = 298 },
+                    kind     = "poi",
+                    note     = "After bringing down ^Earthrager Ptah^, go slightly west and click on the ^Halls of Origination Transit Device^ to teleport back to the main corridor.",
+                    minNote  = "West to Transit Device",
+                    mapLabel = "Click Transit Device",
+                    points   = {
+                        { 0.383, 0.493 },
+                    },
+                },
+                {
+                    when        = { mapID = 297 },
+                    kind        = "poi",
+                    note        = "After teleporting back to ^The Maker's Rise^, click ^The Maker's Lift Controller^ on the northwest side of the room and take it to the second floor.",
+                    minNote     = "Take Lift to Second Floor",
+                    mapLabel    = "Take Lift",
+                    mapLabelPos = "above",
+                    points      = {
+                        { 0.660, 0.473 },
+                    },
+                },
+                {
+                    when    = { mapID = 299 },
+                    kind    = "path",
+                    note    = "Visit the south wing to kill ^Ammunae, Construct of Life^.",
+                    minNote = "South wing for Ammunae",
+                    points  = {
+                        { 0.472, 0.551 },
+                        { 0.472, 0.712 },
+                    },
+                },
+            },
+        },
+
+        -- 6. Setesh, Construct of Destruction (boss 6).
+        -- Carries the way up, for when earlier Constructs are left out.
+        {
+            step      = 6,
+            priority  = 1,
+            bossIndex = 6,
+            title     = "Setesh, Construct of Destruction",
+            requires  = { },
+            skipWhenCollected = true,
+            segments  = {
+                {
+                    when     = { mapID = 298 },
+                    kind     = "poi",
+                    note     = "After bringing down ^Earthrager Ptah^, go slightly west and click on the ^Halls of Origination Transit Device^ to teleport back to the main corridor.",
+                    minNote  = "West to Transit Device",
+                    mapLabel = "Click Transit Device",
+                    points   = {
+                        { 0.383, 0.493 },
+                    },
+                },
+                {
+                    when        = { mapID = 297 },
+                    kind        = "poi",
+                    note        = "After teleporting back to ^The Maker's Rise^, click ^The Maker's Lift Controller^ on the northwest side of the room and take it to the second floor.",
+                    minNote     = "Take Lift to Second Floor",
+                    mapLabel    = "Take Lift",
+                    mapLabelPos = "above",
+                    points      = {
+                        { 0.660, 0.473 },
+                    },
+                },
+                {
+                    when    = { mapID = 299 },
+                    kind    = "path",
+                    note    = "Visit the east wing to kill ^Setesh, Construct of Destruction^.",
+                    minNote = "East wing for Setesh",
+                    points  = {
+                        { 0.504, 0.493 },
+                        { 0.616, 0.493 },
+                    },
+                },
+            },
+        },
+
+        -- 7. Rajh, Construct of Sun (boss 7), the north wing. Open from the
+        -- start, with the same way up as the other three.
+        {
+            step      = 7,
+            priority  = 1,
+            bossIndex = 7,
+            title     = "Rajh, Construct of Sun",
+            requires  = { },
+            segments  = {
+                {
+                    when     = { mapID = 298 },
+                    kind     = "poi",
+                    note     = "After bringing down ^Earthrager Ptah^, go slightly west and click on the ^Halls of Origination Transit Device^ to teleport back to the main corridor.",
+                    minNote  = "West to Transit Device",
+                    mapLabel = "Click Transit Device",
+                    points   = {
+                        { 0.383, 0.493 },
+                    },
+                },
+                {
+                    when        = { mapID = 297 },
+                    kind        = "poi",
+                    note        = "After teleporting back to ^The Maker's Rise^, click ^The Maker's Lift Controller^ on the northwest side of the room and take it to the second floor.",
+                    minNote     = "Take Lift to Second Floor",
+                    mapLabel    = "Take Lift",
+                    mapLabelPos = "above",
+                    points      = {
+                        { 0.660, 0.473 },
+                    },
+                },
+                {
+                    when    = { mapID = 299 },
+                    kind    = "path",
+                    note    = "Visit the north wing to kill ^Rajh, Construct of Sun^.",
+                    minNote = "North wing for Rajh",
+                    points  = {
+                        { 0.472, 0.435 },
+                        { 0.472, 0.274 },
+                    },
+                },
             },
         },
     },

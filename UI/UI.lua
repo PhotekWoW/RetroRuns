@@ -1594,6 +1594,10 @@ panel.skipReturn = AddField(panel.next,    "TOPLEFT", "BOTTOMLEFT", -13, BODY_WI
 -- and this line renders two points under the comeback line it follows.
 panel.skipNote  = AddField(panel.skipReturn, "TOPLEFT", "BOTTOMLEFT", -6, BODY_WIDTH - 12, "GameFontNormalSmall")
 panel.skipNote:SetPoint("TOPLEFT", panel.skipReturn, "BOTTOMLEFT", 12, -6)
+-- Bosses left out as collected, one bulleted line each, indented and
+-- set a little below the comeback line that introduces them.
+panel.skipList  = AddField(panel.skipReturn, "TOPLEFT", "BOTTOMLEFT", -4, BODY_WIDTH - 12, "GameFontNormalSmall")
+panel.skipList:SetPoint("TOPLEFT", panel.skipReturn, "BOTTOMLEFT", 12, -4)
 panel.travel    = AddField(panel.next,     "TOPLEFT", "BOTTOMLEFT", -12, BODY_WIDTH)
 
 -- Boss Encounter section: .header (Button, toggles the soloTip),
@@ -2318,24 +2322,55 @@ end
 panel.progressListLines    = {}
 panel.progressListLinePool = {}
 
+-- A row's state cell: two drawn brackets and an icon, all pixel-snapped
+-- textures, so the icon stays centered between the brackets at any scale.
+function UI.CreateProgressCell(parent)
+    parent = parent or panel
+    local cell = CreateFrame("Frame", nil, parent)
+    cell:SetFrameLevel((parent:GetFrameLevel() or 0) + 2)
+    local function Snap(region)
+        if region.SetSnapToPixelGrid then
+            region:SetSnapToPixelGrid(true)
+            region:SetTexelSnappingBias(0)
+        end
+        return region
+    end
+    local function Stroke()
+        local stroke = Snap(cell:CreateTexture(nil, "ARTWORK"))
+        stroke:SetColorTexture(0x9d / 255, 0x9d / 255, 0x9d / 255, 1)
+        return stroke
+    end
+    cell.strokes = {
+        leftBar = Stroke(), leftTop = Stroke(), leftBottom = Stroke(),
+        rightBar = Stroke(), rightTop = Stroke(), rightBottom = Stroke(),
+    }
+    cell.icon = Snap(cell:CreateTexture(nil, "OVERLAY"))
+    cell:Hide()
+    return cell
+end
+
 local function AcquireProgressListLine()
     local fs = table.remove(panel.progressListLinePool)
     if fs then return fs end
     fs = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     fs:SetJustifyH("LEFT")
     fs:SetWidth(BODY_WIDTH)
+    fs.cell = UI.CreateProgressCell()
     return fs
 end
 
+-- Released in reverse, so the next rebuild takes them back in order.
 local function ReleaseProgressListLines()
-    for _, fs in ipairs(panel.progressListLines) do
+    for index = #panel.progressListLines, 1, -1 do
+        local fs = panel.progressListLines[index]
         fs:Hide()
         fs:ClearAllPoints()
         fs:SetText("")
+        fs.cell:Hide()
+        fs.cell:ClearAllPoints()
         table.insert(panel.progressListLinePool, fs)
     end
     wipe(panel.progressListLines)
-    UI.ReleasePulseArrows()
     -- The hover regions anchor to these lines, so they die with them --
     -- here rather than at each teardown site, which is how a pool of
     -- overlays drifts out of step with the rows it covers.
@@ -2391,45 +2426,191 @@ end
 -- stays empty; these own all rendering.
 --
 -- Shared by the routed in-progress view and by an instance with no route
--- at all -- GetProgressLines needs no active step, falling back to the
+-- at all -- GetProgressRows needs no active step, falling back to the
 -- journal's boss order and leaving every row unmarked until it is killed.
 function UI.RenderBossProgressList()
     panel.list:SetText("")
     ReleaseProgressListLines()
     local progressFontSize = RR:GetSetting("fontSize", 12)
-    local previousLine
-    local lines, notes = RR:GetProgressLines()
-    for lineNumber, lineText in ipairs(lines) do
+    local geometry = UI.ProgressCellGeometry(progressFontSize)
+    local rowTopPx = 0
+    for _, row in ipairs(RR:GetProgressRows()) do
         local fs = AcquireProgressListLine()
-        SetBodyFont(fs, progressFontSize, "")
-        fs:SetText(UI.PaintPulseArrow(lineText or ""))
-        fs:ClearAllPoints()
-        if previousLine then
-            fs:SetPoint("TOPLEFT", previousLine, "BOTTOMLEFT", 0, -2)
-        else
-            fs:SetPoint("TOPLEFT", panel.listHeader, "BOTTOMLEFT", 0, -8)
-        end
-        fs:Show()
+        rowTopPx = rowTopPx + UI.PlaceCellRow(fs, row, geometry, progressFontSize,
+            panel.listHeader, "BOTTOMLEFT", -8 - rowTopPx * geometry.unit)
         table.insert(panel.progressListLines, fs)
-        if (lineText or ""):find(RR.PULSE_ARROW_TOKEN, 1, true) then
-            UI.AttachPulseArrow(fs, progressFontSize)
-        end
         -- Bounded to the rendered text, not the field width, so the
         -- highlight band stops where the row's name stops.
-        local note = notes and notes[lineNumber]
-        if note then
+        if row.note then
             local hoverFrame = UI.AcquireProgressHoverFrame()
-            hoverFrame._note = note
+            hoverFrame._note = row.note
             hoverFrame:ClearAllPoints()
-            hoverFrame:SetPoint("TOPLEFT", fs, "TOPLEFT", 0, 0)
+            hoverFrame:SetPoint("TOPLEFT", fs.cell, "TOPLEFT", 0, 0)
             hoverFrame:SetPoint("BOTTOMRIGHT", fs, "BOTTOMLEFT",
                 fs:GetStringWidth() or 0, 0)
             hoverFrame:Show()
             table.insert(panel.progressHoverFrames, hoverFrame)
         end
-        previousLine = fs
     end
-    UI.SettlePulseArrows()
+    -- Cells the rebuild did not reuse stop breathing.
+    for _, fs in ipairs(panel.progressListLinePool) do
+        UI.SetBreathing(fs.cell.icon, false)
+    end
+end
+
+-- A list bullet: the StatusDot texture, small and tinted light gray.
+UI.LIST_BULLET = "|TInterface\\AddOns\\RetroRuns\\Media\\Icons\\StatusDot:6:6:0:0:64:64:0:64:0:64:200:200:200|t"
+
+-- Icon per cell state; "pending" has none.
+UI.PROGRESS_CELL_ICON = {
+    killed  = { file = "Interface\\RaidFrame\\ReadyCheck-Ready" },
+    active  = { file = "Interface\\ChatFrame\\ChatFrameExpandArrow", r = 1, g = 1, b = 0, breathe = true },
+    locked  = { file = "Interface\\PetBattles\\PetBattle-LockIcon" },
+    caution = { file = "Interface\\DialogFrame\\UI-Dialog-Icon-AlertNew" },
+    notDone = { file = "Interface\\RaidFrame\\ReadyCheck-NotReady" },
+}
+UI.PROGRESS_CELL_ICON.pulsing = UI.PROGRESS_CELL_ICON.active
+
+-- One cell row: the line's text past the cell, the cell in front of it.
+-- Returns the row's height in whole pixels, gap included.
+function UI.PlaceCellRow(line, row, geometry, fontSize, anchor, anchorPoint, offsetY)
+    local textX = geometry.cellW + geometry.spaceW
+    SetBodyFont(line, fontSize, "")
+    line:SetWidth(math.max(1, BODY_WIDTH - textX))
+    line:SetText(row.text or "")
+    line:ClearAllPoints()
+    line:SetPoint("TOPLEFT", anchor, anchorPoint, textX, offsetY)
+    line:Show()
+    UI.LayoutProgressCell(line.cell, line, row.cell, geometry)
+    local textPx = math.ceil((line:GetStringHeight() or 0) / geometry.unit - 0.25)
+    return math.max(geometry.cellPx, textPx) + geometry.rowGapPx
+end
+
+-- The main panel's achievement rows under the section's label. Lines belong
+-- to the section frame, so its hyperlink handler takes their clicks.
+-- Returns the rows' total height.
+function UI.RenderAchievementRows(section, rows, topY)
+    section.rowLines = section.rowLines or {}
+    for _, line in ipairs(section.rowLines) do
+        line:Hide()
+        line.cell:Hide()
+    end
+    if not rows or #rows == 0 then return 0 end
+    local fontSize = RR:GetSetting("fontSize", 12)
+    local geometry = UI.ProgressCellGeometry(fontSize)
+    local rowTopPx = geometry.rowGapPx
+    for index, row in ipairs(rows) do
+        local line = section.rowLines[index]
+        if not line then
+            line = section:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            line:SetJustifyH("LEFT")
+            line:SetWordWrap(true)
+            line:SetNonSpaceWrap(true)
+            line.cell = UI.CreateProgressCell(section)
+            section.rowLines[index] = line
+        end
+        rowTopPx = rowTopPx + UI.PlaceCellRow(line, row, geometry, fontSize,
+            section, "TOPLEFT", topY - rowTopPx * geometry.unit)
+    end
+    return (rowTopPx - geometry.rowGapPx) * geometry.unit
+end
+
+-- UI units per screen pixel for a region, with the pixel height taken from
+-- the reported width and the UI's own aspect ratio.
+function UI.UnitsPerPixel(region)
+    local physicalW, physicalH = GetPhysicalScreenSize()
+    local screenW, screenH = GetScreenWidth(), GetScreenHeight()
+    if physicalW and physicalW > 0 and screenW and screenW > 0
+       and screenH and screenH > 0 then
+        physicalH = physicalW * screenH / screenW
+    end
+    if not physicalH or physicalH <= 0 then return 1 end
+    return (768 / physicalH) / math.max(0.01, region:GetEffectiveScale())
+end
+
+-- Cell measurements in whole screen pixels.
+function UI.ProgressCellGeometry(fontSize)
+    if not UI.progressCellMeasure then
+        UI.progressCellMeasure = panel:CreateFontString(nil, "ARTWORK")
+        UI.progressCellMeasure:Hide()
+    end
+    local measure = UI.progressCellMeasure
+    SetBodyFont(measure, fontSize, "")
+    measure:SetText("[")
+    local lineH = measure:GetStringHeight() or fontSize
+    measure:SetText("x x")
+    local spacedW = measure:GetStringWidth() or 0
+    measure:SetText("xx")
+    local spaceW = math.max(1, spacedW - (measure:GetStringWidth() or 0))
+
+    local unitsPerPixel = UI.UnitsPerPixel(panel)
+    local function ToPixels(units) return math.floor(units / unitsPerPixel + 0.5) end
+
+    local cellPx    = math.max(8, ToPixels(lineH))
+    local bracketPx = math.floor(cellPx * 0.86 + 0.5)
+    if (cellPx - bracketPx) % 2 == 1 then bracketPx = bracketPx - 1 end
+    local iconPx    = math.min(bracketPx, math.max(4, ToPixels(12)))
+    if (cellPx - iconPx) % 2 == 1 then iconPx = iconPx - 1 end
+    local strokePx  = math.max(1, math.floor(cellPx / 13 + 0.5))
+    local tickPx    = math.max(2, math.floor(bracketPx / 6 + 0.5))
+    local gapPx     = math.max(1, math.floor(cellPx * 0.1 + 0.5))
+    local cellWPx   = 2 * tickPx + 2 * gapPx + iconPx
+    return {
+        unit = unitsPerPixel, spaceW = spaceW,
+        cellPx = cellPx, cellWPx = cellWPx, iconPx = iconPx,
+        bracketPx = bracketPx, bracketTopPx = (cellPx - bracketPx) / 2,
+        strokePx = strokePx, tickPx = tickPx, gapPx = gapPx,
+        rowGapPx = math.max(1, ToPixels(2)),
+        cellW = cellWPx * unitsPerPixel,
+    }
+end
+
+-- Places a cell in front of its line, a quarter pixel off the grid, with
+-- the brackets and state icon at whole-pixel offsets from its corner.
+function UI.LayoutProgressCell(cell, fs, cellKind, geometry)
+    local unit = geometry.unit
+    local function Place(region, xPx, yPx, wPx, hPx)
+        region:ClearAllPoints()
+        region:SetPoint("TOPLEFT", cell, "TOPLEFT", xPx * unit, -yPx * unit)
+        region:SetSize(wPx * unit, hPx * unit)
+    end
+    cell:ClearAllPoints()
+    cell:SetPoint("TOPRIGHT", fs, "TOPLEFT", -geometry.spaceW, 0)
+    cell:SetSize(geometry.cellWPx * unit, geometry.cellPx * unit)
+    local left, top = cell:GetLeft(), cell:GetTop()
+    if left and top then
+        local function Nudge(units)
+            local pixels = units / unit
+            return (math.floor(pixels - 0.25 + 0.5) + 0.25 - pixels) * unit
+        end
+        cell:ClearAllPoints()
+        cell:SetPoint("TOPRIGHT", fs, "TOPLEFT",
+            -geometry.spaceW + Nudge(left), Nudge(top))
+    end
+
+    local strokes, cellPx, cellWPx = cell.strokes, geometry.cellPx, geometry.cellWPx
+    local strokePx, tickPx = geometry.strokePx, geometry.tickPx
+    local topPx, heightPx = geometry.bracketTopPx, geometry.bracketPx
+    local bottomPx = topPx + heightPx - strokePx
+    Place(strokes.leftBar,     0, topPx, strokePx, heightPx)
+    Place(strokes.leftTop,     0, topPx, tickPx, strokePx)
+    Place(strokes.leftBottom,  0, bottomPx, tickPx, strokePx)
+    Place(strokes.rightBar,    cellWPx - strokePx, topPx, strokePx, heightPx)
+    Place(strokes.rightTop,    cellWPx - tickPx, topPx, tickPx, strokePx)
+    Place(strokes.rightBottom, cellWPx - tickPx, bottomPx, tickPx, strokePx)
+
+    local icon, spec = cell.icon, UI.PROGRESS_CELL_ICON[cellKind]
+    if spec then
+        icon:SetTexture(spec.file)
+        icon:SetVertexColor(spec.r or 1, spec.g or 1, spec.b or 1)
+        Place(icon, tickPx + geometry.gapPx, (cellPx - geometry.iconPx) / 2,
+            geometry.iconPx, geometry.iconPx)
+        icon:Show()
+    else
+        icon:Hide()
+    end
+    UI.SetBreathing(icon, spec and spec.breathe or false)
+    cell:Show()
 end
 
 -- Idle-list pillRow hover regions. FontStrings can't take mouse
@@ -3028,6 +3209,7 @@ function UI.ApplySettings()
         { panel.exitNoteExtra, 11, "",     true },
         { panel.skipReturn, 11, "",        true },
         { panel.skipNote,    9, "",        true },
+        { panel.skipList,   11, "",        true },
         { panel.travel,     12, "",        true },
         { panel.encounter.header.label,       12, "", true },
         { panel.encounter.achievements.label, 12, "", true },
@@ -3172,12 +3354,9 @@ function UI.ApplySettings()
         RefreshIdleList()
     end
 
-    -- Re-apply the active font to in-raid Boss-Progress rows in place.
+    -- Rebuild in-raid Boss-Progress rows: the cells size from the font.
     if #panel.progressListLines > 0 then
-        local progFontSize = RR:GetSetting("fontSize", 12)
-        for _, fs in ipairs(panel.progressListLines) do
-            SetBodyFont(fs, progFontSize, "")
-        end
+        UI.RenderBossProgressList()
     end
 end
 
@@ -3208,6 +3387,7 @@ local function GetBodyAndFooterElements()
         panel.raid, panel.wingLine, panel.pills, panel.progress, panel.next,
         panel.travel, panel.encounter, panel.transmog,
         panel.exitNote, panel.exitNoteExtra, panel.skipReturn, panel.skipNote,
+        panel.skipList,
         panel.listHeader, panel.list,
         panel.credit, panel.version, panel.whatsNewLabel,
         panel.mapBtn, panel.tmogBtn, panel.achievesBtn,
@@ -3254,6 +3434,9 @@ local function ApplyBodyVisibility(visible)
     end
     for _, fs in ipairs(panel.progressListLines or {}) do
         if visible then fs:Show() else fs:Hide() end
+        if fs.cell then
+            if visible then fs.cell:Show() else fs.cell:Hide() end
+        end
     end
     for _, btn in ipairs(panel.expansionToggleButtons or {}) do
         if visible then btn:Show() else btn:Hide() end
@@ -4459,9 +4642,9 @@ local function HasCustomEncounterNote(boss, step)
     return true
 end
 
--- Builds the Achievements block: "Achievements:" header + per-row
--- clickable hyperlinks color-coded by completion state. Returns ""
--- for bosses with no achievements (caller appends unconditionally).
+-- Builds the Achievements block: the "Achievements:" label text, plus one
+-- row per achievement ({ cell, text }) with a clickable hyperlink
+-- color-coded by completion state. Returns "" for no boss.
 local function BuildAchievementsBlock(boss)
     if not boss then return "" end
     if not boss.achievements or #boss.achievements == 0 then
@@ -4473,16 +4656,12 @@ local function BuildAchievementsBlock(boss)
         return ("|cff%s%s|r |Hrrachui|h|cff888888%s|r|h"):format(
             C_LABEL, RR.L["Achievements:"], RR.L["N/A"])
     end
-    local lines = { ("|cff%s%s|r"):format(C_LABEL, RR.L["Achievements:"]) }
+    local rows = {}
 
-    -- Bracketed state indicator before the link, matching the
-    -- Special Loot section's visual grammar. Kept as a separate
-    -- prefix since GetAchievementLink embeds its own color code
-    -- and WoW color codes don't nest.
+    -- The state sits in a drawn cell before the link, apart from the
+    -- link's own color code.
     local STATE_COLOR_DONE   = "ff00ff00"
     local STATE_COLOR_TODO   = "ff888888"
-    local STATE_GLYPH_DONE   = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
-    local STATE_GLYPH_TODO   = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14|t"
 
     for _, ach in ipairs(boss.achievements) do
         local _, name, _, completed = GetAchievementInfo(ach.id)
@@ -4490,9 +4669,7 @@ local function BuildAchievementsBlock(boss)
         local tag   = ach.meta and (" " .. RR.L["(Meta)"]) or ""
 
         local stateColor = completed and STATE_COLOR_DONE or STATE_COLOR_TODO
-        local stateGlyph = completed and STATE_GLYPH_DONE or STATE_GLYPH_TODO
-        local indicator  = ("|cff777777[ |r|c%s%s|r|cff777777 ]|r"):format(
-            stateColor, stateGlyph)
+        local cellKind   = completed and "killed" or "notDone"
 
         local link = GetAchievementLink and GetAchievementLink(ach.id)
         if link then
@@ -4507,19 +4684,19 @@ local function BuildAchievementsBlock(boss)
             -- gray. The |H...|h payload survives, so the link stays clickable.
             if completed then
                 link = link:gsub("^|cff%x%x%x%x%x%x", ""):gsub("|r$", "")
-                table.insert(lines, ("%s |c%s%s|r"):format(
-                    indicator, STATE_COLOR_TODO, link))
+                table.insert(rows, { cell = cellKind,
+                    text = ("|c%s%s|r"):format(STATE_COLOR_TODO, link) })
             else
-                table.insert(lines, ("%s %s"):format(indicator, link))
+                table.insert(rows, { cell = cellKind, text = link })
             end
         else
             -- Plain-text fallback (cache miss). Wrap the label in our
             -- state color since there's no embedded link color to fight.
-            table.insert(lines, ("%s |c%s%s%s|r"):format(
-                indicator, stateColor, label, tag))
+            table.insert(rows, { cell = cellKind,
+                text = ("|c%s%s%s|r"):format(stateColor, label, tag) })
         end
     end
-    return table.concat(lines, "\n")
+    return ("|cff%s%s|r"):format(C_LABEL, RR.L["Achievements:"]), rows
 end
 
 -- Returns headerLine, achBlock, specialBlock, clickable, headerPulsing.
@@ -4561,7 +4738,8 @@ local function BuildEncounterText(step)
     end
 
     -- Achievements + Special Loot render unconditionally below.
-    local achBlock = BuildAchievementsBlock(boss) or ""
+    local achBlock, achRows = BuildAchievementsBlock(boss)
+    achBlock = achBlock or ""
     local specialBlock = ""
     if boss then
         local special = BuildSpecialLootSection(boss)
@@ -4570,7 +4748,7 @@ local function BuildEncounterText(step)
         end
     end
 
-    return headerLine, achBlock, specialBlock, clickable, headerPulsing
+    return headerLine, achBlock, specialBlock, clickable, headerPulsing, achRows
 end
 
 -- Slots that have no transmog value -- excluded from display entirely.
@@ -6576,16 +6754,21 @@ end
 -- Shape-aware dispatcher. Picks the renderer based on the item's sourceID
 -- uniqueness count. BuildDotRow is retained as the public name so any
 -- existing callers continue to work.
+-- True when the row renders as a single glyph rather than a strip.
+function UI.RendersBinary(item)
+    if (item.upgrade and item.upgrade.source) or item.mirror then
+        return false
+    end
+    -- TW reprints stay strips: the per-diff renderer draws [ N | TW ].
+    return ItemShape(item) == "binary" and not UI.HasTimewalkingBucket(item)
+end
+
 local function BuildDotRow(item)
     if item.upgrade and item.upgrade.source then
         return UI.BuildUpgradeRow(item)
     elseif item.mirror then
         return UI.BuildMirrorRow(item)
-    elseif ItemShape(item) == "binary"
-        and not UI.HasTimewalkingBucket(item) then
-        -- TW reprints share their base row's appearance, so shape folds
-        -- them to binary -- which would swallow the TW pill. Same bypass
-        -- as the partition; the per-diff renderer draws [ N | TW ].
+    elseif UI.RendersBinary(item) then
         return BuildBinaryRow(item)
     else
         return BuildPerDiffRow(item)
@@ -7755,6 +7938,7 @@ BuildTransmogDetail = function(stepOrCtx)
         local indicatorText, nameText, tagsText, carried = FormatItemCells(item)
         table.insert(rowsOut, { kind = "item", indicator = indicatorText,
             name = nameText, tags = tagsText, isTier = isTierRow,
+            isBinary = UI.RendersBinary(item),
             itemID = item.id, carried = carried })
         if item.acquisitionNote then
             -- Rows that share a note (a legendary pair) show it once, under
@@ -10080,41 +10264,41 @@ GetOrCreateTmogWindow = function()
             end
         end
         local maxRowW = 0
-        -- Two column pairs per render list, one for the tier block and one for
-        -- the loot below it. Every row in a block takes the same name and tag
-        -- offsets, so tags form one straight column whatever class set a row
-        -- carries. Tier and loot measure apart because the divider already
-        -- reads them as separate tables: a single long loot name would
-        -- otherwise push every tier tag far right of its own short names.
-        -- Each section is its own render list, so expanding one cannot shift
-        -- the others -- the measure pass only walks expanded sections.
+        -- Column groups per render list: the tier block and each loot block,
+        -- split where a blank line separates binary rows from strips.
         for _, rows in ipairs(renderLists) do
-            local tierIndicatorW, tierNameW = 0, 0
-            local lootIndicatorW, lootNameW = 0, 0
+            local tierColumns = { indicatorW = 0, nameW = 0 }
+            local lootColumns, lootIsBinary
+            local blankSinceItem = false
             for _, row in ipairs(rows) do
-                if row.kind == "item" then
+                if row.kind == "blank" or row.kind == "divider" then
+                    blankSinceItem = true
+                elseif row.kind == "item" then
                     row.indicatorW = MeasureText(row.indicator)
                     row.nameW      = MeasureText(row.name)
                     row.tagsW      = (row.tags and row.tags ~= "")
                                      and MeasureText(row.tags) or 0
+                    if row.isTier then
+                        row.columns = tierColumns
+                    else
+                        local isBinary = row.isBinary and true or false
+                        if not lootColumns
+                           or (blankSinceItem and isBinary ~= lootIsBinary) then
+                            lootColumns = { indicatorW = 0, nameW = 0 }
+                            lootIsBinary = isBinary
+                        end
+                        row.columns = lootColumns
+                    end
+                    blankSinceItem = false
                     -- Every item row is measured, because the pass below
                     -- reads these widths unguarded. The caption borrows the
                     -- columns, so it alone is kept out of the maxima.
                     if not row.pairKey then
-                        if row.isTier then
-                            if row.indicatorW > tierIndicatorW then
-                                tierIndicatorW = row.indicatorW
-                            end
-                            if row.nameW > tierNameW then
-                                tierNameW = row.nameW
-                            end
-                        else
-                            if row.indicatorW > lootIndicatorW then
-                                lootIndicatorW = row.indicatorW
-                            end
-                            if row.nameW > lootNameW then
-                                lootNameW = row.nameW
-                            end
+                        if row.indicatorW > row.columns.indicatorW then
+                            row.columns.indicatorW = row.indicatorW
+                        end
+                        if row.nameW > row.columns.nameW then
+                            row.columns.nameW = row.nameW
                         end
                     end
                 elseif row.kind == "text" and not row.soft then
@@ -10127,8 +10311,8 @@ GetOrCreateTmogWindow = function()
             end
             for _, row in ipairs(rows) do
                 if row.kind == "item" then
-                    row.colIndicatorW = row.isTier and tierIndicatorW or lootIndicatorW
-                    row.colNameW      = row.isTier and tierNameW or lootNameW
+                    row.colIndicatorW = row.columns.indicatorW
+                    row.colNameW      = row.columns.nameW
                     local rowWidth = row.colIndicatorW + nameGap + row.colNameW
                     if row.tagsW > 0 then
                         rowWidth = rowWidth + tagGap + row.tagsW
@@ -10438,7 +10622,7 @@ GetOrCreateTmogWindow = function()
             section.toggle:Show()
             y = y - rowH
             if self[section.flag] then
-                y = y - 2
+                y = y - rowH
                 EmitRows(section.rows)
             end
         end
@@ -13698,6 +13882,8 @@ function UI.Update()
             panel.exitNoteExtra:Hide()
             panel.skipReturn:SetText("")
             panel.skipReturn:Hide()
+            panel.skipList:SetText("")
+            panel.skipList:Hide()
             panel.skipNote:SetText("")
             panel.skipNote:Hide()
             panel.encounter.headerPulsing = false
@@ -13757,10 +13943,12 @@ function UI.Update()
             panel.exitNoteExtra:Hide()
             panel.skipReturn:SetText("")
             panel.skipReturn:Hide()
+            panel.skipList:SetText("")
+            panel.skipList:Hide()
             panel.skipNote:SetText("")
             panel.skipNote:Hide()
             local headerText, achText, specialText, encClickable,
-                  headerPulsing = BuildEncounterText(step)
+                  headerPulsing, achRows = BuildEncounterText(step)
 
             -- Header sub-widget: shows the Boss Encounter line; OnClick
             -- toggles soloTip expand/collapse when clickable is true.
@@ -13801,12 +13989,15 @@ function UI.Update()
             -- Achievements sub-widget: hyperlinks-only, no toggle. Hidden
             -- entirely when empty so the layout collapses naturally.
             if achText and achText ~= "" then
-                panel.encounter.achievements.label:SetText(achText)
-                panel.encounter.achievements:Show()
-                local achH = math.max(1, panel.encounter.achievements.label:GetStringHeight())
-                panel.encounter.achievements:SetHeight(achH)
+                local achSection = panel.encounter.achievements
+                achSection.label:SetText(achText)
+                achSection:Show()
+                local labelH = math.max(1, achSection.label:GetStringHeight())
+                local rowsH = UI.RenderAchievementRows(achSection, achRows, -labelH)
+                achSection:SetHeight(labelH + rowsH)
             else
                 panel.encounter.achievements.label:SetText("")
+                UI.RenderAchievementRows(panel.encounter.achievements, nil)
                 panel.encounter.achievements:SetHeight(1)
                 panel.encounter.achievements:Hide()
             end
@@ -13928,11 +14119,6 @@ function UI.Update()
                     and RR:CollectedSkippedBossNames()) or {}
                 if isSkip or lockoutlessDungeon or #collectedNames > 0 then
                     local returnLines = {}
-                    for _, bossName in ipairs(collectedNames) do
-                        returnLines[#returnLines + 1] =
-                            (RR.L["%s was skipped because you have nothing left to collect there."])
-                                :format("^" .. bossName .. "^")
-                    end
                     if isSkip and not (RR.SkippedBossesUnreturnable
                         and RR:SkippedBossesUnreturnable()) then
                         returnLines[#returnLines + 1] =
@@ -13946,8 +14132,28 @@ function UI.Update()
                         returnLines[#returnLines + 1] =
                             (RR.L["Want to run it again? Zone out and %s."]):format(resetTerm)
                     end
-                    panel.skipReturn:SetText(HighlightNames(
-                        table.concat(returnLines, " ")))
+                    -- Collected skips: a heading here, then one bulleted
+                    -- boss per line in the list field below it.
+                    local returnText = table.concat(returnLines, " ")
+                    if #collectedNames > 0 then
+                        local heading = (#collectedNames == 1)
+                            and RR.L["The following optional boss was automatically skipped due to being fully collected:"]
+                            or RR.L["The following optional bosses were automatically skipped due to being fully collected:"]
+                        returnText = (returnText ~= "")
+                            and (returnText .. "\n\n" .. heading) or heading
+                        local bulletLines = {}
+                        for _, bossName in ipairs(collectedNames) do
+                            bulletLines[#bulletLines + 1] = UI.LIST_BULLET .. " ^" .. bossName .. "^"
+                        end
+                        panel.skipList:SetText(HighlightNames(table.concat(bulletLines, "\n")))
+                        panel.skipList:SetTextColor(1, 1, 1)
+                        SetBodyFont(panel.skipList, exitFontSize, "")
+                        panel.skipList:Show()
+                    else
+                        panel.skipList:SetText("")
+                        panel.skipList:Hide()
+                    end
+                    panel.skipReturn:SetText(HighlightNames(returnText))
                     panel.skipReturn:SetTextColor(1, 1, 1)
                     SetBodyFont(panel.skipReturn, exitFontSize, "")
                     panel.skipReturn:Show()
@@ -13963,11 +14169,19 @@ function UI.Update()
                             .. RR.L["Note: Routing will not be available on this lockout"]
                             .. "|r")
                         SetBodyFont(panel.skipNote, math.max(8, exitFontSize - 2), "")
+                        panel.skipNote:ClearAllPoints()
+                        if panel.skipList:IsShown() then
+                            panel.skipNote:SetPoint("TOPLEFT", panel.skipList, "BOTTOMLEFT", 0, -6)
+                        else
+                            panel.skipNote:SetPoint("TOPLEFT", panel.skipReturn, "BOTTOMLEFT", 12, -6)
+                        end
                         panel.skipNote:Show()
                     end
                 else
                     panel.skipReturn:SetText("")
                     panel.skipReturn:Hide()
+                    panel.skipList:SetText("")
+                    panel.skipList:Hide()
                     panel.skipNote:SetText("")
                     panel.skipNote:Hide()
                 end
@@ -13990,6 +14204,8 @@ function UI.Update()
                 panel.exitNote:ClearAllPoints()
                 if panel.skipNote:IsShown() then
                     panel.exitNote:SetPoint("TOPLEFT", panel.skipNote, "BOTTOMLEFT", -12, -13)
+                elseif panel.skipList:IsShown() then
+                    panel.exitNote:SetPoint("TOPLEFT", panel.skipList, "BOTTOMLEFT", -12, -13)
                 elseif panel.skipReturn:IsShown() then
                     panel.exitNote:SetPoint("TOPLEFT", panel.skipReturn, "BOTTOMLEFT", 0, -13)
                 else
@@ -14035,6 +14251,8 @@ function UI.Update()
                 panel.exitNoteExtra:Hide()
                 panel.skipReturn:SetText("")
                 panel.skipReturn:Hide()
+                panel.skipList:SetText("")
+                panel.skipList:Hide()
                 panel.skipNote:SetText("")
                 panel.skipNote:Hide()
             end
@@ -14072,6 +14290,8 @@ function UI.Update()
                 panel.listHeader:SetPoint("TOPLEFT", panel.exitNote, "BOTTOMLEFT", 0, -12)
             elseif panel.skipNote:IsShown() then
                 panel.listHeader:SetPoint("TOPLEFT", panel.skipNote, "BOTTOMLEFT", -12, -12)
+            elseif panel.skipList:IsShown() then
+                panel.listHeader:SetPoint("TOPLEFT", panel.skipList, "BOTTOMLEFT", -12, -12)
             elseif panel.skipReturn:IsShown() then
                 panel.listHeader:SetPoint("TOPLEFT", panel.skipReturn, "BOTTOMLEFT", 0, -12)
             else
@@ -14149,6 +14369,8 @@ function UI.Update()
         panel.exitNoteExtra:Hide()
         panel.skipReturn:SetText("")
         panel.skipReturn:Hide()
+        panel.skipList:SetText("")
+        panel.skipList:Hide()
         panel.skipNote:SetText("")
         panel.skipNote:Hide()
         panel.encounter.headerPulsing = false
@@ -16929,11 +17151,6 @@ C_Timer.NewTicker(0.1, function()
     end
 end)
 
--- A pulsing row holds a blank spacer in its text; a breathing arrow
--- texture sits over it.
-UI.PULSE_ARROW_FILE = "Interface\\ChatFrame\\ChatFrameExpandArrow"
-UI.PULSE_ARROW_SLOT = "|TInterface\\Common\\Spacer:12:12|t"
-
 -- An even breath: one alpha swing bounced back and forth, 0.8s each way,
 -- the same shape as the achievements window's current-boss bar.
 function UI.SetBreathing(region, on)
@@ -16953,55 +17170,6 @@ function UI.SetBreathing(region, on)
         if not anim:IsPlaying() then anim:Play() end
     elseif anim and anim:IsPlaying() then
         anim:Stop()
-    end
-end
-UI.pulseArrowsInUse = {}
-UI.pulseArrowPool   = {}
-
-function UI.PaintPulseArrow(text)
-    if not RR.PULSE_ARROW_TOKEN or not text:find(RR.PULSE_ARROW_TOKEN, 1, true) then
-        return text
-    end
-    return (text:gsub(RR.PULSE_ARROW_TOKEN:gsub("%p", "%%%0"),
-        (UI.PULSE_ARROW_SLOT:gsub("%%", "%%%%"))))
-end
-
-function UI.AttachPulseArrow(fs, fontSize)
-    -- The arrow follows the row's opening bracket.
-    if not UI.pulseArrowMeasure then
-        UI.pulseArrowMeasure = panel:CreateFontString(nil, "ARTWORK")
-        UI.pulseArrowMeasure:Hide()
-    end
-    local measure = UI.pulseArrowMeasure
-    SetBodyFont(measure, fontSize, "")
-    measure:SetText("[")
-    local tex = table.remove(UI.pulseArrowPool)
-        or panel:CreateTexture(nil, "OVERLAY", nil, 7)
-    tex:SetTexture(UI.PULSE_ARROW_FILE)
-    tex:SetVertexColor(1, 1, 0)
-    tex:SetSize(12, 12)
-    tex:ClearAllPoints()
-    tex:SetPoint("LEFT", fs, "LEFT", measure:GetStringWidth() or 0, 0)
-    tex:Show()
-    UI.SetBreathing(tex, true)
-    table.insert(UI.pulseArrowsInUse, tex)
-end
-
--- The list rebuilds on every refresh, so a released arrow keeps breathing:
--- the rebuild reattaches it mid-cycle instead of restarting it at full.
--- Arrows the rebuild did not reattach stop in UI.SettlePulseArrows.
-function UI.ReleasePulseArrows()
-    for _, tex in ipairs(UI.pulseArrowsInUse) do
-        tex:Hide()
-        tex:ClearAllPoints()
-        table.insert(UI.pulseArrowPool, tex)
-    end
-    wipe(UI.pulseArrowsInUse)
-end
-
-function UI.SettlePulseArrows()
-    for _, tex in ipairs(UI.pulseArrowPool) do
-        UI.SetBreathing(tex, false)
     end
 end
 

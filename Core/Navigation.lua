@@ -520,9 +520,6 @@ function RR:GetSpawnChoiceBoss()
     return choiceBoss
 end
 
--- Stands in for the arrow on a row whose arrow pulses; the panel paints it.
-RR.PULSE_ARROW_TOKEN = "{rr:pulsearrow}"
-
 -- True while the active step is a spawnChoice member and chat has not yet
 -- named the spawn: every open member row takes a pulsing arrow.
 function RR:IsSpawnChoicePending()
@@ -1273,24 +1270,12 @@ function RR:GetRouteBossOrder()
     return order
 end
 
--- Returns the checklist lines, plus a parallel table of advisory notes
--- keyed by line number. A line with a note gets a hover region in the
--- panel; the caution glyph is meaningless until something explains it.
-function RR:GetProgressLines()
-    local lines, notes = {}, {}
-    if not self.currentRaid then return lines, notes end
-    -- All three states are bracket + 12px element + bracket, so boss names
-    -- left-align at any font size.
-    local KILLED_GLYPH  = "|TInterface\\RaidFrame\\ReadyCheck-Ready:12:12|t"
-    -- Yellow forward chevron. Vertex-color args tint the white source
-    -- texture to the active-yellow used elsewhere in the panel.
-    local ACTIVE_GLYPH  = "|TInterface\\ChatFrame\\ChatFrameExpandArrow:12:12:0:0:32:32:0:32:0:32:255:255:0|t"
-    -- Transparent 1x1 stretched to 12px: reserves the slot width with no
-    -- visible mark, so pending rows align with killed/active rows.
-    local PENDING_GLYPH = "|TInterface\\Common\\Spacer:12:12|t"
-    -- A boss this character cannot engage at all. Distinct from the
-    -- blank pending slot, which reads as "not yet".
-    local LOCKED_GLYPH  = "|TInterface\\PetBattles\\PetBattle-LockIcon:12:12:0:0|t"
+-- Checklist rows: `cell` is the bracket state ("killed", "active",
+-- "pulsing", "pending", "locked", "caution"), `text` the colored name and
+-- tags, `note` an advisory for the hover.
+function RR:GetProgressRows()
+    local rows = {}
+    if not self.currentRaid then return rows end
 
     -- Two orderings. "rr" lists bosses in the order navigation directs
     -- the player to kill them (GetRouteBossOrder, which simulates the
@@ -1334,15 +1319,15 @@ function RR:GetProgressLines()
             label = label .. ": " .. self:GetLocalizedBossName(memberBoss)
         end
         if slot.complete then
-            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff00ff00%s|r"):format(
-                KILLED_GLYPH, label))
+            table.insert(rows, { cell = "killed",
+                text = ("|cff00ff00%s|r"):format(label) })
         elseif not poolActiveSlot and self.state.activeStep then
             poolActiveSlot = slotIndex
-            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cffffff00%s|r"):format(
-                ACTIVE_GLYPH, label))
+            table.insert(rows, { cell = "active",
+                text = ("|cffffff00%s|r"):format(label) })
         else
-            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff9d9d9d%s|r"):format(
-                PENDING_GLYPH, label))
+            table.insert(rows, { cell = "pending",
+                text = ("|cff9d9d9d%s|r"):format(label) })
         end
     end
 
@@ -1377,9 +1362,10 @@ function RR:GetProgressLines()
         local restrictedHere = wrongFaction or (activeBucket
             and not self:BossAvailableInBucket(boss, activeBucket))
 
+        local row
         if self:IsBossUnavailableThisRun(boss.index) then
-            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff9d9d9d%s|r |cff808080%s|r"):format(
-                LOCKED_GLYPH, displayName, RR.L["(Unavailable)"]))
+            row = { cell = "locked", text = ("|cff9d9d9d%s|r |cff808080%s|r"):format(
+                displayName, RR.L["(Unavailable)"]) }
         elseif restrictedHere then
             -- Both reasons mean the same thing on the row: this boss cannot
             -- be engaged here. Only the tag says which.
@@ -1406,51 +1392,44 @@ function RR:GetProgressLines()
                          .. " " .. RR.L["only"] .. ")|r")
                     or ""
             end
-            -- Name in the same gray as a pending row; only the bracket
-            -- glyph and the tag say why it cannot be engaged here.
-            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff9d9d9d%s|r%s%s"):format(
-                LOCKED_GLYPH, displayName, tag, optionalTag))
+            -- Name in the same gray as a pending row; only the cell and the
+            -- tag say why it cannot be engaged here.
+            row = { cell = "locked", text = ("|cff9d9d9d%s|r%s%s"):format(
+                displayName, tag, optionalTag) }
         elseif killUntracked then
-            -- Untracked: gray brackets framing the caution glyph. Name gray
-            -- like a pending row, because the boss may well be dead and the
-            -- panel has no way to find out.
-            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff9d9d9d%s|r%s"):format(
-                (RR.UI and RR.UI.CAUTION_GLYPH or PENDING_GLYPH),
-                displayName, optionalTag))
+            -- Untracked: the caution glyph in the cell, the name gray like a
+            -- pending row.
+            row = { cell = "caution", text = ("|cff9d9d9d%s|r%s"):format(
+                displayName, optionalTag) }
+            if boss.killUntrackedNote then
+                row.note = RR.L[boss.killUntrackedNote]
+            end
         elseif self.state.bossesKilled[boss.index] then
-            -- Killed: gray brackets framing the green check (native green,
-            -- unaffected by color codes). Name green.
-            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff00ff00%s|r%s"):format(
-                KILLED_GLYPH, displayName, optionalTag))
+            row = { cell = "killed", text = ("|cff00ff00%s|r%s"):format(
+                displayName, optionalTag) }
         elseif self:IsBossCollectedSkipped(boss.index) then
             -- Left out because the character has everything from it: a
             -- pending-looking row that says why the route passed it.
-            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff9d9d9d%s|r |cff4f8f4f%s|r"):format(
-                PENDING_GLYPH, displayName, RR.L["(collected)"]))
+            row = { cell = "pending", text = ("|cff9d9d9d%s|r |cff4f8f4f%s|r"):format(
+                displayName, RR.L["(ignored: fully collected)"]) }
         elseif self:IsSpawnChoicePending()
             and self:IsSpawnChoiceMember(boss.index) then
             -- Either could be next: both carry the arrow, pulsing until
             -- chat names the one that spawned.
-            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cffffff00%s|r%s"):format(
-                RR.PULSE_ARROW_TOKEN, displayName, optionalTag))
+            row = { cell = "pulsing", text = ("|cffffff00%s|r%s"):format(
+                displayName, optionalTag) }
         elseif self.state.activeStep
             and self.state.activeStep.bossIndex == boss.index
             and not poolActiveSlot then
-            -- Active: gray brackets framing the yellow arrow. Name yellow.
-            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cffffff00%s|r%s"):format(
-                ACTIVE_GLYPH, displayName, optionalTag))
+            row = { cell = "active", text = ("|cffffff00%s|r%s"):format(
+                displayName, optionalTag) }
         else
-            -- Pending: gray brackets framing the transparent spacer. Name
-            -- gray.
-            table.insert(lines, ("|cff9d9d9d[|r%s|cff9d9d9d]|r |cff9d9d9d%s|r%s"):format(
-                PENDING_GLYPH, displayName, optionalTag))
+            row = { cell = "pending", text = ("|cff9d9d9d%s|r%s"):format(
+                displayName, optionalTag) }
         end
-        -- Exactly one line went in this pass, so #lines is its number.
-        if killUntracked and boss.killUntrackedNote then
-            notes[#lines] = RR.L[boss.killUntrackedNote]
-        end
+        table.insert(rows, row)
     end
-    return lines, notes
+    return rows
 end
 
 -------------------------------------------------------------------------------

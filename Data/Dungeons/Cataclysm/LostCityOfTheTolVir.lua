@@ -16,6 +16,7 @@ RetroRuns_DungeonData[69] = {
     availableDifficulties = { 14, 15, 24 },
     patch             = "4.0.3",
     timewalking       = true,
+    routedIn          = "3.3.3",
 
     entrance = {
         mapID = 249,
@@ -99,6 +100,111 @@ RetroRuns_DungeonData[69] = {
                 { id = 56403, slot = "Waist", name = "Evelyn's Belt", sources = { [14]=27714, [15]=27714 } },
                 { id = 56396, slot = "Weapon", name = "Hammer of Sparks", sources = { [14]=27709, [15]=27709 }, twSource = 76630 },
                 { id = 157599, slot = "Weapon", name = "Sceptre of Swirling Winds", sources = { [14]=93788, [15]=93788 }, twSource = 76693 },
+            },
+        },
+    },
+
+    exitNote    = "Jump off the north side of the platform for a short walk to the entrance",
+    minExitNote = "Jump off north side to entrance",
+
+    routing = {
+        -- 1. General Husam (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "General Husam",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 277 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the path ahead to find ^General Husam^.",
+                    minNote = "Follow path to General Husam",
+                    points  = {
+                        { 0.328, 0.228 },
+                        { 0.339, 0.275 },
+                        { 0.387, 0.258 },
+                        { 0.420, 0.312 },
+                        { 0.427, 0.353 },
+                        { 0.400, 0.406 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Lockmaw (boss 2).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Lockmaw",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 277 },
+                    kind    = "path",
+                    note    = "After defeating ^General Husam^, exit to the east and follow the path to ^Lockmaw^.",
+                    minNote = "Go east to Lockmaw",
+                    points  = {
+                        { 0.420, 0.412 },
+                        { 0.511, 0.429 },
+                        { 0.511, 0.484 },
+                        { 0.505, 0.575 },
+                        { 0.588, 0.572 },
+                        { 0.652, 0.688 },
+                    },
+                },
+            },
+        },
+
+        -- 3. High Prophet Barim (boss 3).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "High Prophet Barim",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 277 },
+                    kind    = "path",
+                    note    = "After killing ^Lockmaw^, backtrack to the main corridor and follow the path to the southwest to reach ^High Prophet Barim^.",
+                    minNote = "Backtrack then southwest to Barim",
+                    points  = {
+                        { 0.588, 0.567 },
+                        { 0.507, 0.573 },
+                        { 0.497, 0.668 },
+                        { 0.507, 0.752 },
+                        { 0.439, 0.813 },
+                        { 0.412, 0.794 },
+                        { 0.384, 0.641 },
+                        { 0.349, 0.618 },
+                        { 0.297, 0.642 },
+                    },
+                },
+            },
+        },
+
+        -- 4. Siamat (boss 4). The Wind Tunnel lifts the player to his platform.
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Siamat",
+            requires  = { },
+            segments  = {
+                {
+                    when        = { mapID = 277 },
+                    kind        = "poi",
+                    note        = "After defeating ^High Prophet Barim^, go slightly east and click the ^Wind Tunnel^ to be lifted up to the platform above. Once you land, kill ^Siamat^.",
+                    minNote     = "Click Wind Tunnel to reach Siamat",
+                    mapLabel    = "Click Wind Tunnel",
+                    mapLabelPos = "above",
+                    points      = {
+                        { 0.368, 0.628 },
+                    },
+                },
             },
         },
     },
