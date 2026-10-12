@@ -41,7 +41,6 @@ RetroRuns_Data[1676] = {
     },
 
     tierSets = {
-        labels       = { "Tomb of Sargeras" },
         tokenSources = {},
     },
 

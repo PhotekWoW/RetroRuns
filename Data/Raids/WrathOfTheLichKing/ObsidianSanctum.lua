@@ -31,7 +31,6 @@ RetroRuns_Data[615] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [40613] = 1,  -- Gloves of the Lost Conqueror
             [40614] = 1,  -- Gloves of the Lost Protector

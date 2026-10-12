@@ -31,7 +31,6 @@ RetroRuns_Data[409] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {},
     },
 

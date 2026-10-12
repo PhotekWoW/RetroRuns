@@ -245,9 +245,6 @@ RetroRuns_DungeonData[556] = {
             achievements       = {
             },
             loot = {
-                { id = 109886, slot = "Chest", name = "Crystalbinder Chestguard", sources = { [14]=61288, [15]=61289, [16]=59554 }, mythicPlusOnly = true },
-                { id = 109795, slot = "Feet", name = "Goldsteel Sabatons", sources = { [14]=61428, [15]=61484, [16]=59463 }, mythicPlusOnly = true },
-                { id = 119173, slot = "Off-hand", name = "Desiccated Husk Shield", sources = { [14]=66844, [15]=66845, [16]=66843 }, mythicPlusOnly = true },
                 { id = 109938, slot = "Shoulder", name = "Blackwater Spaulders", sources = { [14]=61328, [15]=61329, [16]=59600 } },
                 { id = 109935, slot = "Shoulder", name = "Bloodfeather Spaulders", sources = { [14]=61280, [15]=61281, [16]=59597 } },
                 { id = 109936, slot = "Shoulder", name = "Crystalbinder Shoulderpads", sources = { [14]=61296, [15]=61297, [16]=59598 } },

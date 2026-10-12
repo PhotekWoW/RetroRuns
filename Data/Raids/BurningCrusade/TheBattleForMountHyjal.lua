@@ -32,7 +32,6 @@ RetroRuns_Data[534] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [31092] = 4,   -- Gloves of the Forgotten Conqueror
             [31093] = 4,   -- Gloves of the Forgotten Vanquisher

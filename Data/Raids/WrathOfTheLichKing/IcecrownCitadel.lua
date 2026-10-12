@@ -43,7 +43,6 @@ RetroRuns_Data[631] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             -- Marks of Sanctification, the tier-10 upgrade tokens, drop
             -- from the wing-end bosses: Saurfang, Putricide, Blood-Queen,
@@ -118,9 +117,7 @@ RetroRuns_Data[631] = {
 
     -- Legend for the chain dots, rendered under the tier rows.
     tierNote = {
-        text = "{dot}{pad}{pad} Base item, bought with gold\n"
-            .. "{dot}{dot}{pad} Base + {mark} (25N, 10H, 25H)\n"
-            .. "{dot}{dot}{dot} Upgraded Base + {heroicMark} (25H only)",
+        text = "{dot}{pad}{pad} Base item, bought with gold\n{dot}{dot}{pad} Base + {mark} (25N, 10H, 25H)\n{dot}{dot}{dot} Upgraded Base + {heroicMark} (25H only)",
         -- Each placeholder becomes the item link for the viewer's own
         -- Mark (Vanquisher / Protector / Conqueror by class), or the
         -- bracketed name until the item is cached.

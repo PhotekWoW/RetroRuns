@@ -35,11 +35,6 @@ RetroRuns_Data[1009] = {
     },
 
     tierSets = {
-        labels = {
-            -- Tier 14 spans Heart of Fear, Terrace of Endless
-            -- Spring, and the Sha of Anger world boss. Heart of
-            -- Fear drops the Hands, Legs, and Chest tokens.
-        },
         tokenSources = {
             [89240] = 4,  -- Gauntlets of the Shadowy Conqueror
             [89241] = 4,  -- Gauntlets of the Shadowy Protector

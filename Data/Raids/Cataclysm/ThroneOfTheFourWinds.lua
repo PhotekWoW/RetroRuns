@@ -31,7 +31,6 @@ RetroRuns_Data[754] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [63682] = 2,  -- Helm of the Forlorn Vanquisher
             [63683] = 2,  -- Helm of the Forlorn Conqueror

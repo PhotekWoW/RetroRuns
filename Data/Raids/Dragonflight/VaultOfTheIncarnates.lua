@@ -50,9 +50,6 @@ RetroRuns_Data[2522] = {
     -- as a gem name: Jade=Legs, Amethyst=Chest, Garnet=Hands, Lapis=Shoulders,
     -- Topaz=Head.
     tierSets = {
-        labels = {
-            "Vault of the Incarnates",  -- setID=2601
-        },
         tokenSources = {
             -- Sennarth (Legs)
             [196588] = 4,  -- Dreadful Jade Forgestone

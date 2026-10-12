@@ -6,6 +6,16 @@
 
 local RR = RetroRuns
 
+-- A kill set as "count:[sorted boss indices]" for the zone log.
+local function KillSetSummary(killSet)
+    local list = {}
+    for bossIndex in pairs(killSet) do
+        list[#list + 1] = tostring(bossIndex)
+    end
+    table.sort(list)
+    return ("%d:[%s]"):format(#list, table.concat(list, ","))
+end
+
 -- requestRaidInfo = true  : also calls RequestRaidInfo() to ask the server
 --                            for fresh data. Use on zone change / load only.
 -- requestRaidInfo = false : reads current cached saved-instance data only.
@@ -126,18 +136,8 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
     -- correct state.
     if hasRemoval and not hasAddition then
         if self.ZoneLog then
-            local function setSummary(summaryText)
-                local count = 0
-                local list  = {}
-                for k in pairs(summaryText) do
-                    count = count + 1
-                    table.insert(list, tostring(k))
-                end
-                table.sort(list)
-                return ("%d:[%s]"):format(count, table.concat(list, ","))
-            end
             self:ZoneLog(("SyncFromSavedRaidInfo REJECTED removal-only update: old=%s new=%s")
-                :format(setSummary(self.state.bossesKilled), setSummary(newKilled)))
+                :format(KillSetSummary(self.state.bossesKilled), KillSetSummary(newKilled)))
         end
         return false
     end
@@ -148,18 +148,8 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
     -- accepted. Useful for understanding state transitions during
     -- normal play (kills, lockout loads).
     if self.ZoneLog then
-        local function setSummary(summaryText)
-            local count = 0
-            local list  = {}
-            for k in pairs(summaryText) do
-                count = count + 1
-                table.insert(list, tostring(k))
-            end
-            table.sort(list)
-            return ("%d:[%s]"):format(count, table.concat(list, ","))
-        end
         self:ZoneLog(("SyncFromSavedRaidInfo CHANGE: old=%s new=%s")
-            :format(setSummary(self.state.bossesKilled), setSummary(newKilled)))
+            :format(KillSetSummary(self.state.bossesKilled), KillSetSummary(newKilled)))
     end
 
     -- For additions: merge new entries into existing state instead of

@@ -29,7 +29,6 @@ RetroRuns_Data[565] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [29762] = 1,   -- Pauldrons of the Fallen Hero
             [29763] = 1,   -- Pauldrons of the Fallen Champion

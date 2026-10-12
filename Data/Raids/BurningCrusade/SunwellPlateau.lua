@@ -31,7 +31,6 @@ RetroRuns_Data[580] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [34848] = { 1, 4 },   -- Bracers of the Forgotten Conqueror
             [34851] = { 1, 4 },   -- Bracers of the Forgotten Protector

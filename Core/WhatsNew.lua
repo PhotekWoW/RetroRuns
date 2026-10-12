@@ -26,6 +26,43 @@
 local RR = RetroRuns
 RR.WhatsNew = {
 {
+    version  = "3.3.4",
+    date     = "2026-10-12",
+    sections = {
+        {
+            heading = "Added",
+            bullets = {
+                "**Two more Cataclysm dungeons.** Grim Batol and Blackrock Caverns. Blackrock Caverns auto-skips Beauty once every appearance she drops is collected.",
+            },
+        },
+        {
+            heading = "Changed",
+            bullets = {
+                "**Transmog Needed now counts every class's pieces in Baradin Hold and Vault of Archavon**, Vault of Archavon's tier pieces included. Looting gear your class can't wear still unlocks its appearance, so those looks count too. The transmog browser's class filter works as before.",
+                "**Items that no longer drop are gone from fourteen dungeons.** Season-only reprints and Mythic Keystone-only drops no longer show in Siege of Boralus, Grim Batol, Atal'Dazar, The Underrot, Skyreach, Seat of the Triumvirate, Algeth'ar Academy, Tazavesh (So'leah), Black Rook Hold, Court of Stars, Darkheart Thicket, Halls of Valor, Neltharion's Lair and The Everbloom, and Skyreach no longer lists the same item twice.",
+                "**Standardized the way the brackets are drawn on each panel.**",
+                "**The transmog browser's gold check is the same size as the green one.** It is now the same check mark, tinted gold.",
+                "**Every pulse and fade animates smoothly instead of rapidly stepping.**",
+                "**The Timewalking hourglass is easier to read at small sizes.**",
+            },
+        },
+        {
+            heading = "Fixed",
+            bullets = {
+                "**Siege of Boralus: Sergeant Bainbridge's Horde-only drops now sit under \"Horde Appearances\" for Alliance characters**, instead of in the main list under Chopper Redhook, and no longer count toward their Normal totals.",
+                "**Clicking a New Appearance toast for a class-locked piece that shares its look with another item now opens the wardrobe on the right class's page**, instead of an empty page for the wrong class.",
+                "**New Appearance toasts no longer show the same look twice** when two items that share it drop in one loot.",
+                "**Transmog Needed no longer says \"Complete\" while another difficulty still has a look you're missing.**",
+                "**Layout fixes for the 04B_03 and VT323 fonts and for large font sizes.**",
+                "**Minimizing the panel no longer leaves a NEW tag floating below the bar.**",
+                "**Map markers from an instance you've left no longer show their popup in the next one.**",
+                "**Toast headers in French, Portuguese and other accented languages no longer come out in mixed case.**",
+                "**Long search results stay inside the search box's popup**, ending in \"...\" instead of running past its edge.",
+            },
+        },
+    },
+},
+{
     version  = "3.3.3",
     date     = "2026-10-01",
     sections = {
@@ -109,38 +146,6 @@ RR.WhatsNew = {
             bullets = {
                 "**The Timewalking hourglass tints right after login** instead of staying white until the list is redrawn, and keeps its color inside an instance.",
                 "**A Heroic-only boss on a Normal run is no longer reported as skipped for being collected.**",
-            },
-        },
-    },
-},
-{
-    version  = "3.2.0",
-    date     = "2026-09-20",
-    sections = {
-        {
-            heading = "Added",
-            bullets = {
-                "**Burning Crusade dungeons are complete.** Also, The Violet Hold and The Culling of Stratholme in WotLK.",
-                "**Burning Crusade dungeon sets are called out.** A boss that drops a piece of one of the eleven Dungeon Set 3 sets shows it in a \"Dungeon Set 3\" block above its other loot, each piece tagged with its set.",
-                "**Mount Indicator.** If you're in a spot where you can mount up, a small pink horse icon pulses in the title bar to remind you.",
-            },
-        },
-        {
-            heading = "Changed",
-            bullets = {
-                "**Identical difficulties share one line in Transmog Needed.** When a boss drops identical appearances across difficulties, the section collapses to a single \"Any difficulty\" line instead of two redundant ones.",
-                "**Heroic-only drops are called out.** Similar to Mythic-only items in raids. Kael's mount/toy/pet in Magisters' Terrace, for example.",
-            },
-        },
-        {
-            heading = "Fixed",
-            bullets = {
-                "**Logging in no longer temporarily drops your frame rate.** The addon was loading Encounter Journal data for every instance it knows in the background after each login.",
-                "**The Instance Limit counter counts correctly.** It was previously adding a new instance every time you walked into another room of the same dungeon, and timing each one from your last step inside instead of from when you entered.",
-                "**A new appearance from a legacy dungeon's Normal drop no longer toasts as the Heroic epic.** The toast names and colors the item you looted rather than the base item behind it.",
-                "**Buying from a vendor no longer goes silent with the Toaster on.** Purchases, quest rewards and mail reach chat as they always did; only loot-window lines are summarized.",
-                "**Finishing a dungeon on Normal no longer reads \"Skip Run Complete\" when its only optional boss is Heroic-only.** A boss that difficulty never offered was not skipped.",
-                "**Transmog Needed collapses to \"Any difficulty\" in Timewalking dungeons too.** A Timewalking reprint of the same look no longer keeps the two-line form.",
             },
         },
     },

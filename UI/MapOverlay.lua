@@ -12,7 +12,6 @@ local RR = RetroRuns
 
 local MAX_LINES    = 80
 local MAX_ICONS    = 30
-local MAX_DOTS     = 80
 local MAX_LABELS   = 30
 local MAX_RINGS    = 10
 local MAX_CHEVRONS = 200
@@ -31,12 +30,8 @@ local MAX_MARK_HINTS = 24   -- hover targets over a seg's markers
 -- claims ground the data does not have.
 local SPOT_SIZE = 12
 local SPOT_ALPHA = 0.95
--- INVARIANT: none of these may be a color the ROUTE draws in. The route
--- line is gold (1.0, 0.82, 0.0), its chevrons cyan (0.30, 0.80, 1.00) and
--- its gated variant pink (0.95, 0.35, 0.78). Three of the four original
--- entries WERE those exact values, so a skull sitting on the path was
--- indistinguishable from the path. Pick a new color from outside that set,
--- never from the route's.
+-- INVARIANT: none of these may be a color the ROUTE draws in: line pink
+-- (0.95, 0.35, 0.78), chevrons cyan (0.30, 0.80, 1.00).
 local SPOT_PALETTE = {
     { 0.800, 0.600, 1.000 },   -- lavender
     { 0.400, 0.930, 0.470 },   -- mint
@@ -92,7 +87,6 @@ end
 
 overlay.lines    = {}
 overlay.icons    = {}
-overlay.dots     = {}
 overlay.labels   = {}
 overlay.rings    = {}
 overlay.chevrons = {}
@@ -108,10 +102,11 @@ overlay.spotPois     = {}   -- spotKey -> poi, rebuilt each refresh
 overlay.pinnedSpots  = {}   -- spotKey -> true while a click holds them on
 overlay.poiGlows     = {}   -- brand halo behind a marker that earns one
 
+-- Route line: brand pink (UI.lua's C_PINK), paired with cyan chevrons.
 local function MakeLine(parent)
     local ln = parent:CreateLine(nil, "ARTWORK")
-    ln:SetThickness(4)
-    ln:SetColorTexture(1.0, 0.82, 0.0, 0.95)
+    ln:SetThickness(5)
+    ln:SetColorTexture(0.95, 0.35, 0.78, 1.0)
     ln:Hide()
     return ln
 end
@@ -123,18 +118,10 @@ local function MakeIcon(parent)
     return tx
 end
 
-local function MakeDot(parent)
-    local tx = parent:CreateTexture(nil, "ARTWORK")
-    tx:SetSize(10, 10)
-    tx:SetTexture("Interface\\MINIMAP\\TempleofKotmogu_ball_cyan")
-    tx:Hide()
-    return tx
-end
-
 local function MakeLabel(parent, fontSize)
     local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     fs:SetTextColor(1.0, 1.0, 1.0, 1.0)
-    fs:SetFont(fs:GetFont(), fontSize or 17, "OUTLINE")
+    RR.SafeSetFont(fs, fs:GetFont(), fontSize or 17, "OUTLINE")
     fs:Hide()
     return fs
 end
@@ -178,7 +165,7 @@ local function MakeSpotBack(parent)
 end
 
 -- The highlight border around each sighting skull, in the rare's color.
--- Its alpha breathes while shown (see SetSpotPulse).
+-- Its alpha breathes while shown (see UpdateSpawnSpots).
 local function MakeSpotRing(parent)
     local tx = parent:CreateTexture(nil, "ARTWORK", nil, -1)
     tx:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\RingCircle")
@@ -192,32 +179,36 @@ end
 local TIP_GLYPH_HAVE = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
 local TIP_GLYPH_NEED = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14|t"
 
--- Keyed on whatever named the marker: a rare's npc name, or an object's
--- tag. The BRD safe and the Tribute chest carry their loot on `tag`, so
--- matching only `rareNpc` left those markers with nothing to show.
-local function PoiLootLines(key)
-    local raid = RR.currentRaid
+-- Each row of `list` that `matches` accepts, with whether its looks are
+-- collected: a row carrying several difficulty buckets only counts once every
+-- look it offers is owned. Nil while the collection check is unavailable.
+local function LootLines(list, matches)
     local lookCollected = RR.UI and RR.UI.IsSourceLookCollected
-    if not raid or not raid.trashLoot or not key or not lookCollected then
-        return nil
-    end
+    if not list or not lookCollected then return nil end
     local rows = {}
-    for _, row in ipairs(raid.trashLoot) do
-        if (row.rareNpc == key or row.tag == key) and row.sources then
-            -- A row can carry several difficulty buckets; it only counts as
-            -- collected once every look it offers is owned.
+    for _, row in ipairs(list) do
+        if not matches or matches(row) then
             local seen, have = false, true
-            for _, sourceID in pairs(row.sources) do
+            for _, sourceID in pairs(row.sources or {}) do
                 seen = true
                 if not lookCollected(sourceID) then have = false end
             end
             if seen then
-                rows[#rows + 1] =
-                    { id = row.id, name = row.name, have = have }
+                rows[#rows + 1] = { id = row.id, name = row.name, have = have }
             end
         end
     end
     return rows
+end
+
+-- Loot lines keyed on whatever named the marker: a rare's npc name, or an
+-- object's tag (the BRD safe, the Tribute chest).
+local function PoiLootLines(key)
+    local raid = RR.currentRaid
+    if not raid or not key then return nil end
+    return LootLines(raid.trashLoot, function(row)
+        return row.rareNpc == key or row.tag == key
+    end)
 end
 
 -- Caret spans render orange, mirroring UI.lua's HighlightNames. That one is
@@ -239,27 +230,11 @@ end
 -- lists its own drops.
 local function BossLootLines(bossIndex)
     local raid = RR.currentRaid
-    local lookCollected = RR.UI and RR.UI.IsSourceLookCollected
-    if not raid or not raid.bosses or not bossIndex or not lookCollected then
-        return nil
+    if not raid or not raid.bosses or not bossIndex then return nil end
+    for _, boss in ipairs(raid.bosses) do
+        if boss.index == bossIndex then return LootLines(boss.loot) end
     end
-    local boss
-    for _, candidate in ipairs(raid.bosses) do
-        if candidate.index == bossIndex then boss = candidate break end
-    end
-    if not boss or not boss.loot then return nil end
-    local rows = {}
-    for _, row in ipairs(boss.loot) do
-        local seen, have = false, true
-        for _, sourceID in pairs(row.sources or {}) do
-            seen = true
-            if not lookCollected(sourceID) then have = false end
-        end
-        if seen then
-            rows[#rows + 1] = { id = row.id, name = row.name, have = have }
-        end
-    end
-    return rows
+    return nil
 end
 
 -- Tooltip for a marker hit target. Split from OnEnter so a click can
@@ -408,7 +383,6 @@ end
 
 for i = 1, MAX_LINES    do overlay.lines[i]    = MakeLine(overlay)    end
 for i = 1, MAX_ICONS    do overlay.icons[i]    = MakeIcon(overlay)    end
-for i = 1, MAX_DOTS     do overlay.dots[i]     = MakeDot(overlay)     end
 for i = 1, MAX_LABELS   do overlay.labels[i]   = MakeLabel(overlay)   end
 for i = 1, MAX_RINGS      do overlay.rings[i]     = MakeRing(overlay)  end
 for i = 1, MAX_CHEVRONS   do overlay.chevrons[i]  = MakeChevron(overlay) end
@@ -432,67 +406,43 @@ local function PlaceAt(el, parent, nx, ny)
         nx * parent:GetWidth(), -ny * parent:GetHeight())
 end
 
-local function ApplyIconStyle(icon, kind)
-    -- "start" only -- the "end" case is handled by PlaceEndMarker below
-    -- (which also wants rotation, so it lives separately).
-    if kind == "start" then
-        icon:SetTexture("Interface\\MINIMAP\\TempleofKotmogu_ball_cyan")
-        icon:SetVertexColor(0.2, 1.0, 1.0, 1.0)
-        icon:SetSize(14, 14)
-        -- Pooled icons carry rotation and layer over from a previous use.
-        icon:SetRotation(0)
-        icon:SetDrawLayer("ARTWORK")
+-- Hides a pool's widgets from index `first` on (the whole pool by default).
+local function HideFrom(pool, first)
+    for index = first or 1, #pool do pool[index]:Hide() end
+end
+
+-- Settles breaths after a repaint: kept running on each pooled widget still
+-- shown that `breathes` accepts, stopped on the rest.
+local function SettleBreaths(pool, lowAlpha, breathes)
+    for _, region in ipairs(pool) do
+        RR.UI.SetBreathing(region,
+            region:IsShown() and (not breathes or breathes(region)) or false,
+            lowAlpha)
     end
 end
 
 -------------------------------------------------------------------------------
--- End marker. Aims at `dest` from the second-to-last polyline point.
+-- End marker at `dest`: the triangle, aimed along the polyline's last leg,
+-- or for a seg with endpointKind "skull" the raid-target skull, unrotated --
+-- a die-here shortcut (Antorus's elevator hole, Tomb's Tears of Elune jump).
 -------------------------------------------------------------------------------
 
 local function PlaceEndMarker(self, icon, pts, dest, W, H, endpointKind)
-    -- endpointKind opt-in: data segs can set seg.endpointKind to swap
-    -- the default end-triangle for a semantic alternative. Currently
-    -- supports "skull" (for jump-off-edge-to-die routing tricks --
-    -- Tomb Maiden's Tears step, and any future raid using a suicide
-    -- shortcut). Default (nil / unrecognized) renders the standard
-    -- directional triangle.
-    if endpointKind == "skull" then
-        -- WoW's built-in raid-target skull marker -- universally
-        -- recognized as "death" without needing a custom asset.
-        icon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_8")
-        icon:SetVertexColor(1.0, 1.0, 1.0, 1.0)
-        icon:SetSize(24, 24)
-        icon:SetDrawLayer("OVERLAY")
-        icon:ClearAllPoints()
-        icon:SetPoint("CENTER", self, "TOPLEFT",
-            dest[1] * W, -dest[2] * H)
-        -- Skulls aren't directional; reset any prior rotation.
-        icon:SetRotation(0)
-        return
-    end
-
-    icon:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\EndTriangle")
-    -- White tint is a no-op, so the asset's baked colors render as authored.
+    local skull = endpointKind == "skull"
+    icon:SetTexture(skull and "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8"
+        or "Interface\\AddOns\\RetroRuns\\Media\\Icons\\EndTriangle")
+    -- White tint is a no-op, so the art renders in its own colors.
     icon:SetVertexColor(1.0, 1.0, 1.0, 1.0)
     icon:SetSize(24, 24)
     icon:SetDrawLayer("OVERLAY")
-
-    icon:ClearAllPoints()
-    icon:SetPoint("CENTER", self, "TOPLEFT",
-        dest[1] * W, -dest[2] * H)
-
-    if pts and #pts >= 2 then
-        local prev = pts[#pts - 1]
-        local dx = (dest[1] - prev[1]) * W
-        local dy = (dest[2] - prev[2]) * H
-        if dx ~= 0 or dy ~= 0 then
-            icon:SetRotation(math.atan2(dx, dy))
-        else
-            icon:SetRotation(0)
-        end
-    else
-        icon:SetRotation(0)
+    PlaceAt(icon, self, dest[1], dest[2])
+    local rotation = 0
+    local prev = not skull and pts and #pts >= 2 and pts[#pts - 1]
+    if prev then
+        local dx, dy = (dest[1] - prev[1]) * W, (dest[2] - prev[2]) * H
+        if dx ~= 0 or dy ~= 0 then rotation = math.atan2(dx, dy) end
     end
+    icon:SetRotation(rotation)
 end
 
 -------------------------------------------------------------------------------
@@ -526,8 +476,8 @@ local function PlaceChevronsAlongPath(self, pts, W, H, startChevronIdx)
         total = total + segLen
     end
 
-    -- Skip chevrons on short paths -- start dot + end triangle make the
-    -- direction obvious without them. (See CHEVRON_MIN_PATH_PX docstring.)
+    -- Short paths skip chevrons: the start dot and end marker already show
+    -- the direction.
     if total < CHEVRON_MIN_PATH_PX then return 0 end
 
     local chevronIdx = startChevronIdx
@@ -577,35 +527,23 @@ end
 -------------------------------------------------------------------------------
 
 function overlay:HideAll()
-    for _, v in ipairs(self.lines)    do v:Hide() end
-    for _, v in ipairs(self.icons)    do v:Hide() end
-    for _, v in ipairs(self.dots)     do v:Hide() end
-    for _, v in ipairs(self.labels)   do
-        v:Hide()
-        -- Clear completionCheck pulse state so a recycled label
-        -- doesn't keep flashing the next time the labels pool is
-        -- reused on a non-flashing seg.
-        v.flashState = nil
-        v.flashBase  = nil
+    -- poiButtons and markButtons stay out: hiding one mid-click cancels the
+    -- click. The draw loops and Refresh hide the unused ones.
+    for _, pool in ipairs({ self.lines, self.icons, self.chevrons,
+        self.poiIcons, self.legendIcons, self.poiLabels, self.poiSpots,
+        self.poiSpotBacks, self.poiSpotRings, self.poiGlows }) do
+        HideFrom(pool)
     end
-    for _, v in ipairs(self.rings)    do
-        v:Hide()
-        -- Clear completion state so a recycled ring doesn't stay gray on
-        -- an incomplete seg the next time the pool is reused.
-        v.completeState = nil
+    -- A recycled label must not keep pulsing on a seg that does not pulse.
+    for _, label in ipairs(self.labels) do
+        label:Hide()
+        label.flashState = nil
     end
-    for _, v in ipairs(self.chevrons) do v:Hide() end
-    for _, v in ipairs(self.poiIcons)  do v:Hide() end
-    for _, v in ipairs(self.legendIcons) do v:Hide() end
-    for _, v in ipairs(self.poiLabels) do v:Hide() end
-    for _, v in ipairs(self.poiSpots)     do v:Hide() end
-    for _, v in ipairs(self.poiSpotBacks) do v:Hide() end
-    for _, v in ipairs(self.poiSpotRings) do v:Hide() end
-    -- poiButtons deliberately NOT hidden here: hiding a button between
-    -- mouse-down and mouse-up cancels the click, and the heartbeat runs
-    -- this often (the heartbeat click-race). The draw loop hides exactly
-    -- the buttons that go unused, and Refresh covers the no-draw paths.
-    for _, v in ipairs(self.poiGlows)      do v:Hide() end
+    -- A recycled ring must not stay gray on a seg that is not complete.
+    for _, ring in ipairs(self.rings) do
+        ring:Hide()
+        ring.completeState = nil
+    end
 end
 
 -- Is this seg already behind the step's progress?
@@ -699,19 +637,15 @@ function overlay:PlaceLegendLabel(label, icon, corner, index, tint, texture)
     label:SetJustifyH(right and "RIGHT" or "LEFT")
     -- The skull rides the outer edge so the names stay flush in a column;
     -- on a right-hand corner that mirrors, skull outside, text inboard.
-    if icon and texture then
-        icon:SetTexture(texture)
-        icon:SetTexCoord(0, 1, 0, 1)
-        icon:SetSize(LEGEND_ICON, LEGEND_ICON)
-        icon:SetVertexColor(tint[1], tint[2], tint[3], 1)
-        icon:ClearAllPoints()
-        icon:SetPoint(corner, self, corner, dx, dy)
-        icon:Show()
-        label:SetPoint(right and "RIGHT" or "LEFT", icon,
-                       right and "LEFT" or "RIGHT", right and -6 or 6, 0)
-    else
-        label:SetPoint(corner, self, corner, dx, dy)
-    end
+    icon:SetTexture(texture)
+    icon:SetTexCoord(0, 1, 0, 1)
+    icon:SetSize(LEGEND_ICON, LEGEND_ICON)
+    icon:SetVertexColor(tint[1], tint[2], tint[3], 1)
+    icon:ClearAllPoints()
+    icon:SetPoint(corner, self, corner, dx, dy)
+    icon:Show()
+    label:SetPoint(right and "RIGHT" or "LEFT", icon,
+                   right and "LEFT" or "RIGHT", right and -6 or 6, 0)
 end
 
 -- Always-on global POIs: raid-level fixtures (vendors, doors/tunnels,
@@ -766,7 +700,11 @@ local CLASS_ICON_SHEET = "Interface\\TargetingFrame\\UI-Classes-Circles"
 
 function overlay:DrawGlobalPOIsForMap(mapID)
     local raid = RR.currentRaid
-    if not raid or not raid.pois then return end
+    if not raid or not raid.pois then
+        -- Hit buttons left over from another instance's POIs must not stay hoverable.
+        HideFrom(self.poiButtons)
+        return
+    end
     -- Read at draw time: at file scope the player unit may not exist yet.
     local playerFaction = UnitFactionGroup and UnitFactionGroup("player")
     local _, playerClassToken, playerClassID = UnitClass("player")
@@ -787,18 +725,14 @@ function overlay:DrawGlobalPOIsForMap(mapID)
     local function RareStillWanted(poi)
         if showCollectedRares then return true end
         if poi.poiKind ~= "rare" or not poi.rareNpc then return true end
-        local lookCollected = RR.UI and RR.UI.IsSourceLookCollected
-        if not lookCollected then return true end
-        local sawLoot = false
-        for _, row in ipairs(raid.trashLoot or {}) do
-            if row.rareNpc == poi.rareNpc and row.sources then
-                sawLoot = true
-                for _, sourceID in pairs(row.sources) do
-                    if not lookCollected(sourceID) then return true end
-                end
-            end
+        local lines = LootLines(raid.trashLoot, function(row)
+            return row.rareNpc == poi.rareNpc
+        end)
+        if not lines or #lines == 0 then return true end
+        for _, line in ipairs(lines) do
+            if not line.have then return true end
         end
-        return not sawLoot
+        return false
     end
     local mapW, mapH = self:GetWidth(), self:GetHeight()
     local legendCount = {}
@@ -809,10 +743,11 @@ function overlay:DrawGlobalPOIsForMap(mapID)
     -- pair closer than a marker's width pushes apart along the line
     -- between them, and the one pushed lower flips its label underneath so
     -- the texts separate too.
-    local markFor, labelPosFor, drawList = {}, {}, {}
-    for _, poi in ipairs(raid.pois) do
+    local markFor, labelPosFor, drawList, poiIndexFor = {}, {}, {}, {}
+    for poiIndex, poi in ipairs(raid.pois) do
         if poi.mapID == mapID and poi.points and #poi.points > 0
             and BelongsToPlayer(poi) and RareStillWanted(poi) then
+            poiIndexFor[poi] = poiIndex
             local mark = poi.navPoint or poi.points[1]
             if not poi.navPoint and #poi.points > 1 then
                 local sumX, sumY = 0, 0
@@ -857,172 +792,128 @@ function overlay:DrawGlobalPOIsForMap(mapID)
         end
     end
     local iconIdx, labelIdx = 1, 1
-    for poiIndex, poi in ipairs(raid.pois) do
-        if poi.mapID == mapID and poi.points and #poi.points > 0
-            and BelongsToPlayer(poi)
-            and RareStillWanted(poi)
-            and iconIdx <= MAX_GLOBAL_POI then
-            -- One marker per POI whatever the point count: the rare is at
-            -- exactly one of its sightings, so a field of identical markers
-            -- would claim more than it knows. An authored navPoint places
-            -- the marker; without one a multi-spawn POI centers on its
-            -- sightings. The position itself comes from the separation
-            -- pass above, already nudged clear of its neighbors.
-            local mark = markFor[poi] or poi.navPoint or poi.points[1]
-            -- Composed before the marker so the hit target can hand the
-            -- same text to its tooltip. A rare POI composes its label from
-            -- one format string, so the npc name is the same locale key the
-            -- trash rows' tag uses and each name is translated once.
-            local labelText
-            if poi.mapLabel then
-                labelText = RR.L[poi.mapLabel]
-            elseif poi.rareNpc then
-                labelText = RR.L["%s (Rare)"]:format(RR.L[poi.rareNpc])
-            elseif poi.tag then
-                labelText = RR.L[poi.tag]
+    for _, poi in ipairs(drawList) do
+        if iconIdx > MAX_GLOBAL_POI then break end
+        -- One marker per POI, placed by its navPoint or centered on its
+        -- sightings, after the separation pass.
+        local mark = markFor[poi]
+        -- The label, composed before the marker so its tooltip can reuse it.
+        local labelText
+        if poi.mapLabel then
+            labelText = RR.L[poi.mapLabel]
+        elseif poi.rareNpc then
+            labelText = RR.L["%s (Rare)"]:format(RR.L[poi.rareNpc])
+        elseif poi.tag then
+            labelText = RR.L[poi.tag]
+        end
+        local spotKey = poi.rareNpc or poi.tag or poi.mapLabel
+        local spotColor = SPOT_PALETTE[(poiIndexFor[poi] - 1) % #SPOT_PALETTE + 1]
+        -- A rare wears its palette color, as its label, sightings, tooltip and
+        -- legend swatch do; other kinds keep their per-kind tint.
+        local kindTint = (poi.poiKind == "rare" and spotColor)
+            or GLOBAL_POI_TINTS[poi.poiKind] or GLOBAL_POI_WHITE
+        local texture = GLOBAL_POI_TEXTURES[poi.poiKind] or GLOBAL_POI_DEFAULT
+        if not poi.noMarker then
+            local icon = self.poiIcons[iconIdx]
+            PlaceAt(icon, self, mark[1], mark[2])
+            -- Class-tagged markers wear that class's icon in its own colors.
+            -- The pool is shared, so the plain branch clears the crop.
+            local classCoords = poi.class and CLASS_ICON_TCOORDS
+                and CLASS_ICON_TCOORDS[playerClassToken]
+            if classCoords then
+                icon:SetTexture(CLASS_ICON_SHEET)
+                icon:SetTexCoord(classCoords[1], classCoords[2],
+                                 classCoords[3], classCoords[4])
+            else
+                icon:SetTexture(texture)
+                icon:SetTexCoord(0, 1, 0, 1)
             end
-            local spotKey = poi.rareNpc or poi.tag or poi.mapLabel
-            local spotColor = SPOT_PALETTE[(poiIndex - 1) % #SPOT_PALETTE + 1]
-            if not poi.noMarker then
-              do
-                local icon = self.poiIcons[iconIdx]
-                if icon then
-                    PlaceAt(icon, self, mark[1], mark[2])
-                    -- Class-tagged markers wear that class's icon. The pool
-                    -- is shared, so the plain branch clears the crop.
-                    local classCoords = poi.class and CLASS_ICON_TCOORDS
-                        and CLASS_ICON_TCOORDS[playerClassToken]
-                    if classCoords then
-                        icon:SetTexture(CLASS_ICON_SHEET)
-                        icon:SetTexCoord(classCoords[1], classCoords[2],
-                                         classCoords[3], classCoords[4])
-                    else
-                        icon:SetTexture(GLOBAL_POI_TEXTURES[poi.poiKind]
-                                        or GLOBAL_POI_DEFAULT)
-                        icon:SetTexCoord(0, 1, 0, 1)
-                    end
-                    -- A class-cropped icon keeps its own colors. A rare
-                    -- wears its palette color -- the same one its label,
-                    -- sightings and tooltip carry -- so two rares on one
-                    -- floor never look alike; other kinds keep their
-                    -- per-kind tint.
-                    local tint = GLOBAL_POI_WHITE
-                    if not classCoords then
-                        tint = (poi.poiKind == "rare" and spotColor)
-                            or GLOBAL_POI_TINTS[poi.poiKind]
-                            or GLOBAL_POI_WHITE
-                    end
-                    icon:SetVertexColor(tint[1], tint[2], tint[3], 1)
-                    icon:SetRotation(0)
-                    -- Above the route entirely: the lines and dots sit on
-                    -- ARTWORK and the chevrons and end markers on OVERLAY,
-                    -- so a path drawn through a rare's room passes under
-                    -- the skull rather than across its face.
-                    icon:SetDrawLayer("OVERLAY", 2)
-                    local iconSize = poi.poiSize or GLOBAL_POI_SIZE
-                    icon:SetSize(iconSize, iconSize)
-                    icon:Show()
-                    local glowColor = GLOWING_POI_KINDS[poi.poiKind]
-                    if glowColor then
-                        -- Same pool index as the marker it sits behind,
-                        -- so the two can never drift apart.
-                        local glow = self.poiGlows[iconIdx]
-                        if glow then
-                            PlaceAt(glow, self, mark[1], mark[2])
-                            glow:SetSize(iconSize * POI_GLOW_SCALE,
-                                         iconSize * POI_GLOW_SCALE)
-                            glow:SetVertexColor(glowColor[1], glowColor[2],
-                                                glowColor[3], glowColor[4])
-                            glow:Show()
-                        end
-                    end
-                    -- Every marker takes a hit target, so the tooltip is
-                    -- ours wherever another addon pins the same rare. Only a
-                    -- multi-sighting marker registers spots to reveal: one
-                    -- sighting already sits under the marker itself.
-                    local button = self.poiButtons[iconIdx]
-                    if spotKey and #poi.points > 1 then
-                        self.spotPois[spotKey] =
-                            { poi = poi, color = spotColor,
-                              mark = mark, size = iconSize }
-                    end
-                    if spotKey and button then
-                        PlaceAt(button, self, mark[1], mark[2])
-                        button:SetSize(iconSize, iconSize)
-                        button.spotKey = spotKey
-                        button.labelText = labelText
-                        button.spotCount = #poi.points
-                        button.spotColor = spotColor
-                        button.poiKind   = poi.poiKind
-                        button.hintNote  = poi.hintNote
-                        button.hintWhere = poi.hintWhere
-                        button.poiSubZone = poi.subZone
-                        button.hintBoss  = poi.hintBoss
-                        button:Show()
-                    elseif button then
-                        button:Hide()
-                    end
-                    iconIdx = iconIdx + 1
+            local tint = classCoords and GLOBAL_POI_WHITE or kindTint
+            icon:SetVertexColor(tint[1], tint[2], tint[3], 1)
+            icon:SetRotation(0)
+            -- Drawn above the route's lines, dots, chevrons and end markers.
+            icon:SetDrawLayer("OVERLAY", 2)
+            local iconSize = poi.poiSize or GLOBAL_POI_SIZE
+            icon:SetSize(iconSize, iconSize)
+            icon:Show()
+            local glowColor = GLOWING_POI_KINDS[poi.poiKind]
+            if glowColor then
+                -- Same pool index as the marker it sits behind, so the two
+                -- can never drift apart.
+                local glow = self.poiGlows[iconIdx]
+                PlaceAt(glow, self, mark[1], mark[2])
+                glow:SetSize(iconSize * POI_GLOW_SCALE, iconSize * POI_GLOW_SCALE)
+                glow:SetVertexColor(glowColor[1], glowColor[2],
+                                    glowColor[3], glowColor[4])
+                glow:Show()
+            end
+            -- Every marker takes a hit target; only a multi-sighting marker
+            -- registers spots to reveal.
+            local button = self.poiButtons[iconIdx]
+            if spotKey and #poi.points > 1 then
+                self.spotPois[spotKey] =
+                    { poi = poi, color = spotColor, mark = mark, size = iconSize }
+            end
+            if spotKey then
+                PlaceAt(button, self, mark[1], mark[2])
+                button:SetSize(iconSize, iconSize)
+                button.spotKey = spotKey
+                button.labelText = labelText
+                button.spotCount = #poi.points
+                button.spotColor = spotColor
+                button.poiKind   = poi.poiKind
+                button.hintNote  = poi.hintNote
+                button.hintWhere = poi.hintWhere
+                button.poiSubZone = poi.subZone
+                button.hintBoss  = poi.hintBoss
+                button:Show()
+            else
+                button:Hide()
+            end
+            iconIdx = iconIdx + 1
+        end
+        if labelText then
+            local label = self.poiLabels[labelIdx]
+            if label then
+                label:SetText(labelText)
+                local pos    = labelPosFor[poi] or poi.mapLabelPos
+                local corner = LEGEND_CORNERS[pos or ""]
+                local fontFile = label:GetFont()
+                -- Two markers of one kind sharing a name (BWL's pair of
+                -- alchemy workbenches) fold to one legend line.
+                local legendKey = corner
+                    and (corner .. "|" .. (poi.poiKind or "") .. "|" .. labelText)
+                local legendFolded = legendKey and legendSeen[legendKey]
+                if legendFolded then
+                    label:Hide()
+                elseif corner then
+                    legendSeen[legendKey] = true
+                    local used = legendCount[corner] or 0
+                    legendCount[corner] = used + 1
+                    RR.SafeSetFont(label, fontFile, LEGEND_FONT, "OUTLINE")
+                    self:PlaceLegendLabel(label, self.legendIcons[labelIdx],
+                        corner, used, kindTint, texture)
+                else
+                    RR.SafeSetFont(label, fontFile, GLOBAL_POI_FONT, "OUTLINE")
+                    self:PlaceLabel(label, pos, mark[1], mark[2],
+                        (poi.poiSize or GLOBAL_POI_SIZE) / 2)
                 end
-              end
-            end
-            if labelText then
-                local label = self.poiLabels[labelIdx]
-                if label then
-                    label:SetText(labelText)
-                    local pos    = labelPosFor[poi] or poi.mapLabelPos
-                    local corner = LEGEND_CORNERS[pos or ""]
-                    local fontFile = label:GetFont()
-                    -- Two markers of one kind sharing a name (BWL's pair
-                    -- of alchemy workbenches) fold to one legend line.
-                    local legendKey = corner
-                        and (corner .. "|" .. (poi.poiKind or "") .. "|" .. labelText)
-                    local legendFolded = legendKey and legendSeen[legendKey]
-                    if legendFolded then
-                        label:Hide()
-                    elseif corner then
-                        legendSeen[legendKey] = true
-                        local used = legendCount[corner] or 0
-                        legendCount[corner] = used + 1
-                        label:SetFont(fontFile, LEGEND_FONT, "OUTLINE")
-                        -- The legend icon wears exactly what the map icon
-                        -- wears: a rare its palette color, any other kind
-                        -- its per-kind tint, so the two never disagree.
-                        self:PlaceLegendLabel(label,
-                            self.legendIcons[labelIdx], corner, used,
-                            (poi.poiKind == "rare") and spotColor
-                                or GLOBAL_POI_TINTS[poi.poiKind]
-                                or GLOBAL_POI_WHITE,
-                            GLOBAL_POI_TEXTURES[poi.poiKind]
-                                or GLOBAL_POI_DEFAULT)
-                    else
-                        label:SetFont(fontFile, GLOBAL_POI_FONT, "OUTLINE")
-                        self:PlaceLabel(label, pos, mark[1], mark[2],
-                            (poi.poiSize or GLOBAL_POI_SIZE) / 2)
-                    end
-                    -- A rare's label wears its palette color from the
-                    -- start, matching its skull; the pool resets to white
-                    -- for everything else.
-                    if poi.poiKind == "rare" then
-                        label:SetTextColor(spotColor[1], spotColor[2],
-                                           spotColor[3], 1)
-                    else
-                        label:SetTextColor(1, 1, 1, 1)
-                    end
-                    if legendFolded then
-                        -- The pooled label stays hidden and unused.
-                    else
-                        label:Show()
-                        labelIdx = labelIdx + 1
-                    end
+                -- A rare's label wears its palette color, matching its
+                -- skull; the pool resets to white for everything else.
+                if poi.poiKind == "rare" then
+                    label:SetTextColor(spotColor[1], spotColor[2], spotColor[3], 1)
+                else
+                    label:SetTextColor(1, 1, 1, 1)
+                end
+                -- A folded label stays hidden and its pool slot unused.
+                if not legendFolded then
+                    label:Show()
+                    labelIdx = labelIdx + 1
                 end
             end
         end
     end
-    for buttonIdx = iconIdx, MAX_GLOBAL_POI do
-        local unused = self.poiButtons[buttonIdx]
-        if unused then unused:Hide() end
-    end
+    HideFrom(self.poiButtons, iconIdx)
 end
 
 function overlay:DrawSegmentsForMap(mapID)
@@ -1135,26 +1026,16 @@ function overlay:DrawSegmentsForMap(mapID)
                         local poiHalf = (seg.poiSize or 35) / 2
                         self:PlaceLabel(label, seg.mapLabelPos, labelX, labelY, poiHalf)
 
+                        -- completionCheck pulses until the seg is done, then
+                        -- grays with a check; mapLabelPulse pulses forever.
                         local labelText = RR.L[seg.mapLabel]
-                        if seg.completionCheck then
-                            if SegIsComplete(step, seg) then
-                                label:SetText("|cff9d9d9d" .. labelText
-                                    .. "|r |TInterface\\RaidFrame\\ReadyCheck-Ready:14|t")
-                                label.flashState = "completed"
-                            else
-                                local color = (RR.GetLabelPulseColor and RR:GetLabelPulseColor())
-                                    or "|cffffffff"
-                                label:SetText(color .. labelText .. "|r")
-                                label.flashState = "pulsing"
-                                label.flashBase  = labelText
-                            end
-                        elseif seg.mapLabelPulse then
-                            -- Pulses forever, with no completion state.
-                            local color = (RR.GetLabelPulseColor and RR:GetLabelPulseColor())
-                                or "|cffffffff"
-                            label:SetText(color .. labelText .. "|r")
+                        if seg.completionCheck and SegIsComplete(step, seg) then
+                            label:SetText("|cff9d9d9d" .. labelText
+                                .. "|r |TInterface\\RaidFrame\\ReadyCheck-Ready:14|t")
+                        elseif seg.completionCheck or seg.mapLabelPulse then
+                            -- Breathes (SettleBreaths, after the draw).
+                            label:SetText(labelText)
                             label.flashState = "pulsing"
-                            label.flashBase  = labelText
                         else
                             label:SetText(labelText)
                         end
@@ -1169,21 +1050,20 @@ function overlay:DrawSegmentsForMap(mapID)
             local startIcon = self.icons[iconIdx]
             if startIcon then
                 PlaceAt(startIcon, self, pts[1][1], pts[1][2])
-                ApplyIconStyle(startIcon, "start")
+                startIcon:SetTexture("Interface\\MINIMAP\\TempleofKotmogu_ball_cyan")
+                startIcon:SetVertexColor(0.2, 1.0, 1.0, 1.0)
+                startIcon:SetSize(14, 14)
+                -- Pooled icons carry rotation and layer over from a previous use.
+                startIcon:SetRotation(0)
+                startIcon:SetDrawLayer("ARTWORK")
                 startIcon:Show()
                 iconIdx = iconIdx + 1
             end
 
-            -- Lines: all segments use the same bright thick line for visibility.
-            -- Pink {0.95, 0.35, 0.78} matches UI.lua C_PINK (the RETRORUNS
-            -- title color); pairs with cyan chevrons for the addon's color
-            -- scheme.
             for i = 2, #pts do
                 local ln = self.lines[lineIdx]
                 if ln then
                     local p, c = pts[i-1], pts[i]
-                    ln:SetThickness(5)
-                    ln:SetColorTexture(0.95, 0.35, 0.78, 1.0)
                     ln:SetStartPoint("TOPLEFT", p[1] * W, -p[2] * H)
                     ln:SetEndPoint  ("TOPLEFT", c[1] * W, -c[2] * H)
                     ln:Show()
@@ -1195,10 +1075,8 @@ function overlay:DrawSegmentsForMap(mapID)
             chevronIdx = chevronIdx +
                 PlaceChevronsAlongPath(self, pts, W, H, chevronIdx)
 
-            -- End marker: cyan triangle pointing at the boss location.
-            -- (Teleporter destinations are rendered natively by the World
-            -- Map, so segments whose kind=="teleport" still get the end
-            -- marker here -- we no longer draw a separate teleporter glyph.)
+            -- End marker at the seg's destination. A teleport seg gets one
+            -- too; the World Map draws teleporters natively.
             local dest    = seg.navPoint or pts[#pts]
             local endIcon = self.icons[iconIdx]
             if endIcon then
@@ -1207,15 +1085,13 @@ function overlay:DrawSegmentsForMap(mapID)
                 iconIdx = iconIdx + 1
             end
 
-            -- Optional opt-in map label. Path end-triangle is 24x24
-            -- (see PlaceEndMarker); half-height = 12 for the gap.
-            -- Accepts the same seg.mapLabelPos values as the POI
-            -- branch above.
+            -- Optional map label, placed off the 24px end marker (half = 12).
+            -- Takes the same seg.mapLabelPos values as the POI branch above.
             if seg.mapLabel then
                 local label = self.labels[labelIdx]
                 if label then
                     self:PlaceLabel(label, seg.mapLabelPos, dest[1], dest[2], 12)
-                    label:SetText(seg.mapLabel)
+                    label:SetText(RR.L[seg.mapLabel])
                     label:Show()
                     labelIdx = labelIdx + 1
                 end
@@ -1229,12 +1105,14 @@ function overlay:DrawSegmentsForMap(mapID)
                 if ring then
                     local mark = seg.navPoint or pts[#pts]
                     PlaceAt(ring, self, mark[1], mark[2])
-                    -- Stops the ring ticker repainting this one red.
+                    -- A done seg's ring goes gray and holds still; the rest
+                    -- breathe red (SettleBreaths, after the draw).
                     if seg.completionCheck and SegIsComplete(step, seg) then
                         ring.completeState = true
                         ring:SetVertexColor(0.61, 0.61, 0.61, 1)
                     else
                         ring.completeState = nil
+                        ring:SetVertexColor(1.0, 0.0, 0.0, 1.0)
                     end
                     ring:Show()
                     ringIdx = ringIdx + 1
@@ -1259,59 +1137,10 @@ function overlay:DrawSegmentsForMap(mapID)
                 if x and y then
                     PlaceAt(ring, self, x, y)
                     ring.completeState = nil
+                    ring:SetVertexColor(1.0, 0.0, 0.0, 1.0)
                     ring:Show()
                     ringIdx = ringIdx + 1
                 end
-            end
-        end
-    end
-end
-
-
-function overlay:DrawRecorder(mapID)
-    -- Support both old DB-backed recorder and new in-memory recorder
-    local rec    = RR.recorder
-    local active = rec and rec.active
-    local points = {}
-
-    if active and rec.current and rec.current.mapID == mapID then
-        -- Draw committed segments for this map too
-        for _, seg in ipairs(rec.segments) do
-            if seg.mapID == mapID then
-                for _, pt in ipairs(seg.points) do
-                    table.insert(points, pt)
-                end
-            end
-        end
-        for _, pt in ipairs(rec.current.points) do
-            table.insert(points, pt)
-        end
-    end
-
-    if #points == 0 then return end
-
-    local W, H    = self:GetWidth(), self:GetHeight()
-    local lineIdx = math.floor(MAX_LINES / 2) + 1
-    local dotIdx  = 1
-
-    for i, pt in ipairs(points) do
-        local dt = self.dots[dotIdx]
-        if dt then
-            PlaceAt(dt, self, pt[1], pt[2])
-            dt:SetVertexColor(0.2, 1.0, 0.2, 1.0)
-            dt:Show()
-            dotIdx = dotIdx + 1
-        end
-        if i > 1 then
-            local ln = self.lines[lineIdx]
-            if ln then
-                local prev = points[i-1]
-                ln:SetThickness(2)
-                ln:SetColorTexture(0.2, 1.0, 0.2, 0.85)
-                ln:SetStartPoint("TOPLEFT", prev[1] * W, -prev[2] * H)
-                ln:SetEndPoint  ("TOPLEFT", pt[1]   * W, -pt[2]   * H)
-                ln:Show()
-                lineIdx = lineIdx + 1
             end
         end
     end
@@ -1382,33 +1211,21 @@ local function BuildWorldMapButton()
 end
 BuildWorldMapButton()
 
--- The rings breathe so the sightings catch the eye on busy map art. A
--- ticker drives the alpha by hand -- the toast recipe's lesson, manual
--- driving over AnimationGroups -- and exists only while rings are shown.
-local spotPulseTicker
-local function SetSpotPulse(active)
-    if active and not spotPulseTicker then
-        spotPulseTicker = C_Timer.NewTicker(0.05, function()
-            local pulseAlpha = 0.6 + 0.35 * math.sin(GetTime() * 4)
-            for _, ring in ipairs(overlay.poiSpotRings) do
-                if ring:IsShown() then ring:SetAlpha(pulseAlpha) end
-            end
-        end)
-    elseif not active and spotPulseTicker then
-        spotPulseTicker:Cancel()
-        spotPulseTicker = nil
-    end
-end
-
 -- Redraws the sighting skulls from hover + pinned state. Cheap enough to
 -- run straight from the mouse handlers; Refresh runs it too so pinned
--- skulls come back after a map change.
+-- skulls come back after a map change. The rings around them breathe so the
+-- sightings catch the eye on busy map art.
 function overlay:UpdateSpawnSpots()
-    for _, spot in ipairs(self.poiSpots)     do spot:Hide() end
-    for _, back in ipairs(self.poiSpotBacks) do back:Hide() end
-    for _, ring in ipairs(self.poiSpotRings) do ring:Hide() end
+    HideFrom(self.poiSpots)
+    HideFrom(self.poiSpotBacks)
+    HideFrom(self.poiSpotRings)
+    self:DrawSpawnSpots()
+    SettleBreaths(self.poiSpotRings, 0.25)
+end
+
+function overlay:DrawSpawnSpots()
     local mapID = WorldMapFrame:GetMapID()
-    if not mapID then SetSpotPulse(false) return end
+    if not mapID then return end
     local spotIdx = 1
     for spotKey, entry in pairs(self.spotPois) do
         if (self.pinnedSpots[spotKey] or self.hoveredSpotKey == spotKey)
@@ -1424,10 +1241,7 @@ function overlay:UpdateSpawnSpots()
                     and math.abs((point[2] - mark[2]) * frameH) < half
                 if not underMarker then
                 local spot = self.poiSpots[spotIdx]
-                if not spot then
-                    SetSpotPulse(true)
-                    return
-                end
+                if not spot then return end
                 local back = self.poiSpotBacks[spotIdx]
                 local ring = self.poiSpotRings[spotIdx]
                 PlaceAt(back, self, point[1], point[2])
@@ -1458,8 +1272,12 @@ function overlay:UpdateSpawnSpots()
             end
         end
     end
-    SetSpotPulse(spotIdx > 1)
 end
+
+-- The objective rings breathe red until their seg is done; pulsing labels
+-- breathe with them.
+local function RingBreathes(ring) return not ring.completeState end
+local function LabelBreathes(label) return label.flashState == "pulsing" end
 
 function overlay:Refresh()
     self:HideAll()
@@ -1467,7 +1285,9 @@ function overlay:Refresh()
     self.markButtonsUsed = 0
     local mapID = WorldMapFrame:GetMapID()
     if not mapID then
-        for _, hit in ipairs(self.markButtons) do hit:Hide() end
+        HideFrom(self.markButtons)
+        SettleBreaths(self.rings, 0.55, RingBreathes)
+        SettleBreaths(self.labels, 0.6, LabelBreathes)
         return
     end
 
@@ -1481,27 +1301,22 @@ function overlay:Refresh()
         if RR:GetSetting("mapPois", true) ~= false then
             self:DrawGlobalPOIsForMap(mapID)
         else
-            for _, button in ipairs(self.poiButtons) do button:Hide() end
+            HideFrom(self.poiButtons)
         end
         self:DrawSegmentsForMap(mapID)
     else
         -- No loaded instance: the hit targets go with the markers.
-        for _, button in ipairs(self.poiButtons) do button:Hide() end
+        HideFrom(self.poiButtons)
     end
     -- Mark hover targets past the ones this draw placed go away.
-    for hitIdx = (self.markButtonsUsed or 0) + 1, MAX_MARK_HINTS do
-        local unused = self.markButtons[hitIdx]
-        if unused then unused:Hide() end
-    end
+    HideFrom(self.markButtons, self.markButtonsUsed + 1)
+    SettleBreaths(self.rings, 0.55, RingBreathes)
+    SettleBreaths(self.labels, 0.6, LabelBreathes)
 
     -- Pinned sighting dots come back after every repaint -- Refresh hides
     -- the pool wholesale, and the heartbeat repaints often.
     self:UpdateSpawnSpots()
-
-    self:DrawRecorder(mapID)
 end
-
-RetroRunsMapOverlay = overlay
 
 -------------------------------------------------------------------------------
 -- Hooks
@@ -1517,39 +1332,8 @@ WorldMapFrame:HookScript("OnShow", function()
     RR.UI.Update()
 end)
 
-WorldMapFrame.ScrollContainer:HookScript("OnMouseUp", function(_, button)
-    if button == "LeftButton" and RR.RecorderHandleMapClick then
-        RR:RecorderHandleMapClick()
-    end
-end)
-
 C_Timer.NewTicker(1.0, function()
     if WorldMapFrame and WorldMapFrame:IsShown() then
         overlay:Refresh()
-    end
-end)
-
--- Re-tints pulsing labels and breathes the rings (red channel only), both
--- off the panel's shared phase, in one 0.1s ticker.
-C_Timer.NewTicker(0.1, function()
-    if not WorldMapFrame or not WorldMapFrame:IsShown() then return end
-    if RR.GetLabelPulseColor then
-        local color = RR:GetLabelPulseColor()
-        for _, label in ipairs(overlay.labels) do
-            if label:IsShown()
-                and label.flashState == "pulsing"
-                and label.flashBase
-            then
-                label:SetText(color .. label.flashBase .. "|r")
-            end
-        end
-    end
-    if RR.GetRingPulseRed then
-        local pulseRed = RR:GetRingPulseRed()
-        for _, ring in ipairs(overlay.rings) do
-            if ring:IsShown() and not ring.completeState then
-                ring:SetVertexColor(pulseRed, 0, 0, 1)
-            end
-        end
     end
 end)

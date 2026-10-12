@@ -44,7 +44,6 @@ RetroRuns_Data[469] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {},
     },
 
@@ -416,8 +415,8 @@ RetroRuns_Data[469] = {
                 {
                     when    = { mapID = 289 },
                     kind    = "path",
-                    note    = "After defeating ^Firemaw^, continue northwest until you reach ^Ebonroc^.",
-                    minNote = "Northwest to Ebonroc",
+                    note    = "After defeating ^Firemaw^, continue ahead until you reach ^Ebonroc^.",
+                    minNote = "Ahead to Ebonroc",
                     points  = {
                         { 0.440, 0.377 },
                         { 0.365, 0.371 },

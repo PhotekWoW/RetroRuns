@@ -34,11 +34,6 @@ RetroRuns_Data[996] = {
     },
 
     tierSets = {
-        labels = {
-            -- Tier 14 spans Heart of Fear, Terrace of Endless
-            -- Spring, and the Sha of Anger world boss. Terrace of
-            -- Endless Spring drops the Shoulder and Head tokens.
-        },
         tokenSources = {
             [89246] = 3,  -- Shoulders of the Shadowy Conqueror
             [89247] = 3,  -- Shoulders of the Shadowy Protector

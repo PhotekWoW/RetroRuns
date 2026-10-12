@@ -53,7 +53,6 @@ RetroRuns_Data[1520] = {
     -- contrasts with Nighthold/Tomb/Antorus (later Legion raids that
     -- did ship tier sets).
     tierSets = {
-        labels       = {},
         tokenSources = {},
     },
 

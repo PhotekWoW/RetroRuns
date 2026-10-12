@@ -38,7 +38,6 @@ RetroRuns_Data[1648] = {
     -- Emerald Nightmare (same relic-only Legion cohort) and contrasts
     -- with Nighthold/Tomb/Antorus.
     tierSets = {
-        labels       = {},
         tokenSources = {},
     },
 

@@ -34,9 +34,12 @@ RetroRuns_Data[624] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {},
     },
+
+    -- Every class's tier piece drops here, and looting one unlocks its look
+    -- on any character, so Transmog Needed counts all of them.
+    tierUnlocksForAllClasses = true,
 
     bosses = {
         {

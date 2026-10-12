@@ -29,7 +29,6 @@ RetroRuns_Data[548] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [30239] = 3,   -- Gloves of the Vanquished Champion
             [30240] = 3,   -- Gloves of the Vanquished Defender

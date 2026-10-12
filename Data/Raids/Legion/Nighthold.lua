@@ -47,7 +47,6 @@ RetroRuns_Data[1530] = {
     },
 
     tierSets = {
-        labels       = { "The Nighthold" },
         tokenSources = {},
     },
 

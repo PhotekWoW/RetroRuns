@@ -46,7 +46,6 @@ RetroRuns_Data[532] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [29756] = 5,   -- Gloves of the Fallen Hero
             [29757] = 5,   -- Gloves of the Fallen Champion

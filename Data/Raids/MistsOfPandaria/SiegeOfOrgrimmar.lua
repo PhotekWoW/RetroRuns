@@ -66,14 +66,6 @@ RetroRuns_Data[1136] = {
     },
 
     tierSets = {
-        labels       = {
-            -- Tier 16 is the Siege of Orgrimmar set. The raid drops all
-            -- five token slots plus the Essence off-set token: Sha of
-            -- Pride (Chest), General Nazgrim (Hands), Thok the
-            -- Bloodthirsty (Helm), Siegecrafter Blackfuse (Shoulders),
-            -- Paragons of the Klaxxi (Legs), and Garrosh Hellscream
-            -- (Essence).
-        },
         tokenSources = {
         [99667] = 8,  -- Gauntlets of the Cursed Protector
         [99668] = 12,  -- Shoulders of the Cursed Vanquisher

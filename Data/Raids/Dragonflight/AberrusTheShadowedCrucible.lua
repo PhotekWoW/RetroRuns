@@ -45,9 +45,6 @@ RetroRuns_Data[2569] = {
     -- on Sarkareth's transmog browser view rather than as a tracked
     -- token (since it can become any of the five tier slots).
     tierSets = {
-        labels = {
-            "Aberrus, the Shadowed Crucible",  -- setID=2858
-        },
         tokenSources = {
             -- Forgotten Experiments (Hands)
             [202624] = 3,  -- Dreadful Mixing Fluid

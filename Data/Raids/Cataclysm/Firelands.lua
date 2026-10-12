@@ -37,7 +37,6 @@ RetroRuns_Data[720] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [71672] = 3,  -- Chest of the Fiery Vanquisher
             [71679] = 3,  -- Chest of the Fiery Conqueror
@@ -97,8 +96,7 @@ RetroRuns_Data[720] = {
 
     -- Legend for the upgrade chain, rendered under the trash rows.
     trashNote = {
-        text   = "{dot}{pad} Base item, trash drop\n"
-            .. "{dot}{dot} Base + {item} (Heroic appearance)",
+        text   = "{dot}{pad} Base item, trash drop\n{dot}{dot} Base + {item} (Heroic appearance)",
         itemID = 71617,
     },
 

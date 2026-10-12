@@ -38,7 +38,6 @@ RetroRuns_Data[649] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             -- Trophy of the Crusade, the 25-player tier token, drops from
             -- every boss. The 25-player Heroic Regalia tokens come from
@@ -84,8 +83,7 @@ RetroRuns_Data[649] = {
     -- Explains the gold rows: the two tiers look identical but the game
     -- tracks each source on its own.
     tierNote = {
-        text = "Triumph and Conquest appearances are shared, "
-            .. "but unlock separately.",
+        text = "Triumph and Conquest appearances are shared, but unlock separately.",
     },
 
     bosses = {

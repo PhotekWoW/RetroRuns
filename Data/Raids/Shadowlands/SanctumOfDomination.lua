@@ -38,7 +38,6 @@ RetroRuns_Data[2450] = {
     -- sets are unified purely by model, not by token drops, so there
     -- is nothing to route per-boss and no per-class filtering applies.
     tierSets = {
-        labels       = {},
         tokenSources = {},
     },
 

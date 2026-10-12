@@ -8,12 +8,12 @@ Zone into an old raid or dungeon and RetroRuns guides you boss by boss to the en
 
 **Raids:** all 51 legacy raids, Classic through Dragonflight, with full step-by-step routing.
 
-**Dungeons:** 65 of the 123 legacy dungeons are fully routed so far:
+**Dungeons:** 67 of the 123 legacy dungeons are fully routed so far:
 
 * Classic: all 18
 * The Burning Crusade: all 16
 * Wrath of the Lich King: all 16
-* Cataclysm: Throne of the Tides, The Vortex Pinnacle, Lost City of the Tol'vir, Halls of Origination, The Stonecore, Shadowfang Keep
+* Cataclysm: Throne of the Tides, The Vortex Pinnacle, Lost City of the Tol'vir, Halls of Origination, The Stonecore, Shadowfang Keep, Grim Batol, Blackrock Caverns
 * Mists of Pandaria: all 9
 
 The rest, from the remaining Cataclysm dungeons and Warlords of Draenor through Dragonflight, already show their bosses, loot and entrances in the transmog browser. Routes for them are on the way.
@@ -81,15 +81,15 @@ Main commands, type in chat:
 | Command | What it does |
 |---|---|
 | `/rr` | Toggle the main panel |
-| `/rr status` | Print current instance, step, and kill state to chat |
+| `/rr status` | Open a window with the current instance, step, and kill state |
 | `/rr tmog` | Open the transmog browser |
-| `/rr skips` | Print account-wide raid skip status |
+| `/rr skips` | Open the account-wide raid skip status window |
 | `/rr settings` | Open the settings window |
 | `/rr help` | Show the command list |
 
 ## Status
 
-Version **3.3.3**
+Version **3.3.4**
 
 ## Reporting bugs / requesting features
 
@@ -104,7 +104,7 @@ The Settings panel has a beetle icon (GitHub Issues) and a chat-bubble icon (Cur
 
 When reporting a bug, the following info helps:
 
-* Addon version (`/rr status` prints it, or check `RetroRuns.toc`)
+* Addon version (bottom-right corner of the main panel, or check `RetroRuns.toc`)
 * Your class, covenant (if applicable), and the raid + difficulty you were in
 * What you expected vs what actually happened
 * Screenshot if visual

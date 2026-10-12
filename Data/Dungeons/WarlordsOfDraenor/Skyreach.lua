@@ -32,7 +32,6 @@ RetroRuns_DungeonData[476] = {
             achievements       = {
             },
             loot = {
-                { id = 258575, slot = "Back", name = "Rigid Scale Greatcloak", sources = { [14]=301483, [15]=301484, [16]=301482 } },
                 { id = 109979, slot = "Head", name = "Blackwater Helm", sources = { [14]=61324, [15]=61325, [16]=59621 } },
                 { id = 109976, slot = "Head", name = "Bloodfeather Cowl", sources = { [14]=61276, [15]=61277, [16]=59618 } },
                 { id = 109977, slot = "Head", name = "Crystalbinder Helm", sources = { [14]=61292, [15]=61293, [16]=59619 } },
@@ -53,10 +52,7 @@ RetroRuns_DungeonData[476] = {
                 { id = 109981, slot = "Head", name = "Sharpeye Gleam", sources = { [14]=61383, [15]=61384, [16]=59623 } },
                 { id = 109980, slot = "Head", name = "Streamslither Helm", sources = { [14]=61381, [15]=61382, [16]=59622 } },
                 { id = 109986, slot = "Head", name = "Verdant Plate Crown", sources = { [14]=61455, [15]=61424, [16]=59628 } },
-                { id = 258574, slot = "Legs", name = "Legwraps of Swirling Light", sources = { [14]=301480, [15]=301481, [16]=301479 } },
-                { id = 258412, slot = "Ranged", name = "Stormshaper's Crossbow", sources = { [15]=301460, [16]=301460 } },
                 { id = 110030, slot = "Two-Hand", name = "Chakram-Breaker Greatsword", sources = { [14]=61043, [15]=61042, [16]=59634 } },
-                { id = 258046, slot = "Two-Hand", name = "Chakram-Breaker Greatsword", sources = { [14]=301399, [15]=301398, [16]=301397 } },
                 { id = 109829, slot = "Waist", name = "Belt of Burning Focus", sources = { [14]=61250, [15]=61251, [16]=59497 } },
                 { id = 109842, slot = "Waist", name = "Blackwater Belt", sources = { [14]=61314, [15]=61315, [16]=59510 } },
                 { id = 109830, slot = "Waist", name = "Bloodfeather Girdle", sources = { [14]=61266, [15]=61267, [16]=59498 } },
@@ -77,7 +73,6 @@ RetroRuns_DungeonData[476] = {
                 { id = 109834, slot = "Waist", name = "Sharpeye Belt", sources = { [14]=61333, [15]=61334, [16]=59502 } },
                 { id = 109833, slot = "Waist", name = "Streamslither Belt", sources = { [14]=61331, [15]=61332, [16]=59501 } },
                 { id = 109838, slot = "Waist", name = "Verdant Plate Belt", sources = { [14]=61450, [15]=61419, [16]=59506 } },
-                { id = 258218, slot = "Weapon", name = "Skybreaker's Blade", sources = { [15]=301427, [16]=301427 } },
             },
         },
         {
@@ -88,11 +83,9 @@ RetroRuns_DungeonData[476] = {
             achievements       = {
             },
             loot = {
-                { id = 258576, slot = "Chest", name = "Sharpeye Chestguard", sources = { [14]=301486, [15]=301487, [16]=301485 } },
                 { id = 109799, slot = "Feet", name = "Blackwater Boots", sources = { [14]=61316, [15]=61317, [16]=59467 } },
                 { id = 109788, slot = "Feet", name = "Bloodfeather Treads", sources = { [14]=61268, [15]=61269, [16]=59456 } },
                 { id = 109787, slot = "Feet", name = "Boots of Burning Focus", sources = { [14]=61252, [15]=61253, [16]=59455 } },
-                { id = 258577, slot = "Feet", name = "Boots of Burning Focus", sources = { [14]=301489, [15]=301490, [16]=301488 } },
                 { id = 109789, slot = "Feet", name = "Crystalbinder Sandals", sources = { [14]=61284, [15]=61285, [16]=59457 } },
                 { id = 109797, slot = "Feet", name = "Felflame Sandals", sources = { [14]=60889, [15]=60890, [16]=59465 } },
                 { id = 109785, slot = "Feet", name = "Frost-Touched Boots", sources = { [14]=60883, [15]=60884, [16]=59453 } },
@@ -110,11 +103,7 @@ RetroRuns_DungeonData[476] = {
                 { id = 109791, slot = "Feet", name = "Sharpeye Greaves", sources = { [14]=61343, [15]=61344, [16]=59459 } },
                 { id = 109790, slot = "Feet", name = "Streamslither Boots", sources = { [14]=61341, [15]=61342, [16]=59458 } },
                 { id = 109794, slot = "Feet", name = "Verdant Plate Treads", sources = { [14]=61451, [15]=61420, [16]=59462 } },
-                { id = 258579, slot = "Head", name = "Gutcrusher Greathelm", sources = { [14]=301496, [15]=301495, [16]=301494 } },
-                { id = 258578, slot = "Shoulder", name = "Lightbinder Shoulderguards", sources = { [14]=301492, [15]=301493, [16]=301491 } },
                 { id = 110031, slot = "Two-Hand", name = "Spire of the Furious Construct", sources = { [14]=61103, [15]=61104, [16]=59635 } },
-                { id = 258047, slot = "Two-Hand", name = "Spire of the Furious Construct", sources = { [14]=301401, [15]=301402, [16]=301400 } },
-                { id = 258436, slot = "Weapon", name = "Edge of the Burning Sun", sources = { [15]=301464, [16]=301464 } },
             },
         },
         {
@@ -125,7 +114,6 @@ RetroRuns_DungeonData[476] = {
             achievements       = {
             },
             loot = {
-                { id = 258582, slot = "Feet", name = "Rigid Scale Boots", sources = { [14]=301504, [15]=301505, [16]=301503 } },
                 { id = 109862, slot = "Hands", name = "Blackwater Grips", sources = { [14]=61322, [15]=61323, [16]=59530 } },
                 { id = 109849, slot = "Hands", name = "Bloodfeather Grips", sources = { [14]=61274, [15]=61275, [16]=59517 } },
                 { id = 109850, slot = "Hands", name = "Crystalbinder Gloves", sources = { [14]=61290, [15]=61291, [16]=59518 } },
@@ -137,7 +125,6 @@ RetroRuns_DungeonData[476] = {
                 { id = 109858, slot = "Hands", name = "Goldsteel Gloves", sources = { [14]=61431, [15]=61487, [16]=59526 } },
                 { id = 109859, slot = "Hands", name = "Gutcrusher Gauntlets", sources = { [14]=61463, [15]=61438, [16]=59527 } },
                 { id = 109856, slot = "Hands", name = "Incarnadine Gauntlets", sources = { [14]=61415, [15]=61479, [16]=59524 } },
-                { id = 258583, slot = "Hands", name = "Incarnadine Gauntlets", sources = { [14]=301507, [15]=301508, [16]=301506 } },
                 { id = 109855, slot = "Hands", name = "Lavalink Grips", sources = { [14]=61377, [15]=61378, [16]=59523 } },
                 { id = 109851, slot = "Hands", name = "Leafmender Grips", sources = { [14]=61306, [15]=61307, [16]=59519 } },
                 { id = 109847, slot = "Hands", name = "Lightbinder Gloves", sources = { [14]=61226, [15]=61227, [16]=59515 } },
@@ -147,15 +134,10 @@ RetroRuns_DungeonData[476] = {
                 { id = 109853, slot = "Hands", name = "Sharpeye Gauntlets", sources = { [14]=61373, [15]=61374, [16]=59521 } },
                 { id = 109852, slot = "Hands", name = "Streamslither Gauntlets", sources = { [14]=61371, [15]=61372, [16]=59520 } },
                 { id = 109857, slot = "Hands", name = "Verdant Plate Grips", sources = { [14]=61454, [15]=61423, [16]=59525 } },
-                { id = 258472, slot = "Off-hand", name = "Rukhran's Solar Reliquary", sources = { [15]=301466, [16]=301466 } },
-                { id = 258581, slot = "Shoulder", name = "Bloodfeather Mantle", sources = { [14]=301501, [15]=301502, [16]=301500 } },
                 { id = 110032, slot = "Weapon", name = "Beakbreaker Scimitar", sources = { [14]=61105, [15]=61106, [16]=59636 } },
-                { id = 258048, slot = "Weapon", name = "Beakbreaker Scimitar", sources = { [14]=301404, [15]=301405, [16]=301403 } },
-                { id = 258438, slot = "Weapon", name = "Blazing Sunclaws", sources = { [15]=301465, [16]=301465 } },
                 { id = 109882, slot = "Wrist", name = "Blackwater Wristguards", sources = { [14]=61318, [15]=61319, [16]=59550 } },
                 { id = 109869, slot = "Wrist", name = "Bloodfeather Bracers", sources = { [14]=61271, [15]=61270, [16]=59537 } },
                 { id = 109864, slot = "Wrist", name = "Bracers of Arcane Mystery", sources = { [14]=61182, [15]=61183, [16]=59532 } },
-                { id = 258580, slot = "Wrist", name = "Bracers of Blazing Light", sources = { [14]=301498, [15]=301499, [16]=301497 } },
                 { id = 109868, slot = "Wrist", name = "Bracers of Burning Focus", sources = { [14]=61254, [15]=61255, [16]=59536 } },
                 { id = 109866, slot = "Wrist", name = "Bracers of Swirling Light", sources = { [14]=61210, [15]=61211, [16]=59534 } },
                 { id = 109870, slot = "Wrist", name = "Crystalbinder Wristguards", sources = { [14]=61286, [15]=61287, [16]=59538 } },
@@ -183,9 +165,6 @@ RetroRuns_DungeonData[476] = {
             achievements       = {
             },
             loot = {
-                { id = 258586, slot = "Chest", name = "Bloodfeather Chestguard", sources = { [14]=301516, [15]=301517, [16]=301515 } },
-                { id = 258584, slot = "Feet", name = "Lightbinder Treads", sources = { [14]=301510, [15]=301511, [16]=301509 } },
-                { id = 258585, slot = "Head", name = "Sharpeye Gleam", sources = { [14]=301513, [15]=301514, [16]=301512 } },
                 { id = 109823, slot = "Legs", name = "Blackwater Leggings", sources = { [14]=61326, [15]=61327, [16]=59491 } },
                 { id = 109810, slot = "Legs", name = "Bloodfeather Leggings", sources = { [14]=61278, [15]=61279, [16]=59478 } },
                 { id = 109811, slot = "Legs", name = "Crystalbinder Legwraps", sources = { [14]=61294, [15]=61295, [16]=59479 } },
@@ -207,7 +186,6 @@ RetroRuns_DungeonData[476] = {
                 { id = 109804, slot = "Legs", name = "Trousers of Arcane Mystery", sources = { [14]=61188, [15]=61189, [16]=59472 } },
                 { id = 109819, slot = "Legs", name = "Verdant Plate Legguards", sources = { [14]=61456, [15]=61425, [16]=59487 } },
                 { id = 110034, slot = "Off-hand", name = "Viryx's Indomitable Bulwark", sources = { [14]=61109, [15]=61110, [16]=59638 } },
-                { id = 258049, slot = "Off-hand", name = "Viryx's Indomitable Bulwark", sources = { [14]=301407, [15]=301408, [16]=301406 } },
                 { id = 109938, slot = "Shoulder", name = "Blackwater Spaulders", sources = { [14]=61328, [15]=61329, [16]=59600 } },
                 { id = 109935, slot = "Shoulder", name = "Bloodfeather Spaulders", sources = { [14]=61280, [15]=61281, [16]=59597 } },
                 { id = 109936, slot = "Shoulder", name = "Crystalbinder Shoulderpads", sources = { [14]=61296, [15]=61297, [16]=59598 } },
@@ -226,12 +204,9 @@ RetroRuns_DungeonData[476] = {
                 { id = 109941, slot = "Shoulder", name = "Rockhide Shoulderguards", sources = { [14]=61405, [15]=61406, [16]=59603 } },
                 { id = 109940, slot = "Shoulder", name = "Sharpeye Shoulderguards", sources = { [14]=61403, [15]=61404, [16]=59602 } },
                 { id = 109934, slot = "Shoulder", name = "Spaulders of Burning Focus", sources = { [14]=61264, [15]=61265, [16]=59596 } },
-                { id = 258587, slot = "Shoulder", name = "Spaulders of Scorching Ray", sources = { [14]=301519, [15]=301520, [16]=301518 } },
                 { id = 109939, slot = "Shoulder", name = "Streamslither Spaulders", sources = { [14]=61401, [15]=61402, [16]=59601 } },
                 { id = 109944, slot = "Shoulder", name = "Verdant Plate Spaulders", sources = { [14]=61457, [15]=61426, [16]=59606 } },
-                { id = 258484, slot = "Two-Hand", name = "Sunlance of Viryx", sources = { [15]=301467, [16]=301467 } },
                 { id = 110033, slot = "Weapon", name = "Arcanic of the High Sage", sources = { [14]=61107, [15]=61108, [16]=59637 } },
-                { id = 258050, slot = "Weapon", name = "Arcanic of the High Sage", sources = { [14]=301410, [15]=301411, [16]=301409 } },
             },
             specialLoot = {
                 { id = 258744, kind = "decor", name = "Skyreach Circular Table", decorID = 12204 },

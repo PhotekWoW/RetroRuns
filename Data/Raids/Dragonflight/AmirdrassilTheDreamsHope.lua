@@ -47,9 +47,6 @@ RetroRuns_Data[2549] = {
     -- corresponding to the Bronze Dragonflight loot variant. Both lines
     -- are tracked here under the same setID.
     tierSets = {
-        labels = {
-            "Amirdrassil, the Dream's Hope",  -- setID=3137
-        },
         tokenSources = {
             -- Igira the Cruel (Hands)
             [207466] = 2,  -- Dreadful Tormented Dreamheart

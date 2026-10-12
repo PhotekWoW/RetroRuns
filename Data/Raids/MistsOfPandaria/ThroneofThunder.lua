@@ -41,12 +41,6 @@ RetroRuns_Data[1098] = {
     },
 
     tierSets = {
-        labels = {
-            -- Tier 15 is the Throne of Thunder set. The raid drops all
-            -- five token slots: Council of Elders (Hands), Ji-Kun
-            -- (Legs), Dark Animus (Chest), Iron Qon (Shoulders), and
-            -- the Twin Empyreans (Head).
-        },
         tokenSources = {
             [95570] = 3,  -- Gauntlets of the Crackling Vanquisher
             [95575] = 3,  -- Gauntlets of the Crackling Conqueror

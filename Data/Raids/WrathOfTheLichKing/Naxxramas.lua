@@ -36,7 +36,6 @@ RetroRuns_Data[533] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [40610] = { 9, 12 },  -- Chestguard of the Lost Conqueror
             [40611] = { 9, 12 },  -- Chestguard of the Lost Protector

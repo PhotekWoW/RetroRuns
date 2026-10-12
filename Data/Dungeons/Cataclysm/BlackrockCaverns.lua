@@ -16,6 +16,7 @@ RetroRuns_DungeonData[66] = {
     availableDifficulties = { 14, 15 },
     patch             = "4.0.3",
     timewalking       = true,
+    routedIn          = "3.3.4",
 
     entrance = {
         mapID = 34,
@@ -114,6 +115,163 @@ RetroRuns_DungeonData[66] = {
                 { id = 56317, slot = "Ranged", name = "Amber Messenger", sources = { [14]=27656, [15]=27656 }, twSource = 165812 },
                 { id = 56324, slot = "Shoulder", name = "Kyrstel Mantle", sources = { [14]=27661, [15]=27661 }, twSource = 165817 },
                 { id = 56318, slot = "Shoulder", name = "Raz's Pauldrons", sources = { [14]=27657, [15]=27657 }, twSource = 165813 },
+            },
+        },
+    },
+
+    exitNote    = "Backtrack to Karsh Steelbender to find a portal that teleports you to the entrance",
+    minExitNote = "Exit portal near Karsh Steelbender",
+
+    routing = {
+        -- 1. Rom'ogg Bonecrusher (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Rom'ogg Bonecrusher",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 283 },
+                    kind    = "path",
+                    note    = "After zoning in, proceed straight ahead to find ^Rom'ogg Bonecrusher^ patrolling around the next room.",
+                    minNote = "Ahead to Rom'ogg",
+                    points  = {
+                        { 0.319, 0.697 },
+                        { 0.351, 0.700 },
+                        { 0.396, 0.701 },
+                        { 0.429, 0.719 },
+                        { 0.476, 0.715 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Corla, Herald of Twilight (boss 2).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Corla, Herald of Twilight",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 283 },
+                    kind    = "path",
+                    note    = "After killing ^Rom'ogg^, go north as ^Raz the Crazed^ clears a path into the next area. After the bridge, you will arrive in the ^Halls of Awakening^. Jump down to the left to find ^Corla, Herald of Twilight^.",
+                    minNote = "North to Corla",
+                    points  = {
+                        { 0.533, 0.679 },
+                        { 0.541, 0.629 },
+                        { 0.522, 0.599 },
+                        { 0.500, 0.585 },
+                        { 0.500, 0.310 },
+                        { 0.538, 0.286 },
+                        { 0.539, 0.209 },
+                        { 0.493, 0.205 },
+                        { 0.445, 0.173 },
+                    },
+                },
+            },
+        },
+
+        -- 3. Karsh Steelbender (boss 3).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Karsh Steelbender",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 284 },
+                    kind    = "path",
+                    note    = "After defeating ^Corla^, go east and go down the stairs. Follow the path until you reach ^Karsh Steelbender^.",
+                    minNote = "East stairs to Karsh",
+                    points  = {
+                        { 0.303, 0.166 },
+                        { 0.386, 0.166 },
+                        { 0.386, 0.306 },
+                        { 0.419, 0.302 },
+                        { 0.437, 0.303 },
+                        { 0.436, 0.582 },
+                        { 0.460, 0.632 },
+                    },
+                },
+            },
+        },
+
+        -- 4. Beauty (boss 4). Left out once her appearances are all
+        -- collected; step 6 then goes straight to Ascendant Lord Obsidius.
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Beauty",
+            requires  = { },
+            skipWhenCollected = true,
+            segments  = {
+                {
+                    when    = { mapID = 284 },
+                    kind    = "path",
+                    note    = "After killing ^Karsh Steelbender^, go east to ^Beauty's Lair^ and kill ^Beauty^.",
+                    minNote = "East to Beauty",
+                    points  = {
+                        { 0.497, 0.674 },
+                        { 0.544, 0.709 },
+                        { 0.621, 0.709 },
+                        { 0.664, 0.744 },
+                        { 0.664, 0.809 },
+                    },
+                },
+            },
+        },
+
+        -- 5. Ascendant Lord Obsidius (boss 5), from Beauty. Opens only once
+        -- she is dead; a run that left her out takes step 6.
+        {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 5,
+            title     = "Ascendant Lord Obsidius",
+            requires  = { 4 },
+            segments  = {
+                {
+                    when    = { mapID = 284 },
+                    kind    = "path",
+                    note    = "After killing ^Beauty^, go north to reach the final boss, ^Ascendant Lord Obsidius^.",
+                    minNote = "North to Obsidius",
+                    points  = {
+                        { 0.663, 0.806 },
+                        { 0.666, 0.748 },
+                        { 0.688, 0.546 },
+                    },
+                },
+            },
+        },
+
+        -- 6. Ascendant Lord Obsidius (boss 5), straight from Karsh Steelbender
+        -- when Beauty is left out.
+        {
+            step      = 6,
+            priority  = 1,
+            bossIndex = 5,
+            title     = "Ascendant Lord Obsidius",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 284 },
+                    kind    = "path",
+                    note    = "After killing ^Karsh Steelbender^, go east to reach the final boss, ^Ascendant Lord Obsidius^.",
+                    minNote = "East to Obsidius",
+                    points  = {
+                        { 0.515, 0.682 },
+                        { 0.552, 0.709 },
+                        { 0.601, 0.695 },
+                        { 0.662, 0.710 },
+                        { 0.689, 0.547 },
+                    },
+                },
             },
         },
     },

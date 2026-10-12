@@ -2457,7 +2457,8 @@ function RR:DiagDump()
 
     divider(3, "SESSION LOG",
         "recorder/picker events -- persists across reload")
-    local sessLines = self:BuildRecorderSessionLogLines(false)
+    local sessLines = self.BuildRecorderSessionLogLines
+        and self:BuildRecorderSessionLogLines(false) or {}
     for _, line in ipairs(sessLines) do add(line) end
 
     divider(4, "COMPLETION STATE",

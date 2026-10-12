@@ -29,7 +29,6 @@ RetroRuns_Data[544] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [29753] = 1,   -- Chestguard of the Fallen Defender
             [29754] = 1,   -- Chestguard of the Fallen Champion

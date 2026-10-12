@@ -31,7 +31,6 @@ RetroRuns_Data[509] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [20885] = { 1, 2, 4, 5 },   -- Qiraji Martial Drape
             [20886] = { 3, 4, 5, 6 },   -- Qiraji Spiked Hilt

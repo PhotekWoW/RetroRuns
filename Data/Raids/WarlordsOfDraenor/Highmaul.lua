@@ -41,7 +41,6 @@ RetroRuns_Data[1228] = {
     splitLootTables = true,
 
     tierSets = {
-        labels       = {},
         tokenSources = {},
     },
 

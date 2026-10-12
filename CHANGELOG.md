@@ -2,6 +2,30 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.3.4] - 2026-10-12
+
+### Added
+- **Two more Cataclysm dungeons.** Grim Batol and Blackrock Caverns. Blackrock Caverns auto-skips Beauty once every appearance she drops is collected.
+
+### Changed
+- **Transmog Needed now counts every class's pieces in Baradin Hold and Vault of Archavon**, Vault of Archavon's tier pieces included. Looting gear your class can't wear still unlocks its appearance, so those looks count too. The transmog browser's class filter works as before.
+- **Items that no longer drop are gone from fourteen dungeons.** Season-only reprints and Mythic Keystone-only drops no longer show in Siege of Boralus, Grim Batol, Atal'Dazar, The Underrot, Skyreach, Seat of the Triumvirate, Algeth'ar Academy, Tazavesh (So'leah), Black Rook Hold, Court of Stars, Darkheart Thicket, Halls of Valor, Neltharion's Lair and The Everbloom, and Skyreach no longer lists the same item twice.
+- **Standardized the way the brackets are drawn on each panel.**
+- **The transmog browser's gold check is the same size as the green one.** It is now the same check mark, tinted gold.
+- **Every pulse and fade animates smoothly instead of rapidly stepping.**
+- **The Timewalking hourglass is easier to read at small sizes.**
+
+### Fixed
+- **Siege of Boralus: Sergeant Bainbridge's Horde-only drops now sit under "Horde Appearances" for Alliance characters**, instead of in the main list under Chopper Redhook, and no longer count toward their Normal totals.
+- **Clicking a New Appearance toast for a class-locked piece that shares its look with another item now opens the wardrobe on the right class's page**, instead of an empty page for the wrong class.
+- **New Appearance toasts no longer show the same look twice** when two items that share it drop in one loot.
+- **Transmog Needed no longer says "Complete" while another difficulty still has a look you're missing.**
+- **Layout fixes for the 04B_03 and VT323 fonts and for large font sizes.**
+- **Minimizing the panel no longer leaves a NEW tag floating below the bar.**
+- **Map markers from an instance you've left no longer show their popup in the next one.**
+- **Toast headers in French, Portuguese and other accented languages no longer come out in mixed case.**
+- **Long search results stay inside the search box's popup**, ending in "..." instead of running past its edge.
+
 ## [3.3.3] - 2026-10-01
 
 ### Added

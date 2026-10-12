@@ -6,7 +6,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "3.3.3"
+local VERSION    = "3.3.4"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -83,8 +83,6 @@ RetroRuns = {
         -- panelAnchorSet gates the one-time migration and is cleared by
         -- Reset to Defaults, so a reset re-derives from panelX/panelY = 0.
         panelAnchorSet = false,
-        settingsX    = 290,
-        settingsY    = 60,
         -- Compact title-bar mode (toggled via the minimize button).
         -- Persists across /reload.
         minimized    = false,
@@ -202,8 +200,8 @@ end
 
 --- Per-provider installation checks. Each of the six waypoint providers
 --- in our cascade has its own detection signature; centralizing the
---- checks here keeps GetNavTier, the cascade in NavigateToEntrance /
---- NavigateToSanctum, and the legend renderer in UI.lua in lock-step.
+--- checks here keeps the cascade in NavigateToEntrance / NavigateToSanctum
+--- and the legend renderer in UI.lua in lock-step.
 --- If any one drifts, the wrong pill lights or the wrong branch fires.
 function RR:IsAWPInstalled()
     return _G.AzerothWaypointNS
@@ -252,25 +250,6 @@ function RR:IsBlizzardWaypointAvailable()
     return (C_Map and C_Map.SetUserWaypoint and _G.UiMapPoint) and true or false
 end
 
---- Returns the navigation tier we'd dispatch through right now:
----   "routing"  - a step-by-step planner is loaded (AWP, Zygor, Mapzeroth)
----   "waypoint" - only a waypoint provider available (TomTom or Blizzard)
---- Re-evaluated on every call so a fresh /reload picks up newly-loaded
---- addons. Used by the UI to gate the entrance-button visual state.
-function RR:GetNavTier()
-    if self:IsAWPInstalled()       then return "routing" end
-    if self:IsZygorInstalled()     then return "routing" end
-    if self:IsMapzerothInstalled() then return "routing" end
-    return "waypoint"
-end
-
---- Route the player to the entrance of a raid.
----
---- Two-slot dispatch:
----   ROUTING SLOT: AWP -> Zygor -> Mapzeroth (one wins).
----   WAYPOINT SLOT: WUI -> TomTom -> Blizzard fallback.
---- Both slots can fire on one click (e.g. Zygor route + WUI overlay).
---- The Blizzard fallback only fires if neither slot produced a UI.
 --- The entrance a plane navigates to. Most instances carry one position;
 --- an instance whose two factions walk in from different places carries an
 --- alliance/horde pair instead and the player's own faction picks. Callers
@@ -577,15 +556,6 @@ function RR:IsTimewalkingLive(instance)
     return active ~= nil and instance.expansion == active
 end
 
--- True when this instance's expansion is the one Timewalking is running
--- for. Dungeon-only: raid Timewalking is a separate rotation the group
--- finder does not answer for this way.
-function RR:IsTimewalkingActiveFor(instance)
-    if not instance or instance.kind ~= "dungeon" then return false end
-    local active = self:GetActiveTimewalkingExpansion()
-    return active ~= nil and instance.expansion == active
-end
-
 -- True when a dungeon sits in the CURRENT Mythic+ season. Read at runtime
 -- from the client rather than authored: the pool rotates every season, so
 -- any table we wrote would go stale. GetMapTable returns challenge map
@@ -744,12 +714,11 @@ function RR:NavigateToDestination(mapID, x, y, title, routeContext)
     return result
 end
 
---- Returns a struct describing which slot(s) fired:
----     { routing = "awp"|"zygor"|"mapzeroth"|nil,
----       waypoint = "wui"|"tomtom"|"blizzard"|nil }
---- The UI uses this to surface branch-specific feedback (e.g. the
---- "waypoint set" toast for silent-at-click providers). Returns nil
---- entirely on failure (no entrance data, no providers available).
+--- Routes the player to an instance entrance through
+--- NavigateToDestination and returns its { planner, arrow, overlays }
+--- result, which the UI reads for branch-specific feedback (e.g. the
+--- "waypoint set" toast for silent-at-click providers). Nil on failure
+--- (no entrance data, no providers available).
 function RR:NavigateToEntrance(raid)
     local entrance = self:GetRaidEntrance(raid)
     if not raid or not entrance then
@@ -811,26 +780,11 @@ function RR:GetTokenVendor(raid)
     return self:ResolveFactionBlock(raid and raid.tokenVendors)
 end
 
---- Drop a waypoint at a raid's token-redemption vendor (Icecrown Citadel,
---- Firelands, Siege of Orgrimmar). Routes through the shared
---- NavigateToDestination dispatch.
-function RR:NavigateToTokenVendor(raid)
-    local vendor = self:GetTokenVendor(raid)
-    if not vendor then
-        self:Print(RR.L["No token vendor data available."])
-        return nil
-    end
-    -- Raids whose city merchants differ per armor type are routed by the
-    -- browser instead, which knows the class being viewed; this path
-    -- serves the single-vendor raids.
-    local mapID, x, y = vendor.vendorMapID, vendor.x, vendor.y
-    if not mapID or not x or not y then
-        self:Print(RR.L["No token vendor data available."])
-        return nil
-    end
-    local title = (RR.L["RetroRuns: %s"]):format(
-        (vendor.vendorName and RR.L[vendor.vendorName]) or RR.L["Token vendor"])
-    return self:NavigateToDestination(mapID, x, y, title, raid)
+--- Travel-button fallback for a token hint with no routable spot. Routable
+--- spots carry their own destination, which the browser routes to directly.
+function RR:NavigateToTokenVendor()
+    self:Print(RR.L["No token vendor data available."])
+    return nil
 end
 
 --- The NPC whose gossip queues legacy LFR solo, keyed by raid.expansion.
@@ -1002,17 +956,6 @@ function RR.Utf8SafeTruncate(text, maxBytes)
     return text:sub(1, cut)
 end
 
---- Safe field accessor -- returns nil instead of erroring on bad data.
---- Usage: RR.Get(step, "segments", 1, "mapID")
-function RR.Get(tbl, ...)
-    local cur = tbl
-    for _, key in ipairs({ ... }) do
-        if type(cur) ~= "table" then return nil end
-        cur = cur[key]
-    end
-    return cur
-end
-
 --- Read a single key from RetroRunsDB with a fallback default.
 -- Nil-safe: returns `default` if RetroRunsDB is not yet initialized.
 -- Use instead of bare `RetroRunsDB and RetroRunsDB.foo or default` patterns.
@@ -1038,448 +981,6 @@ end
 function RR:SetSetting(key, value)
     RetroRunsDB = RetroRunsDB or {}
     RetroRunsDB[key] = value
-end
-
--------------------------------------------------------------------------------
--- Data validation
--------------------------------------------------------------------------------
-
---- Walks all raid data and returns a list of issues. Each is
---- { severity = "error"|"warn", raid = displayName, msg = detail }.
---- Consumed by the addon-load lint pass (errors only) and /rr lintroute
---- (everything). scopeFilter limits the walk to a name substring.
-local function CollectRaidDataIssues(scopeFilter)
-    local issues = {}
-    local function add(severity, raid, msg)
-        table.insert(issues, { severity = severity, raid = raid, msg = msg })
-    end
-
-    if not RetroRuns_Data then
-        add("error", "(global)", "RetroRuns_Data is nil -- no raid data loaded")
-        return issues
-    end
-
-    -- Strings flagged in raid.maps[] that mean "this name has not been
-    -- in-game-verified." Linted as warnings so they don't block a run
-    -- but are easy to find for follow-up verification.
-    local UNVERIFIED_MAP_MARKERS = { "??", "unverified", "inferred" }
-    local function looksUnverified(text)
-        if type(text) ~= "string" then return false end
-        local lower = text:lower()
-        for _, marker in ipairs(UNVERIFIED_MAP_MARKERS) do
-            if lower:find(marker, 1, true) then return true end
-        end
-        return false
-    end
-
-    local function matchesScope(raidName)
-        if not scopeFilter or scopeFilter == "" then return true end
-        if type(raidName) ~= "string" then return false end
-        return raidName:lower():find(scopeFilter:lower(), 1, true) ~= nil
-    end
-
-    -- Single-table validator. Called once for the shared table and once
-    -- for the Horde-specific table (which holds parallel raid data for
-    -- faction-asymmetric raids; currently only BfD).
-    -- routingOptional: dungeons ship browsable and gain routes in phases, so
-    -- an absent route is a valid shipped state there, not a defect. Every
-    -- other rule applies to both trees.
-    local function validateTable(tbl, tableLabel, routingOptional)
-        if type(tbl) ~= "table" then return end
-        for instanceID, raid in pairs(tbl) do
-            local raidName = raid.name or ("?@" .. tostring(instanceID))
-            -- For faction-asymmetric raids, distinguish in the report
-            -- so a BfD-Horde-specific issue is recognizable.
-            local raidLabel = raidName
-            if tableLabel == "DataHorde" then
-                raidLabel = raidName .. " (Horde)"
-            end
-
-            -- Apply scope filter: skip raids whose name (or
-            -- faction-disambiguated label) doesn't match the filter.
-            -- A nil/empty filter matches everything, handled inside
-            -- matchesScope.
-            if matchesScope(raidName) or matchesScope(raidLabel) then
-
-            if not raid.instanceID then
-                add("error", raidLabel, "missing instanceID")
-            end
-            if type(raid.bosses) ~= "table" or #raid.bosses == 0 then
-                add("error", raidLabel, "missing or empty bosses table")
-            end
-            if raid.routing == nil then
-                -- Absent is legal only where routing is optional.
-                if not routingOptional then
-                    add("error", raidLabel, "missing or empty routing table")
-                end
-            elseif type(raid.routing) ~= "table" or #raid.routing == 0 then
-                -- Present but unusable is a defect in either tree: the key
-                -- was authored and says nothing.
-                add("error", raidLabel, "missing or empty routing table")
-            end
-
-            -- Build a set of valid boss indices for cross-checking,
-            -- and validate specialLoot while we're at it.
-            local validBossIndices = {}
-            local VALID_SPECIAL_KINDS = { mount = true, pet = true, toy = true, decor = true, manuscript = true, illusion = true, musicroll = true }
-            for _, boss in ipairs(raid.bosses or {}) do
-                if not boss.index then
-                    add("error", raidLabel, "boss missing index field")
-                elseif not boss.name then
-                    add("error", raidLabel, ("boss #%s missing name"):format(tostring(boss.index)))
-                else
-                    validBossIndices[boss.index] = true
-                end
-
-                if boss.specialLoot ~= nil then
-                    if type(boss.specialLoot) ~= "table" then
-                        add("error", raidLabel,
-                            ("boss #%s specialLoot must be a table"):format(tostring(boss.index)))
-                    else
-                        for si, item in ipairs(boss.specialLoot) do
-                            local bp = ("boss #%s specialLoot[%d]:"):format(
-                                tostring(boss.index), si)
-                            -- A mount with no item behind it keys on mountID.
-                            if not item.id
-                               and not (item.kind == "mount" and item.mountID) then
-                                add("error", raidLabel, bp .. " missing id")
-                            end
-                            if not item.kind then
-                                add("error", raidLabel,
-                                    bp .. " missing kind (mount|pet|toy|decor|manuscript|illusion|musicroll)")
-                            elseif not VALID_SPECIAL_KINDS[item.kind] then
-                                add("error", raidLabel,
-                                    bp .. (" unrecognized kind '%s' (expected mount|pet|toy|decor|manuscript|illusion|musicroll)"):format(
-                                        tostring(item.kind)))
-                            end
-                            -- Illusions need their own sourceID.
-                            if item.kind == "illusion" and not item.sourceID then
-                                add("error", raidLabel,
-                                    bp .. " kind=illusion requires sourceID field for transmog API validation")
-                            end
-                            -- Quest-flag collectibles resolve their
-                            -- collected state from the completed-quest
-                            -- flag, so a missing questID renders them
-                            -- permanently uncollected rather than erroring.
-                            if (item.kind == "manuscript" or item.kind == "musicroll")
-                               and not item.questID then
-                                add("error", raidLabel,
-                                    bp .. (" kind=%s requires questID field for collection tracking"):format(item.kind))
-                            end
-                        end
-                    end
-                end
-            end
-
-            -- Maps-table linting: warn on entries flagged unverified
-            -- (matches "??", "unverified", or "inferred" anywhere in
-            -- the value). These are intentional placeholders awaiting
-            -- in-game verification, but we want them visible so they
-            -- don't get forgotten.
-            if type(raid.maps) == "table" then
-                for mapID, mapName in pairs(raid.maps) do
-                    if looksUnverified(mapName) then
-                        add("warn", raidLabel,
-                            ("maps[%s] = %q is flagged unverified"):format(
-                                tostring(mapID), tostring(mapName)))
-                    end
-                end
-            end
-
-            -- altRoute needs its cue, and the cue needs a dialog line.
-            if raid.altRoute and not raid.altRouteWhen then
-                add("error", raidLabel, "altRoute declared without altRouteWhen")
-            elseif raid.altRouteWhen and not raid.altRoute then
-                add("error", raidLabel, "altRouteWhen declared without altRoute")
-            elseif raid.altRouteWhen then
-                local cue = raid.altRouteWhen
-                if type(cue.dialog) ~= "table" or not cue.dialog.npc or not cue.dialog.match then
-                    add("error", raidLabel, "altRouteWhen.dialog needs npc and match")
-                end
-                if cue.withoutItem ~= nil and type(cue.withoutItem) ~= "number" then
-                    add("error", raidLabel, "altRouteWhen.withoutItem must be an itemID")
-                end
-            end
-
-            -- Schema validation. Every raid is on the RetroEngine; segs
-            -- declare their gates via `when`, `after`, and `triggeredBy`.
-
-            for _, routeTable in ipairs({ raid.routing or {}, raid.altRoute or {} }) do
-            for i, step in ipairs(routeTable) do
-                local sp = "step " .. i .. ":"
-                if not step.bossIndex then
-                    add("error", raidLabel, sp .. " missing bossIndex")
-                elseif not validBossIndices[step.bossIndex] then
-                    add("error", raidLabel,
-                        sp .. (" bossIndex %d has no matching boss"):format(step.bossIndex))
-                end
-                if not step.requires then
-                    add("error", raidLabel, sp .. " missing requires table (use {} for none)")
-                else
-                    for _, req in ipairs(step.requires) do
-                        if not validBossIndices[req] then
-                            add("error", raidLabel,
-                                sp .. (" requires unknown bossIndex %d"):format(req))
-                        end
-                    end
-                end
-                if not step.segments or #step.segments == 0 then
-                    add("error", raidLabel, sp .. " has no segments")
-                else
-                    local prevMapID = nil
-                    local numSegs = #step.segments
-                    for si, seg in ipairs(step.segments) do
-                        local segMapID
-
-                        -- when.mapID is required.
-                        if not seg.when then
-                            add("error", raidLabel,
-                                sp .. (" segment %d missing when table"):format(si))
-                        elseif not seg.when.mapID then
-                            add("error", raidLabel,
-                                sp .. (" segment %d when.mapID missing"):format(si))
-                        else
-                            segMapID = seg.when.mapID
-                        end
-
-                        -- Bare mapID/subZone are stale schema leftovers
-                        -- that should be stripped from data.
-                        if seg.mapID then
-                            add("warn", raidLabel,
-                                sp .. (" segment %d has bare mapID field (strip from data)"):format(si))
-                        end
-                        if seg.mapID and seg.when and seg.when.mapID
-                            and seg.mapID ~= seg.when.mapID
-                        then
-                            add("error", raidLabel,
-                                sp .. (" segment %d bare mapID=%d but when.mapID=%d (disagree)"):format(
-                                    si, seg.mapID, seg.when.mapID))
-                        end
-                        if seg.subZone then
-                            add("warn", raidLabel,
-                                sp .. (" segment %d has bare subZone field (strip from data)"):format(si))
-                        end
-
-                        -- Dropped fields from the legacy schema. Flag any
-                        -- raid data that still carries them.
-                        if seg.requiresSubZone then
-                            add("error", raidLabel,
-                                sp .. (" segment %d has requiresSubZone (use when.subZone)"):format(si))
-                        end
-                        if seg.revealAfter then
-                            add("error", raidLabel,
-                                sp .. (" segment %d has revealAfter (use after)"):format(si))
-                        end
-                        if seg.advanceOn then
-                            add("error", raidLabel,
-                                sp .. (" segment %d has advanceOn (use triggeredBy)"):format(si))
-                        end
-                        if seg.gateBySubZone then
-                            add("warn", raidLabel,
-                                sp .. (" segment %d has gateBySubZone (unused field; remove)"):format(si))
-                        end
-                        if seg.revealAfterMapVisit then
-                            add("warn", raidLabel,
-                                sp .. (" segment %d has revealAfterMapVisit (unused field; remove)"):format(si))
-                        end
-
-                        -- kind: must be "path" or "poi".
-                        if seg.kind == "teleport" or seg.kind == "kill" then
-                            add("error", raidLabel,
-                                sp .. (" segment %d kind=%q is no longer supported (use \"path\")"):format(si, seg.kind))
-                        elseif seg.kind and seg.kind ~= "path" and seg.kind ~= "poi" then
-                            add("error", raidLabel,
-                                sp .. (" segment %d kind=%q invalid (expected \"path\" or \"poi\")"):format(si, tostring(seg.kind)))
-                        end
-                        -- triggeredBy shape:
-                        if seg.triggeredBy then
-                            if type(seg.triggeredBy) ~= "table" then
-                                add("error", raidLabel,
-                                    sp .. (" segment %d triggeredBy must be a table"):format(si))
-                            elseif seg.triggeredBy.dialog then
-                                local dialog = seg.triggeredBy.dialog
-                                if type(dialog) ~= "table" then
-                                    add("error", raidLabel,
-                                        sp .. (" segment %d triggeredBy.dialog must be a table"):format(si))
-                                else
-                                    -- One line, or a list of alternatives.
-                                    local alternatives = dialog[1] and dialog or { dialog }
-                                    for ai, alternative in ipairs(alternatives) do
-                                        local where = (#alternatives > 1)
-                                            and (" triggeredBy.dialog[%d]"):format(ai)
-                                            or " triggeredBy.dialog"
-                                        if type(alternative) ~= "table" then
-                                            add("error", raidLabel,
-                                                sp .. (" segment %d%s must be a table"):format(si, where))
-                                        else
-                                            if not alternative.npc then
-                                                add("error", raidLabel,
-                                                    sp .. (" segment %d%s missing npc field"):format(si, where))
-                                            end
-                                            if not alternative.match then
-                                                add("error", raidLabel,
-                                                    sp .. (" segment %d%s missing match field"):format(si, where))
-                                            end
-                                        end
-                                    end
-                                end
-                            elseif seg.triggeredBy.encounter then
-                                if type(seg.triggeredBy.encounter) ~= "number" then
-                                    add("error", raidLabel,
-                                        sp .. (" segment %d triggeredBy.encounter must be a dungeonEncounterID"):format(si))
-                                end
-                            elseif seg.triggeredBy.scenario then
-                                if type(seg.triggeredBy.scenario) ~= "number" then
-                                    add("error", raidLabel,
-                                        sp .. (" segment %d triggeredBy.scenario must be a scenario criteriaID"):format(si))
-                                end
-                            elseif seg.triggeredBy.item then
-                                local gateItem = seg.triggeredBy.item
-                                local itemOk = type(gateItem) == "number"
-                                if type(gateItem) == "table" and #gateItem > 0 then
-                                    itemOk = true
-                                    for _, candidate in ipairs(gateItem) do
-                                        if type(candidate) ~= "number" then itemOk = false end
-                                    end
-                                end
-                                if not itemOk then
-                                    add("error", raidLabel,
-                                        sp .. (" segment %d triggeredBy.item must be an itemID or a list of itemIDs"):format(si))
-                                end
-                            elseif seg.triggeredBy.taxi ~= nil then
-                                if seg.triggeredBy.taxi ~= true then
-                                    add("error", raidLabel,
-                                        sp .. (" segment %d triggeredBy.taxi must be true"):format(si))
-                                end
-                            elseif seg.triggeredBy.vehicle ~= nil then
-                                if seg.triggeredBy.vehicle ~= true then
-                                    add("error", raidLabel,
-                                        sp .. (" segment %d triggeredBy.vehicle must be true"):format(si))
-                                end
-                            elseif seg.triggeredBy.cinematic ~= nil then
-                                if seg.triggeredBy.cinematic ~= true then
-                                    add("error", raidLabel,
-                                        sp .. (" segment %d triggeredBy.cinematic must be true"):format(si))
-                                end
-                            elseif seg.triggeredBy.widget then
-                                if type(seg.triggeredBy.widget) ~= "number"
-                                    or (seg.triggeredBy.value ~= nil
-                                        and type(seg.triggeredBy.value) ~= "number") then
-                                    add("error", raidLabel,
-                                        sp .. (" segment %d triggeredBy.widget must be a widgetID, value a number"):format(si))
-                                end
-                            else
-                                -- triggeredBy with no known sub-key (e.g. just empty {})
-                                add("warn", raidLabel,
-                                    sp .. (" segment %d triggeredBy has no recognized sub-key (expected dialog, encounter, scenario, item, taxi, or widget)"):format(si))
-                            end
-                        end
-                        -- after must reference valid seg indices in same step:
-                        if seg.after then
-                            if type(seg.after) ~= "table" then
-                                add("error", raidLabel,
-                                    sp .. (" segment %d after must be a table of seg indices"):format(si))
-                            else
-                                for _, prereqIdx in ipairs(seg.after) do
-                                    if type(prereqIdx) ~= "number"
-                                        or prereqIdx < 1 or prereqIdx > numSegs
-                                    then
-                                        add("error", raidLabel,
-                                            sp .. (" segment %d after references invalid seg index %s (step has %d segs)"):format(
-                                                si, tostring(prereqIdx), numSegs))
-                                    elseif prereqIdx >= si then
-                                        add("error", raidLabel,
-                                            sp .. (" segment %d after references seg %d which is not earlier in step"):format(si, prereqIdx))
-                                    end
-                                end
-                            end
-                        end
-
-                        -- Usually a copy-paste slip, though not always.
-                        if segMapID and prevMapID == segMapID then
-                            add("warn", raidLabel,
-                                sp .. (" segments %d and %d have the same mapID %d (intentional? or copy-paste?)"):format(
-                                    si - 1, si, segMapID))
-                        end
-                        prevMapID = segMapID
-                    end
-                end
-            end
-            end -- route tables
-
-            end -- if matchesScope
-        end
-    end
-
-    validateTable(RetroRuns_Data,        "Data")
-    validateTable(RetroRuns_DataHorde,   "DataHorde")
-    -- Dungeons carry routing in their own data table and are linted by the
-    -- same rules. Omitting this table made a scoped run over a dungeon
-    -- report zero issues because it had examined zero instances.
-    validateTable(RetroRuns_DungeonData, "DungeonData", true)
-    return issues
-end
-
--- Load-time walk: errors only. Warnings live in the on-demand linter.
-local function ValidateRaidData()
-    local issues = CollectRaidDataIssues(nil)
-    for _, issue in ipairs(issues) do
-        if issue.severity == "error" then
-            RR:Debug(("Data[%s]: %s"):format(issue.raid, issue.msg))
-        end
-    end
-end
-
---- On-demand linter: every issue, errors and warnings, in a copy window.
---- @param scopeFilter string?  Optional raid-name substring filter.
-function RR:LintRoute(scopeFilter)
-    local issues = CollectRaidDataIssues(scopeFilter)
-
-    local errors, warns = {}, {}
-    for _, issue in ipairs(issues) do
-        if issue.severity == "error" then
-            table.insert(errors, issue)
-        else
-            table.insert(warns, issue)
-        end
-    end
-
-    local out = {}
-    local function add(line) table.insert(out, line) end
-
-    add("RetroRuns -- Route Lint Report")
-    if scopeFilter and scopeFilter ~= "" then
-        add(("Scope: instances matching %q"):format(scopeFilter))
-    else
-        add("Scope: all loaded instances")
-    end
-    add(("Errors: %d   Warnings: %d"):format(#errors, #warns))
-    add("")
-
-    if #errors == 0 and #warns == 0 then
-        add("No issues found.")
-    else
-        if #errors > 0 then
-            add("=== ERRORS ===")
-            for _, issue in ipairs(errors) do
-                add(("  [%s] %s"):format(issue.raid, issue.msg))
-            end
-            add("")
-        end
-        if #warns > 0 then
-            add("=== WARNINGS ===")
-            for _, issue in ipairs(warns) do
-                add(("  [%s] %s"):format(issue.raid, issue.msg))
-            end
-            add("")
-        end
-    end
-
-    self:ShowCopyWindow(
-        "|cffF259C7RETRO|r|cff4DCCFFRUNS|r  |cffaaaaaaRoute Lint Report|r",
-        table.concat(out, "\n"))
-    self:Print(("Lint complete: %d errors, %d warnings. Copy window opened."):format(
-        #errors, #warns))
 end
 
 -------------------------------------------------------------------------------
@@ -1536,25 +1037,6 @@ function RR:InitializeDB()
     -- launchMode is applied from PLAYER_ENTERING_WORLD on initial login, not
     -- here: this runs on /reload too, and a reload is not a login. Applying
     -- it here discarded whatever the panel was showing before the reload.
-
-    -- Only the long-lived log survives /reload, bucketed per character. An
-    -- integer index means the old flat-list shape and is discarded.
-    if RetroRunsDB.recorderSessionLog
-        and RetroRunsDB.recorderSessionLog[1] ~= nil then
-        RetroRunsDB.recorderSessionLog = nil
-    end
-    if self.recorder then
-        local bucket = RetroRunsDB.recorderSessionLog
-                   and RetroRunsDB.recorderSessionLog[self:GetCharacterKey()]
-        if bucket then
-            self.recorder.sessionLog = bucket
-        end
-    end
-    -- A queued auto-stamp event that fired while recording was inactive.
-    -- Stored as epoch seconds so the staleness check survives /reload.
-    if RetroRunsDB.recorderPendingEvent and self.recorder then
-        self.recorder.pendingEvent = RetroRunsDB.recorderPendingEvent
-    end
 
     -- RR.state.zoneLog aliases RetroRunsDB.zoneLog, so it survives /reload.
     -- Wiped on initial login; the entry cap lives in RR:ZoneLog.
@@ -1953,15 +1435,6 @@ local DIFFICULTY_MODELS = {
         -- Ahn'Qiraj reports 3, which the TBC raids already cover.
         fold    = { [3] = 14, [4] = 14, [9] = 14, [14] = 14 },
         buckets = { 14 },
-    },
-    sizes = {
-        -- Wrath-style raids where 10-player and 25-player are distinct
-        -- difficulties with distinct loot tables AND fully independent
-        -- weekly lockouts. No raid currently uses this; each 3/4-only
-        -- raid's lockout shape is settled by a live kill test at its
-        -- bring-up and lands here or on sizesShared accordingly.
-        fold    = { [3] = 3, [4] = 4 },
-        buckets = { 3, 4 },
     },
     sizesShared = {
         -- Wrath, no Heroic. Distinct loot per size, one shared lockout.
@@ -2466,101 +1939,6 @@ function RR:GetWingProgressForRaid(raid)
     return out
 end
 
--- Return the set bit positions (1-indexed) of a raid's LFR lockout bitfield as
--- a { [pos] = true } set, plus the raw bits value. Used by the per-boss bit
--- capture logger below to diff which bit a just-killed boss set. Reads live
--- (no cache) since the capture needs the exact post-kill state. Returns nil if
--- no difficulty-17 lockout for the raid is found.
-function RR:GetLFRSetBits(raid)
-    if not raid then return nil end
-    if RequestRaidInfo then RequestRaidInfo() end
-    local wantName = self:NormalizeName(raid.name)
-    local nSaved = GetNumSavedInstances and GetNumSavedInstances() or 0
-    for i = 1, nSaved do
-        local sName, _, _, sDiff = GetSavedInstanceInfo(i)
-        if self:IsLFRSavedDifficulty(sDiff) and wantName and self:NormalizeName(sName) == wantName then
-            local link = GetSavedInstanceChatLink and GetSavedInstanceChatLink(i)
-            local bits = link and tonumber(link:match(":(%d+)|h"))
-            if not bits then return nil end
-            local setPos = {}
-            local x, pos = bits, 1
-            while x > 0 do
-                if x % 2 == 1 then setPos[pos] = true end
-                x = math.floor(x / 2)
-                pos = pos + 1
-            end
-            return setPos, bits
-        end
-    end
-    return nil
-end
-
--- Records which lockout bit each LFR boss sets, gathered during normal farming
--- rather than by manual probing. The bit order is its own id space, so watching
--- one kill at a time is the only way to learn it. The lockout API lags the kill
--- by a second or two, so the read is deferred.
-function RR:CaptureLFRBitForKill(encounterName)
-    local raid = self.currentRaid
-    if not raid or not self:IsInLFR() then return end
-
-    -- Retry on a "none" result rather than logging it: a fast kill can register
-    -- its bit late, and committing the miss plus a stale snapshot would make
-    -- that bit turn up lumped with the next kill's as ambiguous.
-    local DELAYS = { 2.5, 1.5, 2.0, 3.0 }   -- cumulative ~9s of retry budget
-
-    local function tryCapture(attempt)
-        local setPos = self:GetLFRSetBits(raid)
-        if not setPos then return end
-
-        RetroRunsDebug = RetroRunsDebug or {}
-        RetroRunsDebug.lfrBitLog = RetroRunsDebug.lfrBitLog or {}
-        local log = RetroRunsDebug.lfrBitLog
-
-        -- Recover the last-known set from the most recent log entry for this
-        -- raid (so it persists across reloads), defaulting to empty.
-        local prevSet = {}
-        for i = #log, 1, -1 do
-            if log[i].raid == raid.name and log[i].snapshot then
-                prevSet = log[i].snapshot
-                break
-            end
-        end
-
-        -- Which bits are newly set since the last committed snapshot.
-        local newBits = {}
-        for pos in pairs(setPos) do
-            if not prevSet[pos] then newBits[#newBits + 1] = pos end
-        end
-        table.sort(newBits)
-
-        -- No new bit yet and retries remain: the bit is probably still
-        -- propagating from a fast kill. Wait and re-read WITHOUT writing a log
-        -- entry or snapshot, so we don't strand the late bit for the next kill.
-        if #newBits == 0 and attempt < #DELAYS then
-            C_Timer.After(DELAYS[attempt + 1], function() tryCapture(attempt + 1) end)
-            return
-        end
-
-        -- Commit. Snapshot the current full set so the next kill diffs against
-        -- it. (On exhausted retries newBits may still be empty -- that's a real
-        -- "no bit" the log should surface, not silently swallow.)
-        local snapshot = {}
-        for pos in pairs(setPos) do snapshot[pos] = true end
-
-        log[#log + 1] = {
-            raid     = raid.name,
-            boss     = encounterName or "(unknown)",
-            bit      = (#newBits == 1) and newBits[1]
-                        or (#newBits == 0 and "none (no new bit -- already killed? or API lag)")
-                        or ("ambiguous: {" .. table.concat(newBits, ",") .. "} -- multiple new bits since last capture"),
-            t        = date and date("%H:%M:%S") or "",
-            snapshot = snapshot,
-        }
-    end
-
-    C_Timer.After(DELAYS[1], function() tryCapture(1) end)
-end
-
 -- Buckets sharing one weekly lockout. Whichever member has kills locks the
 -- others. Only applies when the raid offers more than one member.
 local SHARED_LOCKOUT_GROUPS = {
@@ -2720,143 +2098,6 @@ function RR:SavedRowMatchesActiveLockout(savedDifficultyId)
     return savedInGroup and activeInGroup
 end
 
--- Dumps every saved instance with IsEncounterComplete probed per encounter.
--- Looking for expired entries where C_RaidLocks still returns true, which
--- would mean stale data is leaking into the pills.
-function RR:LockProbe()
-    if RequestRaidInfo then RequestRaidInfo() end
-
-    local lines = {}
-    local function add(line) lines[#lines + 1] = line end
-
-    local savedCount = GetNumSavedInstances and GetNumSavedInstances() or 0
-    add(("GetNumSavedInstances() = %d"):format(savedCount))
-    add("")
-
-    if savedCount == 0 then
-        add("(no saved instances; nothing to dump)")
-        self:ShowCopyWindow("LockProbe", table.concat(lines, "\n"))
-        return
-    end
-
-    for i = 1, savedCount do
-        local name, id, reset, difficultyId, locked, extended,
-              instanceIDMostSig, isRaid, maxPlayers, difficultyName,
-              numEncounters, encounterProgress, extendDisabled,
-              instanceID = GetSavedInstanceInfo(i)
-
-        add(("[%d] %s"):format(i, tostring(name)))
-        add(("    instanceID=%s  difficultyId=%s (%s)  isRaid=%s")
-            :format(tostring(instanceID), tostring(difficultyId),
-                    tostring(difficultyName), tostring(isRaid)))
-        add(("    locked=%s  extended=%s  reset=%ss  progress=%s/%s")
-            :format(tostring(locked), tostring(extended),
-                    tostring(reset),
-                    tostring(encounterProgress), tostring(numEncounters)))
-
-        if numEncounters and numEncounters > 0 then
-            for e = 1, numEncounters do
-                local bossName, _, isKilled = GetSavedInstanceEncounterInfo(i, e)
-                add(("      saved enc %d: %s  isKilled=%s")
-                    :format(e, tostring(bossName), tostring(isKilled)))
-            end
-        end
-
-        -- LFR (difficulty 17) detail: this is the exact data the idle LFR
-        -- pill is built from. Dump the raw chat link, what our :(%d+)|h
-        -- capture pulls out of it, and how that decodes to a kill count +
-        -- set-bit positions -- plus the NormalizeName key the pill matches on.
-        if self:IsLFRSavedDifficulty(difficultyId) then
-            local link = GetSavedInstanceChatLink and GetSavedInstanceChatLink(i)
-            add(("    [LFR] NormalizeName key = %q"):format(tostring(self:NormalizeName(name))))
-            add(("    [LFR] raw chatLink = %s"):format(tostring(link)))
-            local capture = link and link:match(":(%d+)|h")
-            add(("    [LFR] :(%%d+)|h capture = %s"):format(tostring(capture)))
-            local bits = link and tonumber(link:match(":(%d+)|h"))
-            local killed, setPos = 0, {}
-            local x, pos = bits or 0, 1
-            while x > 0 do
-                if x % 2 == 1 then killed = killed + 1; setPos[#setPos + 1] = pos end
-                x = math.floor(x / 2)
-                pos = pos + 1
-            end
-            add(("    [LFR] decoded bits = %s  -> killed = %d  setBitPositions = {%s}  (bit positions, NOT boss indices)")
-                :format(tostring(bits), killed, table.concat(setPos, ",")))
-        end
-
-        -- Raids key on the live map id. Dungeons key on journalInstanceID
-        -- and several can share one map, so every dungeon on this map is
-        -- probed.
-        local candidates = {}
-        if C_RaidLocks and C_RaidLocks.IsEncounterComplete then
-            if isRaid then
-                candidates[1] = self:GetRaidByInstanceID(instanceID)
-            elseif RetroRuns_DungeonData then
-                for _, dungeon in pairs(RetroRuns_DungeonData) do
-                    if dungeon.instanceID == instanceID then
-                        candidates[#candidates + 1] = dungeon
-                    end
-                end
-            end
-        end
-        for _, raid in ipairs(candidates) do
-            local journalToDungeonEnc = self:GetEJMapForJournalInstance(raid.journalInstanceID)
-            if journalToDungeonEnc and next(journalToDungeonEnc) then
-                add(("    C_RaidLocks.IsEncounterComplete(%s, <dungeonEncID>, %s):")
-                    :format(tostring(instanceID), tostring(difficultyId)))
-                for _, b in ipairs(raid.bosses or {}) do
-                    local dungeonEncID = journalToDungeonEnc[b.journalEncounterID]
-                    if dungeonEncID then
-                        local encounterComplete = C_RaidLocks.IsEncounterComplete(
-                            instanceID, dungeonEncID, difficultyId)
-                        add(("      %s (dungeonEncID=%s): %s")
-                            :format(tostring(b.name), tostring(dungeonEncID),
-                                    tostring(encounterComplete)))
-                    end
-                end
-            end
-
-            -- Probes each boss against every legacy size id plus the display
-            -- buckets and LFR. A kill lighting up only its own id means the
-            -- difficulties are independent; lighting up siblings means they
-            -- must fold to one bucket. This is how a model gets decided.
-            local matrixIds, matrixLegend
-            if raid.kind == "dungeon" then
-                matrixIds    = { 1, 2, 23, 8, 24 }
-                matrixLegend = "[1=N 2=H 23=M 8=Key 24=TW]"
-            else
-                matrixIds    = { 3, 4, 5, 6, 14, 15, 7, 17 }
-                matrixLegend = "[3=10N 4=25N 5=10H 6=25H 14=N 15=H 7=LFRlegacy 17=LFR]"
-            end
-            add("    cross-difficulty matrix " .. matrixLegend .. ":")
-            for _, b in ipairs(raid.bosses or {}) do
-                local dungeonEncID =
-                    (journalToDungeonEnc and journalToDungeonEnc[b.journalEncounterID])
-                    or b.dungeonEncounterID
-                    or (b.dungeonEncounterIDs and b.dungeonEncounterIDs[1])
-                if dungeonEncID then
-                    local cells = {}
-                    for _, probeId in ipairs(matrixIds) do
-                        local complete = C_RaidLocks.IsEncounterComplete(
-                            instanceID, dungeonEncID, probeId)
-                        cells[#cells + 1] = ("%s=%s"):format(
-                            tostring(probeId), complete and "T" or "f")
-                    end
-                    add(("      %s (deID=%s): %s")
-                        :format(tostring(b.name), tostring(dungeonEncID),
-                                table.concat(cells, " ")))
-                else
-                    add(("      %s: no dungeonEncounterID (EJ map empty, no data fallback)")
-                        :format(tostring(b.name)))
-                end
-            end
-        end
-        add("")
-    end
-
-    self:ShowCopyWindow("LockProbe", table.concat(lines, "\n"))
-end
-
 -- Skip quests are account-wide and don't backfill, so the highest flag-true
 -- difficulty is the ceiling.
 
@@ -2905,66 +2146,6 @@ function RR:GetSkipChainCeilings(raid)
     return out
 end
 
--- Returns the highest difficulty for which the skip is unlocked on the
--- account, or nil if no flag is set or the raid has neither skipQuests
--- nor skipAchievement configured. Returned values are WoW raid difficulty
--- IDs:
---   16 = Mythic, 15 = Heroic, 14 = Normal.
--- LFR (17) is intentionally excluded -- LFR raids don't have skip quests.
---
--- Two skip-mechanism schemas are recognized:
---   * skipQuests: standard post-Shadowlands quest-flag cascade. Per
---     difficulty, with downward cascade (mythic implies heroic implies
---     normal) handled by the consumer (IsRaidSkipAvailableAtDifficulty).
---     May be single-chain (most raids) or multi-chain (Antorus); see
---     NormalizeSkipChains for the shape detection.
---   * skipAchievement: BfD-only sibling field. Mythic-only, gated by an
---     achievement ID. The achievement's per-account "completed" boolean
---     is the 4th return of GetAchievementInfo (since 11.0.5, this is
---     account-wide for any cross-realm earned achievement).
---
--- For multi-chain raids, returns the MAX ceiling across all chains. The
--- ceiling-per-chain detail (needed by the Skips UI to render two rows)
--- lives in GetSkipChainCeilings.
--- Detection for the Siege of Orgrimmar Garrosh skip (raid.skipGarrosh).
--- Returns true if the account has unlocked the skip. Two arms, OR'd:
---
---   * statistics: any of the per-difficulty Garrosh kill statistics
---     reading > 0. Covers LFR / Flexible / Normal / Heroic kills. The
---     in-game "--" (no kills) reads as a non-number, so tonumber()..or 0
---     treats it as zero.
---
---   * mythicAchievement: the Mythic Garrosh achievement completed (4th
---     return of GetAchievementInfo, account-wide). Covers Mythic kills,
---     which the kill statistics do not track.
--- Per-difficulty skip state for the Siege of Orgrimmar Garrosh scroll.
--- The scroll is account-wide and difficulty-agnostic: one Garrosh kill
--- on any character at any difficulty unlocks it everywhere. But the
--- client has no single account-wide "any kill" signal, so we infer the
--- state per difficulty from the strongest proof available, four tiers,
--- most-conclusive first:
---
---   Tier 1  Mythic Garrosh achievement (account-wide) completed
---           -> proof of a kill; cascades down. M / H / N all unlocked.
---   Tier 2  either faction's Heroic-or-higher kill achievement
---           (Conqueror = Alliance, Liberator = Horde; both account-wide)
---           completed, no Mythic -> H / N unlocked, M not confirmed.
---   Tier 3  any per-difficulty kill statistic > 0. Statistics are
---           CHARACTER-scoped, so this only confirms the *current*
---           character killed Garrosh -- but a kill is a kill, so the
---           account-wide skip is genuinely unlocked. N unlocked; H/M
---           not confirmed (no achievement to prove the difficulty).
---   Tier 4  nothing proven. The skip may still be unlocked by a kill on
---           another character that left no account-wide trace we can
---           read, so Normal is "unknown" (?) rather than a hard locked;
---           H / M stay not-confirmed.
---
--- Cell values match the Skips renderer's vocabulary:
---   true  = unlocked (green check)
---   false = not confirmed (red X)
---   "?"   = unknown (waiting glyph)
---
--- Returns mythic, heroic, normal.
 -- Per-difficulty skip state for the Siege of Orgrimmar Garrosh scroll.
 -- The scroll unlocks account-wide on a Garrosh kill, but the client has
 -- no single account-wide "any kill" signal, so we grade each difficulty
@@ -3032,6 +2213,27 @@ local function GarroshSkipStates(cfg)
     return false, false, "?"
 end
 
+-- Returns the highest difficulty for which the skip is unlocked on the
+-- account, or nil if no flag is set or the raid has neither skipQuests
+-- nor skipAchievement configured. Returned values are WoW raid difficulty
+-- IDs:
+--   16 = Mythic, 15 = Heroic, 14 = Normal.
+-- LFR (17) is intentionally excluded -- LFR raids don't have skip quests.
+--
+-- Two skip-mechanism schemas are recognized:
+--   * skipQuests: standard post-Shadowlands quest-flag cascade. Per
+--     difficulty, with downward cascade (mythic implies heroic implies
+--     normal) handled by the consumer (IsRouteTargetSkipAvailableAtDifficulty).
+--     May be single-chain (most raids) or multi-chain (Antorus); see
+--     NormalizeSkipChains for the shape detection.
+--   * skipAchievement: BfD-only sibling field. Mythic-only, gated by an
+--     achievement ID. The achievement's per-account "completed" boolean
+--     is the 4th return of GetAchievementInfo (since 11.0.5, this is
+--     account-wide for any cross-realm earned achievement).
+--
+-- For multi-chain raids, returns the MAX ceiling across all chains. The
+-- ceiling-per-chain detail (needed by the Skips UI to render two rows)
+-- lives in GetSkipChainCeilings.
 function RR:GetRaidSkipUnlockedCeiling(raid)
     if not raid then return nil end
 
@@ -3139,28 +2341,6 @@ function RR:RaidHasSkipRoute(raid)
     return raid ~= nil and raid.skipRoute ~= nil
 end
 
--- Returns true if the skip is available at the given difficulty,
--- accounting for the downward cascade rule (completing X unlocks
--- everything <= X). difficultyID should be one of the raid difficulty
--- IDs: 14 (Normal), 15 (Heroic), 16 (Mythic). For LFR or any other
--- non-skip-eligible difficulty, returns false.
-function RR:IsRaidSkipAvailableAtDifficulty(raid, difficultyID)
-    if not difficultyID then return false end
-    -- Callers pass the RAW live difficulty, so fold before range-checking.
-    difficultyID = self:FoldDifficulty(raid, difficultyID)
-    -- Skip system is Normal/Heroic/Mythic only.
-    if difficultyID < 14 or difficultyID > 16 then return false end
-    local ceiling = self:GetRaidSkipUnlockedCeiling(raid)
-    if not ceiling then return false end
-    -- Non-cascading skips (BfD-only achievement-gated) only unlock the
-    -- exact difficulty matching the ceiling -- the standard "everything
-    -- below the ceiling is also unlocked" rule does not apply.
-    if not self:RaidSkipIsCascading(raid) then
-        return difficultyID == ceiling
-    end
-    return difficultyID <= ceiling
-end
-
 -- Ceiling for the specific skip chain the raid's authored route targets,
 -- matched by skipToBoss against each chain's label. Falls back to the
 -- max-across-all-chains ceiling (GetRaidSkipUnlockedCeiling) when the raid
@@ -3189,15 +2369,14 @@ function RR:GetRouteTargetSkipCeiling(raid)
     return maxCeiling
 end
 
--- Like IsRaidSkipAvailableAtDifficulty, but gated on the chain the
--- authored route targets (via GetRouteTargetSkipCeiling) rather than any
--- unlocked chain. Used by the load dialog's single SKIP button.
+-- True when the skip is available at the given difficulty (14-16 only),
+-- gated on the chain the authored route targets (via
+-- GetRouteTargetSkipCeiling). Completing a difficulty unlocks everything
+-- below it, except the non-cascading achievement-gated skip, which unlocks
+-- only its own. Used by the load dialog's SKIP button.
 function RR:IsRouteTargetSkipAvailableAtDifficulty(raid, difficultyID)
     if not difficultyID then return false end
-    -- Fold the RAW live difficulty before range-checking, exactly as
-    -- IsRaidSkipAvailableAtDifficulty does. These two are near-duplicates
-    -- and the load dialog calls THIS one, so a fix applied only to the
-    -- sibling changes nothing the player sees.
+    -- Callers pass the RAW live difficulty, so fold before range-checking.
     difficultyID = self:FoldDifficulty(raid, difficultyID)
     if difficultyID < 14 or difficultyID > 16 then return false end
     local ceiling = self:GetRouteTargetSkipCeiling(raid)
@@ -3703,7 +2882,7 @@ function RR:HandleLocationChange()
 
         -- Warms the GetItemInfo cache so the browser's quality read resolves
         -- on first open.
-        if GetItemInfo and supported.bosses then
+        if supported.bosses then
             for _, boss in ipairs(supported.bosses) do
                 if boss.loot then
                     for _, item in ipairs(boss.loot) do
@@ -4159,93 +3338,6 @@ function RR:PrintStatus()
 end
 
 -------------------------------------------------------------------------------
--- LootProbe: logs every candidate loot event with its payload. Which event
--- fires depends on the TYPE of drop, not the raid's era.
-local lootProbe = { active = false, frame = nil, buffer = nil }
-
--- Candidate events: the delivery/notification events that produce a native
--- toast. Captured together so a single boss-loot pass shows which one(s)
--- fire for each drop type.
-local LOOTPROBE_EVENTS = {
-    "SHOW_LOOT_TOAST",
-    "SHOW_LOOT_TOAST_UPGRADE",
-    "SHOW_LOOT_TOAST_LEGENDARY_LOOTED",
-    "SHOW_PVP_FACTION_LOOT_TOAST",
-    "LOOT_ITEM_ROLL_WON",
-    "NEW_MOUNT_ADDED",
-    "NEW_PET_ADDED",
-    "NEW_TOY_ADDED",
-    "TRANSMOG_COLLECTION_SOURCE_ADDED",
-    "TRANSMOG_COSMETIC_COLLECTION_SOURCE_ADDED",
-    "CHAT_MSG_LOOT",
-}
-
-local function FormatLootCapture(event, ...)
-    local argCount = select("#", ...)
-    local parts = {}
-    for i = 1, argCount do
-        local arg = select(i, ...)
-        parts[i] = ("arg%d=%s"):format(i, tostring(arg))
-    end
-    local stamp = date("%H:%M:%S")
-    if argCount == 0 then
-        return ("[%s] %s  (no args)"):format(stamp, event)
-    end
-    return ("[%s] %s\n    %s"):format(stamp, event, table.concat(parts, "\n    "))
-end
-
-local function LootEventHandler(_, event, ...)
-    if not lootProbe.active then return end
-    lootProbe.buffer[#lootProbe.buffer + 1] = FormatLootCapture(event, ...)
-    -- One line per capture so they can be seen landing live; the full
-    -- payload goes to the dump window.
-    RR:Print(("|cff00ff88[LootProbe]|r %s (%d arg(s))"):format(event, select("#", ...)))
-end
-
-function RR:LootProbeStart()
-    if lootProbe.active then
-        self:Print(RR.L["|cff00ff88[LootProbe]|r already armed. /rr lootprobe stop to disarm."])
-        return
-    end
-    if not lootProbe.frame then
-        lootProbe.frame = CreateFrame("Frame")
-        lootProbe.frame:SetScript("OnEvent", LootEventHandler)
-    end
-    lootProbe.buffer = {}
-    for _, ev in ipairs(LOOTPROBE_EVENTS) do
-        -- pcall: a few candidates may not exist on every client build; an
-        -- unknown event name errors on RegisterEvent. Skip those quietly.
-        pcall(lootProbe.frame.RegisterEvent, lootProbe.frame, ev)
-    end
-    lootProbe.active = true
-    self:Print(("|cff00ff88[LootProbe]|r ARMED. Listening for %d loot/toast events."):format(#LOOTPROBE_EVENTS))
-    self:Print(RR.L["|cff00ff88[LootProbe]|r Loot a mix of drops (gear, mount, pet, transmog), then /rr lootprobe stop."])
-end
-
-function RR:LootProbeStop()
-    if not lootProbe.active then
-        self:Print(RR.L["|cff00ff88[LootProbe]|r not armed. /rr lootprobe start to begin capture."])
-        return
-    end
-    for _, ev in ipairs(LOOTPROBE_EVENTS) do
-        pcall(lootProbe.frame.UnregisterEvent, lootProbe.frame, ev)
-    end
-    lootProbe.active = false
-    local count = #lootProbe.buffer
-    self:Print(("|cff00ff88[LootProbe]|r DISARMED. Captured %d event(s). Opening dump window..."):format(count))
-    local dump
-    if count == 0 then
-        dump = "(no events captured during this session)"
-    else
-        dump = table.concat(lootProbe.buffer, "\n\n")
-    end
-    self:ShowCopyWindow("RetroRuns -- LootProbe capture", dump)
-    lootProbe.buffer = nil
-end
-
-
-
--------------------------------------------------------------------------------
 -- Copyable dump window
 --
 -- Shared across all debug/probe tools. Any command that produces text the
@@ -4385,6 +3477,7 @@ end
 local DEV_COMMANDS = {
     sessionlog = true, mapicons = true, lfrwing = true, ej = true, newtag = true,
     locale = true, localeharvest = true, devtools = true, dt = true, record = true,
+    lfrbits = true, lootprobe = true, lockprobe = true,
 }
 
 SLASH_RETRORUNS1 = "/retroruns"
@@ -4416,16 +3509,6 @@ SlashCmdList["RETRORUNS"] = function(input)
         -- across raids.
         local showAll = (args[2] == "all")
         RR:ShowRecorderSessionLog(showAll)
-
-    elseif cmd == "lintroute" then
-        -- On-demand structural lint of all loaded raid and dungeon data. Reports
-        -- errors (malformed required fields, broken cross-refs) and
-        -- warnings (unverified maps[] entries, segment subZones not
-        -- present in maps[], consecutive-duplicate mapIDs). Optional
-        -- second arg filters to instances whose name contains that
-        -- substring, e.g. `/rr lintroute Aberrus`.
-        local scope = args[2]
-        RR:LintRoute(scope)
 
     elseif cmd == "panelpos" then
         -- Panel-position provenance. Every persist and restore is tagged
@@ -4463,32 +3546,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         RR:DumpMapIcons()
 
     elseif cmd == "lfrbits" then
-        -- Dev: dump the per-boss LFR lockout-bit capture log (S7 aid). Each
-        -- LFR boss kill auto-records which lockout bit it set; this shows the
-        -- accumulated boss->bit mapping. Pass `clear` to reset the log before a
-        -- fresh capture run (e.g. at reset, to map a raid from scratch).
-        if args[2] == "clear" then
-            RetroRunsDebug = RetroRunsDebug or {}
-            RetroRunsDebug.lfrBitLog = {}
-            RR:Print(RR.L["LFR bit capture log cleared."])
-        else
-            local log = (RetroRunsDebug and RetroRunsDebug.lfrBitLog) or {}
-            local lines = {}
-            local function add(line) lines[#lines + 1] = line end
-            add("LFR per-boss lockout-bit capture log")
-            add("(each entry = one LFR kill; 'bit' is the lockout bit that kill set)")
-            add("")
-            if #log == 0 then
-                add("(empty -- kill LFR bosses to populate; `/rr lfrbits clear` to reset)")
-            else
-                for i = 1, #log do
-                    local entry = log[i]
-                    add(("%s  %s  ->  bit %s   [%s]"):format(
-                        tostring(entry.t), tostring(entry.boss), tostring(entry.bit), tostring(entry.raid)))
-                end
-            end
-            RR:ShowCopyWindow("LFR Bit Capture", table.concat(lines, "\n"))
-        end
+        RR:LfrBitsCommand(args[2])
 
     elseif cmd == "lfrwing" then
         -- Dev: collect everything needed to author an LFR wing route, in one
@@ -4519,11 +3577,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         if preservedShowPanel ~= nil then RR:SetSetting("showPanel", preservedShowPanel) end
         if preservedDebug     ~= nil then RR:SetSetting("debug",     preservedDebug)     end
         RR:RestorePanelPosition("reset-defaults")
-        if RetroRunsSettingsFrame and RetroRunsSettingsFrame.RestorePosition then
-            RetroRunsSettingsFrame:RestorePosition()
-        end
         RR.UI.ApplySettings()
-        RR.UI.SyncSettingsControls()
         RR:RefreshAll()
         RR:Print(RR.L["Settings reset to defaults."])
 
@@ -4623,14 +3677,6 @@ SlashCmdList["RETRORUNS"] = function(input)
     elseif cmd == "tmog" then
         RR.UI.ToggleTransmogBrowser()
 
-    elseif cmd == "tmogsize" then
-        -- Diagnostic: dump the tmog popup's sizing geometry. Tmog window
-        -- must be open first; select the boss to measure before running.
-        -- Used for "why is there blank space at the bottom of the tmog
-        -- popup?" / "why does the legend clip past the frame bottom?"
-        -- investigations.
-        RR.UI.DumpTmogSize()
-
     elseif cmd == "skips" then
         -- Open the raid-skip status window. Read-only display of which
         -- raid skips are unlocked on this account, with cascade-aware
@@ -4688,8 +3734,6 @@ SlashCmdList["RETRORUNS"] = function(input)
         elseif sub == "clear" then RR:ToasterClearTrace()
         elseif sub == "probe" then
             if RR.ToastProbe then RR:ToastProbe(args[3], args[4]) end
-        elseif sub == "navharvest" then
-            if RR.ToastNavHarvest then RR:ToastNavHarvest() end
         else                       RR:ToggleToaster()
         end
 
@@ -4720,7 +3764,6 @@ SlashCmdList["RETRORUNS"] = function(input)
                 RR:Print(RR.L["  /rr  record [start|stop|dump|reset|status]"])
                 RR:Print(RR.L["  /rr  sessionlog [all]            (recorder session log; omit `all` for current-instance only)"])
             end
-            RR:Print(RR.L["  /rr  lintroute [instance name]   (structural lint of instance routing data)"])
             RR:Print(RR.L["  /rr  diag                        (consolidated engine, zone and session logs)"])
             if RR.ToggleDevTools then
                 RR:Print(RR.L["  /rr  mapicons                    (dump exact coords of every Blizzard icon on the visible map)"])
@@ -4754,7 +3797,6 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
             -- tables (nine of them for other clients) can go to the
             -- collector instead of living in memory all session.
             RR.LocaleTables = {}
-            if RR:GetSetting("debug") then ValidateRaidData() end
             C_Timer.After(0, function()
                 RR:RestorePanelPosition("addon-loaded")
                 RR:InitMinimapButton()
@@ -4814,7 +3856,7 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         -- calls (from the transmog popup's weapon-tokens section) can
         -- resolve names/links without a cold-cache miss. Cheap: 12
         -- entries per tokenized raid, fires once on login.
-        if RetroRuns_Data and GetItemInfo then
+        if RetroRuns_Data then
             for _, raid in pairs(RetroRuns_Data) do
                 local ts = raid.tierSets and raid.tierSets.tokenSources
                 if ts then
@@ -4952,14 +3994,6 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         -- wiped, or the boss reset. Set in ENCOUNTER_START below; read
         -- by BuildTravelText to freeze rendering during the fight.
         RR.state.inEncounter = false
-
-        -- Dev aid (S7): on a successful LFR boss kill, record which lockout
-        -- bit the kill set, so the per-boss bit map can be gathered during
-        -- normal farming. No-op outside LFR. Runs independent of the testMode
-        -- gating below so it captures on real runs.
-        if success == 1 then
-            RR:CaptureLFRBitForKill(encounterName)
-        end
 
         if not RR.state.testMode
             and RR.currentRaid

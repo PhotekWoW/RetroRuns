@@ -65,7 +65,6 @@ RetroRuns_DungeonData[762] = {
                 { id = 121280, slot = "Legs", name = "Wracksoul Legplates", sources = { [14]=68433, [15]=68433, [16]=68433 } },
                 { id = 134452, slot = "Shoulder", name = "Epaulets of Desiccated Foliage", sources = { [14]=78912, [15]=80077, [16]=78912 } },
                 { id = 121299, slot = "Waist", name = "Dreadhide Girdle", sources = { [14]=68450, [15]=68450, [16]=68450 } },
-                { id = 211473, slot = "Weapon", name = "Corrupted Knot", sources = { [14]=194146, [15]=194146, [16]=194146 }, mythicPlusOnly = true },
                 { id = 137305, slot = "Wrist", name = "Blighted Grasp Bracers", sources = { [14]=78914, [15]=80149, [16]=78914 } },
             },
         },

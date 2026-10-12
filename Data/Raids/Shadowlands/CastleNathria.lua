@@ -48,7 +48,6 @@ RetroRuns_Data[2296] = {
 
     -- Weapon-token drops by boss.
     tierSets = {
-        labels = {},
         tokenSources = {
             -- Main-Hand tokens
             -- Mystic (Druid, Hunter, Mage) -> Huntsman Altimor + Sire Denathrius

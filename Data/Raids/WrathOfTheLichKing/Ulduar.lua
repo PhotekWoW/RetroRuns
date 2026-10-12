@@ -37,7 +37,6 @@ RetroRuns_Data[603] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [45632] = 8,  -- Breastplate of the Wayward Conqueror
             [45633] = 8,  -- Breastplate of the Wayward Protector

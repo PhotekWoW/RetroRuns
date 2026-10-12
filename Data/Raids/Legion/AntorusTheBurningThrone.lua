@@ -43,7 +43,6 @@ RetroRuns_Data[1712] = {
     },
 
     tierSets = {
-        labels       = { "Antorus, the Burning Throne" },
         tokenSources = {},
     },
 

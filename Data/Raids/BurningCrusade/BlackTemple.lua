@@ -40,7 +40,6 @@ RetroRuns_Data[564] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [31101] = 7,   -- Pauldrons of the Forgotten Conqueror
             [31102] = 7,   -- Pauldrons of the Forgotten Vanquisher

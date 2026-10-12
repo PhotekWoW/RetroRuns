@@ -34,7 +34,6 @@ RetroRuns_Data[671] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [67423] = 1,  -- Chest of the Forlorn Conqueror
             [67424] = 1,  -- Chest of the Forlorn Protector

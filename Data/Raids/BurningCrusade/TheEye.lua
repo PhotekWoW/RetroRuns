@@ -73,7 +73,6 @@ RetroRuns_Data[550] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [30248] = 2,   -- Pauldrons of the Vanquished Champion
             [30249] = 2,   -- Pauldrons of the Vanquished Defender

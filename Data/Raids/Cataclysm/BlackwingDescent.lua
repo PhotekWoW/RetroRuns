@@ -32,7 +32,6 @@ RetroRuns_Data[669] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [67429] = 2,  -- Gauntlets of the Forlorn Conqueror
             [67430] = 2,  -- Gauntlets of the Forlorn Protector

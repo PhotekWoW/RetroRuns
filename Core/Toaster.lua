@@ -24,19 +24,11 @@ local EVENT_KIND = {
     TRANSMOG_COSMETIC_COLLECTION_SOURCE_ADDED = "appearance",
 }
 
--- Stable iteration order for register/unregister loops (pairs order is
--- undefined; an explicit list keeps logs and behavior deterministic).
-local EVENT_LIST = {
-    "SHOW_LOOT_TOAST",
-    "SHOW_LOOT_TOAST_UPGRADE",
-    "SHOW_LOOT_TOAST_LEGENDARY_LOOTED",
-    "NEW_MOUNT_ADDED",
-    "NEW_PET_ADDED",
-    "NEW_TOY_ADDED",
-    "NEW_HOUSING_ITEM_ACQUIRED",
-    "TRANSMOG_COLLECTION_SOURCE_ADDED",
-    "TRANSMOG_COSMETIC_COLLECTION_SOURCE_ADDED",
-}
+-- The same events, sorted, so the register/unregister loops run in a fixed
+-- order (pairs order is undefined).
+local EVENT_LIST = {}
+for eventName in pairs(EVENT_KIND) do EVENT_LIST[#EVENT_LIST + 1] = eventName end
+table.sort(EVENT_LIST)
 
 -------------------------------------------------------------------------------
 -- Module state
@@ -147,21 +139,15 @@ RR._RefreshToasterBannerSuppression = RefreshBannerSuppression
 
 -------------------------------------------------------------------------------
 -- Presenter: pooled, fading toast frames stacked upward from a base point.
--- Same-item drops within the visible window merge and bump a count badge
--- rather than spawning a second frame.
 -------------------------------------------------------------------------------
 
 local Presenter = {
     pool    = {},   -- reusable hidden frames
     live    = {},   -- currently shown, oldest first (head pins to anchor)
-    byKey   = {},   -- mergeKey -> live frame, for coalescing
 }
 
-local TOAST_W, TOAST_H, GAP = 340, 96, 26
--- Fixed icon size (not derived from TOAST_H).
-local TOAST_ICON = 60
-local TOAST_W_MIN, TOAST_W_MAX = 300, 460   -- clamp for measured width
--- Fixed width when banner art is active: TOAST_H at the art's 4:1 ratio.
+local TOAST_H, GAP = 96, 26
+-- Toast width: TOAST_H at the banner art's 4:1 ratio.
 local TOAST_W_FIXED = math.floor(TOAST_H * (512 / 128) + 0.5)  -- 384 at H=96
 -- Icon placement inside the banner art's baked well.
 local BANNER_ICON_SIZE  = 44
@@ -181,6 +167,28 @@ local C_PINK = { 0.95, 0.35, 0.78 }
 -- Click-hint text size. A step under the item name (20) so the hint reads as
 -- an aside rather than as a second headline.
 local HINT_FONT_SIZE = 19
+
+-- Every toast takes the body font, sized as built. A font object goes on first
+-- so a koKR/zhTW cold start still renders when the font file fails to apply.
+local function ApplyToastFonts(toastFrame)
+    local bodyFont = RR:GetBodyFont()
+    for fontString, size in pairs({ [toastFrame.header] = 16,
+                                    [toastFrame.itemNameText] = 20,
+                                    [toastFrame.hint or false] = HINT_FONT_SIZE }) do
+        if fontString then
+            fontString:SetFontObject("GameFontNormal")
+            RR.SafeSetFont(fontString, bodyFont, size, "OUTLINE")
+        end
+    end
+end
+
+-- A toast header, upper-cased only when plain ASCII: string.upper skips
+-- accented and non-Latin letters.
+local function ToastHeaderText(key)
+    local text = RR.L[key]
+    if not text:find("[\128-\255]") then text = text:upper() end
+    return text
+end
 
 -- The colored "RR:" tag prepended to every line RetroRuns prints to chat.
 -- Kept as one constant so the loot-summary emitter and the AddMessage guard
@@ -209,7 +217,7 @@ end
 local function ConstructToastFrame(parent)
     local toastFrame = CreateFrame("Button", nil, parent or UIParent)
     toastFrame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    toastFrame:SetSize(TOAST_W, TOAST_H)
+    toastFrame:SetSize(TOAST_W_FIXED, TOAST_H)
     toastFrame:SetScale(TOAST_SCALE)
     toastFrame:SetFrameStrata("HIGH")
 
@@ -222,38 +230,15 @@ local function ConstructToastFrame(parent)
     toastFrame.glow:SetBlendMode("ADD")
     toastFrame.glow:Hide()
 
-    -- Backdrop: dark fill behind the banner art. Takes the per-kind tint.
-    toastFrame.bg = toastFrame:CreateTexture(nil, "BACKGROUND")
-    toastFrame.bg:SetAllPoints()
-    toastFrame.bg:SetColorTexture(0.04, 0.04, 0.06, 0.92)
-
-    -- Per-kind banner frame art (512x128). Texture set in ApplyContent; hidden
-    -- until then.
+    -- Per-kind banner frame art (512x128); texture set in ApplyContent.
     toastFrame.banner = toastFrame:CreateTexture(nil, "BORDER")
     toastFrame.banner:SetAllPoints()
 
-    -- Edge slivers: the no-art fallback frame, quality-colored. Hidden when
-    -- banner art is active.
-    local function edge()
-        local tex = toastFrame:CreateTexture(nil, "BORDER")
-        tex:SetColorTexture(1, 1, 1, 1)
-        return tex
-    end
-    toastFrame.edgeT = edge(); toastFrame.edgeT:SetPoint("TOPLEFT", 0, 0);    toastFrame.edgeT:SetPoint("TOPRIGHT", 0, 0);    toastFrame.edgeT:SetHeight(2)
-    toastFrame.edgeB = edge(); toastFrame.edgeB:SetPoint("BOTTOMLEFT", 0, 0); toastFrame.edgeB:SetPoint("BOTTOMRIGHT", 0, 0); toastFrame.edgeB:SetHeight(2)
-    toastFrame.edgeL = edge(); toastFrame.edgeL:SetPoint("TOPLEFT", 0, 0);    toastFrame.edgeL:SetPoint("BOTTOMLEFT", 0, 0);  toastFrame.edgeL:SetWidth(2)
-    toastFrame.edgeR = edge(); toastFrame.edgeR:SetPoint("TOPRIGHT", 0, 0);   toastFrame.edgeR:SetPoint("BOTTOMRIGHT", 0, 0); toastFrame.edgeR:SetWidth(2)
-
-    -- Icon with a thin frame to match panel item rows. Centered vertically.
+    -- Icon, seated in the banner art's baked well.
     toastFrame.icon = toastFrame:CreateTexture(nil, "ARTWORK")
-    toastFrame.icon:SetSize(TOAST_ICON, TOAST_ICON)
-    toastFrame.icon:SetPoint("LEFT", 6, 0)
+    toastFrame.icon:SetSize(BANNER_ICON_SIZE, BANNER_ICON_SIZE)
+    toastFrame.icon:SetPoint("LEFT", BANNER_ICON_INSET, 0)
     toastFrame.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-
-    toastFrame.iconEdge = toastFrame:CreateTexture(nil, "BORDER")
-    toastFrame.iconEdge:SetColorTexture(0, 0, 0, 1)
-    toastFrame.iconEdge:SetPoint("TOPLEFT", toastFrame.icon, "TOPLEFT", -1, 1)
-    toastFrame.iconEdge:SetPoint("BOTTOMRIGHT", toastFrame.icon, "BOTTOMRIGHT", 1, -1)
 
     -- Quality-tinted icon ring (the rarity cue the banner doesn't carry).
     -- Tint/show set in ApplyContent.
@@ -265,7 +250,6 @@ local function ConstructToastFrame(parent)
 
     -- Header: green pixel-font category label ("NEW APPEARANCE", "SPECIAL LOOT").
     toastFrame.header = toastFrame:CreateFontString(nil, "OVERLAY")
-    RR.SafeSetFont(toastFrame.header, TITLE_FONT, 16, "OUTLINE")
     toastFrame.header:SetPoint("TOPLEFT", toastFrame.icon, "TOPRIGHT", 9, -4)
     toastFrame.header:SetPoint("RIGHT", -8, 0)
     toastFrame.header:SetJustifyH("LEFT")
@@ -273,7 +257,6 @@ local function ConstructToastFrame(parent)
 
     -- Body: item name, quality-colored. Wraps to a second line, capped at 2.
     toastFrame.itemNameText = toastFrame:CreateFontString(nil, "OVERLAY")
-    RR.SafeSetFont(toastFrame.itemNameText, TITLE_FONT, 20, "OUTLINE")
     toastFrame.itemNameText:SetPoint("TOPLEFT", toastFrame.header, "BOTTOMLEFT", 0, -3)
     toastFrame.itemNameText:SetPoint("RIGHT", -8, 0)
     toastFrame.itemNameText:SetJustifyH("LEFT")
@@ -281,19 +264,15 @@ local function ConstructToastFrame(parent)
     toastFrame.itemNameText:SetWordWrap(true)
     if toastFrame.itemNameText.SetMaxLines then toastFrame.itemNameText:SetMaxLines(2) end
 
-    toastFrame.count = toastFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    toastFrame.count:SetPoint("BOTTOMRIGHT", toastFrame.icon, "BOTTOMRIGHT", 1, 0)
-
     -- Click hint, anchored to the toast's right edge. Body font, not the
     -- pixel face.
     toastFrame.hint = toastFrame:CreateFontString(nil, "OVERLAY")
-    RR.SafeSetFont(toastFrame.hint,
-        (RR.GetBodyFont and RR:GetBodyFont()) or TITLE_FONT, HINT_FONT_SIZE, "OUTLINE")
     toastFrame.hint:SetPoint("LEFT", toastFrame, "RIGHT", 10, 0)
     toastFrame.hint:SetJustifyH("LEFT")
     toastFrame.hint:SetTextColor(1, 0.82, 0)
     toastFrame.hint:Hide()
 
+    ApplyToastFonts(toastFrame)
     return toastFrame
 end
 
@@ -303,9 +282,19 @@ local function AcquireFrame()
     return ConstructToastFrame(UIParent)
 end
 
+-- Halts a toast's fade: the hold timer, both fade animations, and anything a
+-- hover had paused.
+local function StopToastFade(toastFrame)
+    if toastFrame.holdTimer then toastFrame.holdTimer:Cancel() end
+    toastFrame.holdTimer, toastFrame.holdEnds = nil, nil
+    toastFrame.holdLeft, toastFrame.resumeAlpha = nil, nil
+    if toastFrame.fadeIn then toastFrame.fadeIn:Stop() end
+    if toastFrame.fadeOut then toastFrame.fadeOut:Stop() end
+end
+
 local function ReleaseFrame(toastFrame)
     toastFrame:Hide()
-    toastFrame:SetScript("OnUpdate", nil)
+    StopToastFade(toastFrame)
     -- Clear mouse wiring before pooling.
     toastFrame:SetScript("OnMouseDown", nil)
     toastFrame:EnableMouse(false)
@@ -318,11 +307,8 @@ local function ReleaseFrame(toastFrame)
     if toastFrame.SetMouseMotionEnabled then
         toastFrame:SetMouseMotionEnabled(false)
     end
-    if toastFrame.mergeKey then Presenter.byKey[toastFrame.mergeKey] = nil end
-    toastFrame.mergeKey = nil
-    toastFrame.qty = nil
     toastFrame.glowOn = nil
-    toastFrame.quality = nil
+    RR.UI.SetBreathing(toastFrame.glow, false)
     -- Clear click wiring and identity. A pooled frame that kept these would
     -- act on the previous drop.
     toastFrame:SetScript("OnClick", nil)
@@ -402,108 +388,37 @@ local function Restack()
     end
 end
 
-local function SetCount(toastFrame)
-    if (toastFrame.qty or 1) > 1 then
-        toastFrame.count:SetText("x" .. toastFrame.qty)
-    else
-        toastFrame.count:SetText("")
-    end
-end
-
 -- Retro-pink base for the epic glow; pulse modulates its brightness.
 local GLOW_PINK = { 1.0, 0.15, 0.55 }
-local GLOW_QUALITY_FLOOR = 4  -- epic+
 
--- Color the border + body by quality and enable the pink glow for epic+.
--- quality nil falls back to brand pink, no glow. glowColor (optional) forces
--- the glow tint. Per-kind background tint: appearances pink, special loot cyan,
--- no kind keeps the neutral dark fill.
-local BG_NEUTRAL    = { 0.04, 0.04, 0.06, 0.92 }   -- current default fill
-local BG_APPEARANCE = { 0.10, 0.055, 0.095, 0.92 }  -- pink-black
-local BG_SPECIAL    = { 0.025, 0.08, 0.105, 0.92 }  -- cyan-black
-local function StyleBgByKind(toastFrame, toast)
-    local bgColor = BG_NEUTRAL
-    if toast then
-        if toast.isAppearance then bgColor = BG_APPEARANCE
-        elseif toast.isSpecial then bgColor = BG_SPECIAL end
-    end
-    toastFrame.bg:SetColorTexture(bgColor[1], bgColor[2], bgColor[3], bgColor[4])
-end
-
--- Banner art paths per toast kind. No kind (preview/overlay) falls back to the
--- code-drawn frame.
+-- Banner art per toast kind.
 local BANNER_BY_KIND = {
     appearance = "Interface\\AddOns\\RetroRuns\\Media\\Toast\\toast-bg-appearance",
     special    = "Interface\\AddOns\\RetroRuns\\Media\\Toast\\toast-bg-special",
-    token      = "Interface\\AddOns\\RetroRuns\\Media\\Toast\\toast-bg-token",
 }
 
--- Apply the per-kind banner art. With a banner, hide the edge slivers and
--- bg fill (the icon ring stays); the glow is StyleByQuality's call. With no
--- kind, leave the legacy frame.
-local function StyleBannerByKind(toastFrame, toast)
-    local kind
-    if toast then
-        if toast.isAppearance then kind = "appearance"
-        elseif toast.isSpecial then kind = "special" end
-    end
-    local path = kind and BANNER_BY_KIND[kind]
-    if path then
-        toastFrame.banner:SetTexture(path)
-        toastFrame.banner:Show()
-        toastFrame.bg:Hide()
-        toastFrame.edgeT:Hide(); toastFrame.edgeB:Hide(); toastFrame.edgeL:Hide(); toastFrame.edgeR:Hide()
-        toastFrame.iconEdge:Hide()
-        toastFrame.useBanner = true
-        -- Seat the icon in the art's baked well.
-        toastFrame.icon:SetSize(BANNER_ICON_SIZE, BANNER_ICON_SIZE)
-        toastFrame.icon:ClearAllPoints()
-        toastFrame.icon:SetPoint("LEFT", BANNER_ICON_INSET, 0)
-    else
-        toastFrame.banner:Hide()
-        toastFrame.bg:Show()
-        toastFrame.edgeT:Show(); toastFrame.edgeB:Show(); toastFrame.edgeL:Show(); toastFrame.edgeR:Show()
-        toastFrame.iconEdge:Show()
-        toastFrame.useBanner = false
-        toastFrame.icon:SetSize(TOAST_ICON, TOAST_ICON)
-        toastFrame.icon:ClearAllPoints()
-        toastFrame.icon:SetPoint("LEFT", 6, 0)
-    end
-end
+-- The glow's brightest alpha; a live toast's halo breathes down to
+-- GLOW_BREATH_LOW of it and back, 1.6s each way.
+local GLOW_PEAK_ALPHA  = 0.85 * 0.75
+local GLOW_BREATH_LOW  = 0.55 / 0.75
+local GLOW_BREATH_HALF = 1.6
 
+-- Quality colors the icon ring (the rarity cue the banner doesn't carry) and,
+-- unless glowColor forces one, the glow behind the toast. Every toast glows;
+-- live ones breathe it (ShowOne). No quality falls back to brand pink.
 local function StyleByQuality(toastFrame, quality, glowColor)
-    toastFrame.quality = quality
     local r, g, b
     if quality then
         r, g, b = C_Item.GetItemQualityColor(quality)
     end
     if not r then r, g, b = C_PINK[1], C_PINK[2], C_PINK[3] end
-
-    for _, e in ipairs({ toastFrame.edgeT, toastFrame.edgeB, toastFrame.edgeL, toastFrame.edgeR }) do
-        e:SetVertexColor(r, g, b, 0.95)
-    end
-
-    -- Quality-colored icon ring, shown when banner art is active.
-    if toastFrame.useBanner then
-        toastFrame.iconRing:SetVertexColor(r, g, b, 1)
-        toastFrame.iconRing:Show()
-    else
-        toastFrame.iconRing:Hide()
-    end
-
-    -- Glow color: forced override if given, else the quality color.
+    toastFrame.iconRing:SetVertexColor(r, g, b, 1)
+    toastFrame.iconRing:Show()
     toastFrame.glowColor = glowColor or { r, g, b }
-
-    -- Glow shows for a forced color, for epic+ on the legacy frame, and
-    -- behind every banner toast; the pulse ticker breathes it.
-    if glowColor or toastFrame.useBanner
-        or (quality and quality >= GLOW_QUALITY_FLOOR) then
-        toastFrame.glowOn = true
-        toastFrame.glow:Show()
-    else
-        toastFrame.glowOn = false
-        toastFrame.glow:Hide()
-    end
+    toastFrame.glowOn = true
+    local glow = toastFrame.glowColor
+    toastFrame.glow:SetVertexColor(glow[1], glow[2], glow[3], GLOW_PEAK_ALPHA)
+    toastFrame.glow:Show()
 end
 
 -- Full-opacity hold (seconds) from toasterDuration, clamped 1.5..8.0.
@@ -517,9 +432,8 @@ local function StayUntilClick()
     return (RR.GetSetting and RR:GetSetting("toasterStayUntilClick", false)) and true or false
 end
 
--- Remove a toast immediately (click-to-dismiss in stay-until-click mode).
+-- Remove a toast immediately: a right-click, or the end of its fade.
 local function DismissToast(toastFrame)
-    toastFrame:SetScript("OnUpdate", nil)
     for i, lf in ipairs(Presenter.live) do
         if lf == toastFrame then table.remove(Presenter.live, i) break end
     end
@@ -659,11 +573,24 @@ local function BuildSourceClassIndex()
     end
 end
 
-local function DataClassesForSource(sourceID)
+-- A drop the data folds onto a same-look row has no row of its own, so the
+-- classes of any indexed source sharing its appearance answer for it.
+local function DataClassesForSource(sourceID, visualID)
     if not sourceClassIndex then
         BuildSourceClassIndex()
     end
-    return sourceClassIndex[sourceID]
+    if sourceClassIndex[sourceID] or not visualID then
+        return sourceClassIndex[sourceID]
+    end
+    local siblings = C_TransmogCollection.GetAllAppearanceSources
+        and C_TransmogCollection.GetAllAppearanceSources(visualID)
+    for _, siblingID in pairs(siblings or {}) do
+        if sourceClassIndex[siblingID] then
+            T(("retarget: classes from same-look source %d"):format(siblingID))
+            return sourceClassIndex[siblingID]
+        end
+    end
+    return nil
 end
 
 -- Is this category offered under the current class filter? Only the NAME from
@@ -886,7 +813,7 @@ local function RetargetClassFilterForSource(sourceID)
     -- Our data first, where it has an answer. A row listing the classes that
     -- can use the drop settles which filter to browse under, and is trusted
     -- over the capability API, which over-reports for class-locked gear.
-    local dataClasses = DataClassesForSource(sourceID)
+    local dataClasses = DataClassesForSource(sourceID, visualID)
     if dataClasses then
         for _, classID in ipairs(dataClasses) do
             if classID == currentFilter then
@@ -912,9 +839,8 @@ local function RetargetClassFilterForSource(sourceID)
         return false
     end
 
-    -- No row for this source (a drop we do not track): fall back to the
-    -- capability API, which is right for everything except class-locked
-    -- gear -- and class-locked gear is exactly what our data covers.
+    -- No row for this source or any sharing its look: fall back to the
+    -- capability API, which over-reports only for class-locked gear.
     if ClassCanViewVisual(visualID, currentFilter) then
         return false   -- current class already sees it; leave the filter alone
     end
@@ -943,6 +869,11 @@ local function RefreshItemsCollectionAfterFilterChange()
     if not (itemsFrame and itemsFrame.IsVisible and itemsFrame:IsVisible()) then
         T("refresh: items collection not visible, nothing to rebuild")
         return
+    end
+    -- Re-dress every model for the landed slot, as the wardrobe's own OnShow
+    -- does: a slot change only diffs gear against the previous slot.
+    if itemsFrame.ChangeModelsSlot and itemsFrame.transmogLocation then
+        pcall(itemsFrame.ChangeModelsSlot, itemsFrame, itemsFrame.transmogLocation)
     end
     if itemsFrame.RefreshVisualsList then
         pcall(itemsFrame.RefreshVisualsList, itemsFrame)
@@ -1053,15 +984,21 @@ local function OpenToastInJournal(toastFrame)
                 filterRetargeted =
                     RetargetClassFilterForSource(toastFrame.sourceID)
             end
-            T(("open: OpenCollectionToItem(%s) journalLoaded=%s hook=%s"):format(
+            -- After a new appearance the wardrobe's OnShow first jumps to that
+            -- appearance's slot, and our jump then diffs gear away from it.
+            local wardrobeItems = WardrobeCollectionFrame
+                and WardrobeCollectionFrame.ItemsCollectionFrame
+            local latestJump = wardrobeItems and wardrobeItems.jumpToLatestCategoryID
+                and not (CollectionsJournal and CollectionsJournal:IsShown())
+            T(("open: OpenCollectionToItem(%s) journalLoaded=%s hook=%s latestJump=%s"):format(
                 tostring(toastFrame.sourceID),
                 tostring(CollectionsJournal ~= nil),
-                tostring(classFilterHookInstalled)))
+                tostring(classFilterHookInstalled), tostring(latestJump)))
             TransmogUtil.OpenCollectionToItem(toastFrame.sourceID)
             T("open: OpenCollectionToItem returned; journalShown="
                 .. tostring(CollectionsJournal and CollectionsJournal:IsShown()))
             -- Next frame, so the show and the jump have both settled.
-            if filterRetargeted then
+            if filterRetargeted or latestJump then
                 C_Timer.After(0, RefreshItemsCollectionAfterFilterChange)
             end
             return true
@@ -1115,102 +1052,113 @@ local function ToastOnClick(toastFrame, button)
     end
 end
 
--- Fades against elapsed wall-clock, reset on a merge. Hovering pauses the
--- countdown by pushing `born` forward.
-local function StartFade(toastFrame)
-    toastFrame.born = GetTime()
+-- A toast's fade-in: alpha 0 to 1 over FADE_IN, kept at 1 when done. Live
+-- toasts and the settings preview share it.
+local function BuildFadeIn(toastFrame)
+    if toastFrame.fadeIn then return end
+    toastFrame.fadeIn = toastFrame:CreateAnimationGroup()
+    toastFrame.fadeIn:SetToFinalAlpha(true)
+    local rise = toastFrame.fadeIn:CreateAnimation("Alpha")
+    rise:SetFromAlpha(0)
+    rise:SetToAlpha(1)
+    rise:SetDuration(FADE_IN)
+end
 
-    -- Toasts take clicks in both modes: right-click dismisses, left-click
-    -- opens or previews the drop. Mouse handling no longer differs between
-    -- stay-until-click and the timed fade -- the only difference is whether
-    -- the countdown runs.
+-- A live toast fades in, holds, then fades out over FADE_OUT. The fades are
+-- native animations that keep their end alpha; the hold is a timer counted
+-- from the start. Built once per pooled frame.
+local function BuildToastFade(toastFrame)
+    if toastFrame.fadeOut then return end
+    BuildFadeIn(toastFrame)
+    toastFrame.fadeOut = toastFrame:CreateAnimationGroup()
+    toastFrame.fadeOut:SetToFinalAlpha(true)
+    toastFrame.fadeOutAlpha = toastFrame.fadeOut:CreateAnimation("Alpha")
+    toastFrame.fadeOutAlpha:SetToAlpha(0)
+    toastFrame.fadeOut:SetScript("OnFinished", function() DismissToast(toastFrame) end)
+end
+
+-- The fade-out from `fromAlpha` (1, or wherever a hover stopped it), at the
+-- full fade's rate.
+local function PlayFadeOut(toastFrame, fromAlpha)
+    toastFrame.fadeFrom = fromAlpha
+    toastFrame.fadeOutAlpha:SetFromAlpha(fromAlpha)
+    toastFrame.fadeOutAlpha:SetDuration(FADE_OUT * fromAlpha)
+    toastFrame.fadeOut:Play()
+end
+
+local function StartHold(toastFrame, seconds)
+    toastFrame.holdEnds = GetTime() + seconds
+    toastFrame.holdTimer = C_Timer.NewTimer(seconds, function()
+        toastFrame.holdTimer, toastFrame.holdEnds = nil, nil
+        PlayFadeOut(toastFrame, 1)
+    end)
+end
+
+-- Starts a live toast's fade, or restarts it on a merge. Hovering brings it
+-- to full opacity and pauses whatever hold or fade-out was left.
+local function StartFade(toastFrame)
     toastFrame:EnableMouse(true)
     toastFrame:SetScript("OnMouseDown", nil)
     toastFrame:SetScript("OnClick", ToastOnClick)
 
-    local stay = StayUntilClick()
-
+    BuildToastFade(toastFrame)
+    StopToastFade(toastFrame)
     toastFrame.hoverStart = nil
     toastFrame:SetScript("OnEnter", function(self)
         self.hoverStart = GetTime()
-        -- A toast caught mid-fade is the one most worth reading, so bring it
-        -- back to full opacity for as long as the cursor is on it. The fade
-        -- itself is only paused: OnLeave resumes from the same point rather
-        -- than restarting the dwell, so brushing past a toast does not keep
-        -- it on screen appreciably longer.
+        if self.holdTimer then
+            self.holdLeft = self.holdEnds - self.hoverStart
+            self.holdTimer:Cancel()
+            self.holdTimer, self.holdEnds = nil, nil
+        end
+        if self.fadeOut:IsPlaying() then
+            self.resumeAlpha = self.fadeFrom * (1 - self.fadeOutAlpha:GetProgress())
+        end
+        self.fadeIn:Stop()
+        self.fadeOut:Stop()
         self:SetAlpha(1)
     end)
     toastFrame:SetScript("OnLeave", function(self)
-        if self.hoverStart then
-            self.born = self.born + (GetTime() - self.hoverStart)
-            self.hoverStart = nil
+        if not self.hoverStart then return end
+        self.hoverStart = nil
+        if self.resumeAlpha then
+            PlayFadeOut(self, self.resumeAlpha)
+            self.resumeAlpha = nil
+        elseif self.holdLeft then
+            StartHold(self, math.max(0, self.holdLeft))
+            self.holdLeft = nil
         end
     end)
 
-    local hold = EffectiveHold()
-    toastFrame:SetScript("OnUpdate", function(self)
-        -- Hovered: hold full opacity and stop the countdown where it was.
-        if self.hoverStart then
-            self:SetAlpha(1)
-            return
-        end
-        local elapsed = GetTime() - self.born
-        local a
-        if elapsed < FADE_IN then
-            a = elapsed / FADE_IN
-        elseif stay then
-            -- Hold at full opacity until clicked; never auto-expire.
-            a = 1
-        elseif elapsed < FADE_IN + hold then
-            a = 1
-        elseif elapsed < FADE_IN + hold + FADE_OUT then
-            a = 1 - (elapsed - FADE_IN - hold) / FADE_OUT
-        else
-            -- expired
-            self:SetScript("OnUpdate", nil)
-            for i, lf in ipairs(Presenter.live) do
-                if lf == self then table.remove(Presenter.live, i) break end
-            end
-            ReleaseFrame(self)
-            Restack()
-            return
-        end
-        self:SetAlpha(a)
-    end)
-end
-
--- Pulse every live glowing toast. Its own clock, at half the map ring's
--- pace (3.2s round trip), so the halo breathes rather than flickers.
-local GLOW_PULSE_PERIOD = 3.2
-C_Timer.NewTicker(0.05, function()
-    if #Presenter.live == 0 then return end
-    local pulse = 0.65 + 0.10 * math.cos(GetTime() * 2 * math.pi / GLOW_PULSE_PERIOD)   -- 0.55 .. 0.75
-    for _, f in ipairs(Presenter.live) do
-        if f.glowOn and f.glow then
-            local glow = f.glowColor or GLOW_PINK
-            f.glow:SetVertexColor(glow[1], glow[2], glow[3], 0.85 * pulse)
-        end
+    toastFrame:SetAlpha(0)
+    toastFrame.fadeIn:Play()
+    if not StayUntilClick() then
+        StartHold(toastFrame, FADE_IN + EffectiveHold())
     end
-end)
+end
 
 -- Apply item content (icon, name, quality, banner, glow) to a frame from a
 -- descriptor. Separate from ShowOne so an async name load can refresh a visible
--- toast in place. mergeKey groups identical drops; nil disables merging.
+-- toast in place.
 local function ApplyContent(toastFrame, toast)
     toastFrame.icon:SetTexture(toast.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
     toastFrame.itemNameText:SetText(toast.name or "")
     local r, g, b
     if toast.quality then r, g, b = C_Item.GetItemQualityColor(toast.quality) end
     toastFrame.itemNameText:SetTextColor(r or 1, g or 1, b or 1)
-    StyleBgByKind(toastFrame, toast)
-    StyleBannerByKind(toastFrame, toast)
+    toastFrame.banner:SetTexture(BANNER_BY_KIND[toast.isSpecial and "special" or "appearance"])
     StyleByQuality(toastFrame, toast.quality, toast.glowColor)
+end
+
+-- Scale = base x windowScale x toasterScale.
+local function EffectiveToastScale()
+    local userScale  = (RR.GetSetting and RR:GetSetting("windowScale", 1.0)) or 1.0
+    local toastScale = (RR.GetSetting and RR:GetSetting("toasterScale", 1.0)) or 1.0
+    return TOAST_SCALE * userScale * toastScale
 end
 
 local function ShowOne(toast)
     local toastFrame = AcquireFrame()
-    toastFrame.mergeKey = nil
-    toastFrame.qty = 1
 
     -- Click-action identity. Only set on live toasts; the settings preview
     -- builds frames through the same constructor but never populates these,
@@ -1220,27 +1168,17 @@ local function ShowOne(toast)
     toastFrame.petID    = toast.petID
     toastFrame.toyID    = toast.isSpecial and toast.itemID or nil
 
-    -- Scale = base x windowScale x toasterScale.
-    local userScale  = (RR.GetSetting and RR:GetSetting("windowScale", 1.0)) or 1.0
-    local toastScale = (RR.GetSetting and RR:GetSetting("toasterScale", 1.0)) or 1.0
-    toastFrame:SetScale(TOAST_SCALE * userScale * toastScale)
+    toastFrame:SetScale(EffectiveToastScale())
 
-    -- Typeface follows bodyFontStyle; sizes fixed.
-    local bodyFont = (RR.GetBodyFont and RR:GetBodyFont()) or TITLE_FONT
-    RR.SafeSetFont(toastFrame.header, bodyFont, 16, "OUTLINE")
-    RR.SafeSetFont(toastFrame.itemNameText, bodyFont, 20, "OUTLINE")
-    if toastFrame.hint then
-        RR.SafeSetFont(toastFrame.hint, bodyFont, HINT_FONT_SIZE, "OUTLINE")
-    end
+    ApplyToastFonts(toastFrame)
 
-    if toast.width then toastFrame:SetWidth(toast.width) end
-    toastFrame.header:SetText(toast.header and RR.L[toast.header]:upper() or "RETRORUNS")
+    toastFrame.header:SetText(toast.header and ToastHeaderText(toast.header) or "RETRORUNS")
     ApplyContent(toastFrame, toast)
+    RR.UI.SetBreathing(toastFrame.glow, true, GLOW_BREATH_LOW, GLOW_BREATH_HALF)
 
     -- Let a pending item load refresh this frame.
     toast.frame = toastFrame
 
-    SetCount(toastFrame)
     -- Append at the tail so every toast joins the bottom of the stack, no
     -- matter which batch it came from or when its reveal timer fires. Restack
     -- pins the head to the anchor and chains the rest downward, so the stack
@@ -1259,33 +1197,6 @@ local function ShowOne(toast)
     end
 
     return toastFrame
-end
-
--- Reveal a batch: measure every name, set all to the widest (clamped), then
--- stagger the reveals.
-local measureFS  -- lazily-created offscreen FontString for width measurement
-
--- Width needed to fit the wider of name/header at the body font (clamped).
-local function FrameWidthFor(name, header)
-    if not measureFS then
-        measureFS = UIParent:CreateFontString(nil, "OVERLAY")
-        measureFS:Hide()
-    end
-    local bodyFont = (RR.GetBodyFont and RR:GetBodyFont()) or TITLE_FONT
-    RR.SafeSetFont(measureFS, bodyFont, 20, "OUTLINE")
-    measureFS:SetText(name or "")
-    local widest = measureFS:GetStringWidth()
-    measureFS:SetText((header or ""):upper())
-    local hw = measureFS:GetStringWidth()
-    if hw > widest then widest = hw end
-    -- left inset + measured string + right pad + outline slack.
-    local LEFT_INSET  = 6 + TOAST_ICON + 9   -- icon margin + icon + gap to text
-    local RIGHT_PAD   = 8                         -- matches itemNameText RIGHT,-8
-    local OUTLINE_SLACK = 10
-    local frameW = LEFT_INSET + widest + RIGHT_PAD + OUTLINE_SLACK
-    if frameW < TOAST_W_MIN then frameW = TOAST_W_MIN end
-    if frameW > TOAST_W_MAX then frameW = TOAST_W_MAX end
-    return frameW
 end
 
 local APPEARANCE_TOAST_CAP = 5   -- max individual appearance toasts before collapsing the rest
@@ -1330,27 +1241,8 @@ function Presenter.RevealBatch(batch)
         batch = kept
     end
 
-    -- Banner toasts pin to the fixed art-ratio width; the no-art path measures.
-    local usesBanner = false
-    for _, toast in ipairs(batch) do
-        if toast.isAppearance or toast.isSpecial then usesBanner = true break end
-    end
-
-    local frameW
-    if usesBanner then
-        frameW = TOAST_W_FIXED
-    else
-        -- Widest frame across the batch, so all toasts share a uniform width.
-        frameW = 0
-        for _, toast in ipairs(batch) do
-            local frameWidth = FrameWidthFor(toast.name, toast.header)
-            if frameWidth > frameW then frameW = frameWidth end
-        end
-    end
-
     local delay = 0
     for i, toast in ipairs(batch) do
-        toast.width = frameW
         toast.isFinal = (i == #batch)
         C_Timer.After(delay, function()
             if M.enabled then ShowOne(toast) end
@@ -1359,8 +1251,8 @@ function Presenter.RevealBatch(batch)
     end
 end
 
--- Resolve uncached names (bounded wait), then reveal once so the uniform width
--- is measured against final names.
+-- Resolve uncached names (bounded wait), then reveal once, so the toasts open
+-- with their final names.
 local function RevealWhenNamesReady(batch, attempt)
     if not batch or #batch == 0 then return end
     attempt = attempt or 0
@@ -1390,7 +1282,6 @@ end
 function Presenter.Clear()
     for _, f in ipairs(Presenter.live) do ReleaseFrame(f) end
     wipe(Presenter.live)
-    wipe(Presenter.byKey)
 end
 
 -- Forward declarations: the unlock overlay (built lazily below) is referenced
@@ -1400,27 +1291,57 @@ local PositionUnlockOverlay
 
 -- Push the current scale settings to any on-screen toasts immediately, so a
 -- change to the toast-scale slider takes effect live rather than only on the
--- next drop. Matches the scale formula used in ShowOne.
+-- next drop.
 function RR:ApplyToasterScale()
-    local userScale  = (self.GetSetting and self:GetSetting("windowScale", 1.0)) or 1.0
-    local toastScale = (self.GetSetting and self:GetSetting("toasterScale", 1.0)) or 1.0
+    local scale = EffectiveToastScale()
     for _, f in ipairs(Presenter.live) do
-        f:SetScale(TOAST_SCALE * userScale * toastScale)
+        f:SetScale(scale)
     end
     Restack()
     if UnlockOverlay and UnlockOverlay:IsShown() then PositionUnlockOverlay() end
+end
+
+-- A sample toast for the settings previews and the drag overlay, built from
+-- { header, itemID, icon?, name? }. Not pooled, never live: the glow is tinted
+-- once, and an uncached item's name fills in when it loads. A sample with its
+-- own name mirrors a mount row, whose live toast shows the journal name.
+local function BuildSampleToast(parent, sample)
+    local toast = ConstructToastFrame(parent)
+    local isAppearance = (sample.header == "New Appearance")
+    local name = (sample.name and RR.L[sample.name])
+        or C_Item.GetItemInfo(sample.itemID) or ""
+    ApplyContent(toast, {
+        icon = sample.icon or C_Item.GetItemIconByID(sample.itemID),
+        name = name, quality = 4,
+        glowColor = isAppearance and GLOW_PINK or nil,
+        isAppearance = isAppearance, isSpecial = not isAppearance,
+    })
+    toast.header:SetText(ToastHeaderText(sample.header))
+    -- Boosted and still, since the samples sit small and only live toasts
+    -- breathe.
+    local glow = toast.glowColor
+    toast.glow:SetVertexColor(math.min(glow[1] * 1.35, 1), math.min(glow[2] * 1.35, 1),
+        math.min(glow[3] * 1.35, 1), 1)
+    if name == "" then
+        local waiter = CreateFrame("Frame")
+        waiter:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+        waiter:SetScript("OnEvent", function()
+            local itemName = C_Item.GetItemInfo(sample.itemID)
+            if itemName then
+                toast.itemNameText:SetText(itemName)
+                local icon = not sample.icon and C_Item.GetItemIconByID(sample.itemID)
+                if icon then toast.icon:SetTexture(icon) end
+                waiter:UnregisterAllEvents()
+            end
+        end)
+    end
+    return toast
 end
 
 -------------------------------------------------------------------------------
 -- Unlock overlay: a free-floating sample stack the user drags to set the toast
 -- position. Hidden while locked (the default); shown when "Lock" is unchecked.
 -------------------------------------------------------------------------------
-local function EffectiveToastScale()
-    local userScale  = (RR.GetSetting and RR:GetSetting("windowScale", 1.0)) or 1.0
-    local toastScale = (RR.GetSetting and RR:GetSetting("toasterScale", 1.0)) or 1.0
-    return TOAST_SCALE * userScale * toastScale
-end
-
 local function BuildUnlockOverlay()
     if UnlockOverlay then return UnlockOverlay end
 
@@ -1436,44 +1357,22 @@ local function BuildUnlockOverlay()
     -- Two sample toasts inside the frame, mouse-disabled so the drag is caught
     -- by the overlay button.
     local SAMPLES = {
-        { icon = "Interface\\Icons\\INV_Sword_39",          name = 18832, header = "New Appearance", isAppearance = true },
-        { icon = "Interface\\Icons\\Ability_Mount_Drake_Blue", name = 43953, header = "Special Loot", isSpecial = true },
+        { header = "New Appearance", itemID = 18832, icon = "Interface\\Icons\\INV_Sword_39" },
+        { header = "Special Loot",   itemID = 43953, icon = "Interface\\Icons\\Ability_Mount_Drake_Blue" },
     }
     overlay.samples = {}
-    for i, s in ipairs(SAMPLES) do
-        local toast = ConstructToastFrame(overlay)
+    for i, sample in ipairs(SAMPLES) do
+        local toast = BuildSampleToast(overlay, sample)
         toast:EnableMouse(false)
         toast:SetFrameStrata(overlay:GetFrameStrata())
         toast:SetFrameLevel(overlay:GetFrameLevel() + 1)
-        local nm = (s.name and GetItemInfo and C_Item.GetItemInfo(s.name)) or ""
-        ApplyContent(toast, { icon = s.icon, name = nm, quality = 4,
-                          glowColor = (s.header == "New Appearance") and GLOW_PINK or nil,
-                          isAppearance = s.isAppearance, isSpecial = s.isSpecial,
-                          header = s.header })
-        toast.header:SetText(s.header)
-        -- Async name fill if the item wasn't cached.
-        if nm == "" and s.name and GetItemInfo then
-            local itemID = s.name
-            local frame = toast
-            local waiter = CreateFrame("Frame")
-            waiter:RegisterEvent("GET_ITEM_INFO_RECEIVED")
-            waiter:SetScript("OnEvent", function(self)
-                local itemName = C_Item.GetItemInfo(itemID)
-                if itemName then frame.itemNameText:SetText(itemName); self:UnregisterAllEvents() end
-            end)
-            C_Item.GetItemInfo(itemID)
-        end
-        if toast.glowOn and toast.glow then
-            local glow = toast.glowColor or GLOW_PINK
-            toast.glow:SetVertexColor(math.min(glow[1]*1.35,1), math.min(glow[2]*1.35,1), math.min(glow[3]*1.35,1), 1)
-        end
         overlay.samples[i] = toast
     end
 
     -- Hint caption above the frame. Carries a translated string, so it takes
     -- the chrome font: the pixel face covers ASCII only.
     local label = overlay:CreateFontString(nil, "OVERLAY")
-    RR.SafeSetFont(label, (RR.GetChromeFont and RR:GetChromeFont()) or TITLE_FONT, 12, "OUTLINE")
+    RR.SafeSetFont(label, RR:GetChromeFont(), 12, "OUTLINE")
     label:SetPoint("BOTTOMLEFT", overlay, "TOPLEFT", 0, 4)
     label:SetText(RR.L["Drag to move"])
     label:SetJustifyH("LEFT")
@@ -1512,7 +1411,6 @@ PositionUnlockOverlay = function()
     if overlay.samples then
         for i, t in ipairs(overlay.samples) do
             t:SetScale(eff)
-            if t.useBanner then t:SetWidth(TOAST_W_FIXED) end
             t:ClearAllPoints()
             if i == 1 then
                 t:SetPoint("TOPLEFT", overlay, "TOPLEFT", 0, 0)
@@ -1551,6 +1449,16 @@ function RR:ResetToasterAnchor()
     if RR.SetSetting then RR:SetSetting("toasterAnchor", nil) end
     if UnlockOverlay and UnlockOverlay:IsShown() then PositionUnlockOverlay() end
     Restack()
+end
+
+-- Re-fonts every toast on screen or in settings after a font change.
+function RR:RefreshToasterFonts()
+    for _, toastFrame in ipairs(Presenter.live) do ApplyToastFonts(toastFrame) end
+    for _, toastFrame in ipairs((UnlockOverlay and UnlockOverlay.samples) or {}) do
+        ApplyToastFonts(toastFrame)
+    end
+    if RR._toasterPreviewGroup then RR._toasterPreviewGroup:RefreshFonts() end
+    if RR._toasterMock then RR._toasterMock:RefreshFonts() end
 end
 
 -------------------------------------------------------------------------------
@@ -1658,6 +1566,18 @@ local function QueueToast(toast)
     ArmFlush()
 end
 
+-- Pattern matching Blizzard's "You've collected the appearance" system line,
+-- built from the localized global. Nil (no filtering) if the global is missing.
+local TRANSMOG_COLLECTED_PATTERN
+do
+    local learnTemplate = _G.ERR_LEARN_TRANSMOG_S  -- "%s has been added to your appearance collection."
+    if type(learnTemplate) == "string" then
+        -- Escape Lua magic chars, then turn the %s into a wildcard.
+        local lit = learnTemplate:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+        TRANSMOG_COLLECTED_PATTERN = lit:gsub("%%%%s", ".*")
+    end
+end
+
 local function OnDropEvent(_, event, ...)
     if not M.enabled then return end
 
@@ -1673,17 +1593,9 @@ local function OnDropEvent(_, event, ...)
         -- and any other interception layer, confirming whether the event we see
         -- and the line that reaches chat are literally the same message.
         local lineID = select(11, ...)
-        -- Build the match pattern locally (the file-level
-        -- TRANSMOG_COLLECTED_PATTERN is declared later in the chunk and so
-        -- isn't in scope here -- a Lua 5.1 forward-reference trap).
         local matched = "n/a"
-        if not isSecret and type(rawmsg) == "string" then
-            local learnTemplate = _G.ERR_LEARN_TRANSMOG_S
-            if type(learnTemplate) == "string" then
-                local lit = learnTemplate:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
-                local pat = lit:gsub("%%%%s", ".*")
-                matched = rawmsg:match(pat) and "MATCH" or "nomatch"
-            end
+        if not isSecret and type(rawmsg) == "string" and TRANSMOG_COLLECTED_PATTERN then
+            matched = rawmsg:match(TRANSMOG_COLLECTED_PATTERN) and "MATCH" or "nomatch"
         end
         T(("RAW CHAT_MSG_SYSTEM  secret=%s  match=%s  capturing=%s  lineID=%s")
             :format(tostring(isSecret), matched, tostring(Summary.capturing),
@@ -1799,14 +1711,15 @@ local function OnDropEvent(_, event, ...)
         local sourceID = ...
         if not sourceID then return end
 
-        -- visualID (for dedupe), icon, and the source's canonical item link.
-        -- GetAppearanceSourceInfo: categoryID(1) visualID(2) canEnchant(3)
-        -- icon(4) isCollected(5) itemLink(6). Keep itemLink(6) for the chat.
+        -- visualID (for dedupe), icon, and the source's item link for the chat.
         local srcIcon, srcLink, visualID
         if C_TransmogCollection and C_TransmogCollection.GetAppearanceSourceInfo then
-            local _, vID, _, icon, _, itemLink =
-                C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
-            visualID = vID; srcIcon = icon; srcLink = itemLink
+            local sourceInfo = C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
+            if sourceInfo then
+                visualID = sourceInfo.itemAppearanceID
+                srcIcon  = sourceInfo.icon
+                srcLink  = sourceInfo.itemLink
+            end
         end
 
         -- Dedupe by visualID: toast only the first source seen per visual this
@@ -1880,9 +1793,11 @@ local function OnDropEvent(_, event, ...)
                     -- Grab the source link if it wasn't ready at detection.
                     if not toast.link and C_TransmogCollection
                        and C_TransmogCollection.GetAppearanceSourceInfo then
-                        local _, _, _, _, _, itemLink =
+                        local sourceInfo =
                             C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
-                        if itemLink then toast.link = itemLink end
+                        if sourceInfo and sourceInfo.itemLink then
+                            toast.link = sourceInfo.itemLink
+                        end
                     end
                     if toast.frame and toast.frame:IsShown() then
                         ApplyContent(toast.frame, toast)
@@ -1938,18 +1853,6 @@ end
 local function LootChatFilter()
     if M.enabled and LootSummaryOn() and Summary.capturing then return true end  -- discard
     return false
-end
-
--- Pattern matching Blizzard's "You've collected the appearance" system line,
--- built from the localized global. Nil (no filtering) if the global is missing.
-local TRANSMOG_COLLECTED_PATTERN
-do
-    local learnTemplate = _G.ERR_LEARN_TRANSMOG_S  -- "%s has been added to your appearance collection."
-    if type(learnTemplate) == "string" then
-        -- Escape Lua magic chars, then turn the %s into a wildcard.
-        local lit = learnTemplate:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
-        TRANSMOG_COLLECTED_PATTERN = lit:gsub("%%%%s", ".*")
-    end
 end
 
 local function TransmogChatFilter(_, _, msg)
@@ -2601,10 +2504,6 @@ local function InRaidContext()
     return RR.currentRaid ~= nil
 end
 
--- Build a stacked batch of sample toasts for the settings preview, using the
--- real construction/styling, independent of the live pool. Names/icons come
--- from real items. Returns the group with a :PlayReveal() that staggers the
--- fade-ins.
 -- Dump the lifecycle trace and live gate state to the copy window.
 function RR:ToasterDebug()
     local lines = {}
@@ -2644,9 +2543,9 @@ function RR:ToasterDebug()
         local glowShown = f.glow and f.glow:IsShown() or false
         local r, g, b, a = 0, 0, 0, 0
         if f.glow and f.glow.GetVertexColor then r, g, b, a = f.glow:GetVertexColor() end
-        add(("  [%d] %s  banner=%s  glowOn=%s  glowShown=%s  glowRGBA=%.2f,%.2f,%.2f,%.2f  frameAlpha=%.2f")
+        add(("  [%d] %s  glowOn=%s  glowShown=%s  glowRGBA=%.2f,%.2f,%.2f,%.2f  frameAlpha=%.2f")
             :format(i, tostring(f.itemNameText and f.itemNameText:GetText() or "?"),
-                    tostring(f.useBanner), tostring(f.glowOn), tostring(glowShown),
+                    tostring(f.glowOn), tostring(glowShown),
                     r or 0, g or 0, b or 0, a or 0, f:GetAlpha()))
     end
     add("")
@@ -2667,89 +2566,29 @@ function RR:ToasterClearTrace()
     RR:Print(RR.L["Toaster trace cleared."])
 end
 
--- Font setter for the settings SAMPLE toasts only; live toasts follow the body
--- font setting. Object floor first, then the sized font on top. Must run AFTER
--- ApplyContent, which would otherwise clobber it.
-local function SetSampleToastFont(fontString, size)
-    if not fontString then return end
-    fontString:SetFontObject("GameFontNormal")
-    local standardFont = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
-    RR.SafeSetFont(fontString, standardFont, size, "OUTLINE")
-end
-
+-- The settings page's stacked sample toasts, independent of the live pool.
+-- Returns the group with a :PlayReveal() that staggers the fade-ins.
 function RR:BuildPreviewBatch(parent)
     -- Real itemIDs so name and icon resolve from the same source. The mount
     -- itemID matches the Loot Summary Preview's special-loot sample.
-    local function IconFor(itemID)
-        return (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID))
-            or "Interface\\Icons\\INV_Misc_QuestionMark"
-    end
     local samples = {
-        { header = "New Appearance", id = 18832, icon = IconFor(18832), quality = 4, glowColor = GLOW_PINK, appearance = true },
-        { header = "New Appearance", id = 12640, icon = IconFor(12640), quality = 4, glowColor = GLOW_PINK, appearance = true },
-        { header = "Special Loot",   id = 43952, icon = IconFor(43952), quality = 4, glowColor = nil,       appearance = false, name = "Azure Drake" },
+        { header = "New Appearance", itemID = 18832 },
+        { header = "New Appearance", itemID = 12640 },
+        { header = "Special Loot",   itemID = 43952, name = "Azure Drake" },
     }
 
     local PREVIEW_SCALE = 0.55
     local PREVIEW_GAP   = 6           -- vertical gap between stacked previews
     local frames = {}
 
-    for i, s in ipairs(samples) do
-        local toastFrame = ConstructToastFrame(parent)
+    for i, sample in ipairs(samples) do
+        local toastFrame = BuildSampleToast(parent, sample)
         toastFrame:SetScale(PREVIEW_SCALE)
         toastFrame:SetFrameStrata(parent and parent:GetFrameStrata() or "DIALOG")
-
         -- Glow bleed, scaled down from the live values for the cramped pane.
         toastFrame.glow:ClearAllPoints()
         toastFrame.glow:SetPoint("TOPLEFT", -90, 28)
         toastFrame.glow:SetPoint("BOTTOMRIGHT", 90, -28)
-
-        toastFrame.header:SetText(RR.L[s.header]:upper())
-        -- A sample with its own name mirrors a mount/pet row, whose live
-        -- toast shows the journal name; the item id only supplies the icon.
-        local nm = (s.name and RR.L[s.name])
-            or (GetItemInfo and C_Item.GetItemInfo(s.id)) or ""
-        ApplyContent(toastFrame, {
-            icon = s.icon, name = nm, quality = s.quality, glowColor = s.glowColor,
-            isAppearance = s.appearance, isSpecial = (not s.appearance),
-        })
-        -- Sample fonts go on AFTER ApplyContent: it re-fonts for the live
-        -- path and would clobber them (this ordering bug is exactly how the
-        -- preview stack kept the pixel face while the mockup, which fonts
-        -- after its ApplyContent, rendered correctly).
-        SetSampleToastFont(toastFrame.header, 16)
-        SetSampleToastFont(toastFrame.itemNameText, 20)
-        -- Banner toasts use the fixed art-ratio width.
-        if toastFrame.useBanner then toastFrame:SetWidth(TOAST_W_FIXED) end
-
-        -- Not in the live pool, so tint the glow statically (boosted for the
-        -- small preview scale).
-        if toastFrame.glowOn and toastFrame.glow then
-            local glow = toastFrame.glowColor or GLOW_PINK
-            local boost = 1.35
-            toastFrame.glow:SetVertexColor(
-                math.min(glow[1] * boost, 1),
-                math.min(glow[2] * boost, 1),
-                math.min(glow[3] * boost, 1), 1.0)
-        end
-
-        -- Async fill (name + icon) if the item wasn't cached. A fixed-name
-        -- sample never needs it.
-        if nm == "" and not s.name and GetItemInfo then
-            local waiter = CreateFrame("Frame")
-            waiter:RegisterEvent("GET_ITEM_INFO_RECEIVED")
-            waiter:SetScript("OnEvent", function()
-                local itemName = C_Item.GetItemInfo(s.id)
-                if itemName then
-                    toastFrame.itemNameText:SetText(itemName)
-                    local ic = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(s.id)
-                    if ic then toastFrame.icon:SetTexture(ic) end
-                    waiter:UnregisterAllEvents()
-                end
-            end)
-            C_Item.GetItemInfo(s.id)
-        end
-
         frames[i] = toastFrame
     end
 
@@ -2769,38 +2608,24 @@ function RR:BuildPreviewBatch(parent)
     -- Group handle with a staggered reveal across all frames.
     local group = { frames = frames, stackHeight = stackHeight }
 
-    -- Re-resolve the sample toasts' typeface from the current bodyFontStyle
-    -- setting. Built at file-load time, before SavedVariables exist and
-    -- while client font loading can transiently fail, so the font baked in
-    -- at construction cannot be trusted; callers re-font once the world is
-    -- up and again whenever the font setting changes.
+    -- Built before SavedVariables exist, so re-fonted once they load and
+    -- again whenever the font settings change.
     function group:RefreshFonts()
         for _, toastFrame in ipairs(self.frames) do
-            SetSampleToastFont(toastFrame.header, 16)
-            SetSampleToastFont(toastFrame.itemNameText, 20)
-            if toastFrame.hint then
-                SetSampleToastFont(toastFrame.hint, HINT_FONT_SIZE)
-            end
+            ApplyToastFonts(toastFrame)
         end
     end
     function group:PlayReveal()
         local soundOn = RR:GetSetting("toasterSound", true) ~= false
         local frameCount = #self.frames
         for i, f in ipairs(self.frames) do
+            BuildFadeIn(f)
+            f.fadeIn:Stop()
             f:SetAlpha(0)
             f:Show()
             local delay = (i - 1) * 0.20
             C_Timer.After(delay, function()
-                f.born = GetTime()
-                f:SetScript("OnUpdate", function()
-                    local elapsed = GetTime() - f.born
-                    if elapsed < FADE_IN then
-                        f:SetAlpha(elapsed / FADE_IN)
-                    else
-                        f:SetAlpha(1)
-                        f:SetScript("OnUpdate", nil)
-                    end
-                end)
+                f.fadeIn:Play()
                 -- Coin per toast, ring-out on the last (SFX channel).
                 if soundOn then
                     PlaySoundFile((i == frameCount) and COIN_FINAL_SOUND or COIN_SOUND, "SFX")
@@ -2816,9 +2641,9 @@ function RR:BuildPreviewBatch(parent)
     -- and re-resolves on cache. Vendor count is a cosmetic sample.
     group.vendorCount = 6
     group.appearanceIDs = {}
-    for _, s in ipairs(samples) do
-        if s.appearance then
-            group.appearanceIDs[#group.appearanceIDs + 1] = s.id
+    for _, sample in ipairs(samples) do
+        if sample.header == "New Appearance" then
+            group.appearanceIDs[#group.appearanceIDs + 1] = sample.itemID
         end
     end
     -- Special-loot sample (mount) for the expansion, name colored to its type.
@@ -2913,47 +2738,16 @@ function RR:BuildToasterMockup(parent, mockScale)
     end
 
     -- ---- Sample toast (right, anchored to the panel) ---------------------
-    local toast = ConstructToastFrame(mock)
+    local toast = BuildSampleToast(mock, { header = "New Appearance", itemID = 18832,
+                                           icon = "Interface\\Icons\\INV_Sword_39" })
     toast:SetFrameStrata(parent:GetFrameStrata())
-    local nm = (GetItemInfo and C_Item.GetItemInfo(18832)) or ""
-    ApplyContent(toast, { icon = "Interface\\Icons\\INV_Sword_39", name = nm,
-                          quality = 4, glowColor = GLOW_PINK, isAppearance = true })
-    -- Banner toasts use the art's fixed 4:1 width.
-    if toast.useBanner then toast:SetWidth(TOAST_W_FIXED) end
-    -- ApplyContent doesn't set the header; set it here (no :upper(), matching
-    -- the unlock-drag sample). The mock skips the show path, so it takes the
-    -- typeface swap directly: the pixel face covers ASCII only.
-    SetSampleToastFont(toast.header, 16)
-    SetSampleToastFont(toast.itemNameText, 20)
-    toast.header:SetText(RR.L["New Appearance"])
-    -- Static glow tint (the live pulse ticker doesn't run here).
-    if toast.glowOn and toast.glow then
-        local glow = toast.glowColor or GLOW_PINK
-        toast.glow:SetVertexColor(math.min(glow[1]*1.35,1), math.min(glow[2]*1.35,1), math.min(glow[3]*1.35,1), 1)
-    end
-    if nm == "" and GetItemInfo then
-        local waiter = CreateFrame("Frame")
-        waiter:RegisterEvent("GET_ITEM_INFO_RECEIVED")
-        waiter:SetScript("OnEvent", function()
-            local itemName = C_Item.GetItemInfo(18832)
-            if itemName then toast.itemNameText:SetText(itemName); waiter:UnregisterAllEvents() end
-        end)
-        C_Item.GetItemInfo(18832)
-    end
 
     local handle = { frame = mock, panel = pBox, toast = toast, mockScale = MOCK_SCALE }
 
-    -- Re-resolve the sample toast's typeface from the current bodyFontStyle
-    -- setting. The mockup is built at file-load time, before SavedVariables
-    -- exist and while client font loading can transiently fail, so the font
-    -- baked in at construction cannot be trusted; callers re-font once the
-    -- world is up and again whenever the font setting changes.
+    -- Built before SavedVariables exist, so re-fonted once they load and
+    -- again whenever the font settings change.
     function handle:RefreshFonts()
-        SetSampleToastFont(self.toast.header, 16)
-        SetSampleToastFont(self.toast.itemNameText, 20)
-        if self.toast.hint then
-            SetSampleToastFont(self.toast.hint, HINT_FONT_SIZE)
-        end
+        ApplyToastFonts(self.toast)
     end
 
     -- Apply the user's toast scale (mock factor * user scale), anchored to the

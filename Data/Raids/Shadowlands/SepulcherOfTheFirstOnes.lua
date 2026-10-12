@@ -48,9 +48,6 @@ RetroRuns_Data[2481] = {
     -- Legs, Anduin drops Helms, Lords of Dread drops Shoulders, Rygelon
     -- drops Chests.
     tierSets = {
-        labels = {
-            "Sepulcher of the First Ones",
-        },
         tokenSources = {
             -- Mystic (Druid, Hunter, Mage)
             [191002] = 8,   -- Mystic Helm Module      -> Anduin Wrynn

@@ -40,7 +40,6 @@ RetroRuns_Data[967] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [78862] = { 1, 2, 3, 4, 5, 6 },  -- Chest of the Corrupted Vanquisher
             [78863] = { 1, 2, 3, 4, 5, 6 },  -- Chest of the Corrupted Conqueror

@@ -160,8 +160,6 @@ RetroRuns_DungeonData[1194] = {
                 { id = 15190, name = "Mischief!", soloable = "yes" },
             },
             loot = {
-                { id = 185785, slot = "Chest", name = "Embrace of the Relicbinder", sources = { [15]=116665, [16]=116665 } },
-                { id = 185784, slot = "Chest", name = "Novaburst Warplate", sources = { [15]=116664, [16]=116664 } },
                 { id = 185801, slot = "Legs", name = "Anomalous Starlit Breeches", sources = { [15]=116681, [16]=116681 } },
                 { id = 185799, slot = "Legs", name = "Hyperlight Leggings", sources = { [15]=116679, [16]=116679 } },
                 { id = 185822, slot = "Two-Hand", name = "Staff of Fractured Spacetime", sources = { [15]=116699, [16]=116699 } },

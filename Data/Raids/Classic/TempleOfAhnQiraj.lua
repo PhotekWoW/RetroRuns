@@ -33,7 +33,6 @@ RetroRuns_Data[531] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {
             [20926] = 7,   -- Vek'nilash's Circlet
             [20927] = 8,   -- Ouro's Intact Hide

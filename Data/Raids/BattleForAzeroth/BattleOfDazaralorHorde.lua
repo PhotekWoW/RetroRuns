@@ -38,7 +38,6 @@ RetroRuns_DataHorde[2070] = {
     },
 
     tierSets = {
-        labels       = {},
         tokenSources = {},
     },
 
