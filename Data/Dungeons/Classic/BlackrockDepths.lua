@@ -841,6 +841,7 @@ RetroRuns_DungeonData[228] = {
             bossIndex = 13,
             title     = "Phalanx",
             optional  = true,
+            skipWhenCollected = true,
             requires  = { },
             segments  = {
                 {

@@ -1418,6 +1418,18 @@ do
         end)
     end
 
+    -- Opening an expansion in the dungeon list counts as seeing its newly
+    -- routed dungeons, from the header or a search jump alike.
+    function UI.RevealNewDungeonsIn(expName)
+        if (RR.state and RR.state.idleListMode) ~= "dungeon" then return end
+        local byExpansion = UI.EnumerateInstances("dungeon")
+        local unseen = RR:UnseenRoutedDungeons(byExpansion and byExpansion[expName])
+        if unseen then
+            RR:MarkRoutedDungeonsSeen(unseen)
+            UI.BeginRowReveal(unseen)
+        end
+    end
+
     function UI.SelectIdleSearchResult(entry)
         RR.state = RR.state or {}
         -- A jump REPLACES the expand state rather than adding to it, so
@@ -1427,6 +1439,7 @@ do
             -- current RAID | DUNGEON mode.
             RR.state.expandedExpansions = { [entry.expansion] = true }
             RR.state.expandedDungeonGroups = {}
+            UI.RevealNewDungeonsIn(entry.expansion)
             UI.CloseIdleSearch()
             UI.InvalidateIdleListCache()
             UI.SetMinimized(false)
@@ -1437,6 +1450,7 @@ do
         RR.state.expandedExpansions =
             { [entry.raid.expansion or "Unknown"] = true }
         RR.state.expandedDungeonGroups = {}
+        UI.RevealNewDungeonsIn(entry.raid.expansion or "Unknown")
         -- A wing lives under its group heading; open that too. Keyed on
         -- the authored name, matching the list builder.
         local heading = (entry.raid.name or ""):match("^(.-) %- ")
@@ -7079,8 +7093,8 @@ local function BuildSanctumLine(raid, boss)
             local armorEntry = armorSubclass
                 and vendorInfo.armorVendors[armorSubclass]
             local armorVendor = armorEntry and armorEntry.vendorName
-            local armorLabel = armorSubclass and GetItemSubClassInfo
-                and GetItemSubClassInfo(LE_ITEM_CLASS_ARMOR or 4, armorSubclass)
+            local armorLabel = armorSubclass and C_Item and C_Item.GetItemSubClassInfo
+                and C_Item.GetItemSubClassInfo(LE_ITEM_CLASS_ARMOR or 4, armorSubclass)
 
             -- The trailing field arrives pre-colored (class color for the
             -- class name, white for the armor type), so the format leaves
@@ -12371,14 +12385,10 @@ RefreshIdleList = function()
                 local btn = AcquireExpansionToggleButton()
                 PositionExpansionToggleButton(btn, fs, row.expanded)
                 local expName = row.exp
-                local newInstances = row.newInstances
                 btn:SetScript("OnClick", function()
                     -- Opening the expansion is what counts as seeing its
                     -- new dungeons; the NEW tag goes with this click.
-                    if newInstances then
-                        RR:MarkRoutedDungeonsSeen(newInstances)
-                        UI.BeginRowReveal(newInstances)
-                    end
+                    UI.RevealNewDungeonsIn(expName)
                     -- Single-expand accordion: opening one expansion
                     -- closes any other that's currently open. Keeps
                     -- the supported-raids list short and focused; the

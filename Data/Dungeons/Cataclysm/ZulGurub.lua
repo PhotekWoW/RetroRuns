@@ -15,11 +15,23 @@ RetroRuns_DungeonData[76] = {
     difficultyModel   = "dungeonBinary",
     availableDifficulties = { 14, 15 },
     patch             = "4.1.0",
+    routedIn          = "3.3.5",
+
+    -- One of the four Cache of Madness bosses a run, summoned with the
+    -- artifacts. The corpse names the one that spawned.
+    spawnChoice = { 3, 4, 5, 6, label = "Cache of Madness" },
 
     entrance = {
         mapID = 50,
         x     = 0.7225,
         y     = 0.3291,
+    },
+
+    pois = {
+        { mapID = 337, poiKind = "vendor", mapLabel = "Recipe Vendor",
+          mapLabelPos = "below",
+          hintNote = "^Rin'wosho the Trader^ trades profession recipes and Zandalar transmog ensembles for Hakkari Bijous and Zandalar Bargaining Tokens.",
+          points = { { 0.293, 0.500 } } },
     },
 
     trashLoot = {
@@ -66,8 +78,10 @@ RetroRuns_DungeonData[76] = {
             index              = 3,
             name               = "Cache of Madness - Gri'lek",
             journalEncounterID = 177,
-            dungeonEncounterID = 788,
-            aliases            = { "Edge of Madness" },
+            dungeonEncounterID = 1188,
+            npcID              = 52258,
+            aliases            = { "Cache of Madness" },
+            soloTip            = "Requires the Archaeology profession. Click the artifacts around the room until you have found one of each kind: troll, elven, dwarven and fossil. Each one you find floats to the middle, and the fourth summons one of four bosses at random.",
             achievements       = {
             },
             loot = {
@@ -82,8 +96,10 @@ RetroRuns_DungeonData[76] = {
             index              = 4,
             name               = "Cache of Madness - Hazza'rah",
             journalEncounterID = 178,
-            dungeonEncounterID = 788,
-            aliases            = { "Edge of Madness" },
+            dungeonEncounterID = 1188,
+            npcID              = 52271,
+            aliases            = { "Cache of Madness" },
+            soloTip            = "Requires the Archaeology profession. Click the artifacts around the room until you have found one of each kind: troll, elven, dwarven and fossil. Each one you find floats to the middle, and the fourth summons one of four bosses at random.",
             achievements       = {
             },
             loot = {
@@ -99,8 +115,10 @@ RetroRuns_DungeonData[76] = {
             index              = 5,
             name               = "Cache of Madness - Renataki",
             journalEncounterID = 179,
-            dungeonEncounterID = 788,
-            aliases            = { "Edge of Madness" },
+            dungeonEncounterID = 1188,
+            npcID              = 52269,
+            aliases            = { "Cache of Madness" },
+            soloTip            = "Requires the Archaeology profession. Click the artifacts around the room until you have found one of each kind: troll, elven, dwarven and fossil. Each one you find floats to the middle, and the fourth summons one of four bosses at random.",
             achievements       = {
             },
             loot = {
@@ -116,8 +134,10 @@ RetroRuns_DungeonData[76] = {
             index              = 6,
             name               = "Cache of Madness - Wushoolay",
             journalEncounterID = 180,
-            dungeonEncounterID = 788,
-            aliases            = { "Edge of Madness" },
+            dungeonEncounterID = 1188,
+            npcID              = 52286,
+            aliases            = { "Cache of Madness" },
+            soloTip            = "Requires the Archaeology profession. Click the artifacts around the room until you have found one of each kind: troll, elven, dwarven and fossil. Each one you find floats to the middle, and the fourth summons one of four bosses at random.",
             achievements       = {
             },
             loot = {
@@ -166,6 +186,7 @@ RetroRuns_DungeonData[76] = {
             name               = "Jin'do the Godbreaker",
             journalEncounterID = 185,
             dungeonEncounterID = 1182,
+            soloTip            = "The goal is to destroy all 3 chains to activate the boss. You do this by pulling a ^Gurubashi Spirit Warrior^ to the chain and standing there until he casts ^Body Slam^ on you. Do this on all 3 chains, kill the chains, then kill the boss. If you manage to keep him alive, you can kill all 3 chains with the same troll.",
             achievements       = {
                 { id = 5759, name = "Spirit Twister", soloable = "yes" },
                 { id = 5744, name = "Gurubashi Headhunter", soloable = "yes" },
@@ -184,6 +205,215 @@ RetroRuns_DungeonData[76] = {
             },
             specialLoot = {
                 { id = 122215, kind = "musicroll", name = "Music Roll: Zul'Gurub Voodoo", questID = 38080 },
+            },
+        },
+    },
+
+    exitNote    = "None available",
+    minExitNote = "None available",
+
+    routing = {
+        -- 1. High Priest Venoxis (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "High Priest Venoxis",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 337 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the path straight ahead across two bridges to reach ^High Priest Venoxis^.",
+                    minNote = "Straight east to Venoxis",
+                    points  = {
+                        { 0.324, 0.488 },
+                        { 0.347, 0.469 },
+                        { 0.369, 0.464 },
+                        { 0.383, 0.479 },
+                        { 0.395, 0.493 },
+                        { 0.449, 0.513 },
+                        { 0.486, 0.535 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Bloodlord Mandokir (boss 2).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Bloodlord Mandokir",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 337 },
+                    kind    = "path",
+                    note    = "After killing ^High Priest Venoxis^, take the southeast path to ^Bloodlord Mandokir^.",
+                    minNote = "Southeast to Mandokir",
+                    points  = {
+                        { 0.487, 0.540 },
+                        { 0.485, 0.567 },
+                        { 0.495, 0.584 },
+                        { 0.515, 0.592 },
+                        { 0.538, 0.572 },
+                        { 0.557, 0.604 },
+                        { 0.567, 0.644 },
+                        { 0.570, 0.756 },
+                        { 0.587, 0.767 },
+                    },
+                },
+            },
+        },
+
+        -- 3. The Cache of Madness (bosses 3-6), whichever spawns. Left
+        -- out for a character without Archaeology.
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = { 3, 4, 5, 6 },
+            title     = "Cache of Madness",
+            requires  = { },
+            requiresArchaeology = true,
+            segments  = {
+                {
+                    when    = { mapID = 337 },
+                    kind    = "path",
+                    note    = "After defeating ^Bloodlord Mandokir^, backtrack north and then go east up into ^The Cache of Madness^.",
+                    minNote = "Backtrack north to Cache",
+                    points  = {
+                        { 0.582, 0.774 },
+                        { 0.571, 0.754 },
+                        { 0.570, 0.718 },
+                        { 0.568, 0.646 },
+                        { 0.560, 0.626 },
+                        { 0.557, 0.600 },
+                        { 0.540, 0.578 },
+                        { 0.540, 0.522 },
+                        { 0.571, 0.515 },
+                        { 0.575, 0.472 },
+                    },
+                },
+            },
+        },
+
+        -- 4. High Priestess Kilnara (boss 7), from the Cache of Madness.
+        -- Opens only once the Cache is dead; a run that left it out
+        -- takes step 5.
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 7,
+            title     = "High Priestess Kilnara",
+            requires  = { 3 },
+            segments  = {
+                {
+                    when    = { mapID = 337 },
+                    kind    = "path",
+                    note    = "After defeating ^The Cache of Madness^, take the northern path all the way to ^High Priestess Kilnara^. She is located on the bottom floor of the building.",
+                    minNote = "North path to Kilnara",
+                    points  = {
+                        { 0.578, 0.496 },
+                        { 0.576, 0.519 },
+                        { 0.556, 0.518 },
+                        { 0.566, 0.423 },
+                        { 0.583, 0.363 },
+                        { 0.583, 0.317 },
+                        { 0.562, 0.289 },
+                        { 0.475, 0.278 },
+                        { 0.478, 0.248 },
+                    },
+                },
+            },
+        },
+
+        -- 5. High Priestess Kilnara (boss 7), straight from Bloodlord
+        -- Mandokir when the Cache is left out.
+        {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 7,
+            title     = "High Priestess Kilnara",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 337 },
+                    kind    = "path",
+                    note    = "After killing ^Bloodlord Mandokir^, go all the way north to ^High Priestess Kilnara^. She is located on the bottom floor of the building.",
+                    minNote = "North to Kilnara",
+                    points  = {
+                        { 0.577, 0.769 },
+                        { 0.570, 0.736 },
+                        { 0.568, 0.636 },
+                        { 0.555, 0.595 },
+                        { 0.540, 0.581 },
+                        { 0.538, 0.522 },
+                        { 0.563, 0.512 },
+                        { 0.569, 0.426 },
+                        { 0.585, 0.377 },
+                        { 0.585, 0.318 },
+                        { 0.563, 0.280 },
+                        { 0.475, 0.280 },
+                        { 0.475, 0.240 },
+                    },
+                },
+            },
+        },
+
+        -- 6. Zanzil (boss 8).
+        {
+            step      = 6,
+            priority  = 1,
+            bossIndex = 8,
+            title     = "Zanzil",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 337 },
+                    kind    = "path",
+                    note    = "After defeating ^High Priestess Kilnara^, exit the building and go west to find ^Zanzil^.",
+                    minNote = "Exit building, west to Zanzil",
+                    points  = {
+                        { 0.475, 0.242 },
+                        { 0.476, 0.282 },
+                        { 0.449, 0.283 },
+                        { 0.430, 0.302 },
+                        { 0.406, 0.280 },
+                        { 0.376, 0.279 },
+                        { 0.333, 0.278 },
+                    },
+                },
+            },
+        },
+
+        -- 7. Jin'do the Godbreaker (boss 9).
+        {
+            step      = 7,
+            priority  = 1,
+            bossIndex = 9,
+            title     = "Jin'do the Godbreaker",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 337 },
+                    kind    = "path",
+                    note    = "After killing ^Zanzil^, make your way to the central altar. |cffF259C7CAUTION!|r You must kill at least one ^Gurubashi Spirit Warrior^ before pulling the boss or you will end up stuck in the encounter. After you've killed one or more, pull ^Jin'do the Godbreaker^.",
+                    minNote = "Kill a Spirit Warrior then Jin'do",
+                    points  = {
+                        { 0.361, 0.275 },
+                        { 0.384, 0.278 },
+                        { 0.404, 0.275 },
+                        { 0.430, 0.299 },
+                        { 0.415, 0.366 },
+                        { 0.411, 0.387 },
+                        { 0.422, 0.399 },
+                        { 0.459, 0.398 },
+                        { 0.457, 0.355 },
+                        { 0.512, 0.354 },
+                        { 0.512, 0.396 },
+                    },
+                },
             },
         },
     },

@@ -388,6 +388,7 @@ RetroRuns_DungeonData[229] = {
             -- the player walks past. The following step carries the bypass
             -- prose, per the optional-step rule.
             optional  = true,
+            skipWhenCollected = true,
             requires  = { },
             segments  = {
                 {

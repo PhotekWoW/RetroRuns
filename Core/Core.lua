@@ -6,7 +6,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "3.3.4"
+local VERSION    = "3.3.5"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -3791,6 +3791,11 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
     if event == "ADDON_LOADED" then
         if ... == ADDON_NAME then
             RR:InitializeDB()
+            -- Set steps become one step per member before anything reads
+            -- a route.
+            RR:ExpandSetSteps(RetroRuns_Data)
+            RR:ExpandSetSteps(RetroRuns_DataHorde)
+            RR:ExpandSetSteps(RetroRuns_DungeonData)
             RR:ApplyLocale()
             -- The locale choice is final once the saved override has been
             -- read, and RR.L holds the active strings, so the ten source
@@ -4168,6 +4173,32 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
             RR:RefreshAll()
         end
 
+    elseif event == "ENCOUNTER_STATE_CHANGED" then
+        -- The client's own encounter-in-progress flag, logged for the diag.
+        local inProgress = ...
+        if issecretvalue and issecretvalue(inProgress) then inProgress = "(secret)" end
+        RR:ZoneLog(("ENCOUNTER_STATE_CHANGED: inProgress=%s"):format(tostring(inProgress)))
+
+    elseif event == "ADDON_RESTRICTION_STATE_CHANGED" then
+        -- Which addon restrictions the client applies, and when, for the diag.
+        -- Combat is left out: it toggles on every pull.
+        local restrictionType, restrictionState = ...
+        if issecretvalue and (issecretvalue(restrictionType)
+            or issecretvalue(restrictionState)) then
+            RR:ZoneLog("ADDON_RESTRICTION_STATE_CHANGED: (secret payload)")
+        elseif restrictionType ~= (Enum.AddOnRestrictionType
+            and Enum.AddOnRestrictionType.Combat) then
+            local typeName, stateName = tostring(restrictionType), tostring(restrictionState)
+            for name, value in pairs(Enum.AddOnRestrictionType or {}) do
+                if value == restrictionType then typeName = name end
+            end
+            for name, value in pairs(Enum.AddOnRestrictionState or {}) do
+                if value == restrictionState then stateName = name end
+            end
+            RR:ZoneLog(("ADDON_RESTRICTION_STATE_CHANGED: %s -> %s")
+                :format(typeName, stateName))
+        end
+
     elseif event == "ACTIONBAR_SLOT_CHANGED" then
         -- The mount button may have moved, arrived or gone.
         RR:ForgetMountActionSlot()
@@ -4335,6 +4366,8 @@ RR.frame:RegisterEvent("UNIT_ENTERED_VEHICLE")
 RR.frame:RegisterEvent("CINEMATIC_START")
 RR.frame:RegisterEvent("PLAY_MOVIE")
 RR.frame:RegisterEvent("PLAYER_LOGOUT")
+RR.frame:RegisterEvent("ENCOUNTER_STATE_CHANGED")
+RR.frame:RegisterEvent("ADDON_RESTRICTION_STATE_CHANGED")
 
 -------------------------------------------------------------------------------
 -- Tickers

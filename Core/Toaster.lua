@@ -1886,15 +1886,17 @@ end
 -- A secret system line skips the ChatFrame filter chain entirely, and
 -- AddMessage is the one point it cannot route around. Drops only secret lines
 -- inside the window, and never inspects text.
-local function ShouldSuppressChatLine(msg)
+local function ShouldSuppressChatLine(chatFrame, msg)
     if not (M.enabled and LootSummaryOn()) then return false end
     if (GetTime and GetTime() or 0) > M.appearanceLineWindowUntil then
         return false
     end
+    local frameName = chatFrame and chatFrame.GetName and chatFrame:GetName()
     if issecretvalue and issecretvalue(msg) then
-        T("AddMessageGuard EVENT-WINDOW SECRET -> DROP")
+        T("AddMessageGuard EVENT-WINDOW SECRET -> DROP  frame=" .. tostring(frameName))
         return true
     end
+    T("AddMessageGuard EVENT-WINDOW readable -> PASS  frame=" .. tostring(frameName))
     return false
 end
 
@@ -1909,13 +1911,19 @@ local function InstallAddMessageGuard()
         if type(orig) ~= "function" then return end
         frame.rrToasterOrigAddMessage = orig
         frame.AddMessage = function(self, msg, ...)
-            if ShouldSuppressChatLine(msg) then return end
+            if ShouldSuppressChatLine(self, msg) then return end
             return orig(self, msg, ...)
         end
     end
+    local guarded = {}
     for i = 1, (NUM_CHAT_WINDOWS or 10) do
-        wrap(_G["ChatFrame" .. i])
+        local chatFrame = _G["ChatFrame" .. i]
+        wrap(chatFrame)
+        if chatFrame and chatFrame.rrToasterOrigAddMessage then
+            guarded[#guarded + 1] = i .. (chatFrame:IsVisible() and "" or "(hidden)")
+        end
     end
+    T("AddMessageGuard installed on ChatFrame " .. table.concat(guarded, ","))
 end
 
 -- Flush the batch: reveal the toast cascade, print one consolidated chat line,

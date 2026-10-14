@@ -26,6 +26,34 @@
 local RR = RetroRuns
 RR.WhatsNew = {
 {
+    version  = "3.3.5",
+    date     = "2026-10-14",
+    sections = {
+        {
+            heading = "Added",
+            bullets = {
+                "**Two more Cataclysm dungeons.** Deadmines and Zul'Gurub. Zul'Gurub's Cache of Madness is on the route only if you have Archaeology, and its recipe vendor is marked on the map.",
+            },
+        },
+        {
+            heading = "Changed",
+            bullets = {
+                "**Optional bosses now skip themselves once you've collected everything they drop**: Valithria Dreamwalker, Viscidus, Phalanx, Urok Doomhowl, Yor, Grubbis and Cho'Rush the Observer.",
+                "**Boss Progress groups bosses where only one of the set appears under one heading.** Trial of the Champion's Eadric and Paletress sit under \"Argent Champion\", and Zul'Gurub's four Cache of Madness bosses under theirs. Once the fight shows which one you got, the others are marked unavailable.",
+                "**Grim Batol no longer lists the \"Umbrage for Umbriss\" achievement**, which Blizzard moved to Legacy.",
+            },
+        },
+        {
+            heading = "Fixed",
+            bullets = {
+                "**The travel note no longer stays on a boss you've already killed** when the game never reports the fight ending.",
+                "**Jumping to a dungeon from search now clears its expansion's NEW tag.**",
+                "**The Deadmines entrance marker now points at the portal inside the Moonbrook mine.**",
+            },
+        },
+    },
+},
+{
     version  = "3.3.4",
     date     = "2026-10-12",
     sections = {
@@ -111,41 +139,6 @@ RR.WhatsNew = {
             bullets = {
                 "**The trash loot summary works alongside faster auto-loot addons**, which could empty the loot window before the summary started listening.",
                 "**The Mount Indicator matches your mount button.** Where the game refuses a mount but still calls the mount spell usable, as in parts of Throne of the Tides, the horse no longer shows.",
-            },
-        },
-    },
-},
-{
-    version  = "3.3.0",
-    date     = "2026-09-25",
-    sections = {
-        {
-            heading = "Added",
-            bullets = {
-                "**Wrath of the Lich King dungeons are complete.** All sixteen are guided, from Utgarde Keep to Halls of Reflection.",
-                "**Reputation Summary.** Inside a dungeon or raid, the \"Reputation with X increased\" lines from each pull collapse into one \"Reputation Gains\" line with a [view] expander, largest gain first. The line waits for combat to end, so a long pull prints once. Toggle it under Toaster settings.",
-                "**Collapsed loot sections pulse when they hide something in your bags.** In the transmog browser, a collapsed section such as Trash Drops breathes its arrow while it holds a BoE piece you are carrying but have not learned.",
-                "**Trash drops for every WotLK dungeon.** 65 confirmed rows across eleven dungeons.",
-                "**Music rolls and drake manuscripts show under Special Loot.** Bosses that drop a Music Roll or a Dragonflight drake manuscript list it on the main panel, marked once you've learned it.",
-            },
-        },
-        {
-            heading = "Changed",
-            bullets = {
-                "**Timewalking runs show no route.** Timewalking is queued group content, so inside a Timewalking dungeon or raid the panel reads \"Routing disabled for Timewalking\". Panel stays open for transmog and boss progress.",
-                "**Transmog Needed keeps Timewalking on its own line.** The standard tmog counts no longer include Timewalking drops; a separate \"Timewalking\" line counts TW-only drops, dimmed while the event is off. Inside a Timewalking run those looks count as current.",
-                "**An optional boss is only skipped as collected when you own every item he drops.** A shared look no longer counts, so Amanitar, Eck and the Infinite Corruptor stay on the route until each piece is fully collected.",
-                "**Heroic-only bosses show one Transmog Needed line** instead of a second \"Other difficulties: Complete\" line.",
-                "**Newly-added dungeons have a new color-cycling animation.**",
-                "**The Mount Indicator stays quiet in combat and while you ride a vehicle.**",
-                "**Toaster settings are tidier.** The four sub-rows' On/Off choices are indented under the Toaster row, the selected-choice underlines match on every row, and the subline reads \"Quiet the Spam from Blizzard's Native Notifications\".",
-            },
-        },
-        {
-            heading = "Fixed",
-            bullets = {
-                "**The Timewalking hourglass tints right after login** instead of staying white until the list is redrawn, and keeps its color inside an instance.",
-                "**A Heroic-only boss on a Normal run is no longer reported as skipped for being collected.**",
             },
         },
     },

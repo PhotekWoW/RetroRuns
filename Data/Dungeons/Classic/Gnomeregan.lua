@@ -128,6 +128,7 @@ RetroRuns_DungeonData[231] = {
             priority  = 1,
             bossIndex = 1,
             optional  = true,
+            skipWhenCollected = true,
             title     = "Grubbis",
             requires  = { },
             segments  = {

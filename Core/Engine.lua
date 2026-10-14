@@ -1945,7 +1945,8 @@ end
 -- A step that follows an optional boss is read from two different places: the
 -- player who killed the boss stands at it, the player who bypassed it stands
 -- where the bypass left them. `skipNote` / `skipMinNote` carry the wording for
--- the second, and `skipWhenBoss` names the boss whose bypass selects them.
+-- the second, and `skipWhenBoss` names the boss whose bypass selects them --
+-- skipped by hand or left out by the route alike.
 -- The base string is always authored and is what every other reader (the
 -- noted-seg tests, the route linter) still sees.
 local SKIP_VARIANT_FIELD = { note = "skipNote", minNote = "skipMinNote" }
@@ -1970,7 +1971,7 @@ function RR:ResolveSegNote(seg, field)
     local variant = seg[variantField]
     if not variant or variant == "" then return self:FillSegItem(seg, base) end
     if not seg.skipWhenBoss then return self:FillSegItem(seg, base) end
-    if not self:IsBossSkipped(seg.skipWhenBoss) then return self:FillSegItem(seg, base) end
+    if not self:IsBossBypassed(seg.skipWhenBoss) then return self:FillSegItem(seg, base) end
     return self:FillSegItem(seg, variant)
 end
 
@@ -1983,7 +1984,7 @@ function RR:ResolveSegPoints(seg)
     local variant = seg.skipPoints
     if not variant or #variant == 0 then return base end
     if not seg.skipWhenBoss then return base end
-    if not self:IsBossSkipped(seg.skipWhenBoss) then return base end
+    if not self:IsBossBypassed(seg.skipWhenBoss) then return base end
     return variant
 end
 

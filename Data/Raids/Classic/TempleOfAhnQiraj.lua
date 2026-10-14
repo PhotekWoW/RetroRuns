@@ -723,6 +723,7 @@ RetroRuns_Data[531] = {
             -- shatter, which not every character can bring, so the run
             -- completes without it and this step cedes to a later one.
             optional  = true,
+            skipWhenCollected = true,
             requires  = { },
             segments  = {
                 {

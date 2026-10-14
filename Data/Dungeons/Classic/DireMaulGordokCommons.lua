@@ -300,6 +300,7 @@ RetroRuns_DungeonData[1277] = {
             priority  = 1,
             bossIndex = 6,
             optional  = true,
+            skipWhenCollected = true,
             -- Once the king falls the ogres turn friendly, so this skip
             -- cannot be walked back; only a reset offers him again.
             skipIrreversible = true,

@@ -450,6 +450,41 @@ function RR:ClearCollectedSkips()
     if self.state.collectedSkip then wipe(self.state.collectedSkip) end
 end
 
+-- Archaeology learned, at any skill; true when the profession API is missing.
+function RR:HasArchaeology()
+    if not GetProfessions then return true end
+    local _, _, archaeology = GetProfessions()
+    return archaeology ~= nil
+end
+
+-- A step flagged requiresArchaeology is left out of the route for a
+-- character who has not learned it.
+function RR:IsStepArchaeologySkipped(step)
+    return (step and step.requiresArchaeology and not self:HasArchaeology())
+        and true or false
+end
+
+-- The row's reason, for the checklist: the boss of a step the route left
+-- out for want of Archaeology.
+function RR:IsBossArchaeologySkipped(bossIndex)
+    for _, step in ipairs(self:GetActiveRouting() or {}) do
+        if step.bossIndex == bossIndex then
+            return self:IsStepArchaeologySkipped(step)
+        end
+    end
+    return false
+end
+
+-- A boss skipped by hand, or left out as fully collected or unsummonable.
+-- A kill overrides the automatic reasons.
+function RR:IsBossBypassed(bossIndex)
+    if not bossIndex then return false end
+    if self:IsBossSkipped(bossIndex) then return true end
+    if self:IsBossKilled(bossIndex) then return false end
+    return self:IsBossCollectedSkipped(bossIndex)
+        or self:IsBossArchaeologySkipped(bossIndex)
+end
+
 -- Localized names of every boss the active route left out as collected,
 -- in route order, for the run-complete banner.
 function RR:CollectedSkippedBossNames()
@@ -510,14 +545,66 @@ function RR:GetSpawnChoiceBoss()
         return rows
     end
 
+    -- The first member's tip, shown before the spawn is known.
+    local soloTip
+    for _, memberIndex in ipairs(choice) do
+        local member = self:GetBossByIndex(memberIndex)
+        if member and member.soloTip then
+            soloTip = member.soloTip
+            break
+        end
+    end
+
     local choiceBoss = {
         name         = RR.L[choice.label or "Boss"],
         loot         = union("loot"),
         achievements = union("achievements"),
         specialLoot  = union("specialLoot"),
+        soloTip      = soloTip,
     }
     self.state.spawnChoiceBossCache = { key = cacheKey, boss = choiceBoss }
     return choiceBoss
+end
+
+-- A routing step may stand for a whole spawnChoice set as
+-- `bossIndex = { i, j, ... }`. At load it becomes one step per member, in
+-- member order, so every reader downstream sees ordinary steps.
+function RR:ExpandSetSteps(dataTable)
+    local function deepCopy(value)
+        if type(value) ~= "table" then return value end
+        local copy = {}
+        for key, inner in pairs(value) do copy[key] = deepCopy(inner) end
+        return copy
+    end
+    local function expand(routing, raid)
+        if type(routing) ~= "table" then return end
+        local position = 1
+        while position <= #routing do
+            local step = routing[position]
+            if type(step.bossIndex) == "table" then
+                local members = step.bossIndex
+                table.remove(routing, position)
+                for memberOrder, memberIndex in ipairs(members) do
+                    local copy = deepCopy(step)
+                    copy.bossIndex = memberIndex
+                    copy.setMember = memberOrder
+                    for _, boss in ipairs(raid.bosses or {}) do
+                        if boss.index == memberIndex then copy.title = boss.name end
+                    end
+                    table.insert(routing, position + memberOrder - 1, copy)
+                end
+                position = position + #members
+            else
+                position = position + 1
+            end
+        end
+    end
+    for _, raid in pairs(dataTable or {}) do
+        expand(raid.routing, raid)
+        expand(raid.skipRoute, raid)
+        expand(raid.altRoute, raid)
+        for _, wing in pairs(raid.lfrWings or {}) do expand(wing.routing, raid) end
+    end
 end
 
 -- True while the active step is a spawnChoice member and chat has not yet
@@ -557,8 +644,24 @@ function RR:SetSpawnedMember(bossIndex)
     return true
 end
 
+-- A member's name without its set's label in front ("Cache of Madness -
+-- Wushoolay" -> "Wushoolay"), or nil when the name does not carry it.
+function RR:SpawnChoiceShortName(name)
+    local choice = self.currentRaid and self.currentRaid.spawnChoice
+    if not (choice and choice.label and name) then return nil end
+    for _, label in ipairs({ RR.L[choice.label], choice.label }) do
+        local prefix = label .. " - "
+        if #name > #prefix and name:sub(1, #prefix) == prefix then
+            return name:sub(#prefix + 1)
+        end
+    end
+    return nil
+end
+
 -- A member named by speaker or text of an NPC line is the one that spawned
 -- (the herald's announcement, the crowd's cheer, the champion's own lines).
+-- A member listed under its set speaks under its short name, which counts
+-- only as the speaker.
 function RR:DetectSpawnFromDialog(sender, text)
     local choice = self.currentRaid and self.currentRaid.spawnChoice
     if not choice or self.state.spawnedMember then return false end
@@ -569,6 +672,10 @@ function RR:DetectSpawnFromDialog(sender, text)
             for _, name in ipairs(names) do
                 if name and name ~= "" and (sender == name
                     or (text and text:find(name, 1, true))) then
+                    return self:SetSpawnedMember(memberIndex)
+                end
+                local short = self:SpawnChoiceShortName(name)
+                if short and sender == short then
                     return self:SetSpawnedMember(memberIndex)
                 end
             end
@@ -892,12 +999,13 @@ function RR:IsActiveRouteComplete()
                 and ((not activeBucket)
                      or self:BossAvailableInBucket(boss, activeBucket)))
         -- Optional bosses don't hold the route open, nor does a boss the
-        -- character has everything from.
+        -- character has everything from or cannot summon.
         if availableHere
             and step.bossIndex
             and not self:IsBossUnavailableThisRun(step.bossIndex)
             and not step.optional
             and not self:IsStepCollectedSkipped(step)
+            and not self:IsStepArchaeologySkipped(step)
             and not self:IsBossKilled(step.bossIndex) then
             return false
         end
@@ -972,6 +1080,7 @@ function RR:GetAvailableSteps()
             and not self:IsBossKilled(step.bossIndex)
             and not self:IsBossSkipped(step.bossIndex)
             and not self:IsStepCollectedSkipped(step)
+            and not self:IsStepArchaeologySkipped(step)
             and self:RequirementsMet(step.requires) then
             table.insert(results, step)
         end
@@ -979,8 +1088,11 @@ function RR:GetAvailableSteps()
     table.sort(results, function(a, b)
         local aKey, bKey = a.priority or a.step or 999, b.priority or b.step or 999
         if aKey ~= bKey then return aKey < bKey end
-        -- table.sort is not stable; ties keep step order.
-        return (a.step or 999) < (b.step or 999)
+        -- Ties keep step order, and the copies of one set step keep member order.
+        if (a.step or 999) ~= (b.step or 999) then
+            return (a.step or 999) < (b.step or 999)
+        end
+        return (a.setMember or 0) < (b.setMember or 0)
     end)
     return results
 end
@@ -1044,6 +1156,16 @@ function RR:OnActiveStepChanged(prevStep, newStep)
         local prevLabel = prevStep and (prevStep.title or ("step " .. tostring(prevStep.step or prevStep.priority))) or "(none)"
         local newLabel = newStep and (newStep.title or ("step " .. tostring(newStep.step or newStep.priority))) or "(none)"
         self:ZoneLog(("OnActiveStepChanged: %s -> %s"):format(prevLabel, newLabel))
+    end
+
+    -- Leaving a boss now recorded dead ends its fight, ENCOUNTER_END or not.
+    if self.state.inEncounter and prevStep and prevStep.bossIndex
+        and self:IsBossKilled(prevStep.bossIndex) then
+        self.state.inEncounter = false
+        if self.ZoneLog then
+            self:ZoneLog(("encounter freeze released: bossIndex %d recorded dead")
+                :format(prevStep.bossIndex))
+        end
     end
 
     if newStep then
@@ -1338,7 +1460,7 @@ function RR:GetProgressRows()
         end
     end
 
-    for _, boss in ipairs(listed) do
+    local function bossRow(boss)
         local displayName = self:GetLocalizedBossName(boss)
         -- Optional bosses carry a tag in every state, so the list reads the
         -- same before, during and after the choice is made. Once bypassed it
@@ -1363,10 +1485,7 @@ function RR:GetProgressRows()
             and not self:BossAvailableInBucket(boss, activeBucket))
 
         local row
-        if self:IsBossUnavailableThisRun(boss.index) then
-            row = { cell = "locked", text = ("|cff9d9d9d%s|r |cff808080%s|r"):format(
-                displayName, RR.L["(Unavailable)"]) }
-        elseif restrictedHere then
+        if restrictedHere then
             -- Both reasons mean the same thing on the row: this boss cannot
             -- be engaged here. Only the tag says which.
             local tag
@@ -1412,12 +1531,10 @@ function RR:GetProgressRows()
             -- pending-looking row that says why the route passed it.
             row = { cell = "pending", text = ("|cff9d9d9d%s|r |cff4f8f4f%s|r"):format(
                 displayName, RR.L["(ignored: fully collected)"]) }
-        elseif self:IsSpawnChoicePending()
-            and self:IsSpawnChoiceMember(boss.index) then
-            -- Either could be next: both carry the arrow, pulsing until
-            -- chat names the one that spawned.
-            row = { cell = "pulsing", text = ("|cffffff00%s|r%s"):format(
-                displayName, optionalTag) }
+        elseif self:IsBossArchaeologySkipped(boss.index) then
+            -- Left out because the character cannot summon it.
+            row = { cell = "pending", text = ("|cff9d9d9d%s|r |cff808080%s|r"):format(
+                displayName, RR.L["(ignored: missing Archaeology)"]) }
         elseif self.state.activeStep
             and self.state.activeStep.bossIndex == boss.index
             and not poolActiveSlot then
@@ -1427,7 +1544,93 @@ function RR:GetProgressRows()
             row = { cell = "pending", text = ("|cff9d9d9d%s|r%s"):format(
                 displayName, optionalTag) }
         end
-        table.insert(rows, row)
+        return row
+    end
+
+    -- A spawnChoice set reads as one heading carrying the set's state and
+    -- any reason the route passed it, with its bosses indented beneath.
+    local choice = self.currentRaid.spawnChoice
+    local function appendSet()
+        local label = RR.L[choice.label or "Boss"]
+        local first = choice[1]
+        local spawned = self.state.spawnedMember
+        local anyKilled, anyReachable, activeMember = false, false, false
+        for _, memberIndex in ipairs(choice) do
+            if self:IsBossKilled(memberIndex) then anyKilled = true end
+            if self:BossReachableHere(memberIndex) then anyReachable = true end
+            if self.state.activeStep
+                and self.state.activeStep.bossIndex == memberIndex then
+                activeMember = true
+            end
+        end
+        local optionalTag = ""
+        if self:IsBossSkipped(first) then
+            optionalTag = " |cffF259C7" .. RR.L["(skipped)"] .. "|r"
+        elseif self:IsBossOptional(first) then
+            optionalTag = " |cff808080" .. RR.L["(optional)"] .. "|r"
+        end
+
+        local heading, ignored
+        if anyKilled then
+            heading = { cell = "killed", text = ("|cff00ff00%s|r%s"):format(
+                label, optionalTag) }
+        elseif not anyReachable then
+            heading = { cell = "locked", text = ("|cff9d9d9d%s|r%s"):format(
+                label, optionalTag) }
+        elseif self:IsBossArchaeologySkipped(first) then
+            ignored = true
+            heading = { cell = "pending", text = ("|cff9d9d9d%s|r |cff808080%s|r"):format(
+                label, RR.L["(ignored: missing Archaeology)"]) }
+        elseif self:IsBossCollectedSkipped(first) then
+            ignored = true
+            heading = { cell = "pending", text = ("|cff9d9d9d%s|r |cff4f8f4f%s|r"):format(
+                label, RR.L["(ignored: fully collected)"]) }
+        elseif self:IsSpawnChoicePending() then
+            -- Any member could be next: the heading pulses until the spawn
+            -- is named.
+            heading = { cell = "pulsing", text = ("|cffffff00%s|r%s"):format(
+                label, optionalTag) }
+        elseif activeMember and not poolActiveSlot then
+            heading = { cell = "active", text = ("|cffffff00%s|r%s"):format(
+                label, optionalTag) }
+        else
+            heading = { cell = "pending", text = ("|cff9d9d9d%s|r%s"):format(
+                label, optionalTag) }
+        end
+        table.insert(rows, heading)
+        -- A set the route passes by stands as its heading alone.
+        if ignored then return end
+
+        -- Members carry only their own state: the spawned one its check,
+        -- the others a lock once the spawn is known. A name that repeats
+        -- the heading drops that prefix.
+        for _, memberIndex in ipairs(choice) do
+            local member = self:GetBossByIndex(memberIndex)
+            if member then
+                local name = self:GetLocalizedBossName(member) or member.name or ""
+                name = self:SpawnChoiceShortName(name) or name
+                local cell, color = "pending", "9d9d9d"
+                if spawned and memberIndex ~= spawned then
+                    cell = "locked"
+                elseif spawned == memberIndex and self:IsBossKilled(memberIndex) then
+                    cell, color = "killed", "00ff00"
+                end
+                table.insert(rows, { cell = cell, indentSpaces = 4,
+                    text = ("|cff%s%s|r"):format(color, name) })
+            end
+        end
+    end
+
+    local setShown = false
+    for _, boss in ipairs(listed) do
+        if choice and self:IsSpawnChoiceMember(boss.index) then
+            if not setShown then
+                setShown = true
+                appendSet()
+            end
+        else
+            table.insert(rows, bossRow(boss))
+        end
     end
     return rows
 end

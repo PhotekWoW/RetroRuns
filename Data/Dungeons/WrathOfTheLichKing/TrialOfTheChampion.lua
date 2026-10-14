@@ -184,13 +184,12 @@ RetroRuns_DungeonData[284] = {
                 },
             },
         },
-        -- 2/3. Eadric or Paletress, whichever spawns; the other step
-        -- drops once chat names the champion.
+        -- 2. Eadric or Paletress (bosses 2 and 3), whichever spawns.
         {
             step      = 2,
             priority  = 1,
-            bossIndex = 2,
-            title     = "Eadric the Pure",
+            bossIndex = { 2, 3 },
+            title     = "Argent Champion",
             requires  = { },
             segments  = {
                 {
@@ -201,24 +200,9 @@ RetroRuns_DungeonData[284] = {
                 },
             },
         },
+        -- 3. The Black Knight (boss 4).
         {
             step      = 3,
-            priority  = 1,
-            bossIndex = 3,
-            title     = "Argent Confessor Paletress",
-            requires  = { },
-            segments  = {
-                {
-                    when    = { mapID = 171 },
-                    kind    = "path",
-                    note    = "Re-equip your regular weapon, and talk to ^Arelas Brightstar^ to begin the next fight.",
-                    minNote = "Talk to Arelas for next fight",
-                },
-            },
-        },
-        -- 4. The Black Knight (boss 4).
-        {
-            step      = 4,
             priority  = 1,
             bossIndex = 4,
             title     = "The Black Knight",

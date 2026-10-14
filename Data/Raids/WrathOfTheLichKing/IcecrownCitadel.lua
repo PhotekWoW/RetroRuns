@@ -1527,6 +1527,7 @@ RetroRuns_Data[631] = {
             -- so this step cedes to a later one when the player walks past
             -- (see the optional-step rule in ComputeNextStep).
             optional  = true,
+            skipWhenCollected = true,
             requires  = { },
             segments  = {
                 {

@@ -97,6 +97,18 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
                         if rowIsExact then
                             newFromExactRow[boss.index] = true
                         end
+                        -- Rows sharing the saved encounter's id (a spawnChoice
+                        -- set, an Opera's variants) end with it.
+                        for _, sibling in ipairs(self.currentRaid.bosses or {}) do
+                            if sibling ~= boss and boss.dungeonEncounterID
+                                and sibling.dungeonEncounterID == boss.dungeonEncounterID
+                                and not self:IsBossLockoutUnreliable(sibling) then
+                                newKilled[sibling.index] = true
+                                if rowIsExact then
+                                    newFromExactRow[sibling.index] = true
+                                end
+                            end
+                        end
                     end
                 end
             end

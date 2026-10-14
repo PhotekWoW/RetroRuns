@@ -170,6 +170,7 @@ RetroRuns_DungeonData[250] = {
             priority  = 1,
             bossIndex = 3,
             optional  = true,
+            skipWhenCollected = true,
             title     = "Yor",
             requires  = { },
             segments  = {

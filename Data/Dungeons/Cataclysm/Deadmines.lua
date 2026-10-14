@@ -16,11 +16,12 @@ RetroRuns_DungeonData[63] = {
     availableDifficulties = { 14, 15 },
     patch             = "4.0.3",
     timewalking       = true,
+    routedIn          = "3.3.5",
 
     entrance = {
-        mapID = 52,
-        x     = 0.3820,
-        y     = 0.7748,
+        mapID = 55,
+        x     = 0.2530,
+        y     = 0.5110,
     },
 
     gloryMeta = {
@@ -146,6 +147,7 @@ RetroRuns_DungeonData[63] = {
             name               = "Vanessa VanCleef",
             journalEncounterID = 95,
             dungeonEncounterID = 1081,
+            soloTip            = "Vanessa begins by forcing you through a Nightmare Elixir gauntlet: escape the forge, survive Glubtok's fire/ice, kill Helix, navigate Foe Reaper's electrical hazards, then rescue Ripsnarl's family from worgen. Finish the encounter back where it started.",
             availableDifficulties = { 15 },
             achievements       = {
                 { id = 5371, name = "Vigorous VanCleef Vindicator", meta = true, soloable = "yes" },
@@ -162,6 +164,181 @@ RetroRuns_DungeonData[63] = {
             },
             specialLoot = {
                 { id = 248332, kind = "decor", name = "Stormwind Footlocker", decorID = 4401 },
+            },
+        },
+    },
+
+    exitNote    = "Exit the ship to the east and follow the path into a cave to find a portal to the entrance.",
+    minExitNote = "Exit portal in cave east of ship",
+
+    routing = {
+        -- 1. Glubtok (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Glubtok",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 291 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the linear path ahead until you reach ^Glubtok^.",
+                    minNote = "Follow path ahead to Glubtok",
+                    points  = {
+                        { 0.246, 0.170 },
+                        { 0.246, 0.331 },
+                        { 0.258, 0.399 },
+                        { 0.305, 0.455 },
+                        { 0.290, 0.505 },
+                        { 0.288, 0.538 },
+                        { 0.339, 0.602 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Helix Gearbreaker (boss 2).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Helix Gearbreaker",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 291 },
+                    kind    = "path",
+                    note    = "After killing ^Glubtok^, continue on the linear path until you reach ^Helix Gearbreaker^.",
+                    minNote = "Continue on path to Helix",
+                    points  = {
+                        { 0.396, 0.606 },
+                        { 0.436, 0.596 },
+                        { 0.476, 0.613 },
+                        { 0.483, 0.663 },
+                        { 0.451, 0.697 },
+                        { 0.435, 0.740 },
+                        { 0.440, 0.866 },
+                        { 0.475, 0.870 },
+                    },
+                },
+            },
+        },
+
+        -- 3. Foe Reaper 5000 (boss 3).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Foe Reaper 5000",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 291 },
+                    kind    = "path",
+                    note    = "After defeating ^Helix Gearbreaker^, continue east to the ^Goblin Foundry^ and go down the long spiral ramp. You will find ^Foe Reaper 5000^ when you reach the bottom. Clear trash to start the encounter.",
+                    minNote = "Path to Foe Reaper 5000",
+                    points  = {
+                        { 0.536, 0.872 },
+                        { 0.576, 0.874 },
+                        { 0.612, 0.892 },
+                        { 0.640, 0.917 },
+                        { 0.656, 0.904 },
+                        { 0.653, 0.871 },
+                        { 0.625, 0.835 },
+                        { 0.610, 0.801 },
+                        { 0.609, 0.715 },
+                        { 0.577, 0.700 },
+                        { 0.564, 0.653 },
+                        { 0.573, 0.606 },
+                        { 0.597, 0.577 },
+                        { 0.630, 0.582 },
+                        { 0.650, 0.603 },
+                        { 0.659, 0.639 },
+                    },
+                },
+            },
+        },
+
+        -- 4. Admiral Ripsnarl (boss 4).
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Admiral Ripsnarl",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 292 },
+                    kind    = "path",
+                    note    = "After killing ^Foe Reaper 5000^, continue north to a locked door. Click the nearby cannon to get through the door, then take the path all the way up onto the pirate ship where you will encounter ^Admiral Ripsnarl^.",
+                    minNote = "Path to pirate ship for Ripsnarl",
+                    points  = {
+                        { 0.122, 0.701 },
+                        { 0.127, 0.603 },
+                        { 0.151, 0.592 },
+                        { 0.201, 0.594 },
+                        { 0.235, 0.581 },
+                        { 0.251, 0.530 },
+                        { 0.339, 0.485 },
+                        { 0.411, 0.481 },
+                        { 0.428, 0.413 },
+                        { 0.422, 0.311 },
+                        { 0.426, 0.262 },
+                        { 0.477, 0.200 },
+                        { 0.532, 0.211 },
+                        { 0.565, 0.277 },
+                        { 0.549, 0.298 },
+                        { 0.536, 0.332 },
+                        { 0.528, 0.385 },
+                        { 0.529, 0.420 },
+                        { 0.537, 0.477 },
+                        { 0.564, 0.545 },
+                        { 0.544, 0.555 },
+                        { 0.526, 0.498 },
+                        { 0.520, 0.457 },
+                        { 0.552, 0.444 },
+                        { 0.550, 0.376 },
+                        { 0.563, 0.323 },
+                        { 0.580, 0.342 },
+                    },
+                },
+            },
+        },
+
+        -- 5. "Captain" Cookie (boss 5).
+        {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 5,
+            title     = "\"Captain\" Cookie",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 292 },
+                    kind    = "path",
+                    note    = "After killing ^Admiral Ripsnarl^, a few moments later, ^\"Captain\" Cookie^ will spawn in the shadows of the nearby cannon house. Walk inside to lure him into combat.",
+                    minNote = "Cookie spawns in a moment",
+                    points  = { },
+                },
+            },
+        },
+
+        -- 6. Vanessa VanCleef (boss 6, Heroic only).
+        {
+            step      = 6,
+            priority  = 1,
+            bossIndex = 6,
+            title     = "Vanessa VanCleef",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 292 },
+                    kind    = "path",
+                    note    = "After killing ^Cookie^, click ^A Note From Vanessa^ on the ground nearby. After some dialog, the ^Vanessa VanCleef^ encounter will begin.",
+                    minNote = "Click Note to start Vanessa",
+                    points  = { },
+                },
             },
         },
     },

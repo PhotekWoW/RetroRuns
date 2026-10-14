@@ -2,6 +2,21 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.3.5] - 2026-10-14
+
+### Added
+- **Two more Cataclysm dungeons.** Deadmines and Zul'Gurub. Zul'Gurub's Cache of Madness is on the route only if you have Archaeology, and its recipe vendor is marked on the map.
+
+### Changed
+- **Optional bosses now skip themselves once you've collected everything they drop**: Valithria Dreamwalker, Viscidus, Phalanx, Urok Doomhowl, Yor, Grubbis and Cho'Rush the Observer.
+- **Boss Progress groups bosses where only one of the set appears under one heading.** Trial of the Champion's Eadric and Paletress sit under "Argent Champion", and Zul'Gurub's four Cache of Madness bosses under theirs. Once the fight shows which one you got, the others are marked unavailable.
+- **Grim Batol no longer lists the "Umbrage for Umbriss" achievement**, which Blizzard moved to Legacy.
+
+### Fixed
+- **The travel note no longer stays on a boss you've already killed** when the game never reports the fight ending.
+- **Jumping to a dungeon from search now clears its expansion's NEW tag.**
+- **The Deadmines entrance marker now points at the portal inside the Moonbrook mine.**
+
 ## [3.3.4] - 2026-10-12
 
 ### Added

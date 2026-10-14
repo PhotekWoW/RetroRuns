@@ -43,7 +43,6 @@ RetroRuns_DungeonData[71] = {
             journalEncounterID = 2617,
             dungeonEncounterID = 1051,
             achievements       = {
-                { id = 5297, name = "Umbrage for Umbriss", soloable = "no" },
             },
             loot = {
                 { id = 56442, slot = "Chest", name = "Cursed Skardyn Vest", sources = { [14]=27737, [15]=27737 } },
