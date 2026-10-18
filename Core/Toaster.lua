@@ -146,12 +146,33 @@ local Presenter = {
     live    = {},   -- currently shown, oldest first (head pins to anchor)
 }
 
-local TOAST_H, GAP = 96, 26
--- Toast width: TOAST_H at the banner art's 4:1 ratio.
-local TOAST_W_FIXED = math.floor(TOAST_H * (512 / 128) + 0.5)  -- 384 at H=96
--- Icon placement inside the banner art's baked well.
-local BANNER_ICON_SIZE  = 44
-local BANNER_ICON_INSET = 22
+local TOAST_H, GAP = 128, 26
+-- Toast width: TOAST_H at the banner art's 3:1 ratio.
+local TOAST_W_FIXED = TOAST_H * 3
+-- The banner art fills rows 0-170 of its 512x256 texture.
+local BANNER_ART_V = 171 / 256
+-- Banner art geometry in frame units, measured from the art: the socket's
+-- center, the text panel's sides, and the band between the center gems.
+local BANNER_ICON_SIZE     = 50
+local BANNER_ICON_X        = 67
+local BANNER_ICON_Y        = 64
+local TEXT_PANEL_LEFT      = 108
+local TEXT_PANEL_RIGHT     = 354
+local TEXT_BAND_TOP        = 37
+local TEXT_BAND_BOTTOM     = 91
+local HEADER_NAME_GAP      = 3
+local HEADER_FONT_SIZE     = 14
+-- Name sizes tried largest first on one line; a longer name wraps at the last.
+local NAME_FONT_SIZES      = { 24, 22, 20, 18 }
+local NAME_WRAP_SIZE       = 17
+-- Special loot sparkles: the frame's six rail gems in frame units, clockwise
+-- from the top left; the twinkle's size, stagger, and repeat period.
+local SPARKLE_GEMS = {
+    { 15, 25 }, { 191.5, 20 }, { 365, 26 }, { 366, 98 }, { 191.5, 104 }, { 17, 98 },
+}
+local SPARKLE_SIZE         = 30
+local SPARKLE_STEP         = 0.09
+local SPARKLE_CYCLE        = 3
 local BASE_X, BASE_Y        = 0, 140          -- fallback offset from screen center
 local TOAST_SCALE           = 0.7
 local ANCHOR_GAP            = 8               -- gap between panel and toast stack
@@ -164,20 +185,26 @@ local COIN_FINAL_SOUND      = "Interface\\AddOns\\RetroRuns\\Media\\Sounds\\coin
 local TITLE_FONT = "Interface\\AddOns\\RetroRuns\\Media\\Fonts\\04B_03.TTF"
 local C_PINK = { 0.95, 0.35, 0.78 }
 
--- Click-hint text size. A step under the item name (20) so the hint reads as
--- an aside rather than as a second headline.
+-- Click-hint text size, for the line beside the toast.
 local HINT_FONT_SIZE = 19
 
 -- Every toast takes the body font, sized as built. A font object goes on first
 -- so a koKR/zhTW cold start still renders when the font file fails to apply.
+-- Header and name sit on the dark panel under a soft shadow; the hint sits
+-- over the world beside the toast and keeps its outline.
 local function ApplyToastFonts(toastFrame)
     local bodyFont = RR:GetBodyFont()
-    for fontString, size in pairs({ [toastFrame.header] = 16,
-                                    [toastFrame.itemNameText] = 20,
+    for fontString, size in pairs({ [toastFrame.header] = HEADER_FONT_SIZE,
+                                    [toastFrame.itemNameText] = NAME_FONT_SIZES[1],
                                     [toastFrame.hint or false] = HINT_FONT_SIZE }) do
         if fontString then
+            local flags = (fontString == toastFrame.hint) and "OUTLINE" or ""
             fontString:SetFontObject("GameFontNormal")
-            RR.SafeSetFont(fontString, bodyFont, size, "OUTLINE")
+            RR.SafeSetFont(fontString, bodyFont, size, flags)
+            if flags == "" then
+                fontString:SetShadowColor(0, 0, 0, 1)
+                fontString:SetShadowOffset(1, -1)
+            end
         end
     end
 end
@@ -188,6 +215,16 @@ local function ToastHeaderText(key)
     local text = RR.L[key]
     if not text:find("[\128-\255]") then text = text:upper() end
     return text
+end
+
+-- Special loot names its kind in the header ("MOUNT", "PET"); every other
+-- toast keeps its own header.
+local KIND_HEADERS = { Mount = true, Pet = true, Toy = true, Decor = true }
+local function ToastHeaderKey(toast)
+    if toast.isSpecial and KIND_HEADERS[toast.specialKind] then
+        return toast.specialKind
+    end
+    return toast.header
 end
 
 -- The colored "RR:" tag prepended to every line RetroRuns prints to chat.
@@ -225,41 +262,54 @@ local function ConstructToastFrame(parent)
     -- quality (forced pink for appearances). Anchored wider than the frame.
     toastFrame.glow = toastFrame:CreateTexture(nil, "BACKGROUND", nil, -1)
     toastFrame.glow:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Toast\\EpicGlow")
-    toastFrame.glow:SetPoint("TOPLEFT", -115, 115)
-    toastFrame.glow:SetPoint("BOTTOMRIGHT", 115, -115)
+    toastFrame.glow:SetPoint("TOPLEFT", -60, 60)
+    toastFrame.glow:SetPoint("BOTTOMRIGHT", 60, -60)
     toastFrame.glow:SetBlendMode("ADD")
     toastFrame.glow:Hide()
 
-    -- Per-kind banner frame art (512x128); texture set in ApplyContent.
+    -- Per-kind banner frame art; texture set in ApplyContent.
     toastFrame.banner = toastFrame:CreateTexture(nil, "BORDER")
     toastFrame.banner:SetAllPoints()
+    toastFrame.banner:SetTexCoord(0, 1, 0, BANNER_ART_V)
 
-    -- Icon, seated in the banner art's baked well.
+    -- Icon, seated in the banner art's socket.
     toastFrame.icon = toastFrame:CreateTexture(nil, "ARTWORK")
     toastFrame.icon:SetSize(BANNER_ICON_SIZE, BANNER_ICON_SIZE)
-    toastFrame.icon:SetPoint("LEFT", BANNER_ICON_INSET, 0)
+    toastFrame.icon:SetPoint("CENTER", toastFrame, "TOPLEFT", BANNER_ICON_X, -BANNER_ICON_Y)
     toastFrame.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 
-    -- Quality-tinted icon ring (the rarity cue the banner doesn't carry).
-    -- Tint/show set in ApplyContent.
-    toastFrame.iconRing = toastFrame:CreateTexture(nil, "OVERLAY")
-    toastFrame.iconRing:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\icon-border-white")
-    toastFrame.iconRing:SetPoint("TOPLEFT", toastFrame.icon, "TOPLEFT", -5, 5)
-    toastFrame.iconRing:SetPoint("BOTTOMRIGHT", toastFrame.icon, "BOTTOMRIGHT", 5, -5)
-    toastFrame.iconRing:Hide()
-
-    -- Header: green pixel-font category label ("NEW APPEARANCE", "SPECIAL LOOT").
+    -- Header: green category label ("NEW APPEARANCE", "SPECIAL LOOT"),
+    -- centered over the name; LayoutToastText places the pair.
     toastFrame.header = toastFrame:CreateFontString(nil, "OVERLAY")
-    toastFrame.header:SetPoint("TOPLEFT", toastFrame.icon, "TOPRIGHT", 9, -4)
-    toastFrame.header:SetPoint("RIGHT", -8, 0)
-    toastFrame.header:SetJustifyH("LEFT")
+    toastFrame.header:SetJustifyH("CENTER")
     toastFrame.header:SetTextColor(0.49, 0.99, 0.0)  -- C_LABEL green
 
-    -- Body: item name, quality-colored. Wraps to a second line, capped at 2.
+    -- A pink rule and a gem either side of the header, sized to its text.
+    for side = 1, 2 do
+        local gem = toastFrame:CreateTexture(nil, "ARTWORK")
+        gem:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Panel\\divider-gem")
+        gem:SetSize(5, 5)
+        local rule = toastFrame:CreateTexture(nil, "ARTWORK")
+        rule:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Panel\\divider-line")
+        rule:SetVertexColor(C_PINK[1], C_PINK[2], C_PINK[3], 0.85)
+        rule:SetSize(40, 3)
+        rule:SetTexelSnappingBias(0)
+        rule:SetSnapToPixelGrid(false)
+        if side == 1 then
+            gem:SetPoint("RIGHT", toastFrame.header, "LEFT", -5, 0)
+            rule:SetPoint("RIGHT", gem, "LEFT", 1, 0)
+        else
+            gem:SetPoint("LEFT", toastFrame.header, "RIGHT", 5, 0)
+            rule:SetPoint("LEFT", gem, "RIGHT", -1, 0)
+        end
+    end
+
+    -- Body: item name, quality-colored, centered under the header. Wraps to a
+    -- second line, capped at 2.
     toastFrame.itemNameText = toastFrame:CreateFontString(nil, "OVERLAY")
-    toastFrame.itemNameText:SetPoint("TOPLEFT", toastFrame.header, "BOTTOMLEFT", 0, -3)
-    toastFrame.itemNameText:SetPoint("RIGHT", -8, 0)
-    toastFrame.itemNameText:SetJustifyH("LEFT")
+    toastFrame.itemNameText:SetPoint("TOP", toastFrame.header, "BOTTOM", 0, -HEADER_NAME_GAP)
+    toastFrame.itemNameText:SetWidth(TEXT_PANEL_RIGHT - TEXT_PANEL_LEFT)
+    toastFrame.itemNameText:SetJustifyH("CENTER")
     toastFrame.itemNameText:SetJustifyV("TOP")
     toastFrame.itemNameText:SetWordWrap(true)
     if toastFrame.itemNameText.SetMaxLines then toastFrame.itemNameText:SetMaxLines(2) end
@@ -271,6 +321,57 @@ local function ConstructToastFrame(parent)
     toastFrame.hint:SetJustifyH("LEFT")
     toastFrame.hint:SetTextColor(1, 0.82, 0)
     toastFrame.hint:Hide()
+
+    -- Special loot sparkles: a star pops on each rail gem in turn, then spins
+    -- away, and the run repeats while the toast is up.
+    local sparkleLayer = CreateFrame("Frame", nil, toastFrame)
+    sparkleLayer:SetAllPoints()
+    sparkleLayer:SetFrameLevel(toastFrame:GetFrameLevel() + 3)
+    toastFrame.sparkles = {}
+    for index, gem in ipairs(SPARKLE_GEMS) do
+        local star = sparkleLayer:CreateTexture(nil, "OVERLAY")
+        star:SetTexture("Interface\\Cooldown\\star4")
+        star:SetBlendMode("ADD")
+        star:SetVertexColor(0.7, 0.95, 1)
+        star:SetSize(SPARKLE_SIZE, SPARKLE_SIZE)
+        star:SetPoint("CENTER", toastFrame, "TOPLEFT", gem[1], -gem[2])
+        star:SetAlpha(0)
+        local twinkle = star:CreateAnimationGroup()
+        twinkle:SetToFinalAlpha(true)
+        local delay = (index - 1) * SPARKLE_STEP
+        local appear = twinkle:CreateAnimation("Alpha")
+        appear:SetFromAlpha(0)
+        appear:SetToAlpha(1)
+        appear:SetStartDelay(delay)
+        appear:SetDuration(0.12)
+        appear:SetOrder(1)
+        local grow = twinkle:CreateAnimation("Scale")
+        grow:SetScaleFrom(0.2, 0.2)
+        grow:SetScaleTo(1, 1)
+        grow:SetStartDelay(delay)
+        grow:SetDuration(0.12)
+        grow:SetSmoothing("OUT")
+        grow:SetOrder(1)
+        local vanish = twinkle:CreateAnimation("Alpha")
+        vanish:SetFromAlpha(1)
+        vanish:SetToAlpha(0)
+        vanish:SetDuration(0.4)
+        vanish:SetSmoothing("IN")
+        vanish:SetOrder(2)
+        local spin = twinkle:CreateAnimation("Rotation")
+        spin:SetDegrees(-90)
+        spin:SetDuration(0.4)
+        spin:SetOrder(2)
+        -- An idle tail pads every star's cycle to the same length.
+        local rest = twinkle:CreateAnimation("Alpha")
+        rest:SetFromAlpha(0)
+        rest:SetToAlpha(0)
+        rest:SetDuration(SPARKLE_CYCLE - delay - 0.52)
+        rest:SetOrder(3)
+        twinkle:SetLooping("REPEAT")
+        star.twinkle = twinkle
+        toastFrame.sparkles[index] = star
+    end
 
     ApplyToastFonts(toastFrame)
     return toastFrame
@@ -309,6 +410,10 @@ local function ReleaseFrame(toastFrame)
     end
     toastFrame.glowOn = nil
     RR.UI.SetBreathing(toastFrame.glow, false)
+    for _, star in ipairs(toastFrame.sparkles) do
+        star.twinkle:Stop()
+        star:SetAlpha(0)
+    end
     -- Clear click wiring and identity. A pooled frame that kept these would
     -- act on the previous drop.
     toastFrame:SetScript("OnClick", nil)
@@ -393,27 +498,25 @@ local GLOW_PINK = { 1.0, 0.15, 0.55 }
 
 -- Banner art per toast kind.
 local BANNER_BY_KIND = {
-    appearance = "Interface\\AddOns\\RetroRuns\\Media\\Toast\\toast-bg-appearance",
-    special    = "Interface\\AddOns\\RetroRuns\\Media\\Toast\\toast-bg-special",
+    appearance = "Interface\\AddOns\\RetroRuns\\Media\\Toast\\toast-banner-appearance",
+    special    = "Interface\\AddOns\\RetroRuns\\Media\\Toast\\toast-banner-appearance",
 }
 
 -- The glow's brightest alpha; a live toast's halo breathes down to
 -- GLOW_BREATH_LOW of it and back, 1.6s each way.
-local GLOW_PEAK_ALPHA  = 0.85 * 0.75
+local GLOW_PEAK_ALPHA  = 0.3
 local GLOW_BREATH_LOW  = 0.55 / 0.75
 local GLOW_BREATH_HALF = 1.6
 
--- Quality colors the icon ring (the rarity cue the banner doesn't carry) and,
--- unless glowColor forces one, the glow behind the toast. Every toast glows;
--- live ones breathe it (ShowOne). No quality falls back to brand pink.
+-- Quality colors the glow behind the toast unless glowColor forces one. Every
+-- toast glows; live ones breathe it (ShowOne). No quality falls back to brand
+-- pink.
 local function StyleByQuality(toastFrame, quality, glowColor)
     local r, g, b
     if quality then
         r, g, b = C_Item.GetItemQualityColor(quality)
     end
     if not r then r, g, b = C_PINK[1], C_PINK[2], C_PINK[3] end
-    toastFrame.iconRing:SetVertexColor(r, g, b, 1)
-    toastFrame.iconRing:Show()
     toastFrame.glowColor = glowColor or { r, g, b }
     toastFrame.glowOn = true
     local glow = toastFrame.glowColor
@@ -566,8 +669,9 @@ local function BuildSourceClassIndex()
                 end
                 -- Trash is held at raid level, not under a boss, and it
                 -- carries class-locked rows (Molten Core ships the whole
-                -- T1 belt and bracer run there).
+                -- T1 belt and bracer run there). Event rewards sit beside it.
                 IndexLoot(raid.trashLoot)
+                IndexLoot(raid.eventLoot)
             end
         end
     end
@@ -1137,6 +1241,31 @@ local function StartFade(toastFrame)
     end
 end
 
+-- Sizes the name and centers it with the header as one block between the
+-- art's center gems. Runs whenever either text changes. The name takes the
+-- largest size that fits one line; one too long even then wraps to two.
+local function LayoutToastText(toastFrame)
+    local name = toastFrame.itemNameText
+    local bodyFont = RR:GetBodyFont()
+    local fitted = false
+    for _, size in ipairs(NAME_FONT_SIZES) do
+        RR.SafeSetFont(name, bodyFont, size, "")
+        if name:GetUnboundedStringWidth() <= TEXT_PANEL_RIGHT - TEXT_PANEL_LEFT then
+            fitted = true
+            break
+        end
+    end
+    if not fitted then RR.SafeSetFont(name, bodyFont, NAME_WRAP_SIZE, "") end
+
+    local blockHeight = toastFrame.header:GetStringHeight() + HEADER_NAME_GAP
+        + name:GetStringHeight()
+    local top = math.max(TEXT_BAND_TOP,
+        (TEXT_BAND_TOP + TEXT_BAND_BOTTOM - blockHeight) / 2)
+    toastFrame.header:ClearAllPoints()
+    toastFrame.header:SetPoint("TOP", toastFrame, "TOPLEFT",
+        (TEXT_PANEL_LEFT + TEXT_PANEL_RIGHT) / 2, -top)
+end
+
 -- Apply item content (icon, name, quality, banner, glow) to a frame from a
 -- descriptor. Separate from ShowOne so an async name load can refresh a visible
 -- toast in place.
@@ -1145,9 +1274,18 @@ local function ApplyContent(toastFrame, toast)
     toastFrame.itemNameText:SetText(toast.name or "")
     local r, g, b
     if toast.quality then r, g, b = C_Item.GetItemQualityColor(toast.quality) end
+    -- Special loot carries no quality; its name takes its kind's color, as
+    -- on the panel's Special Loot rows.
+    local kindColors = RR.UI and RR.UI.SPECIAL_KIND_COLOR
+    local kindHex = not r and toast.specialKind and kindColors
+        and kindColors[toast.specialKind:lower()]
+    if kindHex and CreateColorFromHexString then
+        r, g, b = CreateColorFromHexString(kindHex):GetRGB()
+    end
     toastFrame.itemNameText:SetTextColor(r or 1, g or 1, b or 1)
     toastFrame.banner:SetTexture(BANNER_BY_KIND[toast.isSpecial and "special" or "appearance"])
     StyleByQuality(toastFrame, toast.quality, toast.glowColor)
+    LayoutToastText(toastFrame)
 end
 
 -- Scale = base x windowScale x toasterScale.
@@ -1172,7 +1310,8 @@ local function ShowOne(toast)
 
     ApplyToastFonts(toastFrame)
 
-    toastFrame.header:SetText(toast.header and ToastHeaderText(toast.header) or "RETRORUNS")
+    local headerKey = ToastHeaderKey(toast)
+    toastFrame.header:SetText(headerKey and ToastHeaderText(headerKey) or "RETRORUNS")
     ApplyContent(toastFrame, toast)
     RR.UI.SetBreathing(toastFrame.glow, true, GLOW_BREATH_LOW, GLOW_BREATH_HALF)
 
@@ -1189,6 +1328,9 @@ local function ShowOne(toast)
     toastFrame:Show()
     Restack()
     StartFade(toastFrame)
+    if toast.isSpecial then
+        for _, star in ipairs(toastFrame.sparkles) do star.twinkle:Play() end
+    end
 
     -- Coin chime on the SFX channel. Final toast in a batch plays the ring-out.
     -- No-ops if the file is missing; off via the sound setting.
@@ -1261,7 +1403,7 @@ local function RevealWhenNamesReady(batch, attempt)
     for _, toast in ipairs(batch) do
         -- Special Loot toasts may have no item name; don't wait on those.
         if toast.itemID and (not toast.name or toast.name == "") then
-            local name, _, quality = C_Item.GetItemInfo(toast.itemID)
+            local name, _, quality = C_Item.GetItemInfo(toast.lootedLink or toast.itemID)
             if name then
                 toast.name = name
                 toast.quality = toast.quality or quality
@@ -1312,16 +1454,18 @@ local function BuildSampleToast(parent, sample)
         or C_Item.GetItemInfo(sample.itemID) or ""
     ApplyContent(toast, {
         icon = sample.icon or C_Item.GetItemIconByID(sample.itemID),
-        name = name, quality = 4,
+        name = name, quality = isAppearance and 4 or nil,
         glowColor = isAppearance and GLOW_PINK or nil,
         isAppearance = isAppearance, isSpecial = not isAppearance,
+        specialKind = sample.kind,
     })
-    toast.header:SetText(ToastHeaderText(sample.header))
+    toast.header:SetText(ToastHeaderText(sample.kind or sample.header))
+    LayoutToastText(toast)
     -- Boosted and still, since the samples sit small and only live toasts
     -- breathe.
     local glow = toast.glowColor
     toast.glow:SetVertexColor(math.min(glow[1] * 1.35, 1), math.min(glow[2] * 1.35, 1),
-        math.min(glow[3] * 1.35, 1), 1)
+        math.min(glow[3] * 1.35, 1), math.min(GLOW_PEAK_ALPHA * 1.35, 1))
     if name == "" then
         local waiter = CreateFrame("Frame")
         waiter:RegisterEvent("GET_ITEM_INFO_RECEIVED")
@@ -1329,6 +1473,7 @@ local function BuildSampleToast(parent, sample)
             local itemName = C_Item.GetItemInfo(sample.itemID)
             if itemName then
                 toast.itemNameText:SetText(itemName)
+                LayoutToastText(toast)
                 local icon = not sample.icon and C_Item.GetItemIconByID(sample.itemID)
                 if icon then toast.icon:SetTexture(icon) end
                 waiter:UnregisterAllEvents()
@@ -1358,7 +1503,7 @@ local function BuildUnlockOverlay()
     -- by the overlay button.
     local SAMPLES = {
         { header = "New Appearance", itemID = 18832, icon = "Interface\\Icons\\INV_Sword_39" },
-        { header = "Special Loot",   itemID = 43953, icon = "Interface\\Icons\\Ability_Mount_Drake_Blue" },
+        { header = "Special Loot",   itemID = 43953, icon = "Interface\\Icons\\Ability_Mount_Drake_Blue", kind = "Mount" },
     }
     overlay.samples = {}
     for i, sample in ipairs(SAMPLES) do
@@ -1765,9 +1910,8 @@ local function OnDropEvent(_, event, ...)
         }
 
         if itemID then
-            -- The looted link outranks the bare item: a legacy dungeon's
-            -- Normal drop is the same item carrying a bonus that lowers
-            -- its quality, and the bare item reads as the Heroic epic.
+            -- The looted link outranks the bare item, whose quality can differ
+            -- from the drop's. FlushBatch matches a loot line that arrives later.
             local lootedLink
             for _, entry in ipairs(Summary.links or {}) do
                 if tonumber(entry.link:match("item:(%d+)")) == itemID then
@@ -1775,6 +1919,7 @@ local function OnDropEvent(_, event, ...)
                     break
                 end
             end
+            toast.lootedLink = lootedLink
             -- Synchronous attempt first (cached items fill in immediately).
             local name, _, quality = C_Item.GetItemInfo(lootedLink or itemID)
             if name then
@@ -1787,8 +1932,12 @@ local function OnDropEvent(_, event, ...)
                 local item = lootedLink and Item:CreateFromItemLink(lootedLink)
                     or Item:CreateFromItemID(itemID)
                 item:ContinueOnItemLoad(function()
-                    toast.name = item:GetItemName() or toast.name
-                    toast.quality = item:GetItemQuality() or toast.quality
+                    local linkName, _, linkQuality
+                    if toast.lootedLink then
+                        linkName, _, linkQuality = C_Item.GetItemInfo(toast.lootedLink)
+                    end
+                    toast.name = linkName or item:GetItemName() or toast.name
+                    toast.quality = linkQuality or item:GetItemQuality() or toast.quality
                     if not toast.icon then toast.icon = item:GetItemIcon() end
                     -- Grab the source link if it wasn't ready at detection.
                     if not toast.link and C_TransmogCollection
@@ -2003,6 +2152,33 @@ FlushBatch = function()
         RR:RecordRunAppearances(appCount)
     end
 
+    -- Map looted itemID -> the looted link captured this window (preferred over
+    -- the catalog link for appearance lines).
+    local lootedByItemID = {}
+    if links then
+        for _, entry in ipairs(links) do
+            local lid = tonumber(entry.link:match("item:(%d+)"))
+            if lid and not lootedByItemID[lid] then lootedByItemID[lid] = entry.link end
+        end
+    end
+
+    -- An appearance whose loot line came after it resolved from the bare
+    -- item; take name and quality from the looted link now.
+    if batch then
+        for _, toast in ipairs(batch) do
+            local lateLink = toast.isAppearance and not toast.lootedLink
+                and toast.itemID and lootedByItemID[toast.itemID]
+            if lateLink then
+                toast.lootedLink = lateLink
+                local name, _, quality = C_Item.GetItemInfo(lateLink)
+                toast.name = name or ""
+                toast.quality = quality
+                T(("LATE-LINK item=%s quality=%s"):format(
+                    tostring(toast.itemID), tostring(quality)))
+            end
+        end
+    end
+
     -- Reveal the toasts as one batch.
     if batch and #batch > 0 then
         RevealWhenNamesReady(batch)
@@ -2036,16 +2212,6 @@ FlushBatch = function()
             DEFAULT_CHAT_FRAME:AddMessage(CHAT_PREFIX .. line, r, g, b)
         end
         return
-    end
-
-    -- Map looted itemID -> the looted link captured this window (preferred over
-    -- the catalog link for appearance lines).
-    local lootedByItemID = {}
-    if links then
-        for _, entry in ipairs(links) do
-            local lid = tonumber(entry.link:match("item:(%d+)"))
-            if lid and not lootedByItemID[lid] then lootedByItemID[lid] = entry.link end
-        end
     end
 
     -- Build the expansion list: collected items first (tagged), then vendor.
@@ -2581,8 +2747,7 @@ function RR:BuildPreviewBatch(parent)
     -- itemID matches the Loot Summary Preview's special-loot sample.
     local samples = {
         { header = "New Appearance", itemID = 18832 },
-        { header = "New Appearance", itemID = 12640 },
-        { header = "Special Loot",   itemID = 43952, name = "Azure Drake" },
+        { header = "Special Loot",   itemID = 43952, name = "Azure Drake", kind = "Mount" },
     }
 
     local PREVIEW_SCALE = 0.55

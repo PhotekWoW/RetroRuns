@@ -54,10 +54,12 @@ local POI_GLOW_SCALE = 2.6
 -- reference points read as secondary to the objective.
 local GLOBAL_POI_SIZE = 23.4   -- route markers use 26
 local GLOBAL_POI_FONT = 15     -- shared label size is 17
+local BOSS_PIN_SIZE   = 32     -- Blizzard's Encounter Journal boss pin
 
 -- Brand wordmark, for tooltips and the map-column menu: everything this
 -- overlay pops up says whose it is.
 local RETRO_WORDMARK = "|cffF259C7RETRO|r|cff4DCCFFRUNS|r"
+local RETRO_MARK     = "|cffF259C7R|r|cff4DCCFFR|r"
 
 local overlay = CreateFrame(
     "Frame", "RetroRunsMapOverlay",
@@ -174,11 +176,6 @@ local function MakeSpotRing(parent)
     return tx
 end
 
--- A marker's own appearances, each with whether the look is collected.
--- Mirrors the special-loot rows' glyphs so one convention covers both.
-local TIP_GLYPH_HAVE = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
-local TIP_GLYPH_NEED = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14|t"
-
 -- Each row of `list` that `matches` accepts, with whether its looks are
 -- collected: a row carrying several difficulty buckets only counts once every
 -- look it offers is owned. Nil while the collection check is unavailable.
@@ -193,12 +190,176 @@ local function LootLines(list, matches)
                 seen = true
                 if not lookCollected(sourceID) then have = false end
             end
+            -- A mount, pet or toy has no look; its own collection check answers.
+            if row.kind and RR.SpecialCollectionStateForItem then
+                seen = true
+                have = RR.SpecialCollectionStateForItem(row) == "collected"
+            end
             if seen then
-                rows[#rows + 1] = { id = row.id, name = row.name, have = have }
+                rows[#rows + 1] = { id = row.id, name = row.name, have = have, item = row }
             end
         end
     end
     return rows
+end
+
+-------------------------------------------------------------------------------
+-- Map tooltip: the panel's border, and state checks drawn as textures (the
+-- panel's gold check for shared).
+-------------------------------------------------------------------------------
+
+local MAP_TIP_EDGE    = 14   -- the minimized panel's border thickness
+local MAP_TIP_PAD     = 14   -- content inset inside the border
+local MAP_TIP_MIN_W   = 200
+local MAP_TIP_MAX_W   = 320
+local MAP_TIP_CELL    = 12
+local MAP_TIP_ROW_GAP = 2
+local MAP_TIP_BLANK   = 8
+local MAP_TIP_WHITE   = { 1, 1, 1 }
+local MAP_TIP_GRAY    = { 0.7, 0.7, 0.7 }
+
+local mapTip
+
+-- Built on first hover.
+local function MapTip()
+    if mapTip then return mapTip end
+    mapTip = CreateFrame("Frame", "RetroRunsMapTip", UIParent, "BackdropTemplate")
+    mapTip:SetFrameStrata("TOOLTIP")
+    mapTip:SetClampedToScreen(true)
+    mapTip:SetBackdrop(RR.UI.PanelBackdrop(MAP_TIP_EDGE))
+    mapTip:SetBackdropColor(1, 1, 1, 1)
+    mapTip:SetBackdropBorderColor(1, 1, 1, 1)
+    mapTip.lines = {}
+    mapTip:Hide()
+    return mapTip
+end
+
+local function MapTipLine(tip, index)
+    local line = tip.lines[index]
+    if not line then
+        line = {
+            left  = tip:CreateFontString(nil, "OVERLAY", "GameTooltipTextSmall"),
+            right = tip:CreateFontString(nil, "OVERLAY", "GameTooltipTextSmall"),
+            cell  = tip:CreateTexture(nil, "OVERLAY"),
+        }
+        line.left:SetJustifyH("LEFT")
+        line.right:SetJustifyH("RIGHT")
+        line.cell:SetSize(MAP_TIP_CELL, MAP_TIP_CELL)
+        tip.lines[index] = line
+    end
+    return line
+end
+
+local function MapTipIsOwnedBy(owner)
+    return mapTip ~= nil and mapTip:IsShown() and mapTip.owner == owner
+end
+
+-- Hides the tooltip; with an owner, only while that owner holds it.
+local function HideMapTip(owner)
+    if not mapTip or (owner and mapTip.owner ~= owner) then return end
+    mapTip:Hide()
+    mapTip.owner = nil
+end
+
+-- Lays out `rows` and shows them against `owner`, to its right, or to its
+-- left with anchorLeft. A row is { text, right, color, header, wrap, cell,
+-- indent } or { blank = true }; `wrap` rows do not widen the tooltip.
+local function ShowMapTip(owner, rows, anchorLeft)
+    local tip = MapTip()
+    local contentW = MAP_TIP_MIN_W
+    for index, row in ipairs(rows) do
+        local line = MapTipLine(tip, index)
+        local font = row.header and GameTooltipText or GameTooltipTextSmall
+        line.left:SetFontObject(font)
+        line.right:SetFontObject(font)
+        line.left:SetText(row.text or "")
+        line.right:SetText(row.right or "")
+        line.textX = (row.indent or 0) + (row.cell and MAP_TIP_CELL + 4 or 0)
+        line.rightW = row.right and line.right:GetUnboundedStringWidth() or 0
+        if not row.blank and not row.wrap then
+            local need = line.textX + line.left:GetUnboundedStringWidth()
+                + (line.rightW > 0 and line.rightW + 16 or 0)
+            contentW = math.max(contentW, need)
+        end
+    end
+    contentW = math.min(math.ceil(contentW), MAP_TIP_MAX_W)
+
+    local y = -MAP_TIP_PAD
+    for index, row in ipairs(rows) do
+        local line = tip.lines[index]
+        if row.blank then
+            line.left:Hide()
+            line.right:Hide()
+            line.cell:Hide()
+            y = y - MAP_TIP_BLANK
+        else
+            local color = row.color or MAP_TIP_WHITE
+            line.left:SetTextColor(color[1], color[2], color[3])
+            line.right:SetTextColor(1, 1, 1)
+            line.left:SetWidth(contentW - line.textX
+                - (line.rightW > 0 and line.rightW + 16 or 0))
+            line.left:SetWordWrap(true)
+            line.left:ClearAllPoints()
+            line.left:SetPoint("TOPLEFT", tip, "TOPLEFT", MAP_TIP_PAD + line.textX, y)
+            line.left:Show()
+            local height = line.left:GetStringHeight()
+            if line.rightW > 0 then
+                line.right:ClearAllPoints()
+                line.right:SetPoint("TOPRIGHT", tip, "TOPRIGHT", -MAP_TIP_PAD, y)
+                line.right:Show()
+                height = math.max(height, line.right:GetStringHeight())
+            else
+                line.right:Hide()
+            end
+            local spec = row.cell and RR.UI.PROGRESS_CELL_ICON[row.cell]
+            if spec then
+                local _, fontSize = line.left:GetFont()
+                line.cell:SetTexture(spec.file)
+                line.cell:SetDesaturated(spec.desaturate and true or false)
+                line.cell:SetVertexColor(spec.r or 1, spec.g or 1, spec.b or 1)
+                line.cell:ClearAllPoints()
+                line.cell:SetPoint("TOPLEFT", tip, "TOPLEFT",
+                    MAP_TIP_PAD + (row.indent or 0),
+                    y - ((fontSize or MAP_TIP_CELL) - MAP_TIP_CELL) / 2)
+                line.cell:Show()
+            else
+                line.cell:Hide()
+            end
+            y = y - height - MAP_TIP_ROW_GAP
+        end
+    end
+    for index = #rows + 1, #tip.lines do
+        tip.lines[index].left:Hide()
+        tip.lines[index].right:Hide()
+        tip.lines[index].cell:Hide()
+    end
+
+    tip:SetSize(contentW + 2 * MAP_TIP_PAD, MAP_TIP_PAD - y - MAP_TIP_ROW_GAP)
+    tip:ClearAllPoints()
+    if anchorLeft then
+        tip:SetPoint("BOTTOMRIGHT", owner, "TOPLEFT")
+    else
+        tip:SetPoint("BOTTOMLEFT", owner, "TOPRIGHT")
+    end
+    tip.owner = owner
+    tip:Show()
+end
+
+-- An item's link, or its data-row name while the item cache is cold; the
+-- tooltip redraws through `redraw` once the item arrives, if still hovered.
+local function ItemLineText(itemID, name, owner, redraw)
+    local _, link = C_Item.GetItemInfo(itemID)
+    if not link and Item and Item.CreateFromItemID then
+        local pending = Item:CreateFromItemID(itemID)
+        if not pending:IsItemEmpty() then
+            pending:ContinueOnItemLoad(function()
+                if MapTipIsOwnedBy(owner) and owner:IsMouseOver() then
+                    redraw(owner)
+                end
+            end)
+        end
+    end
+    return link or name or tostring(itemID)
 end
 
 -- Loot lines keyed on whatever named the marker: a rare's npc name, or an
@@ -242,25 +403,22 @@ end
 -- mark rides the title line's right edge, saying whose popup this is
 -- without spending a line on it.
 local function ShowSpotTooltip(btn)
-    GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-    GameTooltip:AddDoubleLine(btn.labelText or "",
-        "|cffF259C7R|r|cff4DCCFFR|r", 1, 1, 1, 1, 1, 1)
+    local rows = { { text = btn.labelText or "", right = RETRO_MARK, header = true } }
     local tint  = btn.spotColor or SPOT_PALETTE[1]
     local count = btn.spotCount or 0
     -- Sightings are a RARE's story. A vendor or a chest does not spawn, so
     -- the line would read as nonsense on the 24 markers that are neither.
     if btn.poiKind == "rare" then
-        GameTooltip:AddLine(count == 1
+        rows[#rows + 1] = { color = tint, text = count == 1
             and RR.L["1 recorded spawn point"]
-            or (RR.L["%d recorded spawn points"]):format(count),
-            tint[1], tint[2], tint[3])
+            or (RR.L["%d recorded spawn points"]):format(count) }
     end
     -- One sighting is already where the marker sits, so there is nothing a
     -- click could reveal; the hint would promise a behavior we do not have.
     if count > 1 then
-        GameTooltip:AddLine(overlay.pinnedSpots[btn.spotKey]
+        rows[#rows + 1] = { color = MAP_TIP_GRAY, text = overlay.pinnedSpots[btn.spotKey]
             and RR.L["Click to hide them"]
-            or RR.L["Click to keep them shown"], 0.7, 0.7, 0.7)
+            or RR.L["Click to keep them shown"] }
     end
     -- Where it is, then what it is for. Both wrap: a marker hint is prose,
     -- and the loot lines below set the tooltip's width on their own.
@@ -272,12 +430,12 @@ local function ShowSpotTooltip(btn)
     -- lets the hint say it in words, and say it only when it is needed.
     -- The marker itself always shows, for anyone browsing from elsewhere.
     if btn.hintNote then
-        GameTooltip:AddLine(HighlightCarets(RR.L[btn.hintNote]), 1, 1, 1, true)
+        rows[#rows + 1] = { text = HighlightCarets(RR.L[btn.hintNote]), wrap = true }
     end
     if btn.hintWhere then
         local here = (GetSubZoneText and GetSubZoneText()) or ""
         if not btn.poiSubZone or btn.poiSubZone ~= here then
-            GameTooltip:AddLine(HighlightCarets(RR.L[btn.hintWhere]), 1, 1, 1, true)
+            rows[#rows + 1] = { text = HighlightCarets(RR.L[btn.hintWhere]), wrap = true }
         end
     end
     -- A marker's own drops first; an object that only GATES a boss shows
@@ -287,31 +445,17 @@ local function ShowSpotTooltip(btn)
         loot = BossLootLines(btn.hintBoss)
     end
     if loot and #loot > 0 then
-        GameTooltip:AddLine(" ")
+        rows[#rows + 1] = { blank = true }
+        local summaryState = RR.UI and RR.UI.ItemSummaryState
         for _, row in ipairs(loot) do
-            -- An uncached item shows its data-row name and the tooltip
-            -- redraws once the item arrives, while the mouse is still here.
-            local _, link = C_Item.GetItemInfo(row.id)
-            if not link and Item and Item.CreateFromItemID then
-                local pending = Item:CreateFromItemID(row.id)
-                if not pending:IsItemEmpty() then
-                    pending:ContinueOnItemLoad(function()
-                        if GameTooltip:IsOwned(btn) and btn:IsMouseOver() then
-                            ShowSpotTooltip(btn)
-                        end
-                    end)
-                end
-            end
-            -- White explicitly: AddLine with no color defaults to YELLOW,
-            -- so the cold-cache fallback name read as a highlight until the
-            -- item cache answered. A real link carries its own quality
-            -- color and overrides this.
-            GameTooltip:AddLine(("%s %s"):format(
-                row.have and TIP_GLYPH_HAVE or TIP_GLYPH_NEED,
-                link or row.name or tostring(row.id)), 1, 1, 1)
+            local state = (not row.item.kind and summaryState
+                    and summaryState(row.item))
+                or (row.have and "collected" or "missing")
+            rows[#rows + 1] = { cell = state,
+                text = ItemLineText(row.id, row.name, btn, ShowSpotTooltip) }
         end
     end
-    GameTooltip:Show()
+    ShowMapTip(btn, rows)
 end
 
 -- Invisible hit target sized to the marker it covers. Hovering previews
@@ -327,7 +471,7 @@ local function MakePoiButton(parent)
     btn:SetScript("OnLeave", function(self)
         overlay.hoveredSpotKey = nil
         overlay:UpdateSpawnSpots()
-        GameTooltip:Hide()
+        HideMapTip(self)
     end)
     btn:SetScript("OnClick", function(self)
         if (self.spotCount or 0) < 2 then return end
@@ -357,10 +501,8 @@ local function ShowMarkTooltip(btn)
     if RR.StepWidgetGateOpen and RR:StepWidgetGateOpen(RR.state.activeStep) then
         remaining = 0
     end
-    GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-    GameTooltip:AddDoubleLine((RR.L[seg.markHint]):format(remaining, total),
-        "|cffF259C7R|r|cff4DCCFFR|r", 1, 1, 1, 1, 1, 1)
-    GameTooltip:Show()
+    ShowMapTip(btn, { { text = (RR.L[seg.markHint]):format(remaining, total),
+        right = RETRO_MARK, header = true } })
 end
 
 -- Invisible hit target over a route marker. Hover only; nothing to click.
@@ -368,7 +510,7 @@ local function MakeMarkButton(parent)
     local btn = CreateFrame("Button", nil, parent)
     btn:Hide()
     btn:SetScript("OnEnter", function(self) ShowMarkTooltip(self) end)
-    btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    btn:SetScript("OnLeave", function(self) HideMapTip(self) end)
     return btn
 end
 
@@ -671,6 +813,8 @@ local GLOBAL_POI_TEXTURES = {
     -- A static container the player has to click for its loot, rather
     -- than a mob to kill.
     chest     = "Interface\\AddOns\\RetroRuns\\Media\\Icons\\ChestIcon",
+    -- Where a pet comes from (Zul'Aman's frogs).
+    pet       = "Interface\\Icons\\INV_Frog2_Teal",
 }
 -- Tint per kind, multiplied over the texture. Blizzard's skull is white,
 -- so a multiply lands on the exact color asked for. Untinted kinds draw
@@ -715,18 +859,22 @@ function overlay:DrawGlobalPOIsForMap(mapID)
     local function BelongsToPlayer(poi)
         if poi.faction and poi.faction ~= playerFaction then return false end
         if poi.class and poi.class ~= playerClassID then return false end
+        -- A marker for one route draws only while that route is chosen.
+        if poi.routeVariant and poi.routeVariant ~= RR:ActiveVariantKey() then
+            return false
+        end
         return true
     end
-    -- With the setting off, a rare whose every look is already collected
-    -- stops drawing: the marker is an errand, and this one has nothing
-    -- left to give. A rare with no attributed loot always draws.
+    -- With the setting off, a marker whose own drops (the rows its hover
+    -- lists) are all collected stops drawing. A marker with none always draws.
     local showCollectedRares =
         RR:GetSetting("showCollectedRares", true) ~= false
-    local function RareStillWanted(poi)
+    local function MarkerStillWanted(poi)
         if showCollectedRares then return true end
-        if poi.poiKind ~= "rare" or not poi.rareNpc then return true end
+        local key = poi.rareNpc or poi.tag or poi.mapLabel
+        if not key then return true end
         local lines = LootLines(raid.trashLoot, function(row)
-            return row.rareNpc == poi.rareNpc
+            return row.rareNpc == key or row.tag == key
         end)
         if not lines or #lines == 0 then return true end
         for _, line in ipairs(lines) do
@@ -746,7 +894,7 @@ function overlay:DrawGlobalPOIsForMap(mapID)
     local markFor, labelPosFor, drawList, poiIndexFor = {}, {}, {}, {}
     for poiIndex, poi in ipairs(raid.pois) do
         if poi.mapID == mapID and poi.points and #poi.points > 0
-            and BelongsToPlayer(poi) and RareStillWanted(poi) then
+            and BelongsToPlayer(poi) and MarkerStillWanted(poi) then
             poiIndexFor[poi] = poiIndex
             local mark = poi.navPoint or poi.points[1]
             if not poi.navPoint and #poi.points > 1 then
@@ -787,6 +935,28 @@ function overlay:DrawGlobalPOIsForMap(mapID)
                     and drawList[a] or drawList[b]
                 if (lower.mapLabelPos or "below") == "above" then
                     labelPosFor[lower] = "below"
+                end
+            end
+        end
+    end
+    -- Blizzard's boss pins stay where they are; a marker under one moves
+    -- just clear of it (Dire Maul's Broken Trap beside Guard Slip'kik).
+    local bossPins = C_EncounterJournal and C_EncounterJournal.GetEncountersOnMap
+        and C_EncounterJournal.GetEncountersOnMap(mapID)
+    local pinGapX = (BOSS_PIN_SIZE / 2 + GLOBAL_POI_SIZE / 2 + 2) / mapW
+    local pinGapY = (BOSS_PIN_SIZE / 2 + GLOBAL_POI_SIZE / 2 + 2) / mapH
+    for _, bossPin in ipairs(type(bossPins) == "table" and bossPins or {}) do
+        local pinX, pinY = bossPin.mapX, bossPin.mapY
+        if type(pinX) == "number" and type(pinY) == "number" then
+            for _, poi in ipairs(drawList) do
+                local mark = markFor[poi]
+                local dx = (mark[1] - pinX) / pinGapX
+                local dy = (mark[2] - pinY) / pinGapY
+                local dist = math.sqrt(dx * dx + dy * dy)
+                if dist < 1 then
+                    if dist < 0.05 then dx, dy, dist = 0, 1, 1 end
+                    mark[1] = pinX + dx / dist * pinGapX
+                    mark[2] = pinY + dy / dist * pinGapY
                 end
             end
         end
@@ -916,6 +1086,20 @@ function overlay:DrawGlobalPOIsForMap(mapID)
     HideFrom(self.poiButtons, iconIdx)
 end
 
+-- A leg is a noted segment and the noteless ones after it, which take their
+-- text from it. True when segIndex belongs to the leg holding `progress`.
+local function SegInCurrentLeg(segments, progress, segIndex)
+    local legStart = progress
+    while legStart > 1 and segments[legStart] and not segments[legStart].note do
+        legStart = legStart - 1
+    end
+    local legEnd = legStart
+    while segments[legEnd + 1] and not segments[legEnd + 1].note do
+        legEnd = legEnd + 1
+    end
+    return segIndex >= legStart and segIndex <= legEnd
+end
+
 function overlay:DrawSegmentsForMap(mapID)
     -- A completed route draws nothing.
     if RR.IsActiveRouteComplete and RR:IsActiveRouteComplete() then return end
@@ -945,7 +1129,12 @@ function overlay:DrawSegmentsForMap(mapID)
             if candidate == seg then drawn = true break end
         end
         if drawn and seg.drawWhenOpen
-            and not RR:IsSegGateOpen(stepIndex, seg, segIndex) then
+            and not RR:IsSegGateOpen(stepIndex, seg, segIndex, step.segments) then
+            drawn = false
+        end
+        -- A step drawn one leg at a time shows only the leg the route is on.
+        if drawn and step.drawCurrentSegOnly
+            and not SegInCurrentLeg(step.segments, RR:GetProgress(stepIndex), segIndex) then
             drawn = false
         end
         if drawn and pts and #pts > 0 then
@@ -1144,6 +1333,40 @@ function overlay:DrawSegmentsForMap(mapID)
             end
         end
     end
+
+    -- On a route that leaves bosses alive, each one still standing gets a
+    -- pulsing red ring and "Do Not Kill" at its journal pin.
+    local raid = RR.currentRaid
+    if raid and raid.skipRouteLeaveAlive and RR:ActiveVariantKey() == "skip"
+        and C_EncounterJournal and C_EncounterJournal.GetEncountersOnMap then
+        local pinByEncounter = {}
+        for _, pin in ipairs(C_EncounterJournal.GetEncountersOnMap(mapID) or {}) do
+            pinByEncounter[pin.encounterID] = pin
+        end
+        for _, bossIndex in ipairs(raid.skipRouteLeaveAlive) do
+            local boss = RR:GetBossByIndex(bossIndex)
+            local pin = boss and pinByEncounter[boss.journalEncounterID]
+            if pin and type(pin.mapX) == "number" and not RR:IsBossKilled(bossIndex) then
+                local ring = self.rings[ringIdx]
+                if not ring then break end
+                PlaceAt(ring, self, pin.mapX, pin.mapY)
+                ring.completeState = nil
+                ring:SetVertexColor(1.0, 0.0, 0.0, 1.0)
+                ring:Show()
+                ringIdx = ringIdx + 1
+                local label = self.labels[labelIdx]
+                if label then
+                    local labelPos = raid.skipRouteLeaveAliveLabelPos
+                        and raid.skipRouteLeaveAliveLabelPos[bossIndex] or "below"
+                    self:PlaceLabel(label, labelPos, pin.mapX, pin.mapY, BOSS_PIN_SIZE / 2)
+                    label:SetText("|cffff3333" .. RR.L["Do Not Kill"] .. "|r")
+                    label.flashState = nil
+                    label:Show()
+                    labelIdx = labelIdx + 1
+                end
+            end
+        end
+    end
 end
 
 -- The RETRORUNS entry in the world map's icon column, through the shared
@@ -1191,7 +1414,7 @@ local function BuildWorldMapButton()
         -- The stored setting is SHOW; this entry asks the opposite, so the
         -- tick reads as "hidden" without migrating anyone's saved value.
         local collectedEntry = rootDescription:CreateCheckbox(
-            RR.L["Hide fully collected rares from map"],
+            RR.L["Hide fully collected POIs from map"],
             function()
                 return RR:GetSetting("showCollectedRares", true) == false
             end,
@@ -1202,6 +1425,16 @@ local function BuildWorldMapButton()
             end)
         collectedEntry:SetEnabled(function()
             return RR:GetSetting("mapPois", true) ~= false
+        end)
+        local bossIconsEntry = rootDescription:CreateCheckbox(RR.L["Enhanced Boss Icons"],
+            function() return RR:GetSetting("enhancedBossIcons", true) ~= false end,
+            function()
+                RR:SetSetting("enhancedBossIcons",
+                    not (RR:GetSetting("enhancedBossIcons", true) ~= false))
+            end)
+        bossIconsEntry:SetTooltip(function(tooltip)
+            GameTooltip_SetTitle(tooltip, RR.L["Enhanced Boss Icons"])
+            GameTooltip_AddNormalLine(tooltip, RR.L["When hovering a boss icon, you will see the collection status for each item the boss drops"])
         end)
         rootDescription:CreateDivider()
         rootDescription:CreateButton(RR.L["Open Settings"], function()
@@ -1319,6 +1552,99 @@ function overlay:Refresh()
 end
 
 -------------------------------------------------------------------------------
+-- Blizzard's journal boss pins. With Enhanced Boss Icons on, a boss of the
+-- current instance shows the map tooltip in place of Blizzard's, with its
+-- transmog and special loot added.
+-------------------------------------------------------------------------------
+
+local BOSS_TIP_LOOK_CAP = 15
+local LOOK_STATE_RANK = { missing = 1, shared = 2, collected = 3 }
+
+local function BossForEncounter(encounterID)
+    local raid = RR.currentRaid
+    if not raid or not raid.bosses or not encounterID then return nil end
+    for _, boss in ipairs(raid.bosses) do
+        if boss.journalEncounterID == encounterID then return boss end
+    end
+    return nil
+end
+
+local function ShowBossPinTooltip(pin)
+    if RR:GetSetting("enhancedBossIcons", true) == false then return end
+    local boss = BossForEncounter(pin.encounterID)
+    if not boss or not pin.tooltipTitle then return end
+    if GameTooltip:IsOwned(pin) then GameTooltip:Hide() end
+
+    -- Blizzard's own lines first, as their tooltip draws them.
+    local rows = { { text = pin.tooltipTitle, header = true } }
+    if C_EncounterJournal.IsEncounterComplete(pin.encounterID) then
+        rows[#rows + 1] = { text = DUNGEON_ENCOUNTER_DEFEATED,
+            color = { RED_FONT_COLOR:GetRGB() } }
+    end
+    if pin.tooltipText and pin.tooltipText ~= "" then
+        rows[#rows + 1] = { text = pin.tooltipText, wrap = true,
+            color = { NORMAL_FONT_COLOR:GetRGB() } }
+    end
+
+    -- The looks the panel counts, missing first, then shared, then collected.
+    local looks = {}
+    local needed, shared = 0, 0
+    RR.UI.ForEachBossLook(boss, function(item, state)
+        looks[#looks + 1] = { item = item, state = state, order = #looks + 1 }
+        if state == "missing" then
+            needed = needed + 1
+        elseif state == "shared" then
+            shared = shared + 1
+        end
+    end)
+    if #looks > 0 then
+        table.sort(looks, function(a, b)
+            local rankA = LOOK_STATE_RANK[a.state] or 3
+            local rankB = LOOK_STATE_RANK[b.state] or 3
+            if rankA ~= rankB then return rankA < rankB end
+            return a.order < b.order
+        end)
+        rows[#rows + 1] = { blank = true }
+        rows[#rows + 1] = { text = RETRO_WORDMARK, right =
+            (RR.L["Missing"] .. " (%d) " .. RR.L["Shared"] .. " (%d)"):format(needed, shared) }
+        for index = 1, math.min(#looks, BOSS_TIP_LOOK_CAP) do
+            local look = looks[index]
+            rows[#rows + 1] = { cell = look.state, text = ItemLineText(look.item.id,
+                look.item.name, pin, ShowBossPinTooltip) }
+        end
+        if #looks > BOSS_TIP_LOOK_CAP then
+            rows[#rows + 1] = { color = MAP_TIP_GRAY, text =
+                (RR.L["+%d more in the transmog browser"]):format(#looks - BOSS_TIP_LOOK_CAP) }
+        end
+    end
+
+    -- Special loot as the panel lists it.
+    local header, lines = RR.UI.BuildSpecialLootSection(boss)
+    if header and lines then
+        rows[#rows + 1] = { blank = true }
+        rows[#rows + 1] = { text = header }
+        for _, line in ipairs(lines) do
+            rows[#rows + 1] = { text = line.text, wrap = line.noCell,
+                cell = not line.noCell and line.cell or nil,
+                indent = (line.indentSpaces or 0) * 3 }
+        end
+    end
+    ShowMapTip(pin, rows, true)
+end
+
+-- Each pooled boss pin is hooked once, after the provider places it.
+local hookedBossPins = {}
+local function HookBossPins()
+    for pin in WorldMapFrame:EnumeratePinsByTemplate("EncounterJournalPinTemplate") do
+        if not hookedBossPins[pin] then
+            hookedBossPins[pin] = true
+            pin:HookScript("OnEnter", ShowBossPinTooltip)
+            pin:HookScript("OnLeave", HideMapTip)
+        end
+    end
+end
+
+-------------------------------------------------------------------------------
 -- Hooks
 -------------------------------------------------------------------------------
 
@@ -1331,6 +1657,19 @@ WorldMapFrame:HookScript("OnShow", function()
     overlay:Refresh()
     RR.UI.Update()
 end)
+
+WorldMapFrame:HookScript("OnHide", function() HideMapTip() end)
+
+-- The journal's map provider, found by a method only it carries.
+local journalMixin = EncounterJournalDataProviderMixin
+if journalMixin and journalMixin.CheckForContentTracking
+    and WorldMapFrame.dataProviders then
+    for provider in pairs(WorldMapFrame.dataProviders) do
+        if provider.CheckForContentTracking == journalMixin.CheckForContentTracking then
+            hooksecurefunc(provider, "RefreshAllData", HookBossPins)
+        end
+    end
+end
 
 C_Timer.NewTicker(1.0, function()
     if WorldMapFrame and WorldMapFrame:IsShown() then

@@ -295,12 +295,15 @@ panel:SetScript("OnDragStop", function(self)
     if UI.ApplyMinimizedState then UI.ApplyMinimizedState() end
     -- The windows docked to the panel moved with it.
     UI.SnapProgressCells()
+    -- The [Use] button is not anchored to the panel, so it follows here.
+    UI.PlaceUseButton()
 end)
 -- If the panel is hidden mid-drag (e.g. the show-panel setting flips),
 -- OnDragStop never fires for it, so clear the flag here or the layout
 -- pass would stay disabled after the panel reappears.
 panel:HookScript("OnHide", function(self)
     self.isBeingDragged = nil
+    if UI.PlaceUseButton then UI.PlaceUseButton() end
 end)
 
 -- Forward declarations for auxiliary windows (assigned further down).
@@ -327,6 +330,7 @@ local function PanelBackdrop(edgeSize)
         insets = { left = 7, right = 7, top = 7, bottom = 7 },
     }
 end
+UI.PanelBackdrop = PanelBackdrop
 
 -- The tooltip-style frame the auxiliary windows and the search results share.
 UI.TOOLTIP_BACKDROP = {
@@ -1329,14 +1333,22 @@ do
     -- Fading band over the row a search landed on, the transmog band's
     -- shape on the idle list. Built lazily: the shared flash constants
     -- are defined further down the file.
+    -- The key a search finds a row by: dungeons by journal id, since Dire
+    -- Maul's three wings share one instance id.
+    function UI.IdleRowKey(instance)
+        return ((instance.kind == "dungeon") and "dungeon:" or "raid:")
+            .. tostring(UI.BrowserKeyOf(instance))
+    end
+
     function UI.FlashIdleListRow(raid)
         if not raid then return end
         if not panel.idleSearchFlash then
             panel.idleSearchFlash, panel.idleSearchFlashFade =
                 UI.MakeFlashBand(panel, "ARTWORK")
         end
+        local rowKey = UI.IdleRowKey(raid)
         for _, fs in ipairs(panel.idleListLines) do
-            if fs._searchInstanceID == raid.instanceID and fs:IsShown() then
+            if fs._searchKey == rowKey and fs:IsShown() then
                 panel.idleSearchFlash:ClearAllPoints()
                 panel.idleSearchFlash:SetPoint("TOPLEFT", fs, "TOPLEFT", -2, 2)
                 panel.idleSearchFlash:SetPoint("BOTTOMRIGHT", fs,
@@ -2542,6 +2554,116 @@ function UI.PlaceCellRow(line, row, geometry, fontSize, anchor, anchorPoint, off
     return math.max(geometry.cellPx, textPx) + geometry.rowGapPx
 end
 
+-- A small label after a row's text, two points under the body: the [Use]
+-- (key "useLabel") or a buff's clock ("clockLabel"). Placed, not shown.
+function UI.RowTailLabel(section, line, key)
+    local label = line[key]
+    if not label then
+        label = section:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        line[key] = label
+    end
+    SetBodyFont(label, math.max(8, RR:GetSetting("fontSize", 12) - 2), "")
+    label:ClearAllPoints()
+    label:SetPoint("LEFT", line, "LEFT", (line:GetStringWidth() or 0) + 4, 0)
+    return label
+end
+
+-- The magenta [Use] after the text of a row naming `useItem`, breathing
+-- with the Boss Progress arrow, recorded as the spot the secure use button
+-- covers.
+function UI.PlaceUseLabel(section, line, row)
+    if not row.useItem then
+        if line.useLabel then line.useLabel:Hide() end
+        return
+    end
+    local label = UI.RowTailLabel(section, line, "useLabel")
+    label:SetText("|cffF259C7[" .. (USE or "Use") .. "]|r")
+    local alreadyBreathing = label:IsShown()
+        and label.evenBreath and label.evenBreath:IsPlaying()
+    label:Show()
+    UI.SetBreathing(label, true)
+    if not alreadyBreathing then UI.BreatheInStepWithArrow(label) end
+    UI.useTarget = { label = label, itemID = row.useItem }
+end
+
+-- A breath just started, put in step with the Boss Progress arrow: both
+-- restart together once, then run side by side on the same curve.
+function UI.BreatheInStepWithArrow(region)
+    for _, fs in ipairs(panel.progressListLines or {}) do
+        local arrowBreath = fs.cell and fs.cell.icon and fs.cell.icon.evenBreath
+        if arrowBreath and arrowBreath:IsPlaying() and region.evenBreath then
+            arrowBreath:Stop()
+            region.evenBreath:Stop()
+            arrowBreath:Play()
+            region.evenBreath:Play()
+            return
+        end
+    end
+end
+
+-- The secure button behind a row's [Use]: on UIParent, laid over the label
+-- out of combat, hidden when combat starts.
+function UI.PlaceUseButton()
+    if InCombatLockdown() then return end
+    local target = UI.useTarget
+    local label = target and target.label
+    local wanted = label and label:IsVisible() and label:GetLeft() ~= nil
+        and (C_Item.GetItemCount(target.itemID, false) or 0) > 0
+    local button = UI.useButton
+    if not wanted then
+        if button then button:Hide() end
+        return
+    end
+    if not button then
+        button = CreateFrame("Button", "RetroRunsUseItemButton", UIParent,
+            "SecureActionButtonTemplate")
+        button:RegisterForClicks("AnyUp", "AnyDown")
+        button:SetAttribute("type", "item")
+        button:SetScript("OnEnter", function(self)
+            if not self.itemID then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetItemByID(self.itemID)
+            GameTooltip:Show()
+        end)
+        button:SetScript("OnLeave", GameTooltip_Hide)
+        button:RegisterEvent("PLAYER_REGEN_DISABLED")
+        button:RegisterEvent("PLAYER_REGEN_ENABLED")
+        button:SetScript("OnEvent", function(self, event)
+            if event == "PLAYER_REGEN_DISABLED" then
+                self:Hide()
+            else
+                UI.PlaceUseButton()
+            end
+        end)
+        UI.useButton = button
+    end
+    button.itemID = target.itemID
+    button:SetAttribute("item", "item:" .. target.itemID)
+    local section = label:GetParent()
+    button:SetFrameStrata(section:GetFrameStrata())
+    button:SetFrameLevel(section:GetFrameLevel() + 5)
+    local scale = label:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    button:ClearAllPoints()
+    button:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT",
+        label:GetLeft() * scale, label:GetBottom() * scale)
+    button:SetSize(math.max(1, (label:GetStringWidth() or 0) * scale),
+        math.max(1, (label:GetStringHeight() or 0) * scale))
+    button:Show()
+end
+
+-- A worn buff's time left, in the cyan the row used to carry, after the
+-- row's text; the countdown keeps it current.
+function UI.PlaceClockLabel(section, line, row)
+    if not row.countdown then
+        if line.clockLabel then line.clockLabel:Hide() end
+        return
+    end
+    local label = UI.RowTailLabel(section, line, "clockLabel")
+    label:SetText(("|cff4dccff%s|r"):format(UI.ClockText(row.countdown.seconds)))
+    label:Show()
+    UI.StartAuraCountdown(section, label, row.countdown.spellID)
+end
+
 -- A main-panel section's cell rows (Achievements, Special Loot) under its
 -- label. Lines belong to the section frame, so its hyperlink handler takes
 -- their clicks. Returns the rows' total height.
@@ -2551,7 +2673,16 @@ function UI.RenderAchievementRows(section, rows, topY)
         line:Hide()
         line.cell:Hide()
     end
-    if not rows or #rows == 0 then return 0 end
+    -- A clock on one of these lines is set again below if its row still
+    -- carries one; the line may hold another row's text now.
+    if UI.auraCountdown and UI.auraCountdown.section == section then
+        UI.auraCountdown = nil
+    end
+    if not rows or #rows == 0 then
+        UI.SettleRowTails(section, 0)
+        UI.PlaceUseButton()
+        return 0
+    end
     local fontSize = RR:GetSetting("fontSize", 12)
     local geometry = UI.ProgressCellGeometry(fontSize)
     local rowTopPx = geometry.rowGapPx
@@ -2567,8 +2698,30 @@ function UI.RenderAchievementRows(section, rows, topY)
         end
         rowTopPx = rowTopPx + UI.PlaceCellRow(line, row, geometry, fontSize,
             section, "TOPLEFT", topY - rowTopPx * geometry.unit)
+        UI.PlaceUseLabel(section, line, row)
+        UI.PlaceClockLabel(section, line, row)
     end
+    UI.SettleRowTails(section, #rows)
+    UI.PlaceUseButton()
     return (rowTopPx - geometry.rowGapPx) * geometry.unit
+end
+
+-- After a rebuild: a [Use] or clock on a line past the last row hides, and
+-- a [Use] no longer shown stops breathing.
+function UI.SettleRowTails(section, rowCount)
+    for index, line in ipairs(section.rowLines or {}) do
+        if line.clockLabel and index > rowCount then line.clockLabel:Hide() end
+        local label = line.useLabel
+        if label then
+            if index > rowCount then label:Hide() end
+            if not label:IsShown() then
+                UI.SetBreathing(label, false)
+                if UI.useTarget and UI.useTarget.label == label then
+                    UI.useTarget = nil
+                end
+            end
+        end
+    end
 end
 
 -- UI units per screen pixel for a region, with the pixel height taken from
@@ -3793,7 +3946,9 @@ local function ApplyTitleLayoutForState(minimized)
             elseif (RR.state and RR.state.activeRouteVariant == "skip")
                 or (RR.ActiveRouteSkippedOptionalBoss
                     and RR:ActiveRouteSkippedOptionalBoss()) then
-                completeBanner = RR.L["|cff00ff00Skip Run Complete!|r"]
+                completeBanner = (RR.state.activeRouteVariant == "skip")
+                    and RR:SkipRouteText().banner
+                    or RR.L["|cff00ff00Skip Run Complete!|r"]
             else
                 -- Neutral wording: the bar reads the same on a raid and
                 -- on a dungeon, and matches the main panel's banner for
@@ -4300,6 +4455,8 @@ function UI.AutoSize()
 
     -- The frames above may have moved the cells placed during their layout.
     UI.SnapProgressCells()
+    -- And the [Use] label the secure button covers.
+    UI.PlaceUseButton()
 end
 
 -- Expose on the module and also keep backward-compatible reference
@@ -4661,10 +4818,17 @@ end
 
 -- Builds the Achievements block: the "Achievements:" label text, plus one
 -- row per achievement ({ cell, text }) with a clickable hyperlink
--- color-coded by completion state. Returns "" for no boss.
+-- color-coded by completion state. Returns "" for no boss. The boss's own
+-- achievements come first, then the instance-wide ones every boss lists.
 local function BuildAchievementsBlock(boss)
     if not boss then return "" end
-    if not boss.achievements or #boss.achievements == 0 then
+    local listed = {}
+    for _, ach in ipairs(boss.achievements or {}) do listed[#listed + 1] = ach end
+    local raid = RR.currentRaid
+    for _, ach in ipairs(raid and raid.raidAchievements or {}) do
+        listed[#listed + 1] = ach
+    end
+    if #listed == 0 then
         -- Keep the section visible so every boss pane has the same
         -- shape; the row is clickable and opens the achievements
         -- window like a real achievement link would.
@@ -4680,7 +4844,7 @@ local function BuildAchievementsBlock(boss)
     local STATE_COLOR_DONE   = "ff00ff00"
     local STATE_COLOR_TODO   = "ff888888"
 
-    for _, ach in ipairs(boss.achievements) do
+    for _, ach in ipairs(listed) do
         local _, name, _, completed = GetAchievementInfo(ach.id)
         local label = name or ach.name or ("ID " .. ach.id)
         local tag   = ach.meta and (" " .. RR.L["(Meta)"]) or ""
@@ -4714,6 +4878,102 @@ local function BuildAchievementsBlock(boss)
         end
     end
     return ("|cff%s%s|r"):format(C_LABEL, RR.L["Achievements:"]), rows
+end
+
+-- Whole seconds left on one of the player's auras, or nil when it is not up
+-- or the client hides the value.
+function UI.PlayerAuraSecondsLeft(spellID)
+    if not (C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID) then return nil end
+    local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, spellID)
+    if not ok or type(aura) ~= "table" then return nil end
+    local expires = aura.expirationTime
+    if issecretvalue and issecretvalue(expires) then return nil end
+    if type(expires) ~= "number" or expires <= 0 then return nil end
+    return math.max(0, math.ceil(expires - GetTime()))
+end
+
+-- Seconds as m:ss ("10:00", "9:59", "0:05").
+function UI.ClockText(seconds)
+    return ("%d:%02d"):format(math.floor(seconds / 60), seconds % 60)
+end
+
+-- Keeps the clock label showing a buff's time left current once a second;
+-- stops when the label or the buff goes, repainting once when the buff ends.
+function UI.StartAuraCountdown(section, label, spellID)
+    UI.auraCountdown = { section = section, label = label, spellID = spellID }
+    if UI.auraCountdownTicker then return end
+    UI.auraCountdownTicker = C_Timer.NewTicker(1, function()
+        local countdown = UI.auraCountdown
+        local seconds = countdown and UI.PlayerAuraSecondsLeft(countdown.spellID)
+        if countdown and seconds and countdown.label:IsShown() then
+            countdown.label:SetText(("|cff4dccff%s|r"):format(UI.ClockText(seconds)))
+            return
+        end
+        UI.auraCountdownTicker:Cancel()
+        UI.auraCountdownTicker = nil
+        UI.auraCountdown = nil
+        if countdown and not seconds then RR:RefreshAll() end
+    end)
+end
+
+-- A route step's `checklist`: label text and cell rows for the Boss
+-- Encounter area.
+function UI.BuildRouteChecklist(step)
+    local checklist = step and step.checklist
+    if not checklist or not checklist.rows then return nil end
+    local stepIndex = step.step or step.priority or 0
+    local progress = RR:GetProgress(stepIndex)
+    local stepDone = step.bossIndex and RR:IsBossKilled(step.bossIndex)
+    local rows = {}
+    for _, entry in ipairs(checklist.rows) do
+        local label = RR.L[entry.text or ""]
+        if entry.bossesAlive then
+            local alive = 0
+            for _, bossIndex in ipairs(entry.bossesAlive) do
+                if not RR:IsBossKilled(bossIndex) then alive = alive + 1 end
+            end
+            local total = #entry.bossesAlive
+            local text = (total > 1) and ("%s: %d/%d"):format(label, alive, total) or label
+            if alive == total then
+                rows[#rows + 1] = { cell = "killed", text = text }
+            else
+                rows[#rows + 1] = { cell = "caution", text = text
+                    .. " |cff808080" .. RR.L[entry.brokenText
+                        or "(the chest will be smaller)"] .. "|r" }
+            end
+        elseif entry.untracked then
+            rows[#rows + 1] = { cell = "pending", text = ("|cff9d9d9d%s|r |cff808080%s|r")
+                :format(label, RR.L["(not tracked)"]) }
+        elseif entry.heardAtSegment then
+            local heard = RR:HasTriggerFired(stepIndex, entry.heardAtSegment)
+            rows[#rows + 1] = { cell = heard and "killed" or "pending",
+                text = heard and label or ("|cff9d9d9d%s|r"):format(label) }
+        elseif entry.doneAtSegment then
+            local done = stepDone or progress >= entry.doneAtSegment
+            local text = done and label or ("|cff9d9d9d%s|r"):format(label)
+            local secondsLeft = entry.aura and UI.PlayerAuraSecondsLeft(entry.aura)
+            -- Collected but not used yet: its buff has never landed and the
+            -- route is still on the segment it opened.
+            local unused = entry.aura and done and not stepDone and not secondsLeft
+                and progress == entry.doneAtSegment
+                and not RR:HasAuraBeenSeen(entry.aura)
+            if unused then
+                text = ("|cffffff00%s|r"):format(label)
+            end
+            -- Worn: the time left, drawn as a small clock after the text,
+            -- until the step reaches `timerUntilSegment`.
+            local countdown = secondsLeft and not stepDone
+                and not (entry.timerUntilSegment and progress >= entry.timerUntilSegment)
+                and { spellID = entry.aura, seconds = secondsLeft } or nil
+            -- Still unused and in the bags: a [Use] to put it on from here.
+            local useItem = unused and entry.useItem
+                and (C_Item.GetItemCount(entry.useItem, false) or 0) > 0
+                and entry.useItem or nil
+            rows[#rows + 1] = { cell = (unused and "shared") or (done and "killed")
+                or "pending", text = text, useItem = useItem, countdown = countdown }
+        end
+    end
+    return ("|cff%s%s|r"):format(C_LABEL, RR.L[checklist.label or ""]), rows
 end
 
 -- Returns headerLine, achBlock, specialBlock, clickable, headerPulsing.
@@ -4763,6 +5023,19 @@ local function BuildEncounterText(step)
         if specialHeader then
             specialBlock, specialRows = specialHeader, rows
         end
+    end
+    -- A route step's checklist leads the same cell-row widget; any special
+    -- loot follows under its own heading line.
+    local checkHeader, checkRows = UI.BuildRouteChecklist(step)
+    if checkHeader then
+        if specialBlock ~= "" then
+            checkRows[#checkRows + 1] = { noCell = true, text = " " }
+            checkRows[#checkRows + 1] = { noCell = true, text = specialBlock }
+            for _, row in ipairs(specialRows or {}) do
+                checkRows[#checkRows + 1] = row
+            end
+        end
+        specialBlock, specialRows = checkHeader, checkRows
     end
 
     return headerLine, achBlock, specialBlock, clickable, headerPulsing, achRows,
@@ -5198,6 +5471,7 @@ local SPECIAL_KIND_COLOR = {
     illusion   = "ffc8a2ff",   -- pale violet (evokes arcane weapon-enchant glow)
     musicroll  = "ffff9e80",   -- warm coral (evokes a warm jukebox glow)
 }
+UI.SPECIAL_KIND_COLOR = SPECIAL_KIND_COLOR
 
 -- Returns "collected" or "missing" for a specialLoot item. Branches on
 -- item.kind.
@@ -5390,6 +5664,7 @@ BuildSpecialLootSection = function(boss)
     end
     return header, lines
 end
+UI.BuildSpecialLootSection = BuildSpecialLootSection
 
 -- The pieces of one special-loot row: the display name (item link when
 -- cached), and the kind tag's color and inner text.
@@ -5462,8 +5737,8 @@ end
 
 -- Acquisition tags, appended to tagParts. `rareNpc` marks a drop held by one
 -- named rare spawn rather than the zone's trash pool; `tag` is a short
--- authored label for anything else (Dire Maul's Tribute chest). Gold, so the
--- tag reads as "special acquisition" against the white class parens.
+-- authored label for anything else (the BRD safe). Gold, so the tag reads as
+-- "special acquisition" against the white class parens.
 function UI.AppendAcquisitionTags(item, tagParts)
     if item.rareNpc then
         -- Label gold, npc name white: color codes do not nest, so the name
@@ -5485,11 +5760,11 @@ function UI.AppendAcquisitionTags(item, tagParts)
             (RR.L["Event: %s"]):format(
                 "|cffffffff" .. RR.L[item.eventNpc] .. "|r|cffffd100")))
     end
-    -- `tag` renders as a gold suffix on TRASH rows, where there is no titled
-    -- section to name the acquisition. Boss-loot tag rows partition into
-    -- their own section instead, so the suffix would repeat the header there
-    -- and is suppressed.
-    if item.tag and not UI._inTaggedSection then
+    -- In the event section `tag` names the reward tier ("2nd Rescue"), so
+    -- it renders bare.
+    if item.tag and UI._inEventSection then
+        table.insert(tagParts, ("|cffffd100(%s)|r"):format(RR.L[item.tag]))
+    elseif item.tag then
         -- Typed like the rare/boss/event tags: a bare source name read as a
         -- mystery ("Sothos & Jarien"). "From:" covers the whole remaining
         -- family -- named trash mobs and lootable objects alike.
@@ -5711,6 +5986,7 @@ local function ItemSummaryState(item)
     if hasShared  then return "shared"  end
     return "collected"
 end
+UI.ItemSummaryState = ItemSummaryState
 
 -- Row-level counterpart to the difficulty pills, using their own colors so a
 -- name can never disagree with the strip beside it:
@@ -5795,13 +6071,14 @@ function UI.TrashRowIsBossCarried(item, carriedSources)
     return sawSource
 end
 
-local function CountBossLootForDifficulty(boss, diffID, classOverride)
-    if not boss or not boss.loot or #boss.loot == 0 then return nil end
-    if not diffID then return nil end
+-- Calls visit(row, state) for each look a boss counts at one difficulty, and
+-- returns how many it visited. The panel counts and the map tooltip share it.
+function UI.ForEachBossLookAt(boss, diffID, classOverride, visit)
+    if not boss or not boss.loot or not diffID then return 0 end
     -- The panel's own count (classOverride) takes every equip-gated row.
     UI._equipGateExempt = classOverride ~= nil
         or UI.EquipGateExemptFor(boss.loot, ActiveClassFilter())
-    local needed, shared, total = 0, 0, 0
+    local visited = 0
     for _, item in ipairs(boss.loot) do
         if ItemIsTransmogCandidate(item, classOverride) then
             local shape = ItemShape(item)
@@ -5813,25 +6090,15 @@ local function CountBossLootForDifficulty(boss, diffID, classOverride)
                 -- source in isolation -- so an item collected via Heroic
                 -- reads collected under Normal too, matching the browser.
                 if UI.SourceAt(item, diffID) then
-                    total = total + 1
-                    local foldedState = RR.BinaryFoldedState(item)
-                    if foldedState == "missing" then
-                        needed = needed + 1
-                    elseif foldedState == "shared" then
-                        shared = shared + 1
-                    end
+                    visited = visited + 1
+                    visit(item, RR.BinaryFoldedState(item))
                     -- The opposite-faction twin is a second appearance
                     -- collectible from the same drop, so it counts on the
                     -- difficulty lines it is reachable at.
                     if item.mirror and item.mirror.sources
                        and item.mirror.sources[diffID] then
-                        total = total + 1
-                        local mirrorState = RR.MirrorFoldedState(item)
-                        if mirrorState == "missing" then
-                            needed = needed + 1
-                        elseif mirrorState == "shared" then
-                            shared = shared + 1
-                        end
+                        visited = visited + 1
+                        visit(item.mirror, RR.MirrorFoldedState(item))
                     end
                 end
             else
@@ -5840,27 +6107,72 @@ local function CountBossLootForDifficulty(boss, diffID, classOverride)
                 -- each difficulty's recolor is counted under its own line.
                 local src = UI.SourceAt(item, diffID)
                 if src then
-                    total = total + 1
-                    local collectionState = CollectionStateForSource(src, item.id)
-                    if collectionState == "missing" then
-                        needed = needed + 1
-                    elseif collectionState == "shared" then
-                        shared = shared + 1
-                    end
+                    visited = visited + 1
+                    visit(item, CollectionStateForSource(src, item.id))
                 elseif not item.sources then
-                    total = total + 1
-                    local fallbackState = FallbackStateForItem(item.id)
-                    if fallbackState == "missing" then
-                        needed = needed + 1
-                    elseif fallbackState == "shared" then
-                        shared = shared + 1
-                    end
+                    visited = visited + 1
+                    visit(item, FallbackStateForItem(item.id))
                 end
             end
         end
     end
+    return visited
+end
+
+local function CountBossLootForDifficulty(boss, diffID, classOverride)
+    if not boss or not boss.loot or #boss.loot == 0 then return nil end
+    if not diffID then return nil end
+    local needed, shared = 0, 0
+    local total = UI.ForEachBossLookAt(boss, diffID, classOverride, function(_, state)
+        if state == "missing" then
+            needed = needed + 1
+        elseif state == "shared" then
+            shared = shared + 1
+        end
+    end)
     if total == 0 then return nil end
     return needed, shared, total
+end
+
+-- Appearances still missing on one route ("standard" or "skip") at the live
+-- difficulty, counted the way Transmog Needed counts. Event rewards count
+-- toward the route `eventVariant` names, or toward every route without one.
+-- Nil when the route does not exist.
+function UI.RouteMissingAppearances(raid, variantKey)
+    if not raid then return nil end
+    local routing = (variantKey == "skip") and raid.skipRoute or raid.routing
+    if not routing then return nil end
+    local diffID = ActiveDifficulty()
+    if not diffID then return nil end
+    local classID = RR.PlayerClassID()
+    local missing, seen = 0, {}
+    local function visit(_, state)
+        if state == "missing" then missing = missing + 1 end
+    end
+    for _, step in ipairs(routing) do
+        local bossIndexes = (type(step.bossIndex) == "table") and step.bossIndex
+            or { step.bossIndex }
+        for _, bossIndex in ipairs(bossIndexes) do
+            if bossIndex and not seen[bossIndex] then
+                seen[bossIndex] = true
+                UI.ForEachBossLookAt(raid.bosses and raid.bosses[bossIndex],
+                    diffID, classID, visit)
+            end
+        end
+    end
+    if raid.eventLoot and (raid.eventVariant == nil or raid.eventVariant == variantKey) then
+        UI.ForEachBossLookAt({ loot = raid.eventLoot }, diffID, classID, visit)
+    end
+    return missing
+end
+
+-- The load dialog's count line: gray with the number, green at zero.
+function UI.MissingCountText(missing)
+    if not missing then return "" end
+    if missing == 0 then
+        return "|cff00ff00" .. RR.L["All collected"] .. "|r"
+    end
+    return ("|cffcccccc" .. RR.L["%d missing appearances"] .. "|r"):format(missing)
 end
 
 -- True when the other difficulties would only repeat the current one:
@@ -5982,36 +6294,45 @@ local function CountBossLootAcrossDifficulties(boss, diffIDs, classOverride)
     return needed, shared, total
 end
 
--- Aggregate needed / shared / total across a boss's loot, for the dropdown
--- "(have/total)" badges.
+-- Calls visit(row, state) for each look CountBossLoot counts, and returns how
+-- many it visited.
 --
 -- With an active difficulty this is the slice for that difficulty alone,
 -- matching the panel summary. Without one, it rolls up across difficulties:
 -- missing if any bucket is missing, else shared if any is shared.
-local function CountBossLoot(boss)
-    if not boss or not boss.loot or #boss.loot == 0 then return nil end
+function UI.ForEachBossLook(boss, visit)
+    if not boss or not boss.loot or #boss.loot == 0 then return 0 end
     local activeID = ActiveDifficulty()
     if activeID then
-        -- Per-difficulty slice. Returns nil if no items have a source
-        -- for this difficulty -- in that case, fall through to the
-        -- cross-all rollup rather than hiding the badge entirely.
-        local n, s, t = CountBossLootForDifficulty(boss, activeID)
-        if t and t > 0 then return n, s, t end
+        -- Per-difficulty slice. When no item has a source for this
+        -- difficulty, fall through to the cross-all rollup rather than
+        -- hiding the badge entirely.
+        local visited = UI.ForEachBossLookAt(boss, activeID, nil, visit)
+        if visited > 0 then return visited end
     end
     -- Fallback: cross-all-difficulties rollup via ItemSummaryState.
     UI._equipGateExempt = UI.EquipGateExemptFor(boss.loot, ActiveClassFilter())
-    local needed, shared, total = 0, 0, 0
+    local visited = 0
     for _, item in ipairs(boss.loot) do
         if ItemIsTransmogCandidate(item) then
-            total = total + 1
-            local state = ItemSummaryState(item)
-            if state == "missing" then
-                needed = needed + 1
-            elseif state == "shared" then
-                shared = shared + 1
-            end
+            visited = visited + 1
+            visit(item, ItemSummaryState(item))
         end
     end
+    return visited
+end
+
+-- Aggregate needed / shared / total across a boss's loot, for the dropdown
+-- "(have/total)" badges.
+local function CountBossLoot(boss)
+    local needed, shared = 0, 0
+    local total = UI.ForEachBossLook(boss, function(_, state)
+        if state == "missing" then
+            needed = needed + 1
+        elseif state == "shared" then
+            shared = shared + 1
+        end
+    end)
     if total == 0 then return nil end
     return needed, shared, total
 end
@@ -6079,9 +6400,27 @@ do
     end)
 end
 
+-- The boss as the panel counts it. On the route that reaches an instance
+-- event, the event's rewards count with the boss named by `eventBoss`
+-- (Dire Maul's Tribute chest, with King Gordok).
+function UI.BossWithEventLoot(boss)
+    local raid = RR.currentRaid
+    if not boss or not raid or not raid.eventLoot or not raid.eventBoss
+        or raid.eventBoss ~= boss.index then
+        return boss
+    end
+    if raid.eventVariant and raid.eventVariant ~= RR:ActiveVariantKey() then
+        return boss
+    end
+    local loot = {}
+    for _, item in ipairs(boss.loot or {}) do loot[#loot + 1] = item end
+    for _, item in ipairs(raid.eventLoot) do loot[#loot + 1] = item end
+    return setmetatable({ loot = loot }, { __index = boss })
+end
+
 function UI.BuildTransmogSummaryUncached(step)
     if not step then return nil end
-    local boss = RR:GetPanelBoss(step)
+    local boss = UI.BossWithEventLoot(RR:GetPanelBoss(step))
     if not boss then return nil end
 
     -- The browse hint rides the header itself so the affordance is visible
@@ -6279,6 +6618,7 @@ local function BuildTransmogSummary(step)
         .. ":" .. tostring(RR:GetOpenPoolSlot() or "-")
         .. ":" .. tostring(RR:IsSpawnChoicePending())
         .. ":" .. tostring(ActiveDifficulty() or "?")
+        .. ":" .. tostring(RR:ActiveVariantKey())
         .. ":" .. tostring(UI.collectionGeneration)
         .. ":" .. tostring(RR.currentRaid and RR:IsTimewalkingLive(RR.currentRaid))
     local cache = UI.tmogSummaryCache
@@ -7294,7 +7634,6 @@ BuildTransmogDetail = function(stepOrCtx)
     local binaryItems    = {}
     local perDiffItems   = {}
     local hardModeItems  = {}
-    local taggedItems    = {}
     local setItems       = {}
     local otherFactionItems = {}
     for _, item in ipairs(candidates) do
@@ -7305,11 +7644,6 @@ BuildTransmogDetail = function(stepOrCtx)
             -- block at the top of the loot, where a tier block would sit --
             -- same intent, its own name.
             table.insert(setItems, item)
-        elseif item.tag then
-            -- Rows sharing an authored `tag` (King Gordok's Tribute chest)
-            -- render as their own titled section rather than interleaved
-            -- with the boss's ordinary drops.
-            table.insert(taggedItems, item)
         elseif item.hardModeOnly then
             table.insert(hardModeItems, item)
         elseif ItemShape(item) == "binary"
@@ -7432,7 +7766,6 @@ BuildTransmogDetail = function(stepOrCtx)
     -- The faction block takes the same ordering, so it reads like the main
     -- list rather than like a differently-sorted appendix.
     table.sort(otherFactionItems, CompareRegularRows)
-    table.sort(taggedItems, CompareRegularRows)
     table.sort(setItems, CompareRegularRows)
 
     -- Legendaries leave both shape groups and render as their own block
@@ -7838,17 +8171,6 @@ BuildTransmogDetail = function(stepOrCtx)
     local factionTierItems, factionLootItems = SplitTierRows(otherFactionItems)
 
     local hardModeRows    = BuildSectionRows(hardModeItems)
-    UI._inTaggedSection = true
-    local taggedRows      = BuildSectionRows(taggedItems)
-    UI._inTaggedSection = nil
-    local taggedLabel     = taggedItems[1] and taggedItems[1].tag or nil
-    -- The section's explanatory prose collapses with it, below the rows --
-    -- the pattern the trash section's placement established.
-    if taggedRows and #taggedRows > 0 and boss.tagNote then
-        table.insert(taggedRows, { kind = "blank" })
-        table.insert(taggedRows, { kind = "text", soft = true,
-            text = ("|cff9d9d9d%s|r"):format(RR.L[boss.tagNote]) })
-    end
     local factionTierRows = BuildSectionRows(factionTierItems)
     local factionRows     = BuildSectionRows(factionLootItems)
 
@@ -8058,6 +8380,74 @@ BuildTransmogDetail = function(stepOrCtx)
             -- the vendor hint at the foot of this section.
             if raid.tokenVendors and raid.tokenVendors.below == "trash" then
                 table.insert(trashSectionRows, { kind = "sanctum" })
+            end
+        end
+    end
+
+    -- Rewards from an instance event (Zul'Aman's hostages, Dire Maul's
+    -- Tribute), held at instance level like trash and grouped by `tag` tier
+    -- in data order. Mounts and pets list with their tier but stay uncounted.
+    local eventSectionRows, eventCollected, eventTotal
+    if raid and raid.eventLoot and #raid.eventLoot > 0 then
+        UI._equipGateExempt = UI.EquipGateExemptFor(raid.eventLoot,
+            ActiveClassFilter())
+        local tierOrder, itemsByTier = {}, {}
+        for _, item in ipairs(raid.eventLoot) do
+            local shown
+            if item.kind then
+                shown = RR:SpecialLootForPlayer(item)
+            else
+                shown = ItemIsTransmogCandidate(item, nil, true)
+            end
+            if shown then
+                local tier = item.tag or ""
+                if not itemsByTier[tier] then
+                    itemsByTier[tier] = {}
+                    tierOrder[#tierOrder + 1] = tier
+                end
+                table.insert(itemsByTier[tier], item)
+            end
+        end
+        if #tierOrder > 0 then
+            eventSectionRows = {}
+            eventCollected, eventTotal = 0, 0
+            UI._inEventSection = true
+            for tierIndex, tier in ipairs(tierOrder) do
+                if tierIndex > 1 then
+                    table.insert(eventSectionRows, { kind = "blank" })
+                end
+                local binaryRows, pilledRows, specialRows = {}, {}, {}
+                for _, item in ipairs(itemsByTier[tier]) do
+                    if item.kind then
+                        table.insert(specialRows, item)
+                    elseif ItemShape(item) == "binary" and not item.upgrade then
+                        table.insert(binaryRows, item)
+                    else
+                        table.insert(pilledRows, item)
+                    end
+                end
+                table.sort(binaryRows, CompareRegularRows)
+                table.sort(pilledRows, CompareRegularRows)
+                for _, rowList in ipairs({ binaryRows, pilledRows }) do
+                    for _, item in ipairs(rowList) do
+                        EmitItemRow(eventSectionRows, item)
+                        eventTotal = eventTotal + 1
+                        local state = ItemSummaryState(item)
+                        if state ~= "missing" and state ~= "shared" then
+                            eventCollected = eventCollected + 1
+                        end
+                    end
+                end
+                table.sort(specialRows, function(a, b) return a.name < b.name end)
+                for _, item in ipairs(specialRows) do
+                    table.insert(eventSectionRows, UI.SpecialTrashRow(item))
+                end
+            end
+            UI._inEventSection = nil
+            if raid.eventNote then
+                table.insert(eventSectionRows, { kind = "blank" })
+                table.insert(eventSectionRows, { kind = "text", soft = true,
+                    text = ("|cff9d9d9d%s|r"):format(RR.L[raid.eventNote]) })
             end
         end
     end
@@ -8399,9 +8789,11 @@ BuildTransmogDetail = function(stepOrCtx)
         legacyCollected = legacyCollected,
         legacyTotal     = legacyTotal,
         legacyLabel     = raid and raid.legacyLabel or nil,
+        eventRows       = eventSectionRows,
+        eventCollected  = eventCollected,
+        eventTotal      = eventTotal,
+        eventLabel      = raid and raid.eventLabel or nil,
         hardModeRows   = hardModeRows,
-        taggedRows     = taggedRows,
-        taggedLabel    = taggedLabel,
         factionTierRows = factionTierRows,
         factionRows    = factionRows,
     }
@@ -8555,6 +8947,19 @@ function UI.PointBrowserAtCurrentInstance()
     if bossIndex then
         browserState.bossIndex = bossIndex
     end
+end
+
+-- True when the browser shows the instance the player is running on the
+-- route that earns its event rewards (Dire Maul's Tribute run).
+function UI.EventSectionStartsOpen()
+    local instance = RR.currentRaid
+    if not (instance and instance.eventLoot and instance.eventVariant) then
+        return false
+    end
+    if instance.eventVariant ~= RR:ActiveVariantKey() then return false end
+    local kind = (instance.kind == "dungeon") and "dungeon" or "raid"
+    return browserState.instanceKind == kind
+        and browserState.raidKey == UI.BrowserKeyOf(instance)
 end
 
 -- Resolve an instance from an explicit kind + key. Raids key by instance
@@ -8756,6 +9161,27 @@ UI.BuildTmogSearchIndex = function()
                               itemClasses = item.classes,
                               itemEquipClasses = item.equipClasses,
                               section = "trash" })
+                    end
+                end
+                -- The event searches by its name and lands on its section.
+                if instance.eventLoot and instance.eventLabel then
+                    local eventLabel = RR.L[instance.eventLabel]
+                    Add(2, eventLabel, RR.L["Event"] .. ", " .. instanceName,
+                        eventLabel .. " " .. instance.eventLabel,
+                        { instanceKind = instanceKind,
+                          expansion = expansionName, key = key,
+                          bossIndex = 1, section = "event" })
+                    for _, item in ipairs(instance.eventLoot) do
+                        if item.name then
+                            Add(3, item.name,
+                                eventLabel .. ", " .. instanceName, item.name,
+                                { instanceKind = instanceKind,
+                                  expansion = expansionName, key = key,
+                                  bossIndex = 1, itemID = item.id,
+                                  itemClasses = item.classes,
+                                  itemEquipClasses = item.equipClasses,
+                                  section = "event" })
+                        end
                     end
                 end
             end
@@ -9059,6 +9485,8 @@ GetOrCreateTmogWindow = function()
                 tmogFrame._trashExpanded = true
             elseif entry.section == "legacy" then
                 tmogFrame._legacyExpanded = true
+            elseif entry.section == "event" then
+                tmogFrame._eventExpanded = true
             elseif entry.section == "hardmode" then
                 tmogFrame._hardmodeExpanded = true
             elseif entry.section == "faction" then
@@ -9087,6 +9515,8 @@ GetOrCreateTmogWindow = function()
                     local lootList
                     if entry.section == "trash" then
                         lootList = instance and instance.trashLoot
+                    elseif entry.section == "event" then
+                        lootList = instance and instance.eventLoot
                     else
                         local boss = instance and instance.bosses
                                      and instance.bosses[entry.bossIndex]
@@ -9436,12 +9866,14 @@ GetOrCreateTmogWindow = function()
     end
 
     -- Trash Drops starts collapsed on every open (reset in
-    -- UI.OpenTransmogBrowser). The legacy-wing section is the same shape
-    -- with a data-authored label.
+    -- UI.OpenTransmogBrowser). The legacy-wing and event sections are the
+    -- same shape with a data-authored label.
     tmogFrame.trashHeader, tmogFrame.trashToggle =
         MakeSectionWidgets("_trashExpanded")
     tmogFrame.legacyHeader, tmogFrame.legacyToggle =
         MakeSectionWidgets("_legacyExpanded")
+    tmogFrame.eventHeader, tmogFrame.eventToggle =
+        MakeSectionWidgets("_eventExpanded")
 
     -- "Tier / Token Info" rides the gem divider that heads the subsection
     -- instead of a text header; its button spans the whole row as the hit
@@ -9463,12 +9895,9 @@ GetOrCreateTmogWindow = function()
     tierInfoDivider.gemRight:SetSize(UI.DIVIDER_SUBGEM_SIZE, UI.DIVIDER_SUBGEM_SIZE)
     tmogFrame.tierInfoDivider = tierInfoDivider
 
-    -- Boss-scoped sections: hard-mode-only rows, tagged rows and
-    -- opposite-faction rows.
+    -- Boss-scoped sections: hard-mode-only rows and opposite-faction rows.
     tmogFrame.hardmodeHeader, tmogFrame.hardmodeToggle =
         MakeSectionWidgets("_hardmodeExpanded")
-    tmogFrame.taggedHeader, tmogFrame.taggedToggle =
-        MakeSectionWidgets("_taggedExpanded")
     -- The opposite faction gets two sections: its tier beside the tier
     -- block, its ordinary drops at the foot. Separate widgets and separate
     -- expand flags, so folding one does not fold the other.
@@ -9619,6 +10048,17 @@ GetOrCreateTmogWindow = function()
                 C_LABEL, RR.L[detail.legacyLabel], legacyCountHex,
                 detail.legacyCollected or 0, detail.legacyTotal)
         end
+        -- The event section counts like trash, under its data-authored label.
+        local eventHeaderText
+        if detail.eventRows and detail.eventLabel then
+            eventHeaderText = ("|cff%s%s|r"):format(C_LABEL, RR.L[detail.eventLabel])
+            if (detail.eventTotal or 0) > 0 then
+                local eventCountHex = ((detail.eventCollected or 0) >= detail.eventTotal)
+                    and "00ff00" or "ffd100"
+                eventHeaderText = eventHeaderText .. ("|cff%s (%d/%d)|r"):format(
+                    eventCountHex, detail.eventCollected or 0, detail.eventTotal)
+            end
+        end
         local factionLabel = (UnitFactionGroup
                 and UnitFactionGroup("player") == "Alliance")
             and RR.L["Horde Appearances"] or RR.L["Alliance Appearances"]
@@ -9629,11 +10069,6 @@ GetOrCreateTmogWindow = function()
               header = self.hardmodeHeader, toggle = self.hardmodeToggle,
               flag = "_hardmodeExpanded", rows = detail.hardModeRows,
               label = ("|cff%s%s|r"):format(C_LABEL, RR.L["Hard Mode"]) },
-            { key = "tagged",
-              header = self.taggedHeader, toggle = self.taggedToggle,
-              flag = "_taggedExpanded", rows = detail.taggedRows,
-              label = ("|cff%s%s|r"):format(C_LABEL,
-                  RR.L[detail.taggedLabel or ""]) },
             { key = "factiontier",
               header = self.factionTierHeader, toggle = self.factionTierToggle,
               flag = "_factionTierExpanded", rows = detail.factionTierRows,
@@ -9642,6 +10077,10 @@ GetOrCreateTmogWindow = function()
               header = self.factionHeader, toggle = self.factionToggle,
               flag = "_factionExpanded", rows = detail.factionRows,
               label = ("|cff%s%s|r"):format(C_LABEL, factionLabel) },
+            { key = "event",
+              header = self.eventHeader, toggle = self.eventToggle,
+              flag = "_eventExpanded", rows = detail.eventRows,
+              label = eventHeaderText },
             { key = "trash",
               header = self.trashHeader, toggle = self.trashToggle,
               flag = "_trashExpanded", rows = detail.trashRows,
@@ -10424,12 +10863,14 @@ function UI.OpenTransmogBrowser()
     -- at their open sites the same way.
     local scale = RR:GetSetting("windowScale", 1.0)
     window:SetScale(scale)
-    -- Collapsible sections always open collapsed.
+    -- Collapsible sections open collapsed, except the event rewards on the
+    -- route that earns them.
+    EnsureBrowserDefaults()
     window._trashExpanded = false
     window._legacyExpanded = false
     window._tierInfoExpanded = false
     window._hardmodeExpanded = false
-    window._taggedExpanded = false
+    window._eventExpanded = UI.EventSectionStartsOpen()
     window._factionTierExpanded = false
     window._factionExpanded = false
     window:RefreshAll()
@@ -12219,7 +12660,7 @@ RefreshIdleList = function()
             end
 
             -- Search-jump target: the flash finds this row by instance.
-            fs._searchInstanceID = row.raid and row.raid.instanceID or nil
+            fs._searchKey = row.raid and UI.IdleRowKey(row.raid) or nil
             fs._revealTemplate = row.revealTemplate
             fs._revealInstance = row.revealTemplate and row.raid or nil
 
@@ -12861,7 +13302,7 @@ function UI.Update()
             -- theming used elsewhere (the wing-name message).
             routeLabel = "|cffF259C7LFR|r"
         elseif RR.state.activeRouteVariant == "skip" then
-            routeLabel = "|cff00ffff" .. RR.L["Skip"] .. "|r"
+            routeLabel = "|cff00ffff" .. RR:SkipRouteText(raid).label .. "|r"
         else
             routeLabel = "|cff00ff00" .. RR.L["Full"] .. "|r"
         end
@@ -13128,7 +13569,11 @@ function UI.Update()
                 if RR:GetActiveWing() then
                     panel.next:SetText(RR.L["|cff00ff00LFR Wing Complete!|r"])
                 elseif isSkip then
-                    panel.next:SetText(RR.L["|cff00ff00Skip Run Complete!|r"])
+                    -- The route's own banner on the second route; a full run
+                    -- that bypassed an optional boss keeps the skip wording.
+                    panel.next:SetText((RR.state.activeRouteVariant == "skip")
+                        and RR:SkipRouteText().banner
+                        or RR.L["|cff00ff00Skip Run Complete!|r"])
                 else
                     panel.next:SetText(RR.L["|cff00ff00Run complete!|r"])
                 end
@@ -13174,6 +13619,13 @@ function UI.Update()
                     -- Collected skips: a heading here, then one bulleted
                     -- boss per line in the list field below it.
                     local returnText = table.concat(returnLines, " ")
+                    -- The second route's own last step (Dire Maul's Tribute:
+                    -- Mizzle and the chest) leads, on its own line.
+                    if RR.state.activeRouteVariant == "skip"
+                        and RR.currentRaid and RR.currentRaid.skipRouteCompleteNote then
+                        returnText = RR.L[RR.currentRaid.skipRouteCompleteNote]
+                            .. ((returnText ~= "") and ("\n\n" .. returnText) or "")
+                    end
                     if #collectedNames > 0 then
                         local heading = (#collectedNames == 1)
                             and RR.L["The following optional boss was automatically skipped due to being fully collected:"]
@@ -13939,18 +14391,24 @@ function UI._GetOrCreateLoadDialog()
     local BTN_W, BTN_H, BTN_GAP, BTN_BOTTOM = 140, 36, 4, 30
     -- The button row's share of the frame height, from the bottom edge.
     loadDialog.buttonBand = BTN_BOTTOM + BTN_H
+    loadDialog.buttonBottom, loadDialog.buttonHeight = BTN_BOTTOM, BTN_H
     local MEDIA = "Interface\\AddOns\\RetroRuns\\Media\\Buttons\\"
-    local function MakeTextureButton(baseName, anchorX)
-        local choiceButton = CreateFrame("Button", nil, loadDialog)
-        choiceButton:SetSize(BTN_W, BTN_H)
-        choiceButton:SetPoint("BOTTOM", loadDialog, "BOTTOM", anchorX, BTN_BOTTOM)
-
+    local function SetButtonArt(choiceButton, baseName)
+        choiceButton.artName = baseName
         choiceButton:SetNormalTexture(MEDIA .. baseName)
         choiceButton:SetPushedTexture(MEDIA .. baseName .. "_Pushed")
         choiceButton:SetDisabledTexture(MEDIA .. baseName .. "_Disabled")
         -- Highlight overlays the current state on hover. BLEND (not ADD)
         -- since these are full opaque buttons, not glow-only deltas.
         choiceButton:SetHighlightTexture(MEDIA .. baseName .. "_Highlight", "BLEND")
+    end
+    loadDialog.SetButtonArt = SetButtonArt
+    local function MakeTextureButton(baseName, anchorX)
+        local choiceButton = CreateFrame("Button", nil, loadDialog)
+        choiceButton:SetSize(BTN_W, BTN_H)
+        choiceButton.anchorX = anchorX
+        choiceButton:SetPoint("BOTTOM", loadDialog, "BOTTOM", anchorX, BTN_BOTTOM)
+        SetButtonArt(choiceButton, baseName)
 
         -- The hover highlight overlay sits above the pushed texture and
         -- masks it; hide the highlight on press so the pushed art shows,
@@ -13978,9 +14436,8 @@ function UI._GetOrCreateLoadDialog()
     -- keeping the English word) get nothing.
     local SUB_LABEL_SIZE = 8   -- native pixel-font size, renders crisp
     local SUB_LABEL_GAP  = 3   -- px between label baseline and button top
-    local function AddTranslatedSubLabel(button, englishWord, colorHex, outerSide)
-        local translated = RR.L[englishWord]
-        if translated == englishWord then return end
+    loadDialog.subLabelBand = SUB_LABEL_SIZE + SUB_LABEL_GAP + 6
+    local function AddTranslatedSubLabel(button, colorHex, outerSide)
         local label = button:CreateFontString(nil, "OVERLAY")
         SafeSetFont(label, RR:GetChromeFont(), SUB_LABEL_SIZE, "")
         if outerSide == "LEFT" then
@@ -13988,23 +14445,26 @@ function UI._GetOrCreateLoadDialog()
         else
             label:SetPoint("BOTTOMRIGHT", button, "TOPRIGHT", -4, SUB_LABEL_GAP)
         end
-        label:SetText(("|c%s%s|r"):format(colorHex, translated))
         label:Hide()
-        -- The label occupies the band directly above the button, which is
-        -- where the SELECT ROUTE prompt lands on a two-line title. Reserve
-        -- its height in the frame so the two never share a line: the prompt
-        -- is anchored down from the title and the buttons up from the frame
-        -- bottom, so a taller frame is what separates them. Only locales
-        -- that translate the button words pay the extra height.
-        loadDialog.subLabelClearance = SUB_LABEL_SIZE + SUB_LABEL_GAP + 6
+        button.subLabel, button.subLabelColor = label, colorHex
         -- Hover-only. Motion scripts stay live on a disabled button so a
         -- locked SKIP still reveals its translation on hover.
         button:SetMotionScriptsWhileDisabled(true)
-        button:HookScript("OnEnter", function() label:Show() end)
+        button:HookScript("OnEnter", function()
+            if button.subLabelWord then label:Show() end
+        end)
         button:HookScript("OnLeave", function() label:Hide() end)
     end
-    AddTranslatedSubLabel(loadDialog.fullBtn, "FULL", "ff4dccff", "LEFT")
-    AddTranslatedSubLabel(loadDialog.skipBtn, "SKIP", "fff259c7", "RIGHT")
+    -- The word under the art, when the client translates it, in a band the
+    -- frame reserves above the button.
+    function loadDialog.SetSubLabelWord(button, translated, englishWord)
+        local word = (translated ~= englishWord) and translated or nil
+        button.subLabelWord = word
+        button.subLabel:SetText(word and ("|c%s%s|r"):format(button.subLabelColor, word) or "")
+    end
+    AddTranslatedSubLabel(loadDialog.fullBtn, "ff4dccff", "LEFT")
+    AddTranslatedSubLabel(loadDialog.skipBtn, "fff259c7", "RIGHT")
+    loadDialog.SetSubLabelWord(loadDialog.fullBtn, RR.L["FULL"], "FULL")
 
     loadDialog.fullBtn:SetScript("OnClick", function()
         loadDialog:Hide()
@@ -14016,6 +14476,17 @@ function UI._GetOrCreateLoadDialog()
         loadDialog:Hide()
         RR:LoadCurrentRaid("skip")
     end)
+
+    -- Missing-appearance counts, one line directly under each button.
+    local function MakeCountLine(button)
+        local countLine = loadDialog:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        countLine:SetPoint("TOP", button, "BOTTOM", 0, 3)
+        countLine:SetJustifyH("CENTER")
+        countLine:SetText("")
+        return countLine
+    end
+    loadDialog.fullCount = MakeCountLine(loadDialog.fullBtn)
+    loadDialog.skipCount = MakeCountLine(loadDialog.skipBtn)
 
     -- Footer beneath SKIP, standard small font (retro is unreadable this
     -- small). Shows the disabled reason; hidden when SKIP is enabled.
@@ -14092,8 +14563,13 @@ function UI.ShowLoadDialog(raidName)
     local titleBlock = 24 + (dialog.brand:GetStringHeight() or 22) + 14
         + nameTextHeight + difficultyHeight + 14
         + (dialog.loading:GetStringHeight() or 14)
-    dialog:SetHeight(math.ceil(titleBlock) + 12 + dialog.buttonBand
-        + (dialog.subLabelClearance or 0))
+    -- The right-hand button's art and word follow the instance's second
+    -- route (SKIP, or Dire Maul's TRIBUTE).
+    local skipText = RR:SkipRouteText(raid)
+    if dialog.skipBtn.artName ~= skipText.button then
+        dialog.SetButtonArt(dialog.skipBtn, skipText.button)
+    end
+    dialog.SetSubLabelWord(dialog.skipBtn, skipText.word, skipText.englishWord)
 
     -- Resolve SKIP state. Gate on the chain the authored route targets:
     -- a raid with multiple skip chains (HFC: Iskar + Mannoroth) but one
@@ -14141,14 +14617,45 @@ function UI.ShowLoadDialog(raidName)
         dialog.skipFooter:SetTextColor(0.5, 0.5, 0.5)
     end
 
+    -- Appearances each choice still has missing, on the line under its
+    -- button (dungeons only); the status lines drop below.
+    local showCounts = raid and raid.kind == "dungeon"
+    local fullMissing = showCounts and UI.RouteMissingAppearances(raid, "standard") or nil
+    local skipMissing = (showCounts and hasRoute and unlocked)
+        and UI.RouteMissingAppearances(raid, "skip") or nil
+    dialog.fullCount:SetText(UI.MissingCountText(fullMissing))
+    dialog.skipCount:SetText(UI.MissingCountText(skipMissing))
+    local countBand = (fullMissing or skipMissing) and 12 or 0
+    dialog.skipFooter:ClearAllPoints()
+    if skipMissing then
+        dialog.skipFooter:SetPoint("TOP", dialog.skipCount, "BOTTOM", 0, -1)
+    else
+        dialog.skipFooter:SetPoint("TOP", dialog.skipBtn, "BOTTOM", 0, 3)
+    end
+
     -- FULL-side "Continue?" sits under the FULL button. (The SKIP-side
     -- case is handled in the footer above.)
     dialog.continueHint:ClearAllPoints()
     dialog.continueHint:SetText("")
     if showContinue and savedVariant ~= "skip" then
-        dialog.continueHint:SetPoint("TOP", dialog.fullBtn, "BOTTOM", 0, 3)
+        if fullMissing then
+            dialog.continueHint:SetPoint("TOP", dialog.fullCount, "BOTTOM", 0, -1)
+        else
+            dialog.continueHint:SetPoint("TOP", dialog.fullBtn, "BOTTOM", 0, 3)
+        end
         dialog.continueHint:SetText(RR.L["Continue?"])
     end
+
+    -- The buttons rise by the count line, and the frame grows to match.
+    for _, choiceButton in ipairs({ dialog.fullBtn, dialog.skipBtn }) do
+        choiceButton:ClearAllPoints()
+        choiceButton:SetPoint("BOTTOM", dialog, "BOTTOM", choiceButton.anchorX,
+            dialog.buttonBottom + countBand)
+    end
+    local subLabelBand = (dialog.fullBtn.subLabelWord or dialog.skipBtn.subLabelWord)
+        and dialog.subLabelBand or 0
+    dialog:SetHeight(math.ceil(titleBlock) + 12 + dialog.buttonBand + countBand
+        + subLabelBand)
 
     dialog:Show()
 end

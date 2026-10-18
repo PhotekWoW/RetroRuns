@@ -986,6 +986,54 @@ function RR:GetActiveRouting()
     return raid.routing
 end
 
+-- The words for an instance's second route: SKIP by default, or the kind
+-- its data names (Dire Maul's Tribute run).
+function RR:SkipRouteText(raid)
+    raid = raid or self.currentRaid
+    if raid and raid.skipRouteKind == "tribute" then
+        return { label = RR.L["Tribute"], word = RR.L["TRIBUTE"],
+                 englishWord = "TRIBUTE", button = "TributeButton",
+                 banner = RR.L["|cff00ff00Tribute Run Complete!|r"] }
+    end
+    return { label = RR.L["Skip"], word = RR.L["SKIP"], englishWord = "SKIP",
+             button = "SkipButton",
+             banner = RR.L["|cff00ff00Skip Run Complete!|r"] }
+end
+
+-- True when a boss the second route leaves alive is behind the player and
+-- still standing: the route reached its `skipRoutePassed` segment, or the
+-- route is complete.
+function RR:IsBossPassedByRoute(bossIndex)
+    if not self:IsBossLeftAliveByRoute(bossIndex) or self:IsBossKilled(bossIndex) then
+        return false
+    end
+    if self:IsActiveRouteComplete() then return true end
+    local raid = self.currentRaid
+    local firstStep = raid.skipRoute and raid.skipRoute[1]
+    local stepIndex = firstStep and (firstStep.step or firstStep.priority) or 1
+    for _, milestone in ipairs(raid.skipRoutePassed or {}) do
+        for _, listed in ipairs(milestone.bosses or {}) do
+            if listed == bossIndex and milestone.atSegment
+                and self:GetProgress(stepIndex) >= milestone.atSegment then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- True when the second route is active and leaves this boss alive on
+-- purpose (`skipRouteLeaveAlive`).
+function RR:IsBossLeftAliveByRoute(bossIndex)
+    local raid = self.currentRaid
+    if not raid or not raid.skipRouteLeaveAlive then return false end
+    if self.state.activeRouteVariant ~= "skip" or not raid.skipRoute then return false end
+    for _, listed in ipairs(raid.skipRouteLeaveAlive) do
+        if listed == bossIndex then return true end
+    end
+    return false
+end
+
 -- True when the active route's bosses are all dead. Bosses unavailable at the
 -- current difficulty don't hold it open. False when no steps are authored.
 function RR:IsActiveRouteComplete()
@@ -1049,6 +1097,11 @@ end
 function RR:SkippedBossesUnreturnable()
     local routing = self:GetActiveRouting()
     if not routing then return false end
+    -- A route that leaves bosses alive on purpose ends with them friendly.
+    local raid = self.currentRaid
+    if raid and raid.skipRouteLeaveAlive and self.state.activeRouteVariant == "skip" then
+        return true
+    end
     local skipped, irreversible = 0, 0
     for _, step in ipairs(routing) do
         if step.optional and step.bossIndex
@@ -1479,6 +1532,9 @@ function RR:GetProgressRows()
             optionalTag = " |cffF259C7" .. RR.L["(skipped)"] .. "|r"
         elseif self:IsBossOptional(boss.index) then
             optionalTag = " |cff808080" .. RR.L["(optional)"] .. "|r"
+        elseif self:IsBossLeftAliveByRoute(boss.index)
+            and not self.state.bossesKilled[boss.index] then
+            optionalTag = " |cffff8000" .. RR.L["(leave alive)"] .. "|r"
         end
         local wrongFaction   = not self:BossAvailableToFaction(boss)
         local restrictedHere = wrongFaction or (activeBucket
@@ -1523,9 +1579,18 @@ function RR:GetProgressRows()
             if boss.killUntrackedNote then
                 row.note = RR.L[boss.killUntrackedNote]
             end
+        elseif self.state.bossesKilled[boss.index]
+            and self:IsBossLeftAliveByRoute(boss.index) then
+            -- Killed against the route: a red X, not a check.
+            row = { cell = "notDone", text = ("|cffff3333%s|r%s"):format(
+                displayName, optionalTag) }
         elseif self.state.bossesKilled[boss.index] then
             row = { cell = "killed", text = ("|cff00ff00%s|r%s"):format(
                 displayName, optionalTag) }
+        elseif self:IsBossPassedByRoute(boss.index) then
+            -- Left alive and behind the player: a check, the name unkilled.
+            row = { cell = "killed", text = ("|cff9d9d9d%s|r |cff00ff00%s|r"):format(
+                displayName, RR.L["(left alive)"]) }
         elseif self:IsBossCollectedSkipped(boss.index) then
             -- Left out because the character has everything from it: a
             -- pending-looking row that says why the route passed it.

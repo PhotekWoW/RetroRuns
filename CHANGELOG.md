@@ -2,6 +2,23 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.3.6] - 2026-10-18
+
+### Added
+- **Zul'Aman is routed**, with its hostage rescue chests in the transmog browser and the prisoners and Forest Frogs marked on the map.
+- **Dire Maul's Tribute run is routed.** Zoning into Gordok Commons asks whether you want the FULL run or the TRIBUTE run. The Tribute run guides you step-by-step to maximize rewards. When choosing the route, we show how many appearances remain with each option.
+- **Enhanced Boss Icons.** Hover a boss's icon on the map inside an instance to see what it still drops for you: missing, shared and collected appearances, and special loot.
+
+### Changed
+- **A new, cleaner look for the loot toasts**: a neon frame, a larger item name, and mounts, pets, toys and decor named by kind in their own color, with a sparkle.
+- **The settings pages share one look.**
+- **"Hide fully collected rares from map" is now "Hide fully collected POIs"** and now hides POI map markers in addition to rares when their rewards are fully collected.
+- **Achievements that name several bosses show under each of them** (Earth, Wind & Fire on Archavon, Emalon and Koralon; Bear-ly Made It on Zul'Aman's four prisoner bosses), and instance-wide achievements such as The Dedicated Few show on every boss.
+
+### Fixed
+- **A loot toast shows the drop's real quality color** when its new appearance registers before the loot itself; a blue legacy drop no longer toasts purple.
+- **Picking a Dire Maul wing from the search no longer flashes Capital Gardens first.**
+
 ## [3.3.5] - 2026-10-14
 
 ### Added

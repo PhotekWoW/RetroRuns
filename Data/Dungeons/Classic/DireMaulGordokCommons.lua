@@ -29,6 +29,51 @@ RetroRuns_DungeonData[1277] = {
         y     = 0.2490,
     },
 
+    -- The Gordok Tribute chest, shown in the browser's event section.
+    eventLabel = "Tribute Chest",
+    eventNote  = "Tribute loot comes from the Gordok Tribute chest: defeat King Gordok while the wing's other bosses still live, then speak with Mizzle the Crafty to be crowned and claim the chest. The more bosses you leave alive, the more loot it holds.",
+    eventLoot = {
+        { id = 18495, slot = "Back", name = "Redoubt Cloak", sources = { [14]=7373 }, bind = "BoP" },
+        { id = 18478, slot = "Chest", name = "Hyena Hide Jerkin", sources = { [14]=7360 }, bind = "BoP" },
+        { id = 18532, slot = "Chest", name = "Mindsurge Robe", sources = { [14]=7399 }, bind = "BoP" },
+        { id = 18530, slot = "Chest", name = "Ogre Forged Hauberk", sources = { [14]=7397 }, bind = "BoP" },
+        { id = 18476, slot = "Feet", name = "Mud Stained Boots", sources = { [14]=7358 }, bind = "BoP" },
+        { id = 18479, slot = "Head", name = "Carrion Scorpid Helm", sources = { [14]=7361 }, bind = "BoP" },
+        { id = 18480, slot = "Head", name = "Scarab Plate Helm", sources = { [14]=7362 }, bind = "BoP" },
+        { id = 18477, slot = "Legs", name = "Shaggy Leggings", sources = { [14]=7359 }, bind = "BoP" },
+        { id = 18499, slot = "Off-hand", name = "Barrier Shield", sources = { [14]=7377 }, bind = "BoP" },
+        { id = 18482, slot = "Ranged", name = "Ogre Toothpick Shooter", sources = { [14]=7364 }, bind = "BoP" },
+        { id = 18528, slot = "Shoulder", name = "Cyclone Spaulders", sources = { [14]=7395 }, bind = "BoP" },
+        { id = 18534, slot = "Two-Hand", name = "Rod of the Ogre Magi", sources = { [14]=7401 }, bind = "BoP" },
+        { id = 18481, slot = "Two-Hand", name = "Skullcracking Mace", sources = { [14]=7363 }, bind = "BoP" },
+        { id = 18538, slot = "Two-Hand", name = "Treant's Bane", sources = { [14]=7404 }, bind = "BoP" },
+        { id = 18531, slot = "Two-Hand", name = "Unyielding Maul", sources = { [14]=7398 }, bind = "BoP" },
+        { id = 18529, slot = "Waist", name = "Elemental Plate Girdle", sources = { [14]=7396 }, bind = "BoP" },
+        { id = 18475, slot = "Waist", name = "Oddly Magical Belt", sources = { [14]=7357 }, bind = "BoP" },
+        { id = 18533, slot = "Wrist", name = "Gordok Bracers of Power", sources = { [14]=7400 }, bind = "BoP" },
+    },
+    -- The chest's rewards count toward the Tribute run only, with King
+    -- Gordok, whose death brings Mizzle and the chest.
+    eventVariant = "skip",
+    eventBoss    = 7,
+
+    -- The Tribute run is this wing's second route: every guard and Cho'Rush
+    -- left alive, Slip'kik trapped, Kromcrush fooled, then the king.
+    skipRouteKind       = "tribute",
+    -- Shown on the Tribute run's complete screen.
+    skipRouteCompleteNote = "Talk to ^Mizzle the Crafty^ until he spawns the ^Gordok Tribute^ chest, then open it.",
+    skipRouteLeaveAlive = { 1, 2, 3, 4, 5, 6 },
+    -- "Do Not Kill" sits below each pin; Slip'kik's goes right, Kromcrush's
+    -- above, clear of Knot Thimblejack's label.
+    skipRouteLeaveAliveLabelPos = { [4] = "right", [5] = "above" },
+    -- When each counts as left alive: the guards and Slip'kik once the route
+    -- is past the trap, Kromcrush once his line opens the king's segment.
+    -- Every one still standing counts once the king is dead.
+    skipRoutePassed = {
+        { bosses = { 1, 2, 3, 4 }, atSegment = 3 },
+        { bosses = { 5 },          atSegment = 8 },
+    },
+
     bosses = {
         {
             index              = 1,
@@ -149,26 +194,7 @@ RetroRuns_DungeonData[1277] = {
                 { id = 18523, slot = "Off-hand", name = "Brightly Glowing Stone", sources = { [14]=7390 } },
                 { id = 18520, slot = "Two-Hand", name = "Barbarous Blade", sources = { [14]=7388 } },
                 { id = 18525, slot = "Wrist", name = "Bracers of Prosperity", sources = { [14]=7392 } },
-                { id = 18495, slot = "Back", name = "Redoubt Cloak", sources = { [14]=7373 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18478, slot = "Chest", name = "Hyena Hide Jerkin", sources = { [14]=7360 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18532, slot = "Chest", name = "Mindsurge Robe", sources = { [14]=7399 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18530, slot = "Chest", name = "Ogre Forged Hauberk", sources = { [14]=7397 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18476, slot = "Feet", name = "Mud Stained Boots", sources = { [14]=7358 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18479, slot = "Head", name = "Carrion Scorpid Helm", sources = { [14]=7361 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18480, slot = "Head", name = "Scarab Plate Helm", sources = { [14]=7362 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18477, slot = "Legs", name = "Shaggy Leggings", sources = { [14]=7359 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18499, slot = "Off-hand", name = "Barrier Shield", sources = { [14]=7377 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18482, slot = "Ranged", name = "Ogre Toothpick Shooter", sources = { [14]=7364 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18528, slot = "Shoulder", name = "Cyclone Spaulders", sources = { [14]=7395 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18534, slot = "Two-Hand", name = "Rod of the Ogre Magi", sources = { [14]=7401 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18481, slot = "Two-Hand", name = "Skullcracking Mace", sources = { [14]=7363 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18538, slot = "Two-Hand", name = "Treant's Bane", sources = { [14]=7404 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18531, slot = "Two-Hand", name = "Unyielding Maul", sources = { [14]=7398 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18529, slot = "Waist", name = "Elemental Plate Girdle", sources = { [14]=7396 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18475, slot = "Waist", name = "Oddly Magical Belt", sources = { [14]=7357 }, bind = "BoP", tag = "Tribute Chest" },
-                { id = 18533, slot = "Wrist", name = "Gordok Bracers of Power", sources = { [14]=7400 }, bind = "BoP", tag = "Tribute Chest" },
             },
-            tagNote = "Tribute loot comes from the Gordok Tribute chest: defeat King Gordok while the wing's other bosses still live, then speak with Mizzle the Crafty to be crowned and claim the chest.",
         },
     },
 
@@ -335,6 +361,144 @@ RetroRuns_DungeonData[1277] = {
                     note    = "After defeating ^Cho'Rush the Observer^, you can kill ^King Gordok^ right next to him.",
                     minNote = "Kill Gordok nearby",
                     points  = {},
+                },
+            },
+        },
+    },
+
+    -- The Tribute run as one step on the king: the way to the trap, then
+    -- segments that open on the trap's quest, the tannin, the suit, the suit
+    -- worn and Kromcrush's line once fooled.
+    skipRoute = {
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 7,
+            title     = "King Gordok",
+            requires  = { },
+            drawCurrentSegOnly = true,
+            checklist = {
+                label = "Tribute Checklist:",
+                rows  = {
+                    { bossesAlive = { 1, 2, 3, 4, 5 }, text = "Guards alive" },
+                    { heardAtSegment = 3, text = "Broken Trap armed" },
+                    { doneAtSegment = 5, text = "Ogre Tannin" },
+                    { doneAtSegment = 6, aura = 22736, useItem = 18258, timerUntilSegment = 8,
+                      text = "Gordok Ogre Suit" },
+                    { doneAtSegment = 8, text = "Captain Kromcrush fooled" },
+                    { bossesAlive = { 6 }, text = "Cho'Rush the Observer alive",
+                      brokenText = "(killed)" },
+                },
+            },
+            segments  = {
+                {
+                    when    = { mapID = 235 },
+                    kind    = "path",
+                    note    = "Skip the first three bosses as you follow the path into ^Guard Slip'kik^'s room. Click the ^Broken Trap^ and let ^Slip'kik^ walk into it.",
+                    minNote = "Click Broken Trap for Slip'kik",
+                    points  = {
+                        { 0.718, 0.882 },
+                        { 0.677, 0.882 },
+                        { 0.648, 0.872 },
+                        { 0.604, 0.873 },
+                        { 0.603, 0.779 },
+                        { 0.381, 0.783 },
+                        { 0.352, 0.785 },
+                        { 0.328, 0.786 },
+                        { 0.304, 0.780 },
+                        { 0.289, 0.773 },
+                        { 0.272, 0.724 },
+                        { 0.269, 0.658 },
+                    },
+                },
+                {
+                    -- Noteless: the path's text stands. Checks off when
+                    -- the trap's quest opens the next segment.
+                    when            = { mapID = 235 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    poiSize         = 24,
+                    mapLabel        = "Click Broken Trap",
+                    mapLabelPos     = "right",
+                    completionCheck = true,
+                    points          = {
+                        { 0.269, 0.658 },
+                    },
+                },
+                {
+                    -- Opens on turning in "A Broken Trap", which arms it.
+                    when        = { mapID = 235 },
+                    kind        = "path",
+                    note        = "Go up the ramp in the southwest corner and take the ^Ogre Tannin^ from the basket. An ogre comes for you when you do.",
+                    minNote     = "Up the ramp for Ogre Tannin",
+                    triggeredBy = { quest = 27118 },
+                    points      = {
+                        { 0.232, 0.671 },
+                        { 0.232, 0.577 },
+                    },
+                },
+                {
+                    -- Noteless: the tannin path's text stands. Checks off
+                    -- when the tannin lands in the bags.
+                    when            = { mapID = 235 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    poiSize         = 24,
+                    mapLabel        = "Click Tannin Basket",
+                    mapLabelPos     = "upper-left",
+                    completionCheck = true,
+                    points          = {
+                        { 0.232, 0.577 },
+                    },
+                },
+                {
+                    when        = { mapID = 235 },
+                    kind        = "poi",
+                    note        = "Jump down to ^Knot Thimblejack^ by the bonfire and accept his quest, ^The Gordok Ogre Suit^. With the ^Ogre Tannin^ in your bags, turn it right back in to get the ^Gordok Ogre Suit^.",
+                    minNote     = "Knot's quest for the suit",
+                    mapLabel    = "Knot Thimblejack",
+                    mapLabelPos = "above",
+                    triggeredBy = { item = 18240, latch = true },
+                    points      = {
+                        { 0.285, 0.555 },
+                    },
+                },
+                {
+                    -- Opens with the suit in the bags; the next one opens
+                    -- once it is worn.
+                    when        = { mapID = 235 },
+                    kind        = "path",
+                    note        = "Use the ^Gordok Ogre Suit^ to disguise yourself and start a 10 minute timer.",
+                    minNote     = "Use the Gordok Ogre Suit",
+                    triggeredBy = { item = 18258, latch = true },
+                    points      = {},
+                },
+                {
+                    when        = { mapID = 235 },
+                    kind        = "path",
+                    note        = "Take the ramp on the southwest corner of the room, then continue climbing up and around until you reach ^Captain Kromcrush^. Talk to him while disguised.",
+                    minNote     = "Suit on, talk to Kromcrush",
+                    triggeredBy = { aura = 22736, latch = true },
+                    points      = {
+                        { 0.231, 0.659 },
+                        { 0.231, 0.544 },
+                        { 0.269, 0.544 },
+                        { 0.271, 0.659 },
+                        { 0.314, 0.654 },
+                        { 0.316, 0.560 },
+                    },
+                },
+                {
+                    when        = { mapID = 235 },
+                    kind        = "path",
+                    note        = "Proceed forward to the final boss, ^King Gordok^. |cffF259C7CAUTION!|r Do not AoE or cleave. ^Cho'Rush the Observer^ must survive for full rewards.",
+                    minNote     = "Kill Gordok, spare Cho'Rush",
+                    triggeredBy = { dialog = { npc = "Captain Kromcrush", match = "gnoll lover" } },
+                    points      = {
+                        { 0.315, 0.469 },
+                        { 0.315, 0.347 },
+                        { 0.320, 0.277 },
+                    },
                 },
             },
         },

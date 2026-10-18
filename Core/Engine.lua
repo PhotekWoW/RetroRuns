@@ -171,6 +171,18 @@ function RR:GetPersistedRouteVariant()
     return record and record.routeVariant or nil
 end
 
+-- True once a dungeon run has started on its chosen route: a variant came
+-- back with the run record and a boss died or a gate fired. Such a run
+-- resumes without asking again.
+function RR:DungeonRouteCommitted()
+    if not self.state.activeRouteVariant then return false end
+    if next(self.state.bossesKilled or {}) then return true end
+    for _, firedSegs in pairs(self.state.triggersFired or {}) do
+        if next(firedSegs) then return true end
+    end
+    return false
+end
+
 -- Persist a bypassed optional boss for the current lockout.
 --
 -- `state.bossesSkipped` alone is not enough. It is runtime-only, and unlike
@@ -359,13 +371,27 @@ end
 -- event is on record, or a state check (bags, criterion, widget) that
 -- passes. An item gate answers to the bags alone, fired record or not:
 -- the item leaving the bags is the instance being reset under the player.
-function RR:IsSegGateOpen(stepIndex, seg, segIndex)
+-- A `latch` item gate stays open once fired, for an item handed in or used
+-- up along the route. Given the step's segments, a gate is also open when a
+-- latched item gate past it is.
+function RR:IsSegGateOpen(stepIndex, seg, segIndex, segments)
     if not seg or not seg.triggeredBy then return true end
+    if segments and segIndex and self:LatchedGateOpenBeyond(stepIndex, segments, segIndex) then
+        return true
+    end
     if seg.triggeredBy.item then
+        if seg.triggeredBy.latch and stepIndex and segIndex
+            and self:HasTriggerFired(stepIndex, segIndex) then
+            return true
+        end
         return self:PlayerHasItem(seg.triggeredBy.item)
     end
     if stepIndex and segIndex and self:HasTriggerFired(stepIndex, segIndex) then
         return true
+    end
+    if seg.triggeredBy.aura then
+        return self:HasAuraBeenSeen(seg.triggeredBy.aura)
+            or self:PlayerHasAura(seg.triggeredBy.aura)
     end
     if seg.triggeredBy.scenario then
         return self:IsScenarioCriterionComplete(seg.triggeredBy.scenario,
@@ -380,6 +406,23 @@ function RR:IsSegGateOpen(stepIndex, seg, segIndex)
     return false
 end
 
+-- True when a latched gate after segIndex stands open (fired, its item
+-- carried, or its buff landed): the route got past every gate before it,
+-- even a line the player was too far away to hear.
+function RR:LatchedGateOpenBeyond(stepIndex, segments, segIndex)
+    if not stepIndex or not segments or not segIndex then return false end
+    for laterIdx = segIndex + 1, #segments do
+        local gate = segments[laterIdx] and segments[laterIdx].triggeredBy
+        if gate and gate.latch and (gate.item or gate.aura)
+            and (self:HasTriggerFired(stepIndex, laterIdx)
+                 or (gate.item and self:PlayerHasItem(gate.item))
+                 or (gate.aura and self:HasAuraBeenSeen(gate.aura))) then
+            return true
+        end
+    end
+    return false
+end
+
 -- True once a widget gate anywhere in the step stands open: the counter
 -- it watches has landed. Markers that stood for the count dim on it.
 function RR:StepWidgetGateOpen(step)
@@ -387,7 +430,7 @@ function RR:StepWidgetGateOpen(step)
     local stepIndex = step.step or step.priority or 0
     for segIndex, seg in ipairs(step.segments) do
         if seg.triggeredBy and seg.triggeredBy.widget
-            and self:IsSegGateOpen(stepIndex, seg, segIndex) then
+            and self:IsSegGateOpen(stepIndex, seg, segIndex, step.segments) then
             return true
         end
     end
@@ -763,6 +806,11 @@ function RR:PersistRunProgress()
         end
         stats.appearances = self.state.runStats.appearances or 0
     end
+    -- Watched buffs that landed: the buff fades, the record does not.
+    local aurasSeen = {}
+    for spellID in pairs(self.state.aurasSeen or {}) do
+        aurasSeen[spellID] = true
+    end
     -- Segment progress too: a reload used to re-derive it from where the
     -- player stood, and a player standing where no seg of the step lives
     -- was put back on seg 1 with three gates behind them.
@@ -788,6 +836,7 @@ function RR:PersistRunProgress()
         killed       = killed,
         partial      = partial,
         triggers     = triggers,
+        aurasSeen    = aurasSeen,
         skipped      = skipped,
         poolSlots    = poolSlots,
         spawnedMember = self.state.spawnedMember,
@@ -1106,6 +1155,7 @@ function RR:ScheduleLoginPositionRecheck()
         wipe(self.state.bossesKilled)
         wipe(self.state.bossPartialKills)
         wipe(self.state.triggersFired)
+        wipe(self.state.aurasSeen or {})
         if self.ResetRunStats then self:ResetRunStats() end
         self:ClearRunProgress()
         self.state.lastSeenRaidKey = nil
@@ -1224,6 +1274,10 @@ function RR:RestoreRunProgress(sameSession)
             if record.routeVariant then
                 self.state.activeRouteVariant = record.routeVariant
             end
+            self.state.aurasSeen = self.state.aurasSeen or {}
+            for spellID in pairs(record.aurasSeen or {}) do
+                self.state.aurasSeen[spellID] = true
+            end
             -- Bypassed optional bosses come back too, so the route does
             -- not re-offer a boss the player already passed on.
             self.state.bossesSkipped = self.state.bossesSkipped or {}
@@ -1302,10 +1356,15 @@ function RR:RestorePersistedProgress()
         self.state.progress      = self.state.progress or {}
         self.state.triggersFired = self.state.triggersFired or {}
         self.state.bossesSkipped = self.state.bossesSkipped or {}
+        self.state.aurasSeen     = self.state.aurasSeen or {}
         return
     end
     self.state.progress       = {}
     self.state.triggersFired  = {}
+    self.state.aurasSeen      = {}
+    for spellID, seen in pairs(store.aurasSeen or {}) do
+        if seen then self.state.aurasSeen[spellID] = true end
+    end
     local vstore = self:GetVariantSteps(store, false)
     if vstore then
         if vstore.steps then
@@ -1378,6 +1437,61 @@ function RR:HasTriggerFired(stepIndex, segIndex)
     local stepTriggers = self.state.triggersFired
         and self.state.triggersFired[stepIndex]
     return stepTriggers and stepTriggers[segIndex] == true
+end
+
+-- Records that a buff the route watches for landed on the player this
+-- lockout, so its checklist row stays done after the buff fades.
+function RR:RecordAuraSeen(spellID)
+    if not spellID or self:HasAuraBeenSeen(spellID) then return false end
+    self.state.aurasSeen = self.state.aurasSeen or {}
+    self.state.aurasSeen[spellID] = true
+    local store = self:GetLockoutStore(true)
+    if not store then
+        self:PersistRunProgress()
+        return true
+    end
+    store.aurasSeen = store.aurasSeen or {}
+    store.aurasSeen[spellID] = true
+    return true
+end
+
+function RR:HasAuraBeenSeen(spellID)
+    local seen = self.state.aurasSeen
+    return spellID ~= nil and seen ~= nil and seen[spellID] == true
+end
+
+-- True while one of the player's buffs is up.
+function RR:PlayerHasAura(spellID)
+    if not (spellID and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID) then
+        return false
+    end
+    local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, spellID)
+    return ok and type(aura) == "table"
+end
+
+-- On a player aura change: records each buff the active step watches (a
+-- checklist row's `aura`, a segment's `triggeredBy.aura`) that is now up.
+-- True when one was new.
+function RR:RecordWatchedAuras()
+    local step = self.state.activeStep
+    if not step then return false end
+    local watched = {}
+    for _, row in ipairs(step.checklist and step.checklist.rows or {}) do
+        if row.aura then watched[#watched + 1] = row.aura end
+    end
+    for _, seg in ipairs(step.segments or {}) do
+        if seg.triggeredBy and seg.triggeredBy.aura then
+            watched[#watched + 1] = seg.triggeredBy.aura
+        end
+    end
+    local recorded = false
+    for _, spellID in ipairs(watched) do
+        if not self:HasAuraBeenSeen(spellID) and self:PlayerHasAura(spellID)
+            and self:RecordAuraSeen(spellID) then
+            recorded = true
+        end
+    end
+    return recorded
 end
 
 -------------------------------------------------------------------------------
@@ -1522,9 +1636,12 @@ end
 -- player who reloaded after the objective.
 -- triggeredBy.encounter matches a successful ENCOUNTER_END's
 -- dungeonEncounterID. Prefer the encounter form where both would work.
+-- triggeredBy.quest matches turning in that quest (QUEST_TURNED_IN).
 -- triggeredBy.item is a STATE CHECK too: it passes while the item is in
 -- the player's bags, so a handed-over key or tool advances the note the
 -- moment it lands.
+-- triggeredBy.aura is a STATE CHECK on the run's record: it passes once
+-- that buff has landed on the player, and stays open after it fades.
 local function TriggerMatches(seg, event, eventData)
     if not seg or not seg.triggeredBy then return true end
 
@@ -1532,6 +1649,12 @@ local function TriggerMatches(seg, event, eventData)
         if event ~= "encounter-end" then return false end
         if not eventData then return false end
         return eventData.encounterID == seg.triggeredBy.encounter
+    end
+
+    if seg.triggeredBy.quest then
+        if event ~= "quest-turned-in" then return false end
+        if not eventData then return false end
+        return eventData.questID == seg.triggeredBy.quest
     end
 
     -- triggeredBy.taxi matches the end of a taxi flight, wherever it lands.
@@ -1557,6 +1680,11 @@ local function TriggerMatches(seg, event, eventData)
 
     if seg.triggeredBy.item then
         return RR:PlayerHasItem(seg.triggeredBy.item)
+    end
+
+    if seg.triggeredBy.aura then
+        return RR:HasAuraBeenSeen(seg.triggeredBy.aura)
+            or RR:PlayerHasAura(seg.triggeredBy.aura)
     end
 
     -- triggeredBy.widget is a state check as well: the counter is the truth.
@@ -1653,7 +1781,8 @@ local function ComputeAdvancedProgress(segments, progress, state, event, eventDa
 
             if not movedDeeper then
                 local gatePasses = false
-                if event == "npc-dialog" then
+                -- A quest turned in is the same kind of fact as a line heard.
+                if event == "npc-dialog" or event == "quest-turned-in" then
                     if not progressSeg.triggeredBy then
                         gatePasses = true
                     elseif TriggerMatches(progressSeg, event, eventData) then
@@ -1720,11 +1849,22 @@ local function ComputeAdvancedProgress(segments, progress, state, event, eventDa
                     then
                         gatePasses = true
                     end
+                elseif event == "aura" then
+                    -- Same shape: the buff lands where the player stands.
+                    local nextSeg = segments[progress + 1]
+                    if nextSeg and nextSeg.triggeredBy
+                        and nextSeg.triggeredBy.aura
+                        and TriggerMatches(nextSeg, event, eventData)
+                    then
+                        gatePasses = true
+                    end
                 end
                 -- A landed counter releases on any event: the last kill
                 -- happens wherever the player already stands, and the
-                -- record keeps the release once the widget is gone.
-                if not gatePasses and OpenWidgetSegAhead(progress) then
+                -- record keeps the release once the widget is gone. So does
+                -- an open latched item gate further on.
+                if not gatePasses and (OpenWidgetSegAhead(progress)
+                    or RR:LatchedGateOpenBeyond(stepIndex, segments, progress)) then
                     gatePasses = true
                 end
                 if not gatePasses then
@@ -1747,7 +1887,7 @@ local function ComputeAdvancedProgress(segments, progress, state, event, eventDa
         local heardNow = seg.triggeredBy
             and (seg.triggeredBy.dialog or seg.triggeredBy.encounter
                  or seg.triggeredBy.taxi or seg.triggeredBy.vehicle
-                 or seg.triggeredBy.cinematic)
+                 or seg.triggeredBy.cinematic or seg.triggeredBy.quest)
             and TriggerMatches(seg, event, eventData) or false
         -- A landed counter is proof of the same kind, on record or live.
         if not heardNow and seg.triggeredBy and seg.triggeredBy.widget
@@ -1770,6 +1910,12 @@ local function ComputeAdvancedProgress(segments, progress, state, event, eventDa
         local gateOpen = heardNow or TriggerMatches(seg, event, eventData)
             or (seg.triggeredBy and not seg.triggeredBy.item
                 and stepIndex and RR:HasTriggerFired(stepIndex, segIndex))
+        -- An open latched item gate further on carries the walk past a
+        -- closed one; the crossing is noted so it is not recorded as fired.
+        if not gateOpen and RR:LatchedGateOpenBeyond(stepIndex, segments, segIndex) then
+            gateOpen = true
+            if state.latchPulledPast then state.latchPulledPast[segIndex] = true end
+        end
         if not gateOpen then break end
 
         if seg.note and advancedPastNoted then break end
@@ -1792,7 +1938,7 @@ function RR:AdvanceProgress(event, eventData)
     local mapID = (C_Map and C_Map.GetBestMapForUnit
         and C_Map.GetBestMapForUnit("player")) or nil
     local subZone = (GetSubZoneText and GetSubZoneText()) or ""
-    local state = { mapID = mapID, subZone = subZone }
+    local state = { mapID = mapID, subZone = subZone, latchPulledPast = {} }
 
     -- A heard line may be the cue that swaps the whole routing; the
     -- swap seeds the new route itself, so the event is consumed.
@@ -1817,11 +1963,13 @@ function RR:AdvanceProgress(event, eventData)
     -- Arthas's line outside Stratholme opens the seg inside it. Record any
     -- later gate this event satisfies, so the walk can cross it once the
     -- player reaches that seg's map.
-    if event == "npc-dialog" or event == "encounter-end" then
+    if event == "npc-dialog" or event == "encounter-end"
+        or event == "quest-turned-in" then
         for i = oldProgress + 1, #step.segments do
             local seg = step.segments[i]
             if seg and seg.triggeredBy
-                and (seg.triggeredBy.dialog or seg.triggeredBy.encounter)
+                and (seg.triggeredBy.dialog or seg.triggeredBy.encounter
+                     or seg.triggeredBy.quest)
                 and not self:HasTriggerFired(stepIndex, i)
                 and TriggerMatches(seg, event, eventData) then
                 self:RecordTriggerFired(stepIndex, i)
@@ -1844,10 +1992,11 @@ function RR:AdvanceProgress(event, eventData)
         end
         self:SetProgress(stepIndex, newProgress)
 
-        -- Record any gates crossed by this advance.
+        -- Record any gates crossed by this advance, except one crossed only
+        -- because a latched item gate past it stood open.
         for i = oldProgress + 1, newProgress do
             local seg = step.segments[i]
-            if seg and seg.triggeredBy then
+            if seg and seg.triggeredBy and not state.latchPulledPast[i] then
                 self:RecordTriggerFired(stepIndex, i)
                 if self.ZoneLog then
                     self:ZoneLog(("%s trigger fired: step %d seg %d")
@@ -1878,7 +2027,7 @@ local function ComputeCurrentSeg(segments, progress, state, stepIndex)
     local atProgress = segments[progress]
     if atProgress and atProgress.note and atProgress.triggeredBy
         and (atProgress.triggeredBy.dialog or atProgress.triggeredBy.encounter
-             or atProgress.triggeredBy.widget)
+             or atProgress.triggeredBy.widget or atProgress.triggeredBy.quest)
         and stepIndex and RR.HasTriggerFired
         and RR:HasTriggerFired(stepIndex, progress) then
         return atProgress, progress
@@ -2099,7 +2248,7 @@ function RR:SeedProgress(step)
     -- Culling's disruptor goes with the instance), and a record that
     -- says the gate fired is describing an instance that no longer exists.
     local function GateOpen(seg, i)
-        return self:IsSegGateOpen(stepIndex, seg, i)
+        return self:IsSegGateOpen(stepIndex, seg, i, step.segments)
     end
 
     -- Gate ceiling: cap seeding at the seg before the first closed gate.

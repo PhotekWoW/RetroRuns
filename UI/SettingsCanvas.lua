@@ -9,9 +9,9 @@ local UI = RR.UI
 
 -- RetroRuns settings, hosted in Options > AddOns as a canvas category. Left
 -- nav rail of tabs (General / Appearance / Toaster); the right pane shows
--- the selected tab's controls. Controls use standard Blizzard templates bound
--- directly to RetroRunsDB. Canvas categories carry no native "Defaults"
--- button, so the footer Reset button is the only reset control.
+-- the selected tab's controls. Controls are bound directly to RetroRunsDB.
+-- Canvas categories carry no native "Defaults" button, so the footer Reset
+-- button is the only reset control.
 
 if not (Settings and Settings.RegisterCanvasLayoutCategory) then
     function UI.OpenSettings() end
@@ -32,6 +32,17 @@ local SECTION_TOP   = -6      -- first control y within a page (raised to sit
                              -- closer to the title without colliding)
 local CHECK_H       = 26
 local LABELED_H     = 44
+local SEG_FONT_SIZE = 15
+local SUB_INDENT    = 18
+local UNDERLINE_PIXELS = 2   -- physical pixels under the selected choice
+local VALUE_X = 240   -- page-relative x for the value column. Sized to clear
+                      -- the widest label, RR.L["Hide Blizzard Boss Banner:"] at 15pt
+                      -- with its sub-indent. NOT offset by CONTENT_X since
+                      -- controls anchor within the page, whose origin is
+                      -- already at CONTENT_X)
+local SLIDER_GEM_SIZE = 18
+local SLIDER_GEM_TEX  = "Interface\\AddOns\\RetroRuns\\Media\\Panel\\divider-gem-white"
+local SLIDER_TRACK_H  = 4
 
 -- RetroRuns identity palette and fonts.
 local COLOR_PINK    = { 0.95, 0.35, 0.78 }
@@ -83,6 +94,8 @@ local function ApplyPanel()
 end
 
 local controls = {}   -- every control, for refresh-on-show and reset
+local pairRows = {}   -- every On | Off pair, refreshed with the Toaster state
+local RefreshToasterControls   -- forward declaration (defined below)
 
 -- ---- Title (RETRO + RUNS, brand two-tone) --------------------------------
 local titleRetro = NewText(panel, 22, COLOR_PINK, "RETRO", RETRO_FONT, "OUTLINE")
@@ -120,30 +133,144 @@ end
 
 -- ---- Control builders (operate on a given page) --------------------------
 
-local function AddCheckbox(page, label, indent, getValue, setValue)
-    local cb = CreateFrame("CheckButton", nil, page, "InterfaceOptionsCheckButtonTemplate")
-    cb:SetPoint("TOPLEFT", indent or 0, pageCursor[page])
-    -- The canvas font and size rather than the template's stock label.
-    StyleText(cb.Text, CONTROL_FONT_SIZE, COLOR_LABEL, label)
-    cb:SetScript("OnClick", function(self) setValue(self:GetChecked() and true or false) end)
-    cb.RR_Refresh = function(self) self:SetChecked(getValue()) end
-    controls[#controls + 1] = cb
-    pageCursor[page] = pageCursor[page] - CHECK_H
-    return cb
+-- A pair of clickable text buttons (e.g. Enable | Disable, On | Off). The
+-- selected one is cyan with a magenta underline; the other is gray. getValue
+-- returns the current bool; setValue(bool) writes it. opts.isOperable locks
+-- the pair while it returns false; opts.hint is a tooltip over the row,
+-- titled opts.hintTitle.
+local function AddButtonPair(page, label, indent, trueLabel, falseLabel, getValue, setValue, opts)
+    opts = opts or {}
+    indent = indent or 0
+    local rowY = pageCursor[page]
+
+    local lbl = NewText(page, SEG_FONT_SIZE, COLOR_LABEL, label)
+    lbl:SetPoint("TOPLEFT", indent, rowY)
+    lbl:SetJustifyH("LEFT")
+
+    local function MakeBtn(text)
+        local btn = CreateFrame("Button", nil, page)
+        local fs = NewText(btn, SEG_FONT_SIZE, nil, text)
+        btn.fs = fs
+        -- Size the button from the rendered string metrics and anchor the text
+        -- inside it. Sizing the button off its own child fontstring collapses
+        -- to zero width unless the fontstring carries an external anchor, which
+        -- only the leading button has; this gives every button a real rect.
+        btn:SetSize(math.max(1, fs:GetStringWidth()), SEG_FONT_SIZE + 4)
+        fs:SetPoint("TOPLEFT", btn, "TOPLEFT")
+        -- Underline; shown only when selected.
+        local ul = btn:CreateTexture(nil, "ARTWORK")
+        ul:SetColorTexture(COLOR_PINK[1], COLOR_PINK[2], COLOR_PINK[3], 1)
+        -- Two PHYSICAL pixels, snapped to the pixel grid, so every row's
+        -- underline is the same thickness whatever fractional y the row
+        -- lands on. Re-applied on Refresh so a scale change does not leave
+        -- it stale.
+        ul:SetHeight(UNDERLINE_PIXELS / (ul:GetEffectiveScale() or 1))
+        if ul.SetSnapToPixelGrid then
+            ul:SetSnapToPixelGrid(true)
+        end
+        ul:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -2)
+        ul:SetPoint("TOPRIGHT", fs, "BOTTOMRIGHT", 0, -2)
+        ul:Hide()
+        btn.underline = ul
+        -- OnClick is wired below (MakeClick) so it can respect the operable gate.
+        return btn
+    end
+
+    local trueBtn = MakeBtn(trueLabel)
+    local sep = page:CreateFontString(nil, "ARTWORK")
+    RR.SafeSetFont(sep, CANVAS_FONT, SEG_FONT_SIZE, "")
+    sep:SetText("|")
+    sep:SetTextColor(unpack(COLOR_DIM))
+    local falseBtn = MakeBtn(falseLabel)
+
+    -- A label too long for the row wraps beside the buttons instead of
+    -- pushing them off the page.
+    local pairW = trueBtn:GetWidth() + 6 + sep:GetStringWidth() + 6 + falseBtn:GetWidth()
+    local maxLabelW = math.floor(CONTENT_W - 8 - indent - 12 - pairW)
+    local labelW = lbl:GetStringWidth()
+    if labelW > maxLabelW then
+        lbl:SetWidth(maxLabelW)
+        labelW = maxLabelW
+    end
+
+    -- The value column is a minimum: rows whose localized label runs past
+    -- it push their buttons right instead of being overdrawn.
+    -- Ceil to a whole pixel: string widths are fractional, and a row whose
+    -- label pushes its buttons past the shared column would otherwise land
+    -- on a fractional x, where the 1px underline can fall between pixels
+    -- and vanish at some UI scales.
+    -- An indented row indents its choices too, so the sub-rows read as a
+    -- block under their parent rather than sharing its column, unless
+    -- opts.flushChoices keeps them in the page's column. opts.followLabel
+    -- skips the column and sets the choices just after the label.
+    local choiceIndent = opts.flushChoices and 0 or indent
+    local columnX = opts.followLabel and 0 or (VALUE_X + choiceIndent)
+    local valueX = math.ceil(math.max(columnX, indent + labelW + 12))
+    trueBtn:SetPoint("TOPLEFT", page, "TOPLEFT", valueX, rowY)
+    sep:SetPoint("LEFT", trueBtn, "RIGHT", 6, 0)
+    falseBtn:SetPoint("LEFT", sep, "RIGHT", 6, 0)
+
+    pageCursor[page] = pageCursor[page]
+        - math.max(CHECK_H + 4, math.ceil(lbl:GetStringHeight()) + 8)
+
+    local row = { label = lbl, trueBtn = trueBtn, sep = sep, falseBtn = falseBtn }
+    local operable = true   -- when false, clicks are ignored and both dim
+
+    local function MakeClick(value)
+        return function()
+            if not operable then return end
+            setValue(value)
+            if RefreshToasterControls then RefreshToasterControls() end
+        end
+    end
+    trueBtn:SetScript("OnClick", MakeClick(true))
+    falseBtn:SetScript("OnClick", MakeClick(false))
+
+    -- The hint shows over the label and both choices.
+    if opts.hint then
+        local function ShowHint(owner)
+            GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+            GameTooltip_SetTitle(GameTooltip, opts.hintTitle or label)
+            GameTooltip_AddNormalLine(GameTooltip, opts.hint)
+            GameTooltip:Show()
+        end
+        local labelHover = CreateFrame("Frame", nil, page)
+        labelHover:SetAllPoints(lbl)
+        labelHover:EnableMouse(true)
+        for _, hoverFrame in ipairs({ labelHover, trueBtn, falseBtn }) do
+            hoverFrame:HookScript("OnEnter", ShowHint)
+            hoverFrame:HookScript("OnLeave", GameTooltip_Hide)
+        end
+    end
+
+    -- Locked while opts.isOperable returns false (e.g. Coin SFX when the
+    -- Toaster is disabled). Selected button still underlines so the stored
+    -- choice stays visible, just muted.
+    function row.Refresh()
+        operable = not opts.isOperable or opts.isOperable()
+        local on = getValue()
+        local selColor = operable and COLOR_CYAN or COLOR_DIM
+        trueBtn.fs:SetTextColor(unpack(on and selColor or COLOR_DIM))
+        falseBtn.fs:SetTextColor(unpack((not on) and selColor or COLOR_DIM))
+        trueBtn.underline:SetShown(on)
+        falseBtn.underline:SetShown(not on)
+        -- Mute the underline color when locked. SetColorTexture needs an explicit
+        -- alpha; the COLOR_* tables carry only RGB, so pass 1 or it renders clear.
+        local ur, ug, ub = unpack(operable and COLOR_PINK or COLOR_DIM)
+        trueBtn.underline:SetColorTexture(ur, ug, ub, 1)
+        falseBtn.underline:SetColorTexture(ur, ug, ub, 1)
+        local pixelHeight = UNDERLINE_PIXELS / (trueBtn.underline:GetEffectiveScale() or 1)
+        trueBtn.underline:SetHeight(pixelHeight)
+        falseBtn.underline:SetHeight(pixelHeight)
+    end
+
+    pairRows[#pairRows + 1] = row
+    return row
 end
 
--- Cyan section label over a thin rule, so a page can group its controls
--- the way the nav rail groups its tabs.
-local function AddSectionLabel(page, text)
-    local label = NewText(page, 13, COLOR_CYAN, text)
-    label:SetPoint("TOPLEFT", 0, pageCursor[page])
-    local rule = page:CreateTexture(nil, "ARTWORK")
-    rule:SetColorTexture(COLOR_CYAN[1], COLOR_CYAN[2], COLOR_CYAN[3], 0.25)
-    rule:SetHeight(1)
-    rule:SetPoint("TOPLEFT", 0, pageCursor[page] - 17)
-    rule:SetPoint("TOPRIGHT", page, "TOPRIGHT", -8, pageCursor[page] - 17)
-    pageCursor[page] = pageCursor[page] - 28
-    return label
+-- A pair standing in for a checkbox: On | Off.
+local function AddToggle(page, label, indent, getValue, setValue, opts)
+    return AddButtonPair(page, label, indent, RR.L["On"], RR.L["Off"], getValue, setValue, opts)
 end
 
 local function AddSlider(page, label, minV, maxV, step, getValue, setValue, formatValue)
@@ -159,16 +286,53 @@ local function AddSlider(page, label, minV, maxV, step, getValue, setValue, form
     slider:SetWidth(CONTENT_W - 8)
     slider:SetMinMaxValues(minV, maxV)
     slider:SetValueStep(step)
-    slider:SetObeyStepOnDrag(true)
+    slider:SetObeyStepOnDrag(false)   -- the thumb glides; the value still steps
     if slider.Low  then slider.Low:SetText("")  end
     if slider.High then slider.High:SetText("") end
     if slider.Text then slider.Text:SetText("") end
 
+    -- A solid bar, cyan up to the pink gem thumb and dim past it, in place
+    -- of the template's groove and knob.
+    if slider.ClearBackdrop then slider:ClearBackdrop() end
+    for _, region in ipairs({ slider:GetRegions() }) do
+        if region:IsObjectType("Texture") then region:Hide() end
+    end
+    slider:SetThumbTexture(SLIDER_GEM_TEX)
+    local thumb = slider:GetThumbTexture()
+    thumb:SetSize(SLIDER_GEM_SIZE, SLIDER_GEM_SIZE)
+    thumb:SetVertexColor(COLOR_PINK[1], COLOR_PINK[2], COLOR_PINK[3], 1)
+    thumb:SetDrawLayer("OVERLAY")
+    if thumb.SetTexelSnappingBias then
+        thumb:SetTexelSnappingBias(0)
+        thumb:SetSnapToPixelGrid(false)
+    end
+    thumb:Show()
+    local track = slider:CreateTexture(nil, "BACKGROUND")
+    track:SetColorTexture(COLOR_DIM[1], COLOR_DIM[2], COLOR_DIM[3], 0.35)
+    track:SetHeight(SLIDER_TRACK_H)
+    track:SetPoint("LEFT", 0, 0)
+    track:SetPoint("RIGHT", 0, 0)
+    local fill = slider:CreateTexture(nil, "ARTWORK")
+    fill:SetColorTexture(COLOR_CYAN[1], COLOR_CYAN[2], COLOR_CYAN[3], 1)
+    fill:SetHeight(SLIDER_TRACK_H)
+    fill:SetPoint("LEFT", 0, 0)
+    fill:SetPoint("RIGHT", thumb, "CENTER", 0, 0)
+
     local function refreshTitle(value) title:SetText(label .. ": " .. formatValue(value)) end
+    local function SnapToStep(value) return math.floor((value / step) + 0.5) * step end
+    -- A glide fires this every pixel; the setting changes only when the
+    -- nearest step does.
+    local appliedValue
     slider:SetScript("OnValueChanged", function(_, value)
-        value = math.floor((value / step) + 0.5) * step
+        value = SnapToStep(value)
+        if value == appliedValue then return end
+        appliedValue = value
         setValue(value)
         refreshTitle(value)
+    end)
+    -- On release the thumb settles onto the step it was showing.
+    slider:HookScript("OnMouseUp", function(self)
+        self:SetValue(SnapToStep(self:GetValue()))
     end)
     container.RR_Refresh = function()
         local value = getValue()
@@ -226,20 +390,22 @@ local function AddGemDivider(page)
     UI.MakeDividerGem(page, line)
 end
 
--- A page heading: a cyan title, an optional pink subtitle, and a thin cyan
--- rule under them.
+-- A page heading: a cyan title, an optional pink subtitle, and the gem
+-- divider under them, both wrapped to the page width.
 local function AddPageTitle(page, title, subtitle)
-    NewText(page, 17, COLOR_CYAN, title):SetPoint("TOPLEFT", 0, pageCursor[page])
-    pageCursor[page] = pageCursor[page] - (17 + 8)
-    if subtitle then
-        NewText(page, 12, COLOR_PINK, subtitle):SetPoint("TOPLEFT", 0, pageCursor[page])
-        pageCursor[page] = pageCursor[page] - (12 + 8)
+    local function AddHeadingLine(size, color, text)
+        -- Width before text, so the height measures the wrapped string.
+        local line = NewText(page, size, color)
+        line:SetPoint("TOPLEFT", 0, pageCursor[page])
+        line:SetWidth(CONTENT_W)
+        line:SetJustifyH("LEFT")
+        line:SetText(text)
+        pageCursor[page] = pageCursor[page]
+            - (math.max(size, math.ceil(line:GetStringHeight())) + 8)
     end
-    local rule = page:CreateTexture(nil, "ARTWORK")
-    rule:SetColorTexture(COLOR_CYAN[1], COLOR_CYAN[2], COLOR_CYAN[3], 0.25)
-    rule:SetHeight(1)
-    rule:SetPoint("TOPLEFT", 0, pageCursor[page])
-    rule:SetPoint("TOPRIGHT", page, "TOPRIGHT", -8, pageCursor[page])
+    AddHeadingLine(17, COLOR_CYAN, title)
+    if subtitle then AddHeadingLine(12, COLOR_PINK, subtitle) end
+    AddGemDivider(page)
     pageCursor[page] = pageCursor[page] - 14
 end
 
@@ -264,6 +430,8 @@ local pageGeneral, pageAppearance, pageToaster, pageCustomize, pageWhatsNew,
     NewPage(), NewPage(), NewPage(), NewPage(), NewPage(), NewPage(), NewPage()
 
 -- General (was "Behavior")
+AddPageTitle(pageGeneral, RR.L["General"], RR.L["Startup, Boss Order & Transmog Defaults"])
+
 AddDropdown(pageGeneral, RR.L["On Login Show RetroRuns"], {
         { value = "minimized", text = RR.L["Open minimized"] },
         { value = "full",      text = RR.L["Open full"] },
@@ -289,16 +457,19 @@ AddDropdown(pageGeneral, RR.L["Default Transmog Filter"], {
         if UI.RefreshTmogWindowIfShown then UI.RefreshTmogWindowIfShown() end
     end)
 
-AddCheckbox(pageGeneral, RR.L["Minimap Button"], 0,
+AddToggle(pageGeneral, RR.L["Minimap Button:"], 0,
     function() return RR:GetSetting("showMinimap") ~= false end,
     function(value)
         RR:SetSetting("showMinimap", value)
         if RR.minimapButton then
             if value then RR.minimapButton:Show() else RR.minimapButton:Hide() end
         end
-    end)
+    end,
+    { followLabel = true })
 
 -- Appearance
+AddPageTitle(pageAppearance, RR.L["Appearance"], RR.L["Font, Scale & Opacity"])
+
 -- Font Size max is RR.FONT_SIZE_MAX (the size the fixed-width frame fits).
 AddSlider(pageAppearance, RR.L["Font Size"], 10, RR.FONT_SIZE_MAX or 14, 1,
     function() return RR:GetSetting("fontSize", 12) end,
@@ -342,48 +513,16 @@ AddDropdown(pageAppearance, RR.L["Body Font"], {
 -- preference, followed by indented On | Off sub-preferences (Loot Summary,
 -- Hide Blizzard Boss Banner, Coin SFX). The selected button in each pair is
 -- underlined to signal it is the active choice (and that these are clickable).
-local RefreshToasterControls   -- forward declaration (defined below)
 local COLOR_AMBER    = { 1.00, 0.55, 0.20 }   -- "travel to a supported raid"
 local COLOR_GREEN    = { 0.40, 0.90, 0.45 }   -- "active"
 local COLOR_RED      = { 0.95, 0.35, 0.35 }   -- "manually disabled"
-local SEG_FONT_SIZE  = 15
 local STATUS_FONT_SIZE = 13   -- Active Status value only: "Travel to a
                               -- Supported Instance" overruns the row at
                               -- SEG_FONT_SIZE.
-local SUB_INDENT     = 18
-local UNDERLINE_PIXELS = 2   -- physical pixels under the selected choice
-local VALUE_X = 240   -- page-relative x for the value column. Sized to clear
-                      -- the widest label, RR.L["Hide Blizzard Boss Banner:"] at 15pt
-                      -- with its sub-indent. NOT offset by CONTENT_X since
-                      -- controls anchor within the page, whose origin is
-                      -- already at CONTENT_X)
 
 -- Tagline header for the Toaster tab.
-do
-    -- Clamped to the page width so long translations wrap instead of
-    -- running past the frame edge; the cursor advances by the rendered
-    -- height so a wrapped line pushes everything below it down. Width
-    -- before text, so the height measures the wrapped string.
-    local tagline = NewText(pageToaster, 17, COLOR_CYAN)
-    tagline:SetPoint("TOPLEFT", 0, pageCursor[pageToaster])
-    tagline:SetWidth(CONTENT_W)
-    tagline:SetJustifyH("LEFT")
-    tagline:SetText(RR.L["Toast what matters. Silence everything else."])
-    pageCursor[pageToaster] = pageCursor[pageToaster]
-        - (math.max(17, math.ceil(tagline:GetStringHeight())) + 8)
-
-    local subline = NewText(pageToaster, 12, COLOR_PINK)
-    subline:SetPoint("TOPLEFT", 0, pageCursor[pageToaster])
-    subline:SetWidth(CONTENT_W)
-    subline:SetJustifyH("LEFT")
-    subline:SetText(RR.L["Quiet the Spam from Blizzard's Native Notifications"])
-    pageCursor[pageToaster] = pageCursor[pageToaster]
-        - (math.max(12, math.ceil(subline:GetStringHeight())) + 8)
-
-    -- Divider separating the tagline from the controls below.
-    AddGemDivider(pageToaster)
-    pageCursor[pageToaster] = pageCursor[pageToaster] - 14
-end
+AddPageTitle(pageToaster, RR.L["Toast what matters. Silence everything else."],
+    RR.L["Quiet the Spam from Blizzard's Native Notifications"])
 
 -- Read-only Status line: "Status:" + a state word set by Refresh.
 local statusArrow, statusValue
@@ -407,130 +546,40 @@ do
     pageCursor[pageToaster] = pageCursor[pageToaster] - (CHECK_H + 4)
 end
 
-
--- A pair of clickable text buttons (e.g. Enable | Disable). The selected one is
--- cyan with a magenta underline; the other is gray. getValue returns the current bool;
--- setValue(bool) writes it. trueLabel/falseLabel are the words shown.
-local function AddButtonPair(label, indent, trueLabel, falseLabel, getValue, setValue)
-    local rowY = pageCursor[pageToaster]
-
-    local lbl = NewText(pageToaster, SEG_FONT_SIZE, COLOR_LABEL, label)
-    lbl:SetPoint("TOPLEFT", indent or 0, rowY)
-
-    local function MakeBtn(text, value)
-        local btn = CreateFrame("Button", nil, pageToaster)
-        local fs = NewText(btn, SEG_FONT_SIZE, nil, text)
-        btn.fs = fs
-        -- Size the button from the rendered string metrics and anchor the text
-        -- inside it. Sizing the button off its own child fontstring collapses
-        -- to zero width unless the fontstring carries an external anchor, which
-        -- only the leading button has; this gives every button a real rect.
-        btn:SetSize(math.max(1, fs:GetStringWidth()), SEG_FONT_SIZE + 4)
-        fs:SetPoint("TOPLEFT", btn, "TOPLEFT")
-        -- Underline; shown only when selected.
-        local ul = btn:CreateTexture(nil, "ARTWORK")
-        ul:SetColorTexture(COLOR_PINK[1], COLOR_PINK[2], COLOR_PINK[3], 1)
-        -- Two PHYSICAL pixels, snapped to the pixel grid, so every row's
-        -- underline is the same thickness whatever fractional y the row
-        -- lands on. Re-applied on Refresh so a scale change does not leave
-        -- it stale.
-        ul:SetHeight(UNDERLINE_PIXELS / (ul:GetEffectiveScale() or 1))
-        if ul.SetSnapToPixelGrid then
-            ul:SetSnapToPixelGrid(true)
-        end
-        ul:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -2)
-        ul:SetPoint("TOPRIGHT", fs, "BOTTOMRIGHT", 0, -2)
-        ul:Hide()
-        btn.underline = ul
-        -- OnClick is wired below (MakeClick) so it can respect the operable gate.
-        return btn
-    end
-
-    local trueBtn = MakeBtn(trueLabel, true)
-    -- The value column is a minimum: rows whose localized label runs past
-    -- it push their buttons right instead of being overdrawn.
-    -- Ceil to a whole pixel: string widths are fractional, and a row whose
-    -- label pushes its buttons past the shared column would otherwise land
-    -- on a fractional x, where the 1px underline can fall between pixels
-    -- and vanish at some UI scales.
-    -- An indented row indents its choices too, so the sub-rows read as a
-    -- block under their parent rather than sharing its column.
-    local valueX = math.ceil(math.max(VALUE_X + (indent or 0), (indent or 0) + lbl:GetStringWidth() + 12))
-    trueBtn:SetPoint("TOPLEFT", pageToaster, "TOPLEFT", valueX, rowY)
-
-    local sep = pageToaster:CreateFontString(nil, "ARTWORK")
-    RR.SafeSetFont(sep, CANVAS_FONT, SEG_FONT_SIZE, "")
-    sep:SetText("|")
-    sep:SetPoint("LEFT", trueBtn, "RIGHT", 6, 0)
-    sep:SetTextColor(unpack(COLOR_DIM))
-
-    local falseBtn = MakeBtn(falseLabel, false)
-    falseBtn:SetPoint("LEFT", sep, "RIGHT", 6, 0)
-
-    pageCursor[pageToaster] = pageCursor[pageToaster] - (CHECK_H + 4)
-
-    local row = {}
-    local operable = true   -- when false, clicks are ignored and both dim
-
-    local function MakeClick(value)
-        return function()
-            if not operable then return end
-            setValue(value)
-            if RefreshToasterControls then RefreshToasterControls() end
-        end
-    end
-    trueBtn:SetScript("OnClick", MakeClick(true))
-    falseBtn:SetScript("OnClick", MakeClick(false))
-
-    -- isOperable defaults true; pass false to lock the pair (e.g. Coin SFX when
-    -- Toaster is disabled). Selected button still underlines so the stored
-    -- choice stays visible, just muted.
-    function row.Refresh(isOperable)
-        operable = (isOperable ~= false)
-        local on = getValue()
-        local selColor = operable and COLOR_CYAN or COLOR_DIM
-        trueBtn.fs:SetTextColor(unpack(on and selColor or COLOR_DIM))
-        falseBtn.fs:SetTextColor(unpack((not on) and selColor or COLOR_DIM))
-        trueBtn.underline:SetShown(on)
-        falseBtn.underline:SetShown(not on)
-        -- Mute the underline color when locked. SetColorTexture needs an explicit
-        -- alpha; the COLOR_* tables carry only RGB, so pass 1 or it renders clear.
-        local ur, ug, ub = unpack(operable and COLOR_PINK or COLOR_DIM)
-        trueBtn.underline:SetColorTexture(ur, ug, ub, 1)
-        falseBtn.underline:SetColorTexture(ur, ug, ub, 1)
-        local pixelHeight = UNDERLINE_PIXELS / (trueBtn.underline:GetEffectiveScale() or 1)
-        trueBtn.underline:SetHeight(pixelHeight)
-        falseBtn.underline:SetHeight(pixelHeight)
-    end
-
-    return row
+local function ToasterEnabled()
+    return RR:GetSetting("toasterEnabled", false) ~= false
 end
 
-local enableRow = AddButtonPair(RR.L["Toaster:"], 0, RR.L["Enable"], RR.L["Disable"],
-    function() return RR:GetSetting("toasterEnabled", false) ~= false end,
+AddButtonPair(pageToaster, RR.L["Toaster:"], 0, RR.L["Enable"], RR.L["Disable"],
+    ToasterEnabled,
     function(value) if RR.SetToaster then RR:SetToaster(value) end end)
 
-local lootSummaryRow = AddButtonPair(RR.L["Loot Summary:"], SUB_INDENT, RR.L["On"], RR.L["Off"],
+-- Sub-rows are operable only when the Toaster is enabled.
+AddToggle(pageToaster, RR.L["Loot Summary:"], SUB_INDENT,
     function() return RR:GetSetting("toasterLootSummary", true) ~= false end,
-    function(value) RR:SetSetting("toasterLootSummary", value) end)
+    function(value) RR:SetSetting("toasterLootSummary", value) end,
+    { isOperable = ToasterEnabled })
 
-local repSummaryRow = AddButtonPair(RR.L["Reputation Summary:"], SUB_INDENT, RR.L["On"], RR.L["Off"],
+AddToggle(pageToaster, RR.L["Reputation Summary:"], SUB_INDENT,
     function() return RR:GetSetting("toasterReputationSummary", true) ~= false end,
-    function(value) RR:SetSetting("toasterReputationSummary", value) end)
+    function(value) RR:SetSetting("toasterReputationSummary", value) end,
+    { isOperable = ToasterEnabled })
 
 -- Stored value means "suppress Blizzard's banner": On = hidden. Default on
 -- (true) so the banner is hidden whenever the Toaster is active. Toggling it
 -- live re-reconciles the suppression immediately.
-local bannerRow = AddButtonPair(RR.L["Hide Blizzard Boss Banner:"], SUB_INDENT, RR.L["On"], RR.L["Off"],
+AddToggle(pageToaster, RR.L["Hide Blizzard Boss Banner:"], SUB_INDENT,
     function() return RR:GetSetting("toasterHideBossBanner", true) ~= false end,
     function(value)
         RR:SetSetting("toasterHideBossBanner", value)
         if RR._RefreshToasterBannerSuppression then RR._RefreshToasterBannerSuppression() end
-    end)
+    end,
+    { isOperable = ToasterEnabled })
 
-local soundRow = AddButtonPair(RR.L["Coin SFX:"], SUB_INDENT, RR.L["On"], RR.L["Off"],
+AddToggle(pageToaster, RR.L["Coin SFX:"], SUB_INDENT,
     function() return RR:GetSetting("toasterSound", true) ~= false end,
-    function(value) RR:SetSetting("toasterSound", value) end)
+    function(value) RR:SetSetting("toasterSound", value) end,
+    { isOperable = ToasterEnabled })
 
 -- Spacing + divider separating the controls above from the preview below.
 do
@@ -825,7 +874,7 @@ do
         end
     end
 
-    local stayCheck = AddCheckbox(pageCustomize, RR.L["Toasts remain visible until right-clicked"], 0,
+    AddToggle(pageCustomize, RR.L["Toasts remain visible until right-clicked:"], 0,
         function() return RR:GetSetting("toasterStayUntilClick", false) end,
         function(value)
             RR:SetSetting("toasterStayUntilClick", value)
@@ -833,15 +882,11 @@ do
         end)
     -- Sync the slider's grayed state whenever the page refreshes (e.g. reopen
     -- or reset), not just on click.
-    local prevStayRefresh = stayCheck.RR_Refresh
-    stayCheck.RR_Refresh = function(self)
-        if prevStayRefresh then prevStayRefresh(self) end
-        ApplyDurationSliderState()
-    end
+    controls[#controls + 1] = { RR_Refresh = ApplyDurationSliderState }
     -- Reset Position: return the toasts to the default panel-anchored spot,
     -- clearing any custom dragged position. Anchored to the page via the
     -- cursor (MakeTextButton positions on the panel, so re-anchor it here).
-    pageCursor[pageCustomize] = pageCursor[pageCustomize] - 6
+    pageCursor[pageCustomize] = pageCursor[pageCustomize] - 2
     local resetPosBtn = MakeTextButton(RR.L["Reset Position"], 0, 0, 140, function()
         if RR.ResetToasterAnchor then RR:ResetToasterAnchor() end
     end)
@@ -869,7 +914,7 @@ end
 -- from the shared RR.WhatsNew data (via UI.BuildWhatsNewBody). Scrollable, so
 -- the full last-N release set fits regardless of length.
 do
-    AddPageTitle(pageWhatsNew, RR.L["What's New"])
+    AddPageTitle(pageWhatsNew, RR.L["What's New"], RR.L["Release Notes for Recent Versions"])
 
     -- Scrollable body: ScrollFrame fills the page, scrollChild holds the
     -- wrapped notes. -22 right inset leaves room for the scrollbar.
@@ -908,7 +953,7 @@ end
 -- Command reference (mirrors the user-facing `/rr help` output verbatim) and
 -- the GitHub / CurseForge links (same copy-URL popups as the footer icons).
 do
-    AddPageTitle(pageHelp, RR.L["Help"])
+    AddPageTitle(pageHelp, RR.L["Help"], RR.L["Commands, Links & Feedback"])
 
     -- Author credit + Discord, at the top of the page.
     NewText(pageHelp, 12, nil, RR.L["|cffF259C7Author:|r |cffffffffPhotek|r"])
@@ -1035,43 +1080,36 @@ local function RepaintMapOverlay()
     end
 end
 
-AddSectionLabel(pageMap, RR.L["World Map"])
+AddPageTitle(pageMap, RR.L["Map"], RR.L["Markers & Boss Icons on the World Map"])
 
-local mapRareChild
-
-local function SyncMapChildren()
-    local masterOn = RR:GetSetting("mapPois", true) ~= false
-    if mapRareChild then
-        mapRareChild:SetEnabled(masterOn)
-        mapRareChild.Text:SetAlpha(masterOn and 1 or 0.4)
-    end
+local function MapPoisEnabled()
+    return RR:GetSetting("mapPois", true) ~= false
 end
 
-AddCheckbox(pageMap, RR.L["Enable Map POIs"], 0,
-    function() return RR:GetSetting("mapPois", true) ~= false end,
+AddToggle(pageMap, RR.L["Map POIs:"], 0,
+    MapPoisEnabled,
     function(value)
         RR:SetSetting("mapPois", value)
-        SyncMapChildren()
         RepaintMapOverlay()
-    end)
+    end,
+    { hintTitle = RR.L["Map POIs"],
+      hint = RR.L["Shows rares, vendors, treasure and other points of interest on the map inside an instance. The route still shows when this is off."] })
 
--- Stored as SHOW, asked as HIDE, so both surfaces word it the same way
--- and nobody's saved value has to migrate.
-mapRareChild = AddCheckbox(pageMap,
-    RR.L["Hide fully collected rares from map"], 16,
+-- Stored as SHOW, asked as HIDE, as the world-map menu asks it, so
+-- nobody's saved value has to migrate. Locked while POIs are off.
+AddToggle(pageMap, RR.L["Hide fully collected POIs:"], SUB_INDENT,
     function() return RR:GetSetting("showCollectedRares", true) == false end,
     function(value)
         RR:SetSetting("showCollectedRares", not value)
         RepaintMapOverlay()
-    end)
+    end,
+    { isOperable = MapPoisEnabled, flushChoices = true })
 
-do
-    local baseRefresh = mapRareChild.RR_Refresh
-    mapRareChild.RR_Refresh = function(self)
-        baseRefresh(self)
-        SyncMapChildren()
-    end
-end
+AddToggle(pageMap, RR.L["Enhanced Boss Icons:"], 0,
+    function() return RR:GetSetting("enhancedBossIcons", true) ~= false end,
+    function(value) RR:SetSetting("enhancedBossIcons", value) end,
+    { hintTitle = RR.L["Enhanced Boss Icons"],
+      hint = RR.L["When hovering a boss icon, you will see the collection status for each item the boss drops"] })
 
 -- ---- Left nav tab rail ---------------------------------------------------
 
@@ -1168,11 +1206,11 @@ local RESET_DEFAULTS = {
     toasterScale = 1.0, toasterLocked = true, toasterAnchor = nil,
     toasterDuration = 5.0, toasterStayUntilClick = false,
     toasterHideBossBanner = true,
-    mapPois = true, showCollectedRares = true,
+    mapPois = true, showCollectedRares = true, enhancedBossIcons = true,
 }
 
 -- Reconcile the Toaster tab: the read-only Status word reflects live truth,
--- and the two button pairs reflect their stored preferences.
+-- and every button pair, on any page, reflects its stored preference.
 RefreshToasterControls = function()
     local inRaid  = RR.currentRaid ~= nil
     local enabled = RR:GetSetting("toasterEnabled", false) ~= false
@@ -1202,12 +1240,7 @@ RefreshToasterControls = function()
         toasterTab.statusDot:SetVertexColor(unpack(stateColor))
     end
 
-    if enableRow then enableRow.Refresh(true) end
-    -- Sub-rows are operable only when the Toaster is enabled.
-    if lootSummaryRow  then lootSummaryRow.Refresh(enabled) end
-    if repSummaryRow   then repSummaryRow.Refresh(enabled) end
-    if soundRow  then soundRow.Refresh(enabled) end
-    if bannerRow then bannerRow.Refresh(enabled) end
+    for _, row in ipairs(pairRows) do row.Refresh() end
 end
 
 local function RefreshAllControls()
@@ -1244,26 +1277,32 @@ local resetButton = MakeTextButton(RR.L["Reset to Defaults"], 24, 16, 160, Reset
 resetButton:ClearAllPoints()
 resetButton:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -24, -20)
 
--- RR.L["Lock toasts"] checkbox on the Customize tab. Checked = locked (default);
--- unchecking surfaces the drag overlay to reposition the toasts.
+-- RR.L["Lock toasts:"] pair on the Customize tab. On = locked (default);
+-- Off surfaces the drag overlay to reposition the toasts.
 -- Pinned to the page's top-right corner, label on the left; nothing lays
 -- out from the cursor after it.
-local lockCheck = AddCheckbox(pageCustomize, RR.L["Lock toasts"], 0,
-    function() return RR:GetSetting("toasterLocked", true) end,
-    function(locked)
-        RR:SetSetting("toasterLocked", locked)
-        if locked then
-            if RR.LockToasterAnchor then RR:LockToasterAnchor() end
-        else
-            if RR.UnlockToasterAnchor then RR:UnlockToasterAnchor() end
-        end
-    end)
-lockCheck:ClearAllPoints()
-lockCheck:SetPoint("TOPRIGHT", pageCustomize, "TOPRIGHT", -8, -4)
-lockCheck.Text:ClearAllPoints()
-lockCheck.Text:SetPoint("RIGHT", lockCheck, "LEFT", -4, 0)
-lockCheck.tooltipText = RR.L["Lock toasts"]
-lockCheck.tooltipRequirement = RR.L["Uncheck to drag the toasts to a new spot, then re-check to lock."]
+do
+    local lockRow = AddToggle(pageCustomize, RR.L["Lock toasts:"], 0,
+        function() return RR:GetSetting("toasterLocked", true) end,
+        function(locked)
+            RR:SetSetting("toasterLocked", locked)
+            if locked then
+                if RR.LockToasterAnchor then RR:LockToasterAnchor() end
+            else
+                if RR.UnlockToasterAnchor then RR:UnlockToasterAnchor() end
+            end
+        end,
+        { hintTitle = RR.L["Lock toasts"],
+          hint = RR.L["Turn OFF to drag the toasters around, and back ON to lock them"] })
+    lockRow.falseBtn:ClearAllPoints()
+    lockRow.falseBtn:SetPoint("TOPRIGHT", pageCustomize, "TOPRIGHT", -8, SECTION_TOP)
+    lockRow.sep:ClearAllPoints()
+    lockRow.sep:SetPoint("RIGHT", lockRow.falseBtn, "LEFT", -6, 0)
+    lockRow.trueBtn:ClearAllPoints()
+    lockRow.trueBtn:SetPoint("RIGHT", lockRow.sep, "LEFT", -6, 0)
+    lockRow.label:ClearAllPoints()
+    lockRow.label:SetPoint("TOPRIGHT", lockRow.trueBtn, "TOPLEFT", -12, 0)
+end
 
 -- The sample toasts (Toaster page stack, Customize page mockup) baked their
 -- typeface in at file-load time, before SavedVariables existed and while

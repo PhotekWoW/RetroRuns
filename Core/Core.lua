@@ -6,7 +6,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "3.3.5"
+local VERSION    = "3.3.6"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -2743,6 +2743,9 @@ function RR:LoadCurrentRaid(variant)
     if variant ~= nil then
         self.state.activeRouteVariant = (variant == "skip") and "skip" or "standard"
         self:PersistRouteVariant(self.state.activeRouteVariant)
+        -- A step picked while the dialog was up came from the other route;
+        -- the next refresh picks again from the chosen one.
+        self.state.activeStep = nil
     else
         if not self.state.activeRouteVariant then
             self.state.activeRouteVariant = "standard"
@@ -2927,6 +2930,10 @@ function RR:HandleLocationChange()
             self.state.progress = {}
             self.state.triggersFired = self.state.triggersFired or {}
             wipe(self.state.triggersFired)
+            self.state.aurasSeen = {}
+            -- The chosen route comes back from this instance's own record
+            -- or lockout, never from the one before it.
+            self.state.activeRouteVariant = nil
             self.state.lastSeenRaidKey = key
 
             -- An instance with no saved lockout has nothing on the server
@@ -2965,12 +2972,20 @@ function RR:HandleLocationChange()
                                 or self:GetLocalizedRaidName(supported),
                             killed, total))
                 self:PrintAfterBanner((RR.L["Resuming %s route."]):format(routeWord))
-            elseif self:IsInLFR() or supported.kind == "dungeon" then
+            elseif supported.kind == "dungeon" and supported.skipRoute
+               and not self:IsTimewalkingRun() and self:DungeonRouteCommitted() then
+                -- A dungeon with a second route, already under way on the
+                -- one chosen: resume it without asking again.
+                self.state.loadedRaidKey = key
+                self:LoadCurrentRaid()
+                local routeWord = (self.state.activeRouteVariant == "skip")
+                    and self:SkipRouteText(supported).word or RR.L["FULL"]
+                self:PrintAfterBanner((RR.L["Resuming %s route."]):format(routeWord))
+            elseif self:IsInLFR() or (supported.kind == "dungeon"
+                and not (supported.skipRoute and not self:IsTimewalkingRun())) then
                 -- Neither route variant applies in LFR, so load directly.
-                -- Dungeons load directly too: the full/skip choice the
-                -- dialog exists to offer is a raid concept, and asking
-                -- about navigation would promise a route an unrouted
-                -- dungeon does not have.
+                -- Dungeons load directly too, unless they carry a second
+                -- route (Dire Maul's Tribute run).
                 self.state.loadedRaidKey = key
                 self:LoadCurrentRaid()
             else
@@ -3624,6 +3639,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         else
             RR.state.progress      = {}
             RR.state.triggersFired = {}
+            RR.state.aurasSeen     = {}
             if RetroRunsDB and RetroRunsDB.routingProgress then
                 RetroRunsDB.routingProgress[RR.currentRaid.instanceID] = nil
             end
@@ -4211,6 +4227,24 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
             RR:AdvanceProgress("bag")
         end
 
+    elseif event == "QUEST_TURNED_IN" then
+        -- A quest gate opens on the turn-in itself (Dire Maul's Broken Trap).
+        local questID = ...
+        if RR.currentRaid and RR.state.loadedRaidKey then
+            RR:ZoneLog(("QUEST_TURNED_IN: questID=%s"):format(tostring(questID)))
+            if RR:AdvanceProgress("quest-turned-in", { questID = questID }) then
+                RR:RefreshAll()
+            end
+        end
+
+    elseif event == "UNIT_AURA" then
+        -- A buff the route watches for has landed: recorded, and any gate
+        -- on it opens.
+        if RR.currentRaid and RR.state.loadedRaidKey and RR:RecordWatchedAuras() then
+            RR:AdvanceProgress("aura")
+            RR:RefreshAll()
+        end
+
     elseif event == "UPDATE_UI_WIDGET" then
         -- A counter widget changed; the gate reads the widget itself.
         if RR.currentRaid and RR.state.loadedRaidKey
@@ -4358,6 +4392,8 @@ RR.frame:RegisterEvent("NEW_PET_ADDED")
 RR.frame:RegisterEvent("NEW_TOY_ADDED")
 RR.frame:RegisterEvent("TRANSMOG_COLLECTION_SOURCE_ADDED")
 RR.frame:RegisterEvent("BAG_UPDATE_DELAYED")
+RR.frame:RegisterUnitEvent("UNIT_AURA", "player")
+RR.frame:RegisterEvent("QUEST_TURNED_IN")
 RR.frame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
 RR.frame:RegisterEvent("UPDATE_UI_WIDGET")
 RR.frame:RegisterEvent("PLAYER_CONTROL_LOST")

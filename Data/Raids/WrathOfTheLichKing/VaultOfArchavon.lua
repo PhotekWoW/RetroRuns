@@ -277,7 +277,10 @@ RetroRuns_Data[624] = {
             journalEncounterID = 1598,
             dungeonEncounterID = 1127,
             aliases            = {},
-            achievements       = { },
+            achievements       = {
+                { id = 4016, name = "Earth, Wind & Fire (10 player)", meta = false, soloable = "yes" },
+                { id = 4017, name = "Earth, Wind & Fire (25 player)", meta = false, soloable = "yes" },
+            },
             loot = {
                 { id = 42064, slot = "Back", name = "Deadly Gladiator's Cloak of Ascendancy", sources = { [3]=20349 } },
                 { id = 42066, slot = "Back", name = "Deadly Gladiator's Cloak of Deliverance", sources = { [3]=20351 } },
@@ -505,7 +508,10 @@ RetroRuns_Data[624] = {
             journalEncounterID = 1599,
             dungeonEncounterID = 1128,
             aliases            = { "Koralon" },
-            achievements       = { },
+            achievements       = {
+                { id = 4016, name = "Earth, Wind & Fire (10 player)", meta = false, soloable = "yes" },
+                { id = 4017, name = "Earth, Wind & Fire (25 player)", meta = false, soloable = "yes" },
+            },
             loot = {
                 { id = 42071, slot = "Back", name = "Furious Gladiator's Cloak of Ascendancy", sources = { [3]=20356 } },
                 { id = 42073, slot = "Back", name = "Furious Gladiator's Cloak of Deliverance", sources = { [3]=20358 } },
