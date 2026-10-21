@@ -37,6 +37,7 @@ RetroRuns_DungeonData[777] = {
             journalEncounterID = 1693,
             dungeonEncounterID = 1848,
             achievements       = {
+                { id = 10554, name = "I Made a Food!", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 134414, slot = "Chest", name = "Fetid Gutcover Apron", sources = { [14]=79021, [15]=80003, [16]=79021 } },

@@ -627,6 +627,7 @@ RetroRuns_Data[409] = {
                 {
                     when        = { mapID = 232, subZone = "Ragnaros' Lair" },
                     kind        = "poi",
+                    poiKind     = "talk",
                     poiSize     = 35,
                     mapLabel    = "Talk to Majordomo",
                     mapLabelPos = "below",

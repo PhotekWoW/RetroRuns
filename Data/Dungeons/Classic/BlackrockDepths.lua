@@ -44,6 +44,21 @@ RetroRuns_DungeonData[228] = {
         { id = 12550, slot = "Wrist", name = "Runed Golem Shackles", sources = { [14]=4457 }, bind = "BoE" },
     },
 
+    -- Brewfest's Coren Direbrew, shown in the browser's event section.
+    eventLabel       = "Brewfest",
+    eventNote        = "During Brewfest, queue for Coren Direbrew in the Dungeon Finder. These come from the {item} he drops.",
+    eventHoliday     = true,
+    eventNoteItemID  = 117393,
+    eventBossName    = "Coren Direbrew",
+    eventLoot = {
+        { id = 117378, slot = "Weapon", name = "Direbrew's Bloodied Shanker", sources = { [14]=65960, [15]=65960 } },
+        { id = 117379, slot = "Weapon", name = "Tremendous Tankard O' Terror", sources = { [14]=65961, [15]=65961 } },
+        { id = 150922, slot = "Held In Off-hand", name = "Terrific Tankard O' Terror", sources = { [14]=89201, [15]=89201 } },
+        { id = 37828, kind = "mount", name = "Great Brewfest Kodo" },
+        { id = 33977, kind = "mount", name = "Swift Brewfest Ram" },
+        { id = 248761, kind = "mount", name = "Brewfest Bomber" },
+    },
+
     bosses = {
         {
             index              = 1,
@@ -927,6 +942,7 @@ RetroRuns_DungeonData[228] = {
                     -- sub-zone gate is what releases the bare-mapID seg above.
                     when        = { mapID = 243, subZone = "Summoners' Tomb" },
                     kind        = "poi",
+                    poiKind     = "talk",
                     mapLabel    = "Talk to Doom'rel",
                     mapLabelPos = "above",
                     points      = {

@@ -204,6 +204,7 @@ RetroRuns_DungeonData[277] = {
                     -- his yell moves the route past it and ticks the label.
                     when            = { mapID = 140 },
                     kind            = "poi",
+                    poiKind         = "talk",
                     mapLabel        = "Talk to Brann",
                     mapLabelPos     = "above",
                     completionCheck = true,
@@ -233,6 +234,7 @@ RetroRuns_DungeonData[277] = {
                     -- with it; noteless, so the walk's note stays up.
                     when         = { mapID = 140 },
                     kind         = "poi",
+                    poiKind      = "talk",
                     mapLabel     = "Talk to Brann",
                     mapLabelPos  = "left",
                     triggeredBy  = { dialog = { npc = "Brann Bronzebeard", match = "Time to get some answers! Let's get this show on the road!" } },
@@ -256,6 +258,7 @@ RetroRuns_DungeonData[277] = {
                 {
                     when        = { mapID = 140 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     note        = "After defeating ^Tribunal of Ages^, talk to ^Brann^ to advance.",
                     minNote     = "Talk to Brann",
                     mapLabel    = "Talk to Brann",
@@ -293,6 +296,7 @@ RetroRuns_DungeonData[277] = {
                     -- it; noteless, so the walk's note stays up.
                     when         = { mapID = 140 },
                     kind         = "poi",
+                    poiKind      = "talk",
                     mapLabel     = "Talk to Brann",
                     mapLabelPos  = "right",
                     triggeredBy  = { dialog = { npc = "Brann Bronzebeard", match = "You're right, I can come back to this later." } },

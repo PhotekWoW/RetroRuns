@@ -15,7 +15,28 @@ RetroRuns_DungeonData[184] = {
     difficultyModel   = "dungeonBinary",
     availableDifficulties = { 15, 24 },
     patch             = "4.3.0",
+    routedIn          = "3.3.7",
     timewalking       = true,
+    spawnChoice = {
+        1, 2, 3, 4, label = "Echoes", picks = 2,
+        -- The Time Transit Device's one destination, by gossip option id. A
+        -- shrine has one option as the first echo and another as the second.
+        gossip = {
+            [40857] = 3,   -- Ruby Dragonshrine, first echo
+            [40859] = 2,   -- Azure Dragonshrine, first echo
+            [40860] = 1,   -- Obsidian Dragonshrine, first echo
+            [40862] = 4,   -- Emerald Dragonshrine, second echo
+            [40863] = 2,   -- Azure Dragonshrine, second echo
+        },
+        -- Each echo's shrine. The device option that names a shrine, or
+        -- arriving there, names its echo.
+        shrines = {
+            ["Obsidian Dragonshrine"] = 1,
+            ["Azure Dragonshrine"]    = 2,
+            ["Ruby Dragonshrine"]     = 3,
+            ["Emerald Dragonshrine"]  = 4,
+        },
+    },
 
     entrance = {
         mapID = 75,
@@ -34,6 +55,8 @@ RetroRuns_DungeonData[184] = {
             name               = "Echo of Baine",
             journalEncounterID = 340,
             dungeonEncounterID = 1881,
+            -- The Heroic lockout can mark an echo defeated on another echo's kill.
+            lockoutUnreliable  = true,
             achievements       = {
             },
             loot = {
@@ -61,6 +84,8 @@ RetroRuns_DungeonData[184] = {
             name               = "Echo of Jaina",
             journalEncounterID = 285,
             dungeonEncounterID = 1883,
+            -- The Heroic lockout can mark an echo defeated on another echo's kill.
+            lockoutUnreliable  = true,
             achievements       = {
             },
             loot = {
@@ -88,6 +113,8 @@ RetroRuns_DungeonData[184] = {
             name               = "Echo of Sylvanas",
             journalEncounterID = 323,
             dungeonEncounterID = 1882,
+            -- The Heroic lockout can mark an echo defeated on another echo's kill.
+            lockoutUnreliable  = true,
             achievements       = {
                 { id = 6130, name = "Severed Ties", soloable = "yes" },
             },
@@ -116,6 +143,8 @@ RetroRuns_DungeonData[184] = {
             name               = "Echo of Tyrande",
             journalEncounterID = 283,
             dungeonEncounterID = 1884,
+            -- The Heroic lockout can mark an echo defeated on another echo's kill.
+            lockoutUnreliable  = true,
             achievements       = {
                 { id = 5995, name = "Moon Guard", soloable = "yes" },
             },
@@ -161,6 +190,350 @@ RetroRuns_DungeonData[184] = {
                 { id = 72825, slot = "Shoulder", name = "Mantle of Time", sources = { [15]=37305 }, twSource = 76721 },
                 { id = 72821, slot = "Shoulder", name = "Temporal Pauldrons", sources = { [15]=37301 }, twSource = 76717 },
                 { id = 72822, slot = "Weapon", name = "Jagged Edge of Time", sources = { [15]=37302 }, twSource = 76718 },
+            },
+        },
+    },
+
+    exitNote    = "The teleporter to the southwest will send you back to the entrance.",
+    minExitNote = "Southwest to portal",
+
+    routing = {
+        -- 1-4. Two of the four echoes, one after the other, at whichever
+        -- shrines the device sends you to.
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Echo of Baine",
+            requires  = { },
+            drawCurrentSegOnly = true,
+            skipToLocation     = true,
+            segments  = {
+                {
+                    when     = { mapID = 401, subZone = "Entryway of Time" },
+                    kind     = "poi",
+                    note     = "After zoning in, interact with the ^Time Transit Device^ and select {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.794, 0.464 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Ruby Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    mapLabelPos = "above",
+                    points   = {
+                        { 0.396, 0.403 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Emerald Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.657, 0.794 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Azure Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.512, 0.787 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Obsidian Dragonshrine" },
+                    kind     = "poi",
+                    note     = "After arriving in ^Obsidian Dragonshrine^, go west to ^Echo of Baine^.",
+                    minNote  = "West to Baine",
+                    mapLabel = "Baine",
+                    poiIcon  = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8",
+                    poiSize  = 26,
+                    hintBoss = 1,
+                    points   = {
+                        { 0.231, 0.132 },
+                    },
+                },
+            },
+        },
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Echo of Jaina",
+            requires  = { },
+            drawCurrentSegOnly = true,
+            skipToLocation     = true,
+            segments  = {
+                {
+                    when     = { mapID = 401, subZone = "Entryway of Time" },
+                    kind     = "poi",
+                    note     = "After zoning in, interact with the ^Time Transit Device^ and select {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.794, 0.464 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Ruby Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    mapLabelPos = "above",
+                    points   = {
+                        { 0.396, 0.403 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Emerald Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.657, 0.794 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Obsidian Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.301, 0.163 },
+                    },
+                },
+                {
+                    when    = { mapID = 401, subZone = "Azure Dragonshrine" },
+                    kind    = "path",
+                    note    = "After arriving in ^Azure Dragonshrine^, collect all 16 ^Fragments of Jaina's Staff^ around the area.",
+                    minNote = "Collect 16 staff fragments",
+                    points  = { },
+                },
+                {
+                    when        = { mapID = 401, subZone = "Azure Dragonshrine" },
+                    kind        = "poi",
+                    triggeredBy = { dialog = { npc = "Echo of Jaina", match = "defend this shrine with my life" } },
+                    note        = "With the staff fragments collected, go kill ^Echo of Jaina^.",
+                    minNote     = "Fragments done, kill Jaina",
+                    mapLabel    = "Jaina",
+                    poiIcon     = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8",
+                    poiSize     = 26,
+                    hintBoss    = 2,
+                    points      = {
+                        { 0.529, 0.748 },
+                    },
+                },
+            },
+        },
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Echo of Sylvanas",
+            requires  = { },
+            drawCurrentSegOnly = true,
+            skipToLocation     = true,
+            segments  = {
+                {
+                    when     = { mapID = 401, subZone = "Entryway of Time" },
+                    kind     = "poi",
+                    note     = "After zoning in, interact with the ^Time Transit Device^ and select {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.794, 0.464 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Emerald Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.657, 0.794 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Azure Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.512, 0.787 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Obsidian Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.301, 0.163 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Ruby Dragonshrine" },
+                    kind     = "poi",
+                    note     = "After arriving in ^Ruby Dragonshrine^, go east all the way to ^Echo of Sylvanas^.",
+                    minNote  = "East to Sylvanas",
+                    mapLabel = "Sylvanas",
+                    mapLabelPos = "above",
+                    poiIcon  = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8",
+                    poiSize  = 26,
+                    hintBoss = 3,
+                    points   = {
+                        { 0.419, 0.389 },
+                    },
+                },
+            },
+        },
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Echo of Tyrande",
+            requires  = { },
+            drawCurrentSegOnly = true,
+            skipToLocation     = true,
+            segments  = {
+                {
+                    when     = { mapID = 401, subZone = "Entryway of Time" },
+                    kind     = "poi",
+                    note     = "After zoning in, interact with the ^Time Transit Device^ and select {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.794, 0.464 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Ruby Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    mapLabelPos = "above",
+                    points   = {
+                        { 0.396, 0.403 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Azure Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.512, 0.787 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Obsidian Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose {option}.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.301, 0.163 },
+                    },
+                },
+                {
+                    when    = { mapID = 401, subZone = "Emerald Dragonshrine" },
+                    kind    = "path",
+                    note    = "After arriving in ^Emerald Dragonshrine^, start killing trash. A series of 5 moonlight pools need to be eliminated. You don't need to stand in them anymore, but you need to kill trash near them.",
+                    minNote = "Kill trash near moonlight pools",
+                    points  = { },
+                },
+                {
+                    when        = { mapID = 401, subZone = "Emerald Dragonshrine" },
+                    kind        = "poi",
+                    triggeredBy = { dialog = { npc = "Echo of Tyrande", match = "A pool of dark moonlight appears nearby" } },
+                    note        = "After eliminating the fifth moonlight pool, ^Echo of Tyrande^ will activate.",
+                    minNote     = "Moonlight done, kill Tyrande",
+                    mapLabel    = "Tyrande",
+                    poiIcon     = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8",
+                    poiSize     = 26,
+                    hintBoss    = 4,
+                    points      = {
+                        { 0.662, 0.844 },
+                    },
+                },
+            },
+        },
+        -- 5. Murozond (boss 5), from the shrine where the second echo fell.
+        {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 5,
+            title     = "Murozond",
+            requires  = { },
+            drawCurrentSegOnly = true,
+            skipToLocation     = true,
+            segments  = {
+                {
+                    when     = { mapID = 401, subZone = "Ruby Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose ^Bronze Dragonshrine^.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    mapLabelPos = "above",
+                    points   = {
+                        { 0.396, 0.403 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Emerald Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose ^Bronze Dragonshrine^.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.657, 0.794 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Azure Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose ^Bronze Dragonshrine^.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.512, 0.787 },
+                    },
+                },
+                {
+                    when     = { mapID = 401, subZone = "Obsidian Dragonshrine" },
+                    kind     = "poi",
+                    note     = "Click the nearby ^Time Transit Device^ and choose ^Bronze Dragonshrine^.",
+                    minNote  = "Use teleporter",
+                    mapLabel = "Teleporter",
+                    points   = {
+                        { 0.301, 0.163 },
+                    },
+                },
+                {
+                    when    = { mapID = 401, subZone = "Bronze Dragonshrine" },
+                    kind    = "path",
+                    note    = "After landing in ^Bronze Dragonshrine^, move ahead to engage ^Murozond^. Clear trash to activate the encounter.",
+                    minNote = "Clear trash for Murozond",
+                    points  = { },
+                },
             },
         },
     },

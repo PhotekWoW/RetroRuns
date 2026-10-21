@@ -170,12 +170,12 @@ RetroRuns_Data[754] = {
 
     routing = {
 
-        -- 1. Conclave of the Wind
+        -- 1. Conclave of Wind
         {
             step      = 1,
             priority  = 1,
             bossIndex = 1,
-            title     = "Conclave of the Wind",
+            title     = "Conclave of Wind",
             requires  = { },
             segments  = {
                 {
@@ -184,7 +184,7 @@ RetroRuns_Data[754] = {
                     noMarker    = true,
                     mapLabel    = "1",
                     mapLabelPos = "middle",
-                    note        = "After zoning in, go to the West platform to start the fight with ^Conclave of the Wind^.",
+                    note        = "After zoning in, go to the West platform to start the fight with ^Conclave of Wind^.",
                     minNote     = "West to Conclave",
                     points      = {
                         { 0.352, 0.494 },

@@ -126,6 +126,15 @@ end
 -- was marked; false otherwise (caller falls back to name-based lookup).
 function RR:MarkBossKilledByEncounterID(encounterID)
     if not self.currentRaid or not encounterID then return false end
+    local holidayBoss = self:GetHolidayBoss()
+    if holidayBoss and holidayBoss.dungeonEncounterID == encounterID then
+        if self.ZoneLog then
+            self:ZoneLog(("MarkBossKilledByEncounterID: encounterID %d is the holiday boss (%s)")
+                :format(encounterID, holidayBoss.name))
+        end
+        self:MarkBossKilled(holidayBoss)
+        return true
+    end
     local boss = self:GetBossByEncounterID(encounterID)
     if boss then
         -- A multi-encounter boss is killed when its LAST member falls; a
@@ -521,18 +530,26 @@ end
 -- spawnChoice: one boss of a set spawns per run
 -------------------------------------------------------------------------------
 
--- The undecided spawnChoice as one boss: its label, and every member's
--- loot and achievements, since either may be next. Cached per instance.
+-- The undecided spawnChoice as one boss: its label and every possible
+-- member's loot and achievements, cached per set of members already out.
 function RR:GetSpawnChoiceBoss()
     local choice = self.currentRaid and self.currentRaid.spawnChoice
     if not choice then return nil end
-    local cacheKey = self.currentRaid.journalInstanceID or self.currentRaid.instanceID
+    local picks = self:GetSpawnPicks()
+    local cacheKey = tostring(self.currentRaid.journalInstanceID or self.currentRaid.instanceID)
+        .. ":" .. table.concat(picks, ",")
     local cached = self.state.spawnChoiceBossCache
     if cached and cached.key == cacheKey then return cached.boss end
 
+    local candidates = {}
+    for _, memberIndex in ipairs(choice) do
+        if #picks == 0 or not self:IsSpawnPicked(memberIndex) then
+            candidates[#candidates + 1] = memberIndex
+        end
+    end
     local function union(field)
         local rows, seen = {}, {}
-        for _, memberIndex in ipairs(choice) do
+        for _, memberIndex in ipairs(candidates) do
             local member = self:GetBossByIndex(memberIndex)
             for _, row in ipairs(member and member[field] or {}) do
                 local key = row.id or row.name
@@ -607,12 +624,12 @@ function RR:ExpandSetSteps(dataTable)
     end
 end
 
--- True while the active step is a spawnChoice member and chat has not yet
--- named the spawn: every open member row takes a pulsing arrow.
+-- True while the active step is a spawnChoice member and the next spawn is
+-- not yet named: every open member row takes a pulsing arrow.
 function RR:IsSpawnChoicePending()
     local step = self.state.activeStep
-    return self.state.spawnedMember == nil and step ~= nil
-        and self:IsSpawnChoiceMember(step.bossIndex)
+    return step ~= nil and self:IsSpawnChoiceMember(step.bossIndex)
+        and self:IsSpawnChoiceOpen()
 end
 
 function RR:IsSpawnChoiceMember(bossIndex)
@@ -624,16 +641,113 @@ function RR:IsSpawnChoiceMember(bossIndex)
     return false
 end
 
--- True for a member this run did not spawn, once the spawn is known.
+-- How many members of the set one run brings out, one after another.
+function RR:GetSpawnPickLimit()
+    local choice = self.currentRaid and self.currentRaid.spawnChoice
+    return choice and choice.picks or 1
+end
+
+-- The members this run brought out: those named, then any killed under
+-- an encounter of its own.
+function RR:GetSpawnPicks()
+    local choice = self.currentRaid and self.currentRaid.spawnChoice
+    local picks, listed = {}, {}
+    local function add(memberIndex)
+        if memberIndex and not listed[memberIndex] then
+            listed[memberIndex] = true
+            picks[#picks + 1] = memberIndex
+        end
+    end
+    for _, memberIndex in ipairs(self.state.spawnEarlierPicks or {}) do add(memberIndex) end
+    add(self.state.spawnedMember)
+    if not choice then return picks end
+    local encounterUses = {}
+    for _, memberIndex in ipairs(choice) do
+        local boss = self:GetBossByIndex(memberIndex)
+        local encounterID = boss and boss.dungeonEncounterID
+        if encounterID then encounterUses[encounterID] = (encounterUses[encounterID] or 0) + 1 end
+    end
+    for _, memberIndex in ipairs(choice) do
+        local boss = self:GetBossByIndex(memberIndex)
+        local encounterID = boss and boss.dungeonEncounterID
+        if encounterID and encounterUses[encounterID] == 1 and self:IsBossKilled(memberIndex) then
+            add(memberIndex)
+        end
+    end
+    return picks
+end
+
+-- True for a member a gossip or a line named this run, as opposed to one
+-- inferred from a kill.
+function RR:IsSpawnNamed(bossIndex)
+    if not bossIndex then return false end
+    if self.state.spawnedMember == bossIndex then return true end
+    for _, memberIndex in ipairs(self.state.spawnEarlierPicks or {}) do
+        if memberIndex == bossIndex then return true end
+    end
+    return false
+end
+
+function RR:IsSpawnPicked(bossIndex)
+    for _, memberIndex in ipairs(self:GetSpawnPicks()) do
+        if memberIndex == bossIndex then return true end
+    end
+    return false
+end
+
+function RR:CountKilledSpawnMembers()
+    local choice = self.currentRaid and self.currentRaid.spawnChoice
+    local count = 0
+    for _, memberIndex in ipairs(choice or {}) do
+        if self:IsBossKilled(memberIndex) then count = count + 1 end
+    end
+    return count
+end
+
+-- True while the next spawn is still to be named: picks remain and every
+-- member brought out so far is dead.
+function RR:IsSpawnChoiceOpen()
+    if not (self.currentRaid and self.currentRaid.spawnChoice) then return false end
+    local picks = self:GetSpawnPicks()
+    if #picks >= self:GetSpawnPickLimit() then return false end
+    for _, memberIndex in ipairs(picks) do
+        if not self:IsBossKilled(memberIndex) then return false end
+    end
+    return true
+end
+
+-- True for a member this run will not bring out: every pick is known and
+-- this one is not among them.
 function RR:IsBossUnavailableThisRun(bossIndex)
-    local spawned = self.state.spawnedMember
-    return spawned ~= nil and bossIndex ~= spawned
-        and self:IsSpawnChoiceMember(bossIndex)
+    return self:IsSpawnChoiceMember(bossIndex)
+        and #self:GetSpawnPicks() >= self:GetSpawnPickLimit()
+        and not self:IsSpawnPicked(bossIndex)
+end
+
+-- True for a member held back while another one is out. It may still come
+-- out later, so it is not ruled out.
+function RR:IsBossDeferredThisRun(bossIndex)
+    return self:IsSpawnChoiceMember(bossIndex)
+        and not self:IsSpawnPicked(bossIndex)
+        and not self:IsSpawnChoiceOpen()
+end
+
+function RR:ClearSpawnPicks()
+    self.state.spawnedMember = nil
+    self.state.spawnEarlierPicks = nil
+    self.state.spawnOption = nil
 end
 
 function RR:SetSpawnedMember(bossIndex)
     if not self:IsSpawnChoiceMember(bossIndex) then return false end
-    if self.state.spawnedMember == bossIndex then return false end
+    if self:IsSpawnPicked(bossIndex) then return false end
+    -- The next pick of a set that brings out several: the member named
+    -- before it is dead and stays on record.
+    local previous = self.state.spawnedMember
+    if previous and self:IsSpawnChoiceOpen() then
+        self.state.spawnEarlierPicks = self.state.spawnEarlierPicks or {}
+        table.insert(self.state.spawnEarlierPicks, previous)
+    end
     self.state.spawnedMember = bossIndex
     if self.ZoneLog then
         self:ZoneLog(("spawnChoice: bossIndex %d spawned"):format(bossIndex))
@@ -664,7 +778,7 @@ end
 -- only as the speaker.
 function RR:DetectSpawnFromDialog(sender, text)
     local choice = self.currentRaid and self.currentRaid.spawnChoice
-    if not choice or self.state.spawnedMember then return false end
+    if not choice or not self:IsSpawnChoiceOpen() then return false end
     for _, memberIndex in ipairs(choice) do
         local boss = self:GetBossByIndex(memberIndex)
         if boss then
@@ -678,6 +792,68 @@ function RR:DetectSpawnFromDialog(sender, text)
                 if short and sender == short then
                     return self:SetSpawnedMember(memberIndex)
                 end
+            end
+        end
+    end
+    return false
+end
+
+-- The member whose shrine has this name (`spawnChoice.shrines`), matched
+-- in the client's language like a subZone gate.
+function RR:SpawnMemberForShrine(name)
+    local choice = self.currentRaid and self.currentRaid.spawnChoice
+    if not (choice and choice.shrines and name and name ~= "") then return nil end
+    for shrine, memberIndex in pairs(choice.shrines) do
+        if shrine == name or (self.SubZoneNameMatches and self.SubZoneNameMatches(shrine, name)) then
+            return memberIndex
+        end
+    end
+    return nil
+end
+
+-- Arriving in a member's shrine names it: the way there opens only for the
+-- member that is out, so landing is as good as the gossip that sent you.
+function RR:DetectSpawnFromSubZone(subZone)
+    if not self:IsSpawnChoiceOpen() then return false end
+    local memberIndex = self:SpawnMemberForShrine(subZone)
+    if not memberIndex or self:IsBossKilled(memberIndex) then return false end
+    if self.ZoneLog then
+        self:ZoneLog(("spawnChoice: arrived in %q -> bossIndex %d"):format(subZone, memberIndex))
+    end
+    return self:SetSpawnedMember(memberIndex)
+end
+
+-- A gossip offering only the out member's shrine names it, by option id
+-- (`spawnChoice.gossip`) or shrine name; its text is kept for `{option}`.
+function RR:DetectSpawnFromGossip()
+    local choice = self.currentRaid and self.currentRaid.spawnChoice
+    if not (choice and (choice.gossip or choice.shrines)
+            and C_GossipInfo and C_GossipInfo.GetOptions) then
+        return false
+    end
+    for _, option in ipairs(C_GossipInfo.GetOptions() or {}) do
+        local optionID, optionName = option.gossipOptionID, option.name
+        if not (issecretvalue and (issecretvalue(optionID) or issecretvalue(optionName))) then
+            local memberIndex = (optionID and choice.gossip and choice.gossip[optionID])
+                or self:SpawnMemberForShrine(optionName)
+            if memberIndex and not self:IsBossKilled(memberIndex) then
+                self.state.spawnOption = { member = memberIndex, name = optionName }
+                if self.ZoneLog then
+                    self:ZoneLog(("spawnChoice: gossip option %s -> bossIndex %d"):format(
+                        tostring(optionID), memberIndex))
+                end
+                if not self:SetSpawnedMember(memberIndex) then
+                    if self.PersistSpawnedMember then self:PersistSpawnedMember() end
+                    if self.RefreshAll then self:RefreshAll() end
+                end
+                return true
+            elseif memberIndex and self.ZoneLog then
+                -- The device lists a cleared shrine again once its echo is dead.
+                self:ZoneLog(("spawnChoice: gossip option %s %q -> bossIndex %d, already killed"):format(
+                    tostring(optionID), tostring(optionName), memberIndex))
+            elseif optionID and self.ZoneLog then
+                self:ZoneLog(("spawnChoice: gossip option %d %q not mapped"):format(
+                    optionID, tostring(optionName)))
             end
         end
     end
@@ -813,10 +989,63 @@ function RR:GetPoolSlotBoss(slotIndex)
     return slotBoss
 end
 
+-- A holiday boss queue runs the holiday boss alone, built from the host's
+-- event block at an index no journal boss uses.
+RR.HOLIDAY_BOSS_INDEX = 0
+
+-- An instance's holiday boss, whether or not the player is in his queue:
+-- the browser and the achievements window list him with the host's bosses.
+local eventBossCache = setmetatable({}, { __mode = "k" })
+
+function RR:GetEventBoss(raid)
+    if not (raid and raid.eventHoliday and raid.eventBossName) then return nil end
+    if eventBossCache[raid] then return eventBossCache[raid] end
+    local loot, specialLoot = {}, {}
+    for _, item in ipairs(raid.eventLoot or {}) do
+        if item.kind then
+            specialLoot[#specialLoot + 1] = item
+        else
+            loot[#loot + 1] = item
+        end
+    end
+    local boss = {
+        index              = RR.HOLIDAY_BOSS_INDEX,
+        name               = RR.L[raid.eventBossName],
+        dungeonEncounterID = raid.eventEncounterID,
+        -- No encounter row means the game may not report the kill.
+        killUntracked      = raid.eventEncounterID == nil or nil,
+        holiday            = true,
+        loot               = loot,
+        specialLoot        = specialLoot,
+        achievements       = raid.eventAchievements or {},
+    }
+    eventBossCache[raid] = boss
+    return boss
+end
+
+-- The holiday boss of the queue the player is in.
+function RR:GetHolidayBoss()
+    if not (self.IsHolidayQueueRun and self:IsHolidayQueueRun()) then return nil end
+    return self:GetEventBoss(self.currentRaid)
+end
+
+-- The panel's step in a holiday boss queue: the route has none, but the
+-- panel still describes the holiday boss. Never the active step.
+function RR:GetHolidayPanelStep()
+    local boss = self:GetHolidayBoss()
+    if not boss then return nil end
+    local cached = self.state.holidayStepCache
+    if cached and cached.boss == boss then return cached.step end
+    local step = { holidayBoss = true, bossIndex = boss.index, segments = {} }
+    self.state.holidayStepCache = { boss = boss, step = step }
+    return step
+end
+
 -- The boss the panel describes for a step. While a pool slot is open that
 -- is the slot itself; once every slot is filled, the step's own boss.
 function RR:GetPanelBoss(step)
     if not step then return nil end
+    if step.holidayBoss then return self:GetHolidayBoss() end
     local openSlot = self:GetOpenPoolSlot()
     if openSlot then return self:GetPoolSlotBoss(openSlot) end
     if self:IsSpawnChoicePending() then return self:GetSpawnChoiceBoss() end
@@ -885,7 +1114,7 @@ function RR:ClearBossState()
     wipe(self.state.bossesSkipped)
     if self.ResetRunStats then self:ResetRunStats() end
     if self.state.poolSlotMembers then wipe(self.state.poolSlotMembers) end
-    self.state.spawnedMember = nil
+    self:ClearSpawnPicks()
     self:ClearCollectedSkips()
 end
 
@@ -970,8 +1199,9 @@ end
 function RR:GetActiveRouting()
     local raid = self.currentRaid
     if not raid then return nil end
-    -- Timewalking is a group queue: no route, whatever the instance carries.
-    if self.IsTimewalkingRun and self:IsTimewalkingRun() then return nil end
+    -- Timewalking and holiday boss queues are group queues: no route,
+    -- whatever the instance carries.
+    if self.IsRouteStoodDownRun and self:IsRouteStoodDownRun() then return nil end
     -- A wing covers only its own boss subset.
     local wing = self:GetActiveWing()
     if wing and wing.routing then
@@ -1130,6 +1360,7 @@ function RR:GetAvailableSteps()
                      or self:BossAvailableInBucket(boss, activeBucket)))
         if availableHere
             and not self:IsBossUnavailableThisRun(step.bossIndex)
+            and not self:IsBossDeferredThisRun(step.bossIndex)
             and not self:IsBossKilled(step.bossIndex)
             and not self:IsBossSkipped(step.bossIndex)
             and not self:IsStepCollectedSkipped(step)
@@ -1292,16 +1523,12 @@ function RR:GetRaidProgressCounts()
             if self:IsBossKilled(boss.index) then killed = killed + 1 end
         end
     end
-    -- A spawnChoice set is one boss this run, dead once any member is.
+    -- A spawnChoice set counts as the bosses it brings out in one run.
     local choice = self.currentRaid.spawnChoice
     if choice and #choice > 0 then
-        total = total + 1
-        for _, memberIndex in ipairs(choice) do
-            if self:IsBossKilled(memberIndex) then
-                killed = killed + 1
-                break
-            end
-        end
+        local limit = self:GetSpawnPickLimit()
+        total = total + limit
+        killed = killed + math.min(limit, self:CountKilledSpawnMembers())
     end
     total = total + self:GetPoolSlotCount()
     killed = killed + self:CountCompletePoolSlots()
@@ -1451,6 +1678,20 @@ end
 function RR:GetProgressRows()
     local rows = {}
     if not self.currentRaid then return rows end
+
+    -- A holiday boss queue lists the holiday boss alone.
+    local holidayBoss = self:GetHolidayBoss()
+    if holidayBoss then
+        local name = self:GetLocalizedBossName(holidayBoss)
+        if self.state.bossesKilled[holidayBoss.index] then
+            rows[1] = { cell = "killed", text = ("|cff00ff00%s|r"):format(name) }
+        elseif self:IsBossKillUntracked(holidayBoss) then
+            rows[1] = { cell = "caution", text = ("|cff9d9d9d%s|r"):format(name) }
+        else
+            rows[1] = { cell = "active", text = ("|cffffff00%s|r"):format(name) }
+        end
+        return rows
+    end
 
     -- Two orderings. "rr" lists bosses in the order navigation directs
     -- the player to kill them (GetRouteBossOrder, which simulates the
@@ -1618,10 +1859,9 @@ function RR:GetProgressRows()
     local function appendSet()
         local label = RR.L[choice.label or "Boss"]
         local first = choice[1]
-        local spawned = self.state.spawnedMember
-        local anyKilled, anyReachable, activeMember = false, false, false
+        local setDone = self:CountKilledSpawnMembers() >= self:GetSpawnPickLimit()
+        local anyReachable, activeMember = false, false
         for _, memberIndex in ipairs(choice) do
-            if self:IsBossKilled(memberIndex) then anyKilled = true end
             if self:BossReachableHere(memberIndex) then anyReachable = true end
             if self.state.activeStep
                 and self.state.activeStep.bossIndex == memberIndex then
@@ -1636,7 +1876,7 @@ function RR:GetProgressRows()
         end
 
         local heading, ignored
-        if anyKilled then
+        if setDone then
             heading = { cell = "killed", text = ("|cff00ff00%s|r%s"):format(
                 label, optionalTag) }
         elseif not anyReachable then
@@ -1666,18 +1906,17 @@ function RR:GetProgressRows()
         -- A set the route passes by stands as its heading alone.
         if ignored then return end
 
-        -- Members carry only their own state: the spawned one its check,
-        -- the others a lock once the spawn is known. A name that repeats
-        -- the heading drops that prefix.
+        -- Each member shows only its own state: a check once killed, a lock
+        -- once every spawn is known; a name repeating the heading drops it.
         for _, memberIndex in ipairs(choice) do
             local member = self:GetBossByIndex(memberIndex)
             if member then
                 local name = self:GetLocalizedBossName(member) or member.name or ""
                 name = self:SpawnChoiceShortName(name) or name
                 local cell, color = "pending", "9d9d9d"
-                if spawned and memberIndex ~= spawned then
+                if self:IsBossUnavailableThisRun(memberIndex) then
                     cell = "locked"
-                elseif spawned == memberIndex and self:IsBossKilled(memberIndex) then
+                elseif self:IsSpawnPicked(memberIndex) and self:IsBossKilled(memberIndex) then
                     cell, color = "killed", "00ff00"
                 end
                 table.insert(rows, { cell = cell, indentSpaces = 4,
@@ -1771,6 +2010,10 @@ end
 local dialogTriggerFrame = nil
 
 local function DialogTriggerHandler(_, event, ...)
+    if event == "GOSSIP_SHOW" then
+        RR:DetectSpawnFromGossip()
+        return
+    end
     local text   = ...            -- arg1 = dialog text
     local sender = select(2, ...) -- arg2 = speaker name
 
@@ -1837,6 +2080,8 @@ function RR:InitDialogTriggers()
     -- A whisper from an NPC (Chromie after the Culling's crates) is a cue
     -- as much as a yell is.
     dialogTriggerFrame:RegisterEvent("CHAT_MSG_MONSTER_WHISPER")
+    -- A gossip's options can name the spawn (End Time's Time Transit Device).
+    dialogTriggerFrame:RegisterEvent("GOSSIP_SHOW")
 end
 
 function RR:IsPanelAllowed()

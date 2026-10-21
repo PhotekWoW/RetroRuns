@@ -23,6 +23,19 @@ RetroRuns_DungeonData[740] = {
         y     = 0.5017,
     },
 
+    gloryMeta = {
+        id   = 11163,
+        name = "Glory of the Legion Hero",
+        rewardItemID       = 141217,
+        rewardMountSpellID = 225765,
+        rewardName         = "Leyfeather Hippogryph",
+    },
+
+    -- Instance-wide achievements with no single boss; every boss lists them.
+    raidAchievements = {
+        { id = 10709, name = "You Used to Scrawl Me In Your Fel Tome", meta = true, soloable = "yes" },
+    },
+
     bosses = {
         {
             index              = 1,
@@ -32,6 +45,7 @@ RetroRuns_DungeonData[740] = {
             aliases            = { "Amalgam of Souls" },
             scenarioCriteriaID = 29464,
             achievements       = {
+                { id = 10710, name = "Black Rook Moan", meta = true, soloable = "kinda" },
             },
             loot = {
                 { id = 136977, slot = "Back", name = "Shadowfeather Shawl", sources = { [14]=78686, [15]=80817, [16]=78686 } },
@@ -52,6 +66,7 @@ RetroRuns_DungeonData[740] = {
             dungeonEncounterID = 1833,
             aliases            = { "Ilysanna Ravencrest" },
             achievements       = {
+                { id = 10711, name = "Adds? More Like Bads", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 134412, slot = "Back", name = "Cloak of Unwavering Loyalty", sources = { [14]=78687, [15]=80815, [16]=78687 } },

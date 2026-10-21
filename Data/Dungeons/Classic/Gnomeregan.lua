@@ -153,6 +153,7 @@ RetroRuns_DungeonData[231] = {
                     -- above, the Razorfen Downs gong shape.
                     when        = { mapID = 226 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     mapLabel    = "Talk to Blastmaster",
                     mapLabelPos = "above",
                     points      = {

@@ -23,6 +23,19 @@ RetroRuns_DungeonData[767] = {
         y     = 0.6888,
     },
 
+    gloryMeta = {
+        id   = 11163,
+        name = "Glory of the Legion Hero",
+        rewardItemID       = 141217,
+        rewardMountSpellID = 225765,
+        rewardName         = "Leyfeather Hippogryph",
+    },
+
+    -- Instance-wide achievements with no single boss; every boss lists them.
+    raidAchievements = {
+        { id = 10996, name = "Got to Ketchum All", meta = true, soloable = "kinda" },
+    },
+
     bosses = {
         {
             index              = 1,
@@ -66,6 +79,7 @@ RetroRuns_DungeonData[767] = {
             journalEncounterID = 1673,
             dungeonEncounterID = 1792,
             achievements       = {
+                { id = 10875, name = "Can't Eat Just One", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 134408, slot = "Back", name = "Putrid Carapace", sources = { [14]=78947, [15]=80812, [16]=78947 } },

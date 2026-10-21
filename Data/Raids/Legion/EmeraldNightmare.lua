@@ -924,6 +924,7 @@ RetroRuns_Data[1520] = {
                 {
                     when     = { mapID = 778, subZone = "Core of the Nightmare" },
                     kind     = "poi",
+                    poiKind  = "talk",
                     minNote  = "Talk to Malfurion",
                     mapLabel = "Talk to Malfurion",
                     points   = {

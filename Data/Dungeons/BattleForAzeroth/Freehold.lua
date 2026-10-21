@@ -30,6 +30,11 @@ RetroRuns_DungeonData[1001] = {
         rewardName         = "Reins of the Obsidian Krolusk",
     },
 
+    -- Instance-wide achievements with no single boss; every boss lists them.
+    raidAchievements = {
+        { id = 12550, name = "Pecking Order", meta = true, soloable = "yes" },
+    },
+
     bosses = {
         {
             index              = 1,

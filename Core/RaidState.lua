@@ -45,7 +45,7 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
         wipe(self.state.bossesKilledViaPairOnly)
         wipe(self.state.bossPartialKills)
         wipe(self.state.bossesSkipped)
-        self.state.spawnedMember = nil
+        self:ClearSpawnPicks()
         if self.ResetRunStats then self:ResetRunStats() end
         self:ComputeNextStep()
         return false
@@ -92,7 +92,10 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
                 local bossName, _, isKilled = GetSavedInstanceEncounterInfo(i, e)
                 if bossName and isKilled then
                     local boss = self:ResolveBoss(bossName)
-                    if boss and not self:IsBossLockoutUnreliable(boss) then
+                    -- A spawn named this run is the one that died: its own
+                    -- flag holds even where a partner's flag does not.
+                    if boss and (not self:IsBossLockoutUnreliable(boss)
+                                 or self:IsSpawnNamed(boss.index)) then
                         newKilled[boss.index] = true
                         if rowIsExact then
                             newFromExactRow[boss.index] = true

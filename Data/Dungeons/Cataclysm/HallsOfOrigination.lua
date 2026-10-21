@@ -200,6 +200,7 @@ RetroRuns_DungeonData[70] = {
                     -- opens; his line moves the route past it.
                     when            = { mapID = 297 },
                     kind            = "poi",
+                    poiKind         = "talk",
                     mapLabel        = "Talk to Brann",
                     mapLabelPos     = "right",
                     completionCheck = true,

@@ -226,6 +226,7 @@ RetroRuns_DungeonData[1276] = {
                 {
                     when        = { mapID = 240 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     mapLabel    = "Talk to Ironbark",
                     mapLabelPos = "above",
                     completionCheck = true,

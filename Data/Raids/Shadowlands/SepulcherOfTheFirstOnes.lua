@@ -790,6 +790,7 @@ RetroRuns_Data[2481] = {
                 {
                     when     = { mapID = 2047, subZone = "Immortal Hearth" },
                     kind     = "poi",
+                    poiKind  = "talk",
                     mapLabel = "Talk to Bolvar",
                     mapLabelPos = "below",
                     note     = "After killing ^Vigilant Guardian^, proceed up the bridge and speak to ^Highlord Bolvar Fordragon^ and then take the portal to ^Domination's Grasp^.",

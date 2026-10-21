@@ -23,6 +23,18 @@ RetroRuns_DungeonData[1041] = {
         y     = 0.3950,
     },
 
+    gloryMeta = {
+        id   = 12812,
+        name = "Glory of the Wartorn Hero",
+        rewardItemID       = 161215,
+        rewardName         = "Reins of the Obsidian Krolusk",
+    },
+
+    -- Instance-wide achievements with no single boss; every boss lists them.
+    raidAchievements = {
+        { id = 12722, name = "It Belongs in a Mausoleum!", meta = true, soloable = "yes" },
+    },
+
     bosses = {
         {
             index              = 1,
@@ -47,6 +59,7 @@ RetroRuns_DungeonData[1041] = {
             journalEncounterID = 2171,
             dungeonEncounterID = 2142,
             achievements       = {
+                { id = 12721, name = "Wrap God", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 159312, slot = "Hands", name = "Desiccator's Blessed Gloves", sources = { [15]=95601, [16]=95601 } },
@@ -81,6 +94,7 @@ RetroRuns_DungeonData[1041] = {
             dungeonEncounterID = 2143,
             aliases            = { "King Dazar" },
             achievements       = {
+                { id = 12723, name = "How to Keep a Mummy", meta = true, soloable = "no" },
             },
             loot = {
                 { id = 158355, slot = "Chest", name = "Loa-Blessed Chestguard", sources = { [15]=98390, [16]=98390 } },

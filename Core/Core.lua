@@ -6,7 +6,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "3.3.6"
+local VERSION    = "3.3.7"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -43,7 +43,8 @@ RetroRuns = {
         -- Which pool member filled each slot of a bossPool instance, by
         -- slot number. Same lifetime as bossesKilled.
         poolSlotMembers       = {},   -- [slotIndex] = bossIndex
-        -- The spawnChoice member this run spawned; nil until chat names it.
+        -- The spawnChoice member out now; nil until chat or a gossip names
+        -- it. spawnEarlierPicks and spawnOption sit beside it.
         spawnedMember         = nil,
         activeStep            = nil,
         testMode              = false,
@@ -380,6 +381,47 @@ function RR:GetActiveTimewalkingExpansion()
     return nil
 end
 
+-- Instance map ids whose holiday boss queue the group finder offers now,
+-- read from the same random-dungeon list as the Timewalking week.
+local holidayMapsCache, holidayMapsCacheAt = {}, 0
+
+function RR:IsHolidayQueueLive(instance)
+    if not (instance and instance.instanceID) then return false end
+    local now = GetTime and GetTime() or 0
+    if holidayMapsCacheAt == 0
+        or (now - holidayMapsCacheAt) >= TIMEWALKING_CACHE_SECONDS then
+        holidayMapsCache, holidayMapsCacheAt = {}, now
+        if GetNumRandomDungeons and GetLFGRandomDungeonInfo
+            and GetLFGDungeonInfo and IsLFGDungeonJoinable then
+            local total = GetNumRandomDungeons() or 0
+            -- Empty until the lock info lands; retry on the next ask.
+            if total == 0 then holidayMapsCacheAt = 0 end
+            for index = 1, total do
+                local dungeonID = GetLFGRandomDungeonInfo(index)
+                if dungeonID then
+                    local info = { GetLFGDungeonInfo(dungeonID) }
+                    local isHoliday, mapID = info[15], info[22]
+                    local joinable = IsLFGDungeonJoinable(dungeonID)
+                    local tainted = issecretvalue
+                        and (issecretvalue(isHoliday) or issecretvalue(mapID)
+                             or issecretvalue(joinable))
+                    if not tainted and isHoliday and joinable and mapID then
+                        holidayMapsCache[mapID] = true
+                    end
+                end
+            end
+        end
+    end
+    return holidayMapsCache[instance.instanceID] == true
+end
+
+-- True when an instance's event rewards count toward its totals: always,
+-- except a holiday's, which count only while its queue is offered.
+function RR:EventLootCounts(instance)
+    if not (instance and instance.eventLoot) then return false end
+    return not instance.eventHoliday or self:IsHolidayQueueLive(instance)
+end
+
 -- The lock-info push the login paint was missing (LFG_LOCK_INFO_RECEIVED).
 -- Re-ask with the cache cleared; repaint only when the answer actually
 -- moved, since other addons request this info too and the event re-fires.
@@ -596,6 +638,18 @@ function RR:IsTimewalkingRun()
     if not self.currentRaid then return false end
     local difficultyID = self.state and self.state.currentDifficultyID
     return difficultyID == 24 or difficultyID == 33
+end
+
+-- Inside a holiday boss queue (difficulty 19). Queued like Timewalking and
+-- treated the same: no route; the panel and the browser stay.
+function RR:IsHolidayQueueRun()
+    if not self.currentRaid then return false end
+    return (self.state and self.state.currentDifficultyID) == 19
+end
+
+-- A queued run that keeps the panel but has no route.
+function RR:IsRouteStoodDownRun()
+    return self:IsTimewalkingRun() or self:IsHolidayQueueRun()
 end
 
 --- Drops a waypoint across the provider stack, returning which slots fired.
@@ -1469,6 +1523,12 @@ local DIFFICULTY_MODELS = {
         fold    = { [3] = 14, [4] = 14, [9] = 14, [14] = 14, [33] = 33 },
         buckets = { 14, 33 },
     },
+    independentTw = {
+        -- Independent lockouts plus a browser-only Timewalking bucket, as
+        -- in singleTw. Firelands.
+        fold    = { [17] = 17, [14] = 14, [15] = 15, [16] = 16, [33] = 33 },
+        buckets = { 17, 14, 15, 16, 33 },
+    },
 }
 -- The dungeon data files name their appearance shape (one appearance per
 -- item vs per-difficulty appearances); both shapes share the one walk-in
@@ -1651,6 +1711,13 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
         end
     end
 
+    -- A spawnChoice set counts as the bosses one run brings out, not as its
+    -- members: End Time's four echoes are two encounters of a clear.
+    local choice = raid.spawnChoice
+    local choiceMembers = {}
+    for _, memberIndex in ipairs(choice or {}) do choiceMembers[memberIndex] = true end
+    local pickLimit = choice and choice.picks or 1
+
     for _, bucket in ipairs(self:GetDisplayBuckets(raid)) do
         local complete = 0
         local total    = 0
@@ -1671,7 +1738,8 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
             -- An untracked boss can never be marked killed, so counting it
             -- would put the clear permanently out of reach. It still lists.
             if self:BossAvailableInBucket(b, bucket)
-                and not self:IsBossKillUntracked(b) then
+                and not self:IsBossKillUntracked(b)
+                and not choiceMembers[b.index] then
                 -- The encounter id comes from the data file, never from a
                 -- journal walk: selecting an instance in the journal costs
                 -- the client a long frame, and this runs for every listed
@@ -1718,6 +1786,32 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
             and not self:PoolMembersCarryEncounters(raid) then
             total = total + #raid.bossPool.slots
         end
+        -- The set's members as the lockout flags them; one kill can flag
+        -- several, so the share flagged gives the picks made.
+        if choice then
+            local memberCount, flagged = 0, 0
+            for _, b in ipairs(raid.bosses or {}) do
+                if choiceMembers[b.index] and self:BossAvailableInBucket(b, bucket)
+                    and not self:IsBossKillUntracked(b) then
+                    memberCount = memberCount + 1
+                    local dungeonEncID = b.dungeonEncounterID
+                        or (b.dungeonEncounterIDs and b.dungeonEncounterIDs[1])
+                    for _, liveId in ipairs(liveIdsForBucket[bucket] or {}) do
+                        if dungeonEncID and C_RaidLocks.IsEncounterComplete(
+                                instanceID, dungeonEncID, liveId) then
+                            flagged = flagged + 1
+                            break
+                        end
+                    end
+                end
+            end
+            if memberCount > 0 then
+                local limit = math.min(pickLimit, memberCount)
+                total = total + limit
+                complete = complete + math.min(limit,
+                    math.ceil(flagged * limit / memberCount))
+            end
+        end
         result[bucket] = { complete = complete, total = total }
     end
 
@@ -1739,6 +1833,7 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
                 if result[floorBucket] then
                     local localCount = 0
                     local floorEncounters = {}
+                    local memberKills = 0
                     for _, b in ipairs(raid.bosses or {}) do
                         -- Only count toward the bucket if the boss exists
                         -- there, and count each lockout ENCOUNTER once --
@@ -1754,8 +1849,16 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
                             and dungeonEncID
                             and not floorEncounters[dungeonEncID] then
                             floorEncounters[dungeonEncID] = true
-                            localCount = localCount + 1
+                            if choiceMembers[b.index] then
+                                memberKills = memberKills + 1
+                            else
+                                localCount = localCount + 1
+                            end
                         end
+                    end
+                    -- The set adds the picks it made, never more.
+                    if choice then
+                        localCount = localCount + math.min(pickLimit, memberKills)
                     end
                     if not self:PoolMembersCarryEncounters(raid) then
                         localCount = localCount + self:CountCompletePoolSlots()
@@ -2830,6 +2933,9 @@ function RR:HandleLocationChange()
         :format(mapName(previousMapID), mapName(currentMapID),
                 zoneText, subZoneText, minimapText))
 
+    -- Landing in a set member's shrine names it before the route advances.
+    if self.DetectSpawnFromSubZone then self:DetectSpawnFromSubZone(subZoneText) end
+
     if currentMapID and previousMapID and currentMapID ~= previousMapID then
         self:AdvanceProgress("zone")
     end
@@ -2918,7 +3024,7 @@ function RR:HandleLocationChange()
             wipe(self.state.bossesKilledViaPairOnly)
             wipe(self.state.bossPartialKills)
             wipe(self.state.bossesSkipped)
-            self.state.spawnedMember = nil
+            self:ClearSpawnPicks()
             if self.ResetRunStats then self:ResetRunStats() end
             -- The step pointer and the per-step segment progress are keyed
             -- the same way and need the same wipe. Dire Maul's three wings
@@ -2973,7 +3079,7 @@ function RR:HandleLocationChange()
                             killed, total))
                 self:PrintAfterBanner((RR.L["Resuming %s route."]):format(routeWord))
             elseif supported.kind == "dungeon" and supported.skipRoute
-               and not self:IsTimewalkingRun() and self:DungeonRouteCommitted() then
+               and not self:IsRouteStoodDownRun() and self:DungeonRouteCommitted() then
                 -- A dungeon with a second route, already under way on the
                 -- one chosen: resume it without asking again.
                 self.state.loadedRaidKey = key
@@ -2982,7 +3088,7 @@ function RR:HandleLocationChange()
                     and self:SkipRouteText(supported).word or RR.L["FULL"]
                 self:PrintAfterBanner((RR.L["Resuming %s route."]):format(routeWord))
             elseif self:IsInLFR() or (supported.kind == "dungeon"
-                and not (supported.skipRoute and not self:IsTimewalkingRun())) then
+                and not (supported.skipRoute and not self:IsRouteStoodDownRun())) then
                 -- Neither route variant applies in LFR, so load directly.
                 -- Dungeons load directly too, unless they carry a second
                 -- route (Dire Maul's Tribute run).
@@ -3010,7 +3116,7 @@ function RR:HandleLocationChange()
         wipe(self.state.bossesKilledViaPairOnly)
         wipe(self.state.bossPartialKills)
         wipe(self.state.bossesSkipped)
-        self.state.spawnedMember = nil
+        self:ClearSpawnPicks()
         if self.ResetRunStats then self:ResetRunStats() end
         self:ClearEnteredWing()
         self.currentRaid                 = nil

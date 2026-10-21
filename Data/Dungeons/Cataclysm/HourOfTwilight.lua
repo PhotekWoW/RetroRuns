@@ -15,6 +15,7 @@ RetroRuns_DungeonData[186] = {
     difficultyModel   = "dungeonBinary",
     availableDifficulties = { 15 },
     patch             = "4.3.0",
+    routedIn          = "3.3.7",
 
     entrance = {
         mapID = 75,
@@ -67,6 +68,7 @@ RetroRuns_DungeonData[186] = {
             journalEncounterID = 341,
             dungeonEncounterID = 1339,
             achievements       = {
+                { id = 6132, name = "Eclipse", soloable = "yes" },
             },
             loot = {
                 { id = 72869, slot = "Ranged", name = "Dragonsmaw Blaster", sources = { [15]=37346 } },
@@ -79,6 +81,117 @@ RetroRuns_DungeonData[186] = {
                 { id = 72867, slot = "Weapon", name = "Clattering Claw", sources = { [15]=37344 } },
                 { id = 72862, slot = "Weapon", name = "Fanged Tentacle", sources = { [15]=37339 } },
                 { id = 72866, slot = "Weapon", name = "Treachery's Bite", sources = { [15]=37343 } },
+            },
+        },
+    },
+
+    exitNote    = "There is a portal to Stormwind / Orgrimmar behind the boss. There is no shortcut to exit the dungeon.",
+    minExitNote = "Stormwind / Orgrimmar portal otherwise N/A",
+
+    routing = {
+        -- 1. Arcurion (boss 1). Thrall's line after the talk starts the escort.
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Arcurion",
+            requires  = { },
+            segments  = {
+                {
+                    when            = { mapID = 399 },
+                    kind            = "poi",
+                    poiKind         = "talk",
+                    note            = "After zoning in, talk to ^Thrall^ to begin his escort.",
+                    minNote         = "Talk to Thrall for escort",
+                    mapLabel        = "Talk to Thrall",
+                    completionCheck = true,
+                    points          = {
+                        { 0.499, 0.194 },
+                    },
+                },
+                {
+                    when        = { mapID = 399 },
+                    kind        = "path",
+                    note        = "Escort ^Thrall^ through the canyon, killing several packs of enemies along the way. When he stops at the checkpoint, talk to him again and approach ^Arcurion^.",
+                    minNote     = "Escort Thrall to Arcurion",
+                    triggeredBy = { dialog = { npc = "Thrall", match = "The Aspects await us within Wyrmrest" } },
+                    points      = { },
+                },
+            },
+        },
+        -- 2. Asira Dawnslayer (boss 2). Thrall's line after the talk resumes
+        -- the escort.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Asira Dawnslayer",
+            requires  = { },
+            segments  = {
+                {
+                    when            = { mapID = 399 },
+                    kind            = "poi",
+                    poiKind         = "talk",
+                    note            = "After killing ^Arcurion^, follow ^Thrall^ through a short sequence where he destroys the wall. When you can, talk to him to begin the next phase of the escort.",
+                    minNote         = "Talk to Thrall for escort",
+                    mapLabel        = "Talk to Thrall",
+                    completionCheck = true,
+                    points          = {
+                        { 0.575, 0.279 },
+                    },
+                },
+                {
+                    when        = { mapID = 399 },
+                    kind        = "path",
+                    note        = "Escort ^Thrall^ to the southwest. After he stops at the checkpoint, talk to him again and continue the escort all the way to ^Asira Dawnslayer^.",
+                    minNote     = "Escort Thrall to Asira Dawnslayer",
+                    triggeredBy = { dialog = { npc = "Thrall", match = "Follow me." } },
+                    points      = { },
+                },
+            },
+        },
+        -- 3. Archbishop Benedictus (boss 3).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Archbishop Benedictus",
+            requires  = { },
+            segments  = {
+                {
+                    when            = { mapID = 399 },
+                    kind            = "poi",
+                    note            = "After defeating ^Asira Dawnslayer^, there will be a brief dialog then ^Thrall^ will fly away. A few moments later, a group of dragons will approach. Click on a ^Life Warden^ to be flown to the next area.",
+                    minNote         = "Fly on Life Warden",
+                    mapLabel        = "Fly on Life Warden",
+                    completionCheck = true,
+                    points          = {
+                        { 0.398, 0.498 },
+                    },
+                },
+                {
+                    -- The Life Warden is a vehicle: this opens on boarding.
+                    when            = { mapID = 399 },
+                    kind            = "poi",
+                    poiKind         = "talk",
+                    note            = "After this short flight, you will land near ^Thrall^. Talk to him to begin the approach to the final boss.",
+                    minNote         = "Talk to Thrall after landing",
+                    mapLabel        = "Talk to Thrall",
+                    triggeredBy     = { vehicle = true },
+                    drawWhenOpen    = true,
+                    completionCheck = true,
+                    points          = {
+                        { 0.498, 0.671 },
+                    },
+                },
+                {
+                    when        = { mapID = 399 },
+                    kind        = "path",
+                    note        = "Escort ^Thrall^ and friends all the way to ^Archbishop Benedictus^. You must kill all enemies to keep the escort moving.",
+                    minNote     = "Escort Thrall to Archbishop",
+                    triggeredBy = { dialog = { npc = "Dark Haze", match = "Spawn of the Old Gods materialize nearby" } },
+                    points      = { },
+                },
             },
         },
     },

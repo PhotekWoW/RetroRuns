@@ -45,6 +45,7 @@ local epochStep = {
         {
             when            = { mapID = 131 },
             kind            = "poi",
+            poiKind         = "talk",
             note            = "After defeating ^Salramm^, go east towards the Town Hall. Talk to ^Arthas^ to begin a scripted escort through the building.",
             minNote         = "East to Arthas",
             mapLabel        = "Talk to Arthas",
@@ -75,6 +76,7 @@ local malganisStep = {
         {
             when            = { mapID = 131 },
             kind            = "poi",
+            poiKind         = "talk",
             note            = "After defeating ^Chrono-Lord Epoch^, talk to Arthas to advance.",
             minNote         = "Talk to Arthas",
             mapLabel        = "Talk to Arthas",
@@ -87,6 +89,7 @@ local malganisStep = {
         {
             when            = { mapID = 131 },
             kind            = "poi",
+            poiKind         = "talk",
             note            = "Follow ^Arthas^ back outside. Speak to him once again to start another escort.",
             minNote         = "Talk to Arthas for escort",
             mapLabel        = "Talk to Arthas",
@@ -108,6 +111,7 @@ local malganisStep = {
         {
             when            = { mapID = 131 },
             kind            = "poi",
+            poiKind         = "talk",
             note            = "After the escort, talk to ^Arthas^ one final time to advance.",
             minNote         = "Talk to Arthas",
             mapLabel        = "Talk to Arthas",
@@ -317,6 +321,7 @@ RetroRuns_DungeonData[279] = {
                 {
                     when            = { mapID = 130 },
                     kind            = "poi",
+                    poiKind         = "talk",
                     note            = "After zoning in, go up the ramps and talk to ^Chromie^.",
                     minNote         = "Talk to Chromie",
                     mapLabel        = "Talk to Chromie",
@@ -355,6 +360,7 @@ RetroRuns_DungeonData[279] = {
                     -- whisper follows seconds later wherever the player is.
                     when            = { mapID = 130 },
                     kind            = "poi",
+                    poiKind         = "talk",
                     note            = "Now that you've finished with the crates, continue west and talk to ^Chromie^ again to start a lengthy dialog between ^Arthas^ and ^Uther^.",
                     minNote         = "West to Chromie",
                     mapLabel        = "Talk to Chromie",
@@ -382,6 +388,7 @@ RetroRuns_DungeonData[279] = {
                     -- that moment, and its marker draws once inside.
                     when            = { mapID = 131 },
                     kind            = "poi",
+                    poiKind         = "talk",
                     note            = "Enter Stratholme and talk to ^Arthas^ to begin another dialog sequence. This one will last about 1.5 minutes.",
                     minNote         = "Talk to Arthas for another scene",
                     mapLabel        = "Talk to Arthas",

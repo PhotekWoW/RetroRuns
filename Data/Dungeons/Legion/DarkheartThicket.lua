@@ -93,6 +93,7 @@ RetroRuns_DungeonData[762] = {
             journalEncounterID = 1657,
             dungeonEncounterID = 1839,
             achievements       = {
+                { id = 10769, name = "Burning Down the House", meta = true, soloable = "kinda" },
             },
             loot = {
                 { id = 134405, slot = "Back", name = "Cloak of Fading Echoes", sources = { [14]=78917, [15]=80809, [16]=78917 } },

@@ -154,6 +154,7 @@ RetroRuns_DungeonData[1178] = {
             journalEncounterID = 2331,
             dungeonEncounterID = 2260,
             achievements       = {
+                { id = 13624, name = "Keep DPS-ing and Nobody Explodes", soloable = "yes" },
             },
             loot = {
                 { id = 168981, slot = "Chest", name = "Circuit-Linked Chainmail", sources = { [15]=105022, [16]=104843 } },

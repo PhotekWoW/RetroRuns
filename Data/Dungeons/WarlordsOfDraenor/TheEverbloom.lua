@@ -243,6 +243,7 @@ RetroRuns_DungeonData[556] = {
             journalEncounterID = 1210,
             dungeonEncounterID = 1756,
             achievements       = {
+                { id = 9223, name = "Weed Whacker", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 109938, slot = "Shoulder", name = "Blackwater Spaulders", sources = { [14]=61328, [15]=61329, [16]=59600 } },

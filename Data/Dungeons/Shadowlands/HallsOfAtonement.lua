@@ -39,6 +39,7 @@ RetroRuns_DungeonData[1185] = {
             dungeonEncounterID = 2401,
             scenarioCriteriaID = 48110,
             achievements       = {
+                { id = 14567, name = "Picking Up the Pieces", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 178813, slot = "Chest", name = "Sinlight Shroud", sources = { [14]=111517, [15]=111517, [16]=111517 } },

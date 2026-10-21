@@ -188,6 +188,7 @@ RetroRuns_DungeonData[77] = {
                 {
                     when            = { mapID = 333 },
                     kind            = "poi",
+                    poiKind         = "talk",
                     note            = "After zoning in, go around the corner and talk to ^Vol'jin^ to start the dungeon.",
                     minNote         = "Talk to Vol'jin to start",
                     mapLabel        = "Talk to Vol'jin",

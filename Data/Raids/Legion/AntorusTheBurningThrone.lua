@@ -471,7 +471,7 @@ RetroRuns_Data[1712] = {
                 },
 
                 -- 3. Antoran High Command. LFR differs from standard:
-                -- the player clicks a Lightforged Teleportation Pad in
+                -- the player clicks a Lightforged Teleport Pod in
                 -- the Felhounds room. Seg 1 is the labeled pad POI, seg 2
                 -- the short walk to the elevator -- both carry the same
                 -- note so it stays visible across the POI and the path.
@@ -487,7 +487,7 @@ RetroRuns_Data[1712] = {
                             kind        = "poi",
                             mapLabel    = "Teleportation Pad",
                             mapLabelPos = "below",
-                            note        = "After defeating the ^Felhounds of Sargeras^, click the ^Lightforged Teleportation Pad^ in their boss room to be teleported further up the path. After landing, proceed ahead to ride the elevator up.",
+                            note        = "After defeating the ^Felhounds of Sargeras^, click the ^Lightforged Teleport Pod^ in their boss room to be teleported further up the path. After landing, proceed ahead to ride the elevator up.",
                             minNote     = "Click Teleportation Pad",
                             points      = {
                                 { 0.431, 0.569 },
@@ -496,7 +496,7 @@ RetroRuns_Data[1712] = {
                         {
                             when    = { mapID = 909 },
                             kind    = "path",
-                            note    = "After defeating the ^Felhounds of Sargeras^, click the ^Lightforged Teleportation Pad^ in their boss room to be teleported further up the path. After landing, proceed ahead to ride the elevator up.",
+                            note    = "After defeating the ^Felhounds of Sargeras^, click the ^Lightforged Teleport Pod^ in their boss room to be teleported further up the path. After landing, proceed ahead to ride the elevator up.",
                             minNote = "Click Teleportation Pad",
                             points  = {
                                 { 0.351, 0.403 },
@@ -902,7 +902,7 @@ RetroRuns_Data[1712] = {
                 {
                     when    = { mapID = 909 },
                     kind    = "path",
-                    note    = "After defeating ^Felhounds of Sargeras^, backtrack towards the closest intersection and keep to the left. Kill a trash pack to spawn a ^Lightforged Teleportation Pad^. Use it to cross the chasm, then proceed ahead to ride an elevator up.",
+                    note    = "After defeating ^Felhounds of Sargeras^, backtrack towards the closest intersection and keep to the left. Kill a trash pack to spawn a ^Lightforged Teleport Pod^. Use it to cross the chasm, then proceed ahead to ride an elevator up.",
                     minNote = "Path to Elevator",
                     points  = {
                         { 0.431, 0.569 },

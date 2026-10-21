@@ -1241,6 +1241,7 @@ RetroRuns_Data[631] = {
                 {
                     when        = { mapID = 187 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     faction     = "Alliance",
                     mapLabel    = "Talk to Muradin",
                     mapLabelPos = "below",
@@ -1268,6 +1269,7 @@ RetroRuns_Data[631] = {
                 {
                     when        = { mapID = 187 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     faction     = "Horde",
                     mapLabel    = "Talk to Saurfang",
                     mapLabelPos = "above",
@@ -1307,6 +1309,7 @@ RetroRuns_Data[631] = {
                 {
                     when        = { mapID = 188 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     faction     = "Alliance",
                     mapLabel    = "Talk to Muradin",
                     mapLabelPos = "above",
@@ -1323,6 +1326,7 @@ RetroRuns_Data[631] = {
                     -- subzone instead of a map change.
                     when        = { mapID = 187, subZone = "Deathbringer's Rise" },
                     kind        = "poi",
+                    poiKind     = "talk",
                     faction     = "Horde",
                     mapLabel    = "Talk to Saurfang",
                     mapLabelPos = "above",
@@ -1699,6 +1703,7 @@ RetroRuns_Data[631] = {
                 {
                     when        = { mapID = 192 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     noMarker    = true,
                     mapLabel    = "Talk to Tirion",
                     mapLabelPos = "middle",

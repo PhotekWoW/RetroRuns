@@ -939,6 +939,7 @@ RetroRuns_Data[649] = {
                 {
                     when        = { mapID = 172 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     mapLabel    = "Talk to Barrett",
                     mapLabelPos = "below",
                     note        = "After zoning in, talk to ^Barrett Ramsey^ and then approach the middle ring to start the battle against ^The Northrend Beasts^.",
@@ -961,6 +962,7 @@ RetroRuns_Data[649] = {
                 {
                     when        = { mapID = 172 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     mapLabel    = "Talk to Barrett",
                     mapLabelPos = "below",
                     note        = "After defeating ^The Northrend Beasts^, talk to ^Barrett Ramsey^ again to start the next encounter vs. ^Lord Jaraxxus^.",
@@ -983,6 +985,7 @@ RetroRuns_Data[649] = {
                 {
                     when        = { mapID = 172 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     mapLabel    = "Talk to Barrett",
                     mapLabelPos = "below",
                     note        = "After defeating ^Lord Jaraxxus^, talk to ^Barrett Ramsey^ again to start the next encounter vs. ^Champions of the Horde^.",
@@ -1005,6 +1008,7 @@ RetroRuns_Data[649] = {
                 {
                     when        = { mapID = 172 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     mapLabel    = "Talk to Barrett",
                     mapLabelPos = "below",
                     note        = "After defeating the ^Champions of the Horde^, talk to ^Barrett Ramsey^ again to start the next encounter vs. ^Twin Val'kyr^.",
@@ -1027,6 +1031,7 @@ RetroRuns_Data[649] = {
                 {
                     when        = { mapID = 172 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     mapLabel    = "Talk to Barrett",
                     mapLabelPos = "below",
                     note        = "After defeating the ^Twin Val'kyr^, talk to ^Barrett Ramsey^ again to start the final encounter vs. ^Anub'arak^.",

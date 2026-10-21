@@ -155,6 +155,7 @@ RetroRuns_DungeonData[76] = {
             journalEncounterID = 181,
             dungeonEncounterID = 1180,
             achievements       = {
+                { id = 5765, name = "Here, Kitty Kitty...", soloable = "yes" },
             },
             loot = {
                 { id = 69614, slot = "Head", name = "Roaring Mask of Bethekk", sources = { [14]=35523, [15]=35523 } },

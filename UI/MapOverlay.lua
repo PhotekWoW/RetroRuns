@@ -96,13 +96,14 @@ overlay.poiIcons  = {}   -- always-on global-POI markers
 overlay.legendIcons = {}  -- skull swatches for corner-legend entries
 overlay.poiLabels = {}   -- always-on global-POI labels
 overlay.poiSpots     = {}   -- sighting skulls behind a hovered/pinned marker
-overlay.markButtons  = {}   -- hover targets over a seg's markers (markHint)
+overlay.markButtons  = {}   -- hover targets over a seg's markers (markHint, hintBoss)
 overlay.poiSpotBacks = {}   -- dark discs that lift the skulls off the map art
 overlay.poiSpotRings = {}   -- breathing color rings around the skulls
 overlay.poiButtons   = {}   -- invisible hit targets over multi-spawn markers
 overlay.spotPois     = {}   -- spotKey -> poi, rebuilt each refresh
 overlay.pinnedSpots  = {}   -- spotKey -> true while a click holds them on
 overlay.poiGlows     = {}   -- brand halo behind a marker that earns one
+overlay.routeGlows   = {}   -- the same halo behind a route POI's marker
 
 -- Route line: brand pink (UI.lua's C_PINK), paired with cyan chevrons.
 local function MakeLine(parent)
@@ -389,13 +390,69 @@ end
 -- A gated boss's own looks, in the same shape PoiLootLines returns, so an
 -- object that unlocks a boss lists what is behind it exactly the way a rare
 -- lists its own drops.
-local function BossLootLines(bossIndex)
+local function BossByIndex(bossIndex)
     local raid = RR.currentRaid
     if not raid or not raid.bosses or not bossIndex then return nil end
     for _, boss in ipairs(raid.bosses) do
-        if boss.index == bossIndex then return LootLines(boss.loot) end
+        if boss.index == bossIndex then return boss end
     end
     return nil
+end
+
+local function BossLootLines(bossIndex)
+    local boss = BossByIndex(bossIndex)
+    return boss and LootLines(boss.loot) or nil
+end
+
+local BOSS_TIP_LOOK_CAP = 15
+local LOOK_STATE_RANK = { missing = 1, shared = 2, collected = 3 }
+
+-- A boss's looks as the panel counts them (missing, shared, collected),
+-- then its special loot; `redraw` repaints once a cold item loads.
+local function AppendBossLootRows(rows, boss, owner, redraw)
+    if not boss then return end
+    local looks = {}
+    local needed, shared = 0, 0
+    RR.UI.ForEachBossLook(boss, function(item, state)
+        looks[#looks + 1] = { item = item, state = state, order = #looks + 1 }
+        if state == "missing" then
+            needed = needed + 1
+        elseif state == "shared" then
+            shared = shared + 1
+        end
+    end)
+    if #looks > 0 then
+        table.sort(looks, function(a, b)
+            local rankA = LOOK_STATE_RANK[a.state] or 3
+            local rankB = LOOK_STATE_RANK[b.state] or 3
+            if rankA ~= rankB then return rankA < rankB end
+            return a.order < b.order
+        end)
+        rows[#rows + 1] = { blank = true }
+        rows[#rows + 1] = { text = RETRO_WORDMARK, right =
+            (RR.L["Missing"] .. " (%d) " .. RR.L["Shared"] .. " (%d)"):format(needed, shared) }
+        for index = 1, math.min(#looks, BOSS_TIP_LOOK_CAP) do
+            local look = looks[index]
+            rows[#rows + 1] = { cell = look.state, text = ItemLineText(look.item.id,
+                look.item.name, owner, redraw) }
+        end
+        if #looks > BOSS_TIP_LOOK_CAP then
+            rows[#rows + 1] = { color = MAP_TIP_GRAY, text =
+                (RR.L["+%d more in the transmog browser"]):format(#looks - BOSS_TIP_LOOK_CAP) }
+        end
+    end
+
+    -- Special loot as the panel lists it.
+    local header, lines = RR.UI.BuildSpecialLootSection(boss)
+    if header and lines then
+        rows[#rows + 1] = { blank = true }
+        rows[#rows + 1] = { text = header }
+        for _, line in ipairs(lines) do
+            rows[#rows + 1] = { text = line.text, wrap = line.noCell,
+                cell = not line.noCell and line.cell or nil,
+                indent = (line.indentSpaces or 0) * 3 }
+        end
+    end
 end
 
 -- Tooltip for a marker hit target. Split from OnEnter so a click can
@@ -490,10 +547,21 @@ local function MakePoiButton(parent)
 end
 
 -- Tooltip for a route marker that carries a hint: the seg's line with the
--- live count filled in. A widget that is not up reads as nothing killed.
+-- live count filled in, or for a boss's marker the boss and its loot as
+-- the journal boss pins show them. A widget that is not up reads as
+-- nothing killed.
 local function ShowMarkTooltip(btn)
     local seg = btn.hintSeg
-    if not seg or not seg.markHint then return end
+    if not seg then return end
+    if seg.hintBoss and not seg.markHint then
+        local boss = BossByIndex(seg.hintBoss)
+        local rows = { { text = RR:GetLocalizedBossName(boss) or RR.L[seg.mapLabel or ""],
+            header = true } }
+        AppendBossLootRows(rows, boss, btn, ShowMarkTooltip)
+        ShowMapTip(btn, rows)
+        return
+    end
+    if not seg.markHint then return end
     local total = seg.markHintTotal or 0
     local remaining = RR.ReadWidgetNumber and RR:ReadWidgetNumber(seg.markHintWidget)
     if remaining == nil then remaining = total end
@@ -537,6 +605,7 @@ for i = 1, MAX_SPAWN_SPOTS do overlay.poiSpotRings[i] = MakeSpotRing(overlay) en
 for i = 1, MAX_GLOBAL_POI  do overlay.poiButtons[i]   = MakePoiButton(overlay) end
 for i = 1, MAX_MARK_HINTS  do overlay.markButtons[i]  = MakeMarkButton(overlay) end
 for i = 1, MAX_GLOBAL_POI do overlay.poiGlows[i]     = MakePoiGlow(overlay)  end
+for i = 1, MAX_ICONS      do overlay.routeGlows[i]   = MakePoiGlow(overlay)  end
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -673,7 +742,7 @@ function overlay:HideAll()
     -- click. The draw loops and Refresh hide the unused ones.
     for _, pool in ipairs({ self.lines, self.icons, self.chevrons,
         self.poiIcons, self.legendIcons, self.poiLabels, self.poiSpots,
-        self.poiSpotBacks, self.poiSpotRings, self.poiGlows }) do
+        self.poiSpotBacks, self.poiSpotRings, self.poiGlows, self.routeGlows }) do
         HideFrom(pool)
     end
     -- A recycled label must not keep pulsing on a seg that does not pulse.
@@ -815,6 +884,8 @@ local GLOBAL_POI_TEXTURES = {
     chest     = "Interface\\AddOns\\RetroRuns\\Media\\Icons\\ChestIcon",
     -- Where a pet comes from (Zul'Aman's frogs).
     pet       = "Interface\\Icons\\INV_Frog2_Teal",
+    -- An NPC to talk to; route POIs take it too.
+    talk      = "Interface\\GossipFrame\\GossipGossipIcon",
 }
 -- Tint per kind, multiplied over the texture. Blizzard's skull is white,
 -- so a multiply lands on the exact color asked for. Untinted kinds draw
@@ -829,12 +900,12 @@ local GLOBAL_POI_TINTS = {
 local GLOBAL_POI_WHITE = { 1, 1, 1 }
 
 -- Kinds that wear the brand halo, and in which color. The rare skull is
--- already tinted pink so it needs none; these two carry their own colors --
--- hand-drawn art and the coin stack -- and the glow marks them as ours
--- without touching the artwork.
+-- already tinted pink so it needs none; these carry their own colors and
+-- the glow marks them as ours without touching the artwork.
 local GLOWING_POI_KINDS = {
     chest  = C_POI_GLOW_PINK,
     vendor = C_POI_GLOW_CYAN,
+    talk   = C_POI_GLOW_PINK,
 }
 
 local GLOBAL_POI_DEFAULT = "Interface\\GossipFrame\\GossipGossipIcon"
@@ -1156,10 +1227,16 @@ function overlay:DrawSegmentsForMap(mapID)
                         local poiIcon = self.icons[iconIdx]
                         if not poiIcon then break end
                         PlaceAt(poiIcon, self, mark[1], mark[2])
-                        -- The raid-target star unless the seg names its own.
+                        -- The raid-target star unless the seg names its own
+                        -- icon or a marker kind ("talk": the chat bubble).
                         poiIcon:SetTexture(seg.poiIcon
+                            or GLOBAL_POI_TEXTURES[seg.poiKind]
                             or "Interface\\TargetingFrame\\UI-RaidTargetingIcon_1")
-                        if seg.markHintWidget and counterLanded then
+                        -- A landed counter or a completed seg dims its marker,
+                        -- and a dimmed marker loses its halo.
+                        local markerDone = (seg.markHintWidget and counterLanded)
+                            or (seg.completionCheck and SegIsComplete(step, seg))
+                        if markerDone then
                             poiIcon:SetVertexColor(0.45, 0.45, 0.45, 0.7)
                         else
                             poiIcon:SetVertexColor(1.0, 1.0, 1.0, 1.0)
@@ -1171,12 +1248,22 @@ function overlay:DrawSegmentsForMap(mapID)
                         local size = seg.poiSize or 35
                         poiIcon:SetSize(size, size)
                         poiIcon:Show()
+                        -- The kind's halo, at the marker's pool index.
+                        local glowColor = GLOWING_POI_KINDS[seg.poiKind]
+                        local glow = self.routeGlows[iconIdx]
+                        if glowColor and glow and not markerDone then
+                            PlaceAt(glow, self, mark[1], mark[2])
+                            glow:SetSize(size * POI_GLOW_SCALE, size * POI_GLOW_SCALE)
+                            glow:SetVertexColor(glowColor[1], glowColor[2],
+                                                glowColor[3], glowColor[4])
+                            glow:Show()
+                        end
                         iconIdx = iconIdx + 1
                         -- A hinted mark takes a hover target. The buttons
                         -- are re-placed rather than hidden and re-shown, so
                         -- the once-a-second redraw does not blink a tooltip
                         -- the cursor is already on.
-                        if seg.markHint then
+                        if seg.markHint or seg.hintBoss then
                             local used = (self.markButtonsUsed or 0) + 1
                             local hit = self.markButtons[used]
                             if hit then
@@ -1557,9 +1644,6 @@ end
 -- transmog and special loot added.
 -------------------------------------------------------------------------------
 
-local BOSS_TIP_LOOK_CAP = 15
-local LOOK_STATE_RANK = { missing = 1, shared = 2, collected = 3 }
-
 local function BossForEncounter(encounterID)
     local raid = RR.currentRaid
     if not raid or not raid.bosses or not encounterID then return nil end
@@ -1586,49 +1670,7 @@ local function ShowBossPinTooltip(pin)
             color = { NORMAL_FONT_COLOR:GetRGB() } }
     end
 
-    -- The looks the panel counts, missing first, then shared, then collected.
-    local looks = {}
-    local needed, shared = 0, 0
-    RR.UI.ForEachBossLook(boss, function(item, state)
-        looks[#looks + 1] = { item = item, state = state, order = #looks + 1 }
-        if state == "missing" then
-            needed = needed + 1
-        elseif state == "shared" then
-            shared = shared + 1
-        end
-    end)
-    if #looks > 0 then
-        table.sort(looks, function(a, b)
-            local rankA = LOOK_STATE_RANK[a.state] or 3
-            local rankB = LOOK_STATE_RANK[b.state] or 3
-            if rankA ~= rankB then return rankA < rankB end
-            return a.order < b.order
-        end)
-        rows[#rows + 1] = { blank = true }
-        rows[#rows + 1] = { text = RETRO_WORDMARK, right =
-            (RR.L["Missing"] .. " (%d) " .. RR.L["Shared"] .. " (%d)"):format(needed, shared) }
-        for index = 1, math.min(#looks, BOSS_TIP_LOOK_CAP) do
-            local look = looks[index]
-            rows[#rows + 1] = { cell = look.state, text = ItemLineText(look.item.id,
-                look.item.name, pin, ShowBossPinTooltip) }
-        end
-        if #looks > BOSS_TIP_LOOK_CAP then
-            rows[#rows + 1] = { color = MAP_TIP_GRAY, text =
-                (RR.L["+%d more in the transmog browser"]):format(#looks - BOSS_TIP_LOOK_CAP) }
-        end
-    end
-
-    -- Special loot as the panel lists it.
-    local header, lines = RR.UI.BuildSpecialLootSection(boss)
-    if header and lines then
-        rows[#rows + 1] = { blank = true }
-        rows[#rows + 1] = { text = header }
-        for _, line in ipairs(lines) do
-            rows[#rows + 1] = { text = line.text, wrap = line.noCell,
-                cell = not line.noCell and line.cell or nil,
-                indent = (line.indentSpaces or 0) * 3 }
-        end
-    end
+    AppendBossLootRows(rows, boss, pin, ShowBossPinTooltip)
     ShowMapTip(pin, rows, true)
 end
 

@@ -50,6 +50,22 @@ RetroRuns_DungeonData[64] = {
         { id = 1974, slot = "Wrist", name = "Mindthrust Bracers", sources = { [14]=514 }, bind = "BoE" },
     },
 
+    -- Love is in the Air's Crown Chemical Co., shown in the browser's event section.
+    eventLabel       = "Love is in the Air",
+    eventNote        = "During Love is in the Air, queue for the Crown Chemical Co. in the Dungeon Finder. These come from the {item} they drop.",
+    eventHoliday     = true,
+    eventNoteItemID  = 54537,
+    eventBossName    = "The Crown Chemical Co.",
+    eventEncounterID = 2879,
+    eventLoot = {
+        { id = 49715, slot = "Head", name = "Forever-Lovely Rose", sources = { [14]=24329, [15]=24329 } },
+        { id = 50741, slot = "Head", name = "Vile Fumigator's Mask", sources = { [14]=24841, [15]=24841 } },
+        { id = 50250, kind = "mount", name = "X-45 Heartbreaker" },
+        { id = 232926, kind = "mount", name = "Love Witch's Sweeper" },
+        { id = 50446, kind = "pet", name = "Toxic Wasteling" },
+        { id = 50471, kind = "toy", name = "The Heartbreaker" },
+    },
+
     bosses = {
         {
             index              = 1,

@@ -62,6 +62,7 @@ RetroRuns_DungeonData[281] = {
             journalEncounterID = 618,
             dungeonEncounterID = 2010,
             achievements       = {
+                { id = 2150, name = "Split Personality", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 37135, slot = "Head", name = "Arcane-Shielded Helm", sources = { [14]=17620, [15]=17620 }, twSource = 72690 },

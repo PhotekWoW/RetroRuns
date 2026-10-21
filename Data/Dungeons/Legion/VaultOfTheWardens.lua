@@ -23,6 +23,19 @@ RetroRuns_DungeonData[707] = {
         y     = 0.8010,
     },
 
+    gloryMeta = {
+        id   = 11163,
+        name = "Glory of the Legion Hero",
+        rewardItemID       = 141217,
+        rewardMountSpellID = 225765,
+        rewardName         = "Leyfeather Hippogryph",
+    },
+
+    -- Instance-wide achievements with no single boss; every boss lists them.
+    raidAchievements = {
+        { id = 10707, name = "A Specter, Illuminated", meta = true, soloable = "yes" },
+    },
+
     bosses = {
         {
             index              = 1,
@@ -98,6 +111,7 @@ RetroRuns_DungeonData[707] = {
             dungeonEncounterID = 1818,
             scenarioCriteriaID = 34462,
             achievements       = {
+                { id = 10680, name = "Who's Afraid of the Dark?", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 137531, slot = "Back", name = "Cloak of Enthralling Darkness", sources = { [14]=79108, [15]=80820, [16]=79108 } },

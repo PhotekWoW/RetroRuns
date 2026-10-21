@@ -294,6 +294,7 @@ RetroRuns_Data[534] = {
                 {
                     when        = { mapID = 329, subZone = "Alliance Base" },
                     kind        = "poi",
+                    poiKind     = "talk",
                     mapLabel    = "Talk to Jaina",
                     mapLabelPos = "above",
                     points      = {
@@ -307,6 +308,7 @@ RetroRuns_Data[534] = {
                     -- the map together.
                     when        = { mapID = 329, subZone = "Horde Encampment" },
                     kind        = "poi",
+                    poiKind     = "talk",
                     mapLabel    = "Talk to Thrall",
                     mapLabelPos = "below",
                     note        = "Talk to ^Thrall^ to start the fight with ^Kaz'rogal^.",
@@ -329,6 +331,7 @@ RetroRuns_Data[534] = {
                 {
                     when        = { mapID = 329, subZone = "Horde Encampment" },
                     kind        = "poi",
+                    poiKind     = "talk",
                     mapLabel    = "Talk to Thrall",
                     mapLabelPos = "below",
                     note        = "After killing ^Kaz'rogal^, talk to ^Thrall^ again to start the encounter against ^Azgalor^.",
@@ -385,6 +388,7 @@ RetroRuns_Data[534] = {
                     -- Noteless, inheriting the road note above.
                     when        = { mapID = 329, subZone = "Night Elf Village" },
                     kind        = "poi",
+                    poiKind     = "talk",
                     mapLabel    = "Talk to Tyrande",
                     mapLabelPos = "below",
                     points      = {

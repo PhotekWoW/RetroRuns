@@ -533,6 +533,7 @@ RetroRuns_Data[532] = {
                     -- draw on the map together.
                     when        = { mapID = 353, subZone = "The Opera Hall" },
                     kind        = "poi",
+                    poiKind     = "talk",
                     mapLabel    = "Talk to Barnes",
                     mapLabelPos = "above",
                     points      = {
@@ -892,6 +893,7 @@ RetroRuns_Data[532] = {
                 {
                     when        = { mapID = 363 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     faction     = "Alliance",
                     note        = "Talk to ^King Llane^ to begin the ^Chess Event^.",
                     minNote     = "Talk to King to begin",
@@ -904,6 +906,7 @@ RetroRuns_Data[532] = {
                 {
                     when        = { mapID = 363 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     faction     = "Horde",
                     note        = "Talk to ^Warchief Blackhand^ to begin the ^Chess Event^.",
                     minNote     = "Talk to Warchief to begin",

@@ -1598,6 +1598,9 @@ RR.LockoutTipByModel = {
 -- The Wrath size models share one lockout and take the shared wording.
 RR.LockoutTipByModel.sizesHeroic      = RR.LockoutTipByModel.shared
 RR.LockoutTipByModel.sizesShared      = RR.LockoutTipByModel.shared
+-- The Timewalking models lock exactly like their base models.
+RR.LockoutTipByModel.singleTw         = RR.LockoutTipByModel.single
+RR.LockoutTipByModel.independentTw    = RR.LockoutTipByModel.independent
 -- Dungeons: one wording for both appearance shapes. Normal 5-mans never
 -- save an instance, so only Heroic and Mythic pill.
 RR.LockoutTipByModel.dungeon = {
@@ -4629,6 +4632,8 @@ end
 -- difficulty is fully cleared, yellow for the player's current one, gray
 -- otherwise -- complete trumps active. Empty string when no kill data.
 local function BuildPillsText()
+    -- The host's lockout says nothing about a holiday boss queue.
+    if RR:GetHolidayBoss() then return "" end
     local counts = RR:GetPerDifficultyKillCounts()
     if not counts then return "" end
 
@@ -4824,7 +4829,8 @@ local function BuildAchievementsBlock(boss)
     if not boss then return "" end
     local listed = {}
     for _, ach in ipairs(boss.achievements or {}) do listed[#listed + 1] = ach end
-    local raid = RR.currentRaid
+    -- The host's instance-wide achievements are not earned in a holiday queue.
+    local raid = not boss.holiday and RR.currentRaid
     for _, ach in ipairs(raid and raid.raidAchievements or {}) do
         listed[#listed + 1] = ach
     end
@@ -6136,8 +6142,9 @@ end
 
 -- Appearances still missing on one route ("standard" or "skip") at the live
 -- difficulty, counted the way Transmog Needed counts. Event rewards count
--- toward the route `eventVariant` names, or toward every route without one.
--- Nil when the route does not exist.
+-- toward the route `eventVariant` names, or toward every route without one;
+-- a holiday's only while its queue is offered. Nil when the route does not
+-- exist.
 function UI.RouteMissingAppearances(raid, variantKey)
     if not raid then return nil end
     local routing = (variantKey == "skip") and raid.skipRoute or raid.routing
@@ -6160,7 +6167,8 @@ function UI.RouteMissingAppearances(raid, variantKey)
             end
         end
     end
-    if raid.eventLoot and (raid.eventVariant == nil or raid.eventVariant == variantKey) then
+    if RR:EventLootCounts(raid)
+        and (raid.eventVariant == nil or raid.eventVariant == variantKey) then
         UI.ForEachBossLookAt({ loot = raid.eventLoot }, diffID, classID, visit)
     end
     return missing
@@ -6405,8 +6413,8 @@ end
 -- (Dire Maul's Tribute chest, with King Gordok).
 function UI.BossWithEventLoot(boss)
     local raid = RR.currentRaid
-    if not boss or not raid or not raid.eventLoot or not raid.eventBoss
-        or raid.eventBoss ~= boss.index then
+    if not boss or not raid or not raid.eventBoss or raid.eventBoss ~= boss.index
+        or not RR:EventLootCounts(raid) then
         return boss
     end
     if raid.eventVariant and raid.eventVariant ~= RR:ActiveVariantKey() then
@@ -7171,6 +7179,8 @@ function UI.BossInList(bosses, bossIndex, whenAbsent)
 end
 
 local function BuildSanctumLine(raid, boss)
+    -- A holiday boss's page is his holiday alone; the host's hints stay off.
+    if boss and boss.holiday then return nil end
     -- Legacy-wing hint. Belongs to the INSTANCE rather than a boss, so it
     -- resolves ahead of the boss guard below. Its block emits the sanctum
     -- marker row, which is what places this line and its travel plane.
@@ -7514,8 +7524,9 @@ BuildTransmogDetail = function(stepOrCtx)
     end
     -- A boss with no loot still renders the instance-level sections --
     -- trash, wings, faction gear belong to the dungeon, not to whichever
-    -- boss the dropdown happens to sit on.
-    local bossLoot = boss.loot or {}
+    -- boss the dropdown happens to sit on. A holiday boss's page is his
+    -- holiday's section alone.
+    local bossLoot = (not boss.holiday and boss.loot) or {}
 
     -- Reset per-render caches so we pick up collection changes between pops.
     appearanceIDCache = {}
@@ -7575,7 +7586,7 @@ BuildTransmogDetail = function(stepOrCtx)
     -- wrapping line), "note" (wrapping sub-line indented to the name
     -- column), "blank" (one-line gap).
     local mainRows = {}
-    if #candidates == 0 then
+    if #candidates == 0 and not boss.holiday then
         table.insert(mainRows, { kind = "text",
             text = RR.L["This boss doesn't drop any appearances."] })
     end
@@ -8045,6 +8056,7 @@ BuildTransmogDetail = function(stepOrCtx)
         table.insert(rowsOut, { kind = "item", pills = pills,
             name = nameText, tags = tagsText, isTier = isTierRow,
             isBinary = UI.RendersBinary(item),
+            isLegendary = IsLegendaryRow(item) or nil,
             itemID = item.id, carried = carried })
         if item.acquisitionNote then
             -- Rows that share a note (a legendary pair) show it once, under
@@ -8266,7 +8278,7 @@ BuildTransmogDetail = function(stepOrCtx)
     -- in the browser, so the section's rows and collected/total counts are
     -- built here (where the row helpers are in scope) and handed back.
     local trashSectionRows, trashCollected, trashTotal
-    if raid and raid.trashLoot and #raid.trashLoot > 0 then
+    if raid and raid.trashLoot and #raid.trashLoot > 0 and not boss.holiday then
         UI._equipGateExempt = UI.EquipGateExemptFor(raid.trashLoot,
             ActiveClassFilter())
         -- Mounts, pets and toys bundle with their source like gear but stay
@@ -8387,8 +8399,10 @@ BuildTransmogDetail = function(stepOrCtx)
     -- Rewards from an instance event (Zul'Aman's hostages, Dire Maul's
     -- Tribute), held at instance level like trash and grouped by `tag` tier
     -- in data order. Mounts and pets list with their tier but stay uncounted.
+    -- A holiday's rewards show on its boss's own entry only.
     local eventSectionRows, eventCollected, eventTotal
-    if raid and raid.eventLoot and #raid.eventLoot > 0 then
+    if raid and raid.eventLoot and #raid.eventLoot > 0
+        and (boss.holiday or not raid.eventHoliday) then
         UI._equipGateExempt = UI.EquipGateExemptFor(raid.eventLoot,
             ActiveClassFilter())
         local tierOrder, itemsByTier = {}, {}
@@ -8445,9 +8459,15 @@ BuildTransmogDetail = function(stepOrCtx)
             end
             UI._inEventSection = nil
             if raid.eventNote then
+                -- {item} links the reward box the rows come out of.
+                local noteText = RR.L[raid.eventNote]
+                if raid.eventNoteItemID then
+                    noteText = noteText:gsub("{item}",
+                        UI.ItemLinkFor(raid.eventNoteItemID))
+                end
                 table.insert(eventSectionRows, { kind = "blank" })
                 table.insert(eventSectionRows, { kind = "text", soft = true,
-                    text = ("|cff9d9d9d%s|r"):format(RR.L[raid.eventNote]) })
+                    text = ("|cff9d9d9d%s|r"):format(noteText) })
             end
         end
     end
@@ -8457,7 +8477,7 @@ BuildTransmogDetail = function(stepOrCtx)
     -- bosses that drop them do not exist in the modern layout. The sanctum
     -- marker at the foot is what draws the access hint and its travel plane.
     local legacySectionRows, legacyCollected, legacyTotal
-    if raid and raid.legacyLoot and #raid.legacyLoot > 0 then
+    if raid and raid.legacyLoot and #raid.legacyLoot > 0 and not boss.holiday then
         UI._equipGateExempt = UI.EquipGateExemptFor(raid.legacyLoot,
             ActiveClassFilter())
         local legacyItems = {}
@@ -8929,8 +8949,10 @@ function UI.PointBrowserAtCurrentInstance()
     browserState.raidKey   = UI.BrowserKeyOf(instance)
     local step = RR.state and RR.state.activeStep
     -- While a pool slot is open the step's boss is not the one being
-    -- fought; open on the prisoner last looted instead.
-    local bossIndex = (RR:GetOpenPoolSlot() and RR:GetPoolBrowseBossIndex())
+    -- fought; open on the prisoner last looted instead. A holiday queue
+    -- opens on its holiday boss.
+    local bossIndex = (RR:GetHolidayBoss() and RR.HOLIDAY_BOSS_INDEX)
+        or (RR:GetOpenPoolSlot() and RR:GetPoolBrowseBossIndex())
         or (step and step.bossIndex)
         or (RR.state and RR.state.lastEncounterBossIndex)
     -- Nothing pulled yet this session (a reload mid-run lands here, since
@@ -8950,13 +8972,20 @@ function UI.PointBrowserAtCurrentInstance()
 end
 
 -- True when the browser shows the instance the player is running on the
--- route that earns its event rewards (Dire Maul's Tribute run).
+-- route that earns its event rewards (Dire Maul's Tribute run), or in the
+-- holiday boss queue that does.
 function UI.EventSectionStartsOpen()
-    local instance = RR.currentRaid
-    if not (instance and instance.eventLoot and instance.eventVariant) then
-        return false
+    -- A holiday boss's entry is his section.
+    if browserState.bossIndex ~= nil
+        and browserState.bossIndex == RR.HOLIDAY_BOSS_INDEX then
+        return true
     end
-    if instance.eventVariant ~= RR:ActiveVariantKey() then return false end
+    local instance = RR.currentRaid
+    if not (instance and instance.eventLoot) then return false end
+    local earned = (instance.eventHoliday and RR:IsHolidayQueueRun())
+        or (instance.eventVariant ~= nil
+            and instance.eventVariant == RR:ActiveVariantKey())
+    if not earned then return false end
     local kind = (instance.kind == "dungeon") and "dungeon" or "raid"
     return browserState.instanceKind == kind
         and browserState.raidKey == UI.BrowserKeyOf(instance)
@@ -9163,21 +9192,31 @@ UI.BuildTmogSearchIndex = function()
                               section = "trash" })
                     end
                 end
-                -- The event searches by its name and lands on its section.
+                -- The event searches by name and lands on its section; a
+                -- holiday's lands on its boss's entry.
                 if instance.eventLoot and instance.eventLabel then
                     local eventLabel = RR.L[instance.eventLabel]
+                    local eventBoss = RR:GetEventBoss(instance)
+                    local eventBossIndex = eventBoss and RR.HOLIDAY_BOSS_INDEX or 1
+                    if eventBoss then
+                        Add(2, eventBoss.name, instanceName,
+                            eventBoss.name .. " " .. instance.eventBossName,
+                            { instanceKind = instanceKind,
+                              expansion = expansionName, key = key,
+                              bossIndex = eventBossIndex, section = "event" })
+                    end
                     Add(2, eventLabel, RR.L["Event"] .. ", " .. instanceName,
                         eventLabel .. " " .. instance.eventLabel,
                         { instanceKind = instanceKind,
                           expansion = expansionName, key = key,
-                          bossIndex = 1, section = "event" })
+                          bossIndex = eventBossIndex, section = "event" })
                     for _, item in ipairs(instance.eventLoot) do
                         if item.name then
                             Add(3, item.name,
                                 eventLabel .. ", " .. instanceName, item.name,
                                 { instanceKind = instanceKind,
                                   expansion = expansionName, key = key,
-                                  bossIndex = 1, itemID = item.id,
+                                  bossIndex = eventBossIndex, itemID = item.id,
                                   itemClasses = item.classes,
                                   itemEquipClasses = item.equipClasses,
                                   section = "event" })
@@ -9196,11 +9235,20 @@ UI.QueryTmogSearch = function(query, maxResults)
     return UI.QuerySearchIndex(UI.BuildTmogSearchIndex, query, maxResults)
 end
 
+-- A holiday boss's Boss-list label, tagged the way Boss Progress tags a
+-- difficulty-gated boss: "The Headless Horseman (Hallow's End only)".
+function UI.EventBossLabel(raid, eventBoss)
+    return eventBoss.name .. (" |cff808080(%s %s)|r"):format(
+        RR.L[raid.eventLabel or ""], RR.L["only"])
+end
+
 local function GetBrowserSelection()
     local raid = browserState.raidKey and UI.BrowserInstanceByKey(browserState.raidKey)
     local boss
     if raid and raid.bosses and browserState.bossIndex then
         boss = raid.bosses[browserState.bossIndex]
+            or (browserState.bossIndex == RR.HOLIDAY_BOSS_INDEX
+                and RR:GetEventBoss(raid)) or nil
     end
     return raid, boss
 end
@@ -9300,6 +9348,10 @@ local function WarmBrowserItemCache()
             C_Item.GetItemInfo(boss.omniToken.itemID)
         end
     end
+    for _, item in ipairs(raid.eventLoot or {}) do
+        if item.id then C_Item.GetItemInfo(item.id) end
+    end
+    if raid.eventNoteItemID then C_Item.GetItemInfo(raid.eventNoteItemID) end
 end
 
 -- GET_ITEM_INFO_RECEIVED fires once per item as WoW resolves async lookups, so
@@ -9602,6 +9654,10 @@ GetOrCreateTmogWindow = function()
                     for _, boss in ipairs(raid.bosses or {}) do
                         bossNames[#bossNames + 1] = inCombat and boss.name
                             or RR:GetLocalizedBossName(boss) or ""
+                    end
+                    local eventBoss = RR:GetEventBoss(raid)
+                    if eventBoss then
+                        bossNames[#bossNames + 1] = UI.EventBossLabel(raid, eventBoss)
                     end
                 end
             end
@@ -9977,10 +10033,30 @@ GetOrCreateTmogWindow = function()
                         tmogFrame:RefreshContent()
                     end)
             end
+            -- A holiday boss queued into this instance closes the list; his
+            -- page is the holiday's section, opened.
+            local eventBoss = RR:GetEventBoss(raid)
+            if eventBoss then
+                local holidayIndex = RR.HOLIDAY_BOSS_INDEX
+                local label = UI.EventBossLabel(raid, eventBoss)
+                UI.MenuRadio(rootDescription, label,
+                    function() return browserState.bossIndex == holidayIndex end,
+                    function()
+                        if browserState.bossIndex == holidayIndex then return end
+                        browserState.bossIndex = holidayIndex
+                        tmogFrame._eventExpanded = true
+                        UI.SetDropdownText(ddBoss, label)
+                        tmogFrame:RefreshContent()
+                    end)
+            end
         end)
         local bossName = "(none)"
-        local _, selBoss = GetBrowserSelection()
-        if selBoss then bossName = RR:GetLocalizedBossName(selBoss) or "?" end
+        local selRaid, selBoss = GetBrowserSelection()
+        if selBoss and selBoss.holiday then
+            bossName = UI.EventBossLabel(selRaid, selBoss)
+        elseif selBoss then
+            bossName = RR:GetLocalizedBossName(selBoss) or "?"
+        end
         UI.SetDropdownText(ddBoss, bossName)
 
         -- Fit the bars to their content (measured, not guessed).
@@ -10104,10 +10180,11 @@ GetOrCreateTmogWindow = function()
         end
         local maxRowW = 0
         -- Column groups per render list: the tier block and each loot block,
-        -- split where a blank line separates binary rows from strips.
+        -- split where a blank line separates binary rows from strips or
+        -- regular loot from the legendary block.
         for _, rows in ipairs(renderLists) do
             local tierColumns = { indicatorW = 0, nameW = 0 }
-            local lootColumns, lootIsBinary
+            local lootColumns, lootIsBinary, lootIsLegendary
             local blankSinceItem = false
             for _, row in ipairs(rows) do
                 if row.kind == "blank" or row.kind == "divider" then
@@ -10122,10 +10199,13 @@ GetOrCreateTmogWindow = function()
                         row.columns = tierColumns
                     else
                         local isBinary = row.isBinary and true or false
+                        local isLegendary = row.isLegendary and true or false
                         if not lootColumns
-                           or (blankSinceItem and isBinary ~= lootIsBinary) then
+                           or (blankSinceItem and isBinary ~= lootIsBinary)
+                           or (blankSinceItem and isLegendary ~= lootIsLegendary) then
                             lootColumns = { indicatorW = 0, nameW = 0 }
                             lootIsBinary = isBinary
+                            lootIsLegendary = isLegendary
                         end
                         row.columns = lootColumns
                     end
@@ -13287,12 +13367,13 @@ function UI.Update()
 
     local raid   = RR.currentRaid
     local loaded = raid and RR.state.loadedRaidKey == RR:GetRaidContextKey()
-    local step   = loaded and (RR.state.activeStep or RR:ComputeNextStep()) or nil
+    local step   = loaded and (RR.state.activeStep or RR:ComputeNextStep()
+        or RR:GetHolidayPanelStep()) or nil
 
     -- Footer left slot. In an active raid it shows the current route; when
     -- idle it shows the author credit.
-    if raid and loaded and RR:IsTimewalkingRun() then
-        -- No route in Timewalking, so no route to name.
+    if raid and loaded and RR:IsRouteStoodDownRun() then
+        -- No route in a queued run, so no route to name.
         panel.credit:SetText("")
     elseif raid and loaded then
         local routeLabel
@@ -13421,7 +13502,14 @@ function UI.Update()
             panel.next:SetText(RR.L["|cffffffffBoss:|r "]
                 .. ((boss and RR:GetLocalizedBossName(boss)) or RR.L["Unknown"])
                 .. optionalTag)
-            panel.travel:SetText(BuildTravelText(step))
+            if step.holidayBoss then
+                -- A holiday boss queue has no route; its status line takes
+                -- the travel slot.
+                panel.travel:SetText(("|cffff9333%s|r"):format(
+                    RR.L["Routing disabled for holiday boss queues"]))
+            else
+                panel.travel:SetText(BuildTravelText(step))
+            end
             UI.ClearRunNotes()
             local headerText, achText, specialText, encClickable,
                   headerPulsing, achRows, specialRows = BuildEncounterText(step)
@@ -13729,6 +13817,9 @@ function UI.Update()
                 if RR:IsTimewalkingRun() then
                     panel.next:SetText(("|cffff9333%s|r"):format(
                         RR.L["Routing disabled for Timewalking"]))
+                elseif RR:IsHolidayQueueRun() then
+                    panel.next:SetText(("|cffff9333%s|r"):format(
+                        RR.L["Routing disabled for holiday boss queues"]))
                 elseif raid.kind == "dungeon" then
                     panel.next:SetText(("|cffff9333%s|r"):format(
                         (RR.L["%s is under development."]):format(
@@ -14745,6 +14836,20 @@ local function BuildAchievementRows(raid)
             end
         end
     end
+    -- The holiday boss queued into this instance follows its own bosses.
+    local eventBoss = RR:GetEventBoss(raid)
+    for _, ach in ipairs(eventBoss and eventBoss.achievements or {}) do
+        local _, aName, _, aCompleted = GetAchievementInfo(ach.id)
+        table.insert(rows, {
+            kind            = "achRow",
+            bossName        = eventBoss.name,
+            achievementID   = ach.id,
+            achievementName = aName or ach.name or ("ID " .. ach.id),
+            completed       = aCompleted,
+            soloable        = ach.soloable,
+            meta            = ach.meta,
+        })
+    end
 
     -- 4. Raid-wide achievements, after the boss rows. No boss attribution;
     --    the boss column renders a dash.
@@ -14966,6 +15071,24 @@ UI.BuildAchSearchIndex = function()
                               expansion = expansionName, key = key,
                               bossName = bossName })
                     end
+                end
+                -- The holiday boss's rows search like any boss's.
+                local eventBoss = RR:GetEventBoss(instance)
+                if eventBoss and #eventBoss.achievements > 0 then
+                    for _, ach in ipairs(eventBoss.achievements) do
+                        local _, achName = GetAchievementInfo(ach.id)
+                        achName = achName or ach.name or ("ID " .. ach.id)
+                        Add(3, achName, eventBoss.name .. ", " .. instanceName,
+                            achName .. " " .. (ach.name or ""),
+                            { instanceKind = instanceKind,
+                              expansion = expansionName, key = key,
+                              achievementID = ach.id, bossName = eventBoss.name })
+                    end
+                    Add(4, eventBoss.name, instanceName,
+                        eventBoss.name .. " " .. instance.eventBossName,
+                        { instanceKind = instanceKind,
+                          expansion = expansionName, key = key,
+                          bossName = eventBoss.name })
                 end
 
                 for _, ach in ipairs(instance.raidAchievements or {}) do
@@ -15512,6 +15635,8 @@ GetOrCreateAchievementsWindow = function()
                 local boss = raid.bosses[step.bossIndex]
                 if boss then currentBossName = RR:GetLocalizedBossName(boss) end
             end
+            local holidayBoss = RR:GetHolidayBoss()
+            if holidayBoss then currentBossName = holidayBoss.name end
         end
 
         -- Fingerprint-gate the rebuild. Heartbeats with no state change

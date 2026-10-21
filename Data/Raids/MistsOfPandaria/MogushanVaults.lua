@@ -309,6 +309,7 @@ RetroRuns_Data[1008] = {
                 {
                     when            = { mapID = 472, subZone = "The Repository" },
                     kind            = "poi",
+                    poiKind         = "talk",
                     mapLabel        = "Talk to Lorewalker Cho",
                     mapLabelPos     = "above",
                     completionCheck = true,
@@ -524,6 +525,7 @@ RetroRuns_Data[1008] = {
                         {
                             when            = { mapID = 472, subZone = "The Repository" },
                             kind            = "poi",
+                            poiKind         = "talk",
                             mapLabel        = "Talk to Lorewalker Cho",
                             mapLabelPos     = "above",
                             completionCheck = true,

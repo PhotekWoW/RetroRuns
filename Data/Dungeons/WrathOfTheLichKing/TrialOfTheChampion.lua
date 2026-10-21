@@ -64,6 +64,7 @@ RetroRuns_DungeonData[284] = {
             npcID              = 35119,
             aliases            = { "Argent Champion" },
             achievements       = {
+                { id = 3803, name = "The Faceroller", soloable = "yes" },
             },
             loot = {
                 { id = 47501, slot = "Back", name = "Kurisu's Indecision", sources = { [14]=22804, [15]=22804 } },
@@ -97,6 +98,7 @@ RetroRuns_DungeonData[284] = {
             npcID              = 34928,
             aliases            = { "Argent Champion" },
             achievements       = {
+                { id = 3802, name = "Argent Confessor", soloable = "yes" },
             },
             loot = {
                 { id = 47176, slot = "Chest", name = "Breastplate of the Imperial Joust", sources = { [14]=22610, [15]=22610 } },
@@ -126,6 +128,7 @@ RetroRuns_DungeonData[284] = {
             journalEncounterID = 637,
             dungeonEncounterID = 2021,
             achievements       = {
+                { id = 3804, name = "I've Had Worse", soloable = "yes" },
             },
             loot = {
                 { id = 47232, slot = "Back", name = "Drape of the Undefeated", sources = { [14]=22651, [15]=22651 } },

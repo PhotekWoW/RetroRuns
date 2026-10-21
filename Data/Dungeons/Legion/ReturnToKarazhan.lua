@@ -22,6 +22,12 @@ RetroRuns_DungeonData[860] = {
         y     = 0.7066,
     },
 
+    -- Instance-wide achievements with no single boss; every boss lists them.
+    raidAchievements = {
+        { id = 11430, name = "One Night in Karazhan", soloable = "yes" },
+        { id = 11433, name = "Burn After Reading", soloable = "yes" },
+    },
+
     trashLoot = {
         { id = 142552, kind = "mount", name = "Smoldering Ember Wyrm", mythicOnly = true, bossNpc = "Nightbane" },
     },
@@ -146,6 +152,7 @@ RetroRuns_DungeonData[860] = {
             journalEncounterID = 1817,
             dungeonEncounterID = 1965,
             achievements       = {
+                { id = 11432, name = "Scared Straight", soloable = "no" },
             },
             loot = {
                 { id = 142131, slot = "Chest", name = "Frozen-Link Chestguard", sources = { [15]=83041, [16]=83041 } },

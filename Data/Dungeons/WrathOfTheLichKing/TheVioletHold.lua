@@ -187,6 +187,7 @@ RetroRuns_DungeonData[283] = {
                 {
                     when            = { mapID = 168 },
                     kind            = "poi",
+                    poiKind         = "talk",
                     note            = "After zoning in, talk to ^Lieutenant Sinclari^ to start the sequence.",
                     minNote         = "Talk to Sinclari",
                     mapLabel        = "Talk to Sinclari",

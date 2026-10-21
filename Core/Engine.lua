@@ -225,8 +225,8 @@ function RR:PersistPoolSlots()
     end
 end
 
--- Which spawnChoice member this run spawned. Chat said so once and will
--- not again, so it rides the lockout store or the run record.
+-- Which spawnChoice members this run brought out, and the gossip text that
+-- named the current one, kept in the lockout store or the run record.
 function RR:PersistSpawnedMember()
     local store = self:GetLockoutStore(true)
     if not store then
@@ -234,6 +234,16 @@ function RR:PersistSpawnedMember()
         return
     end
     store.spawnedMember = self.state.spawnedMember
+    store.spawnEarlierPicks = self:CopySpawnEarlierPicks()
+    store.spawnOption = self.state.spawnOption
+end
+
+function RR:CopySpawnEarlierPicks()
+    local earlier = self.state.spawnEarlierPicks
+    if not earlier or #earlier == 0 then return nil end
+    local copy = {}
+    for position, memberIndex in ipairs(earlier) do copy[position] = memberIndex end
+    return copy
 end
 
 -------------------------------------------------------------------------------
@@ -536,6 +546,9 @@ function RR:FillSegItem(seg, text)
     if type(text) == "string" and text:find("{spawned}", 1, true) then
         text = self:FillSpawnedName(text)
     end
+    if type(text) == "string" and text:find("{option}", 1, true) then
+        text = self:FillSpawnOption(text)
+    end
     if type(text) ~= "string" or not text:find("{item}", 1, true) then
         return text
     end
@@ -552,10 +565,21 @@ end
 function RR:FillSpawnedName(text)
     local choice = self.currentRaid and self.currentRaid.spawnChoice
     if not choice then return text end
-    local spawned = self.state.spawnedMember and self:GetBossByIndex(self.state.spawnedMember)
+    local spawned = not self:IsSpawnChoiceOpen() and self.state.spawnedMember
+        and self:GetBossByIndex(self.state.spawnedMember)
     local name = spawned and self:GetLocalizedBossName(spawned)
         or RR.L[choice.label or "Boss"]
     return (text:gsub("{spawned}", function() return "^" .. name .. "^" end))
+end
+
+-- `{option}` is the destination the gossip offered, highlighted like a
+-- caret name; a plain phrase stands in until that gossip is read.
+function RR:FillSpawnOption(text)
+    local option = self.state.spawnOption
+    local known = option and option.name and not self:IsSpawnChoiceOpen()
+        and option.member == self.state.spawnedMember
+    local filled = known and ("^" .. option.name .. "^") or RR.L["the destination it offers"]
+    return (text:gsub("{option}", function() return filled end))
 end
 
 function RR:ReadScenarioKills()
@@ -840,6 +864,8 @@ function RR:PersistRunProgress()
         skipped      = skipped,
         poolSlots    = poolSlots,
         spawnedMember = self.state.spawnedMember,
+        spawnEarlierPicks = self:CopySpawnEarlierPicks(),
+        spawnOption  = self.state.spawnOption,
         progress     = segProgress,
         stats        = stats,
         routeVariant = self.state.activeRouteVariant,
@@ -1290,6 +1316,8 @@ function RR:RestoreRunProgress(sameSession)
             end
             if record.spawnedMember then
                 self.state.spawnedMember = record.spawnedMember
+                self.state.spawnEarlierPicks = record.spawnEarlierPicks
+                self.state.spawnOption = record.spawnOption
             end
             -- Run tallies come back with the kills they describe.
             if record.stats then
@@ -1407,6 +1435,8 @@ function RR:RestorePersistedProgress()
         self.state.bossesKilled[bossIndex] = true
     end
     self.state.spawnedMember = store.spawnedMember
+    self.state.spawnEarlierPicks = store.spawnEarlierPicks
+    self.state.spawnOption = store.spawnOption
 end
 
 -- Records that a gate event (NPC dialog, etc.) fired this lockout. Lets the
@@ -1530,6 +1560,8 @@ local function GateSubZoneMatches(gateSubZone, liveSubZone)
     end
     return false
 end
+-- Shared with the spawnChoice shrine match in Navigation.lua.
+RR.SubZoneNameMatches = GateSubZoneMatches
 
 local function WhenMatches(seg, mapID, subZone)
     local segMapID = SegMapID(seg)
@@ -1900,6 +1932,16 @@ local function ComputeAdvancedProgress(segments, progress, state, event, eventDa
             -- Markers drawn on another floor do not hold the walk back
             -- from a landed counter's seg on this one.
             local pulled = OpenWidgetSegAhead(segIndex)
+            -- A step whose segs are alternatives by place (End Time's shrine
+            -- teleporters) moves to the seg where the player now stands.
+            if not pulled and state.skipToLocation then
+                for laterIdx = segIndex + 1, segCount do
+                    if WhenMatches(segments[laterIdx], state.mapID, state.subZone) then
+                        pulled = laterIdx
+                        break
+                    end
+                end
+            end
             if not pulled then break end
             segIndex = pulled
             seg = segments[segIndex]
@@ -1938,7 +1980,8 @@ function RR:AdvanceProgress(event, eventData)
     local mapID = (C_Map and C_Map.GetBestMapForUnit
         and C_Map.GetBestMapForUnit("player")) or nil
     local subZone = (GetSubZoneText and GetSubZoneText()) or ""
-    local state = { mapID = mapID, subZone = subZone, latchPulledPast = {} }
+    local state = { mapID = mapID, subZone = subZone, latchPulledPast = {},
+                    skipToLocation = step.skipToLocation }
 
     -- A heard line may be the cue that swaps the whole routing; the
     -- swap seeds the new route itself, so the event is consumed.
@@ -2819,8 +2862,20 @@ function RR:BuildCompletionDiagLines()
         add("All bosses resolved a dungeonEncID (EJ map or data fallback).")
     end
     if raid.spawnChoice then
-        local spawned = self.state.spawnedMember and self:GetBossByIndex(self.state.spawnedMember)
-        add("spawnChoice: " .. (spawned and spawned.name or "not yet named"))
+        local names = {}
+        for _, memberIndex in ipairs(self:GetSpawnPicks()) do
+            local boss = self:GetBossByIndex(memberIndex)
+            names[#names + 1] = (boss and boss.name or ("#" .. memberIndex))
+                .. (self:IsBossKilled(memberIndex) and " (dead)" or "")
+        end
+        add(("spawnChoice: %d/%d out%s%s"):format(#names, self:GetSpawnPickLimit(),
+            #names > 0 and (": " .. table.concat(names, ", ")) or "",
+            self:IsSpawnChoiceOpen() and "  (next not yet named)" or ""))
+        local option = self.state.spawnOption
+        if option then
+            add(("spawnChoice option: %s -> bossIndex %s"):format(
+                tostring(option.name), tostring(option.member)))
+        end
     end
     return out
 end

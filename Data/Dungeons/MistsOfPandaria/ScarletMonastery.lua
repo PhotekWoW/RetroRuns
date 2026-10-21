@@ -76,6 +76,42 @@ RetroRuns_DungeonData[316] = {
         { id = 10332, slot = "Feet", name = "Scarlet Boots", sources = { [14]=3917 }, bind = "BoE", legacyWing = "Cathedral" },
     },
 
+    -- Hallow's End's Headless Horseman, shown in the browser's event section.
+    eventLabel       = "Hallow's End",
+    eventNote        = "During Hallow's End, queue for the Headless Horseman in the Dungeon Finder. These come from the {item} he drops.",
+    eventHoliday     = true,
+    eventNoteItemID  = 209024,
+    eventBossName    = "The Headless Horseman",
+    eventEncounterID = 2725,
+    eventAchievements = {
+        { id = 18960, name = "Kickin' With the Wick", soloable = "yes" },
+    },
+    eventLoot = {
+        { id = 117355, slot = "Head", name = "The Horseman's Horrific Hood", sources = { [14]=65951, [15]=65951 } },
+        { id = 117356, slot = "Weapon", name = "The Horseman's Sinister Slicer", sources = { [14]=65952, [15]=65952 } },
+        { id = 33292, slot = "Head", name = "Hallowed Helm", sources = { [14]=15335, [15]=15335 } },
+        { id = 226690, slot = "Head", name = "Patched Harvest Golem's Head", sources = { [14]=223195, [15]=223195 } },
+        { id = 226454, slot = "Shoulder", name = "Patched Harvest Golem's Pauldrons", sources = { [14]=223008, [15]=223008 } },
+        { id = 226457, slot = "Chest", name = "Patched Harvest Golem's Chest", sources = { [14]=223011, [15]=223011 } },
+        { id = 226456, slot = "Hands", name = "Patched Harvest Golem's Gloves", sources = { [14]=223010, [15]=223010 } },
+        { id = 226461, slot = "Waist", name = "Patched Harvest Golem's Belt", sources = { [14]=223013, [15]=223013 } },
+        { id = 226455, slot = "Legs", name = "Patched Harvest Golem's Pants", sources = { [14]=223009, [15]=223009 } },
+        { id = 226458, slot = "Feet", name = "Patched Harvest Golem's Boots", sources = { [14]=223012, [15]=223012 } },
+        { id = 247964, slot = "Head", name = "The Horseman's Ghoulish Helm", sources = { [14]=295322, [15]=295322 } },
+        { id = 250708, slot = "Head", name = "The Horseman's Ghoulish Cowl", sources = { [14]=297970, [15]=297970 } },
+        { id = 247965, slot = "Shoulder", name = "The Horseman's Ghoulish Mantle", sources = { [14]=295323, [15]=295323 } },
+        { id = 247972, slot = "Back", name = "The Horseman's Ghoulish Cloak", sources = { [14]=295329, [15]=295329 } },
+        { id = 247966, slot = "Chest", name = "The Horseman's Ghoulish Breastplate", sources = { [14]=295324, [15]=295324 } },
+        { id = 247971, slot = "Hands", name = "The Horseman's Ghoulish Grips", sources = { [14]=295328, [15]=295328 } },
+        { id = 247967, slot = "Waist", name = "The Horseman's Ghoulish Cinch", sources = { [14]=295325, [15]=295325 } },
+        { id = 247968, slot = "Legs", name = "The Horseman's Ghoulish Greaves", sources = { [14]=295326, [15]=295326 } },
+        { id = 247969, slot = "Feet", name = "The Horseman's Ghoulish Treads", sources = { [14]=295327, [15]=295327 } },
+        { id = 37012, kind = "mount", name = "The Horseman's Reins" },
+        { id = 247721, kind = "mount", name = "The Headless Horseman's Ghoulish Charger" },
+        { id = 33154, kind = "pet", name = "Sinister Squashling" },
+        { id = 211271, kind = "pet", name = "Arfus" },
+    },
+
     bosses = {
         {
             index              = 1,

@@ -23,6 +23,18 @@ RetroRuns_DungeonData[968] = {
         y     = 0.3947,
     },
 
+    gloryMeta = {
+        id   = 12812,
+        name = "Glory of the Wartorn Hero",
+        rewardItemID       = 161215,
+        rewardName         = "Reins of the Obsidian Krolusk",
+    },
+
+    -- Instance-wide achievements with no single boss; every boss lists them.
+    raidAchievements = {
+        { id = 12270, name = "Bringing Hexy Back", meta = true, soloable = "kinda" },
+    },
+
     bosses = {
         {
             index              = 1,
@@ -30,6 +42,7 @@ RetroRuns_DungeonData[968] = {
             journalEncounterID = 2082,
             dungeonEncounterID = 2084,
             achievements       = {
+                { id = 12272, name = "Gold Fever", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 155861, slot = "Feet", name = "Embellished Ritual Sabatons", sources = { [14]=92511, [15]=95616, [16]=95617 } },
@@ -79,6 +92,7 @@ RetroRuns_DungeonData[968] = {
             journalEncounterID = 2030,
             dungeonEncounterID = 2087,
             achievements       = {
+                { id = 12273, name = "It's Lit!", meta = true, soloable = "no" },
             },
             loot = {
                 { id = 159233, slot = "Chest", name = "Loa Betrayer's Vestments", sources = { [14]=94967, [15]=94968, [16]=95554 }, twSource = 287992 },

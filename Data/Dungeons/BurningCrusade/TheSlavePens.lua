@@ -23,6 +23,31 @@ RetroRuns_DungeonData[260] = {
         y     = 0.3549,
     },
 
+    -- The Midsummer Fire Festival's Lord Ahune, shown in the browser's event section.
+    eventLabel       = "Midsummer Fire Festival",
+    eventNote        = "During the Midsummer Fire Festival, queue for Ahune in the Dungeon Finder. These come from the {item} he drops.",
+    eventHoliday     = true,
+    eventNoteItemID  = 117394,
+    eventBossName    = "Ahune",
+    eventLoot = {
+        { id = 244356, slot = "Head", name = "Crown of the Frost Lord", sources = { [14]=292134, [15]=292134 } },
+        { id = 117373, slot = "Two-Hand", name = "Frostscythe of Lord Ahune", sources = { [14]=65955, [15]=65955 } },
+        { id = 244422, slot = "Two-Hand", name = "Glazfuris, Scythe of the Deep Chill", sources = { [14]=292192, [15]=292192 } },
+        { id = 246571, slot = "Two-Hand", name = "Glazfuris, Spire of the Deep Chill", sources = { [14]=293075, [15]=293075 } },
+        { id = 244423, slot = "Two-Hand", name = "Rethfuras, Scorched Scythe of Cinders", sources = { [14]=292193, [15]=292193 } },
+        { id = 246570, slot = "Two-Hand", name = "Rethfuras, Scorched Stave of Cinders", sources = { [14]=293074, [15]=293074 } },
+        { id = 275467, slot = "Shoulder", name = "Sun Festival's Painted Wings", sources = { [14]=309319, [15]=309319 } },
+        { id = 275475, slot = "Back", name = "Sun Festival's Painted Wrap", sources = { [14]=309327, [15]=309327 } },
+        { id = 275476, slot = "Chest", name = "Sun Festival's Painted Hauberk", sources = { [14]=309328, [15]=309328 } },
+        { id = 275465, slot = "Shirt", name = "Sun Festival's Painted Tunic", sources = { [14]=309317, [15]=309317 } },
+        { id = 275474, slot = "Hands", name = "Sun Festival's Painted Gauntlets", sources = { [14]=309326, [15]=309326 } },
+        { id = 275469, slot = "Waist", name = "Sun Festival's Painted Girdle", sources = { [14]=309321, [15]=309321 } },
+        { id = 275472, slot = "Legs", name = "Sun Festival's Painted Greaves", sources = { [14]=309324, [15]=309324 } },
+        { id = 275473, slot = "Feet", name = "Sun Festival's Painted Striders", sources = { [14]=309325, [15]=309325 } },
+        { id = 275464, kind = "mount", name = "Sun Festival's Painted Roc" },
+        { id = 53641, kind = "pet", name = "Ice Chip" },
+    },
+
     bosses = {
         {
             index              = 1,

@@ -29,6 +29,13 @@ RetroRuns_DungeonData[1012] = {
         },
     },
 
+    gloryMeta = {
+        id   = 12812,
+        name = "Glory of the Wartorn Hero",
+        rewardItemID       = 161215,
+        rewardName         = "Reins of the Obsidian Krolusk",
+    },
+
     bosses = {
         {
             index              = 1,
@@ -36,6 +43,7 @@ RetroRuns_DungeonData[1012] = {
             journalEncounterID = 2109,
             dungeonEncounterID = 2105,
             achievements       = {
+                { id = 12855, name = "Pitch Invasion", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 159357, slot = "Hands", name = "Linked Pummeler Grips", sources = { [14]=95130, [15]=98396, [16]=98397 } },
@@ -88,6 +96,7 @@ RetroRuns_DungeonData[1012] = {
             journalEncounterID = 2116,
             dungeonEncounterID = 2108,
             achievements       = {
+                { id = 12854, name = "Ready for Raiding VI", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 158349, slot = "Chest", name = "Petticoat of the Self-Stylized Azerite Baron", sources = { [14]=94350, [15]=94351, [16]=95546 } },

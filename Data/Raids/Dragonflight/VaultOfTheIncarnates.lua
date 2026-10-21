@@ -435,6 +435,7 @@ RetroRuns_Data[2522] = {
                 {
                     when            = { mapID = 2119, subZone = "The Outer Seal" },
                     kind            = "poi",
+                    poiKind         = "talk",
                     noMarker        = true,
                     highlightCircle = true,
                     mapLabel        = "Talk to the 5 dragons",
@@ -874,6 +875,7 @@ RetroRuns_Data[2522] = {
                         {
                             when            = { mapID = 2119, subZone = "The Outer Seal" },
                             kind            = "poi",
+                            poiKind         = "talk",
                             noMarker        = true,
                             highlightCircle = true,
                             mapLabel        = "Talk to the 5 dragons",
@@ -1250,6 +1252,7 @@ RetroRuns_Data[2522] = {
                 {
                     when            = { mapID = 2119, subZone = "The Outer Seal" },
                     kind            = "poi",
+                    poiKind         = "talk",
                     noMarker        = true,
                     highlightCircle = true,
                     mapLabel        = "Talk to the 5 dragons",

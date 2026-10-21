@@ -127,6 +127,7 @@ RetroRuns_DungeonData[276] = {
                 {
                     when        = { mapID = 185 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     faction     = "Alliance",
                     note        = "After zoning in, talk to ^Jaina^ to start the instance.",
                     minNote     = "Talk to Jaina",
@@ -139,6 +140,7 @@ RetroRuns_DungeonData[276] = {
                 {
                     when        = { mapID = 185 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     faction     = "Horde",
                     note        = "After zoning in, talk to ^Sylvanas^ to start the instance.",
                     minNote     = "Talk to Sylvanas",

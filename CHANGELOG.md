@@ -2,6 +2,22 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.3.7] - 2026-10-21
+
+### Added
+- **Cataclysm dungeons are completed.** Well of Eternity, Hour of Twilight and End Time round out the roster.
+- **Holiday bosses are in the transmog browser.** The Headless Horseman, Coren Direbrew, the Crown Chemical Co. and Ahune each exist on their dungeon's Boss list, tagged with their holiday.
+
+### Changed
+- **"Talk to" markers on the map are a chat bubble with a pink glow** instead of a star, in every routed raid and dungeon, and a marker dims once you're past it.
+- **Queuing for a holiday boss no longer loads the dungeon's route.** The panel shows the holiday boss instead: his Transmog Needed and Special Loot, and one Boss Progress row for his kill.
+- **The TW pill in the transmog browser now marks only looks you can get nowhere else in the raid.** Black Temple's Normal loot no longer carries one.
+
+### Fixed
+- **Missing achievements and appearances are in.** 32 dungeon achievements across 18 dungeons, Black Temple's Horde versions of the Demon Hunter Timewalking pieces, and the Timewalking-only looks in Ulduar (the Demon Hunter and Monk sets) and Firelands (tier pieces whose look only Timewalking drops).
+- **A new appearance no longer occasionally prints twice in the loot summary.** The summary waits for an appearance still on its way, so the item is listed once, tagged `[New!]`.
+- **Route steps that wait for an NPC's line now advance in every language.** On non-English clients, eleven dungeons held the previous step until the boss died, among them Zul'Aman, Stratholme, Dire Maul and Halls of Origination.
+
 ## [3.3.6] - 2026-10-18
 
 ### Added

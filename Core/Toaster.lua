@@ -249,6 +249,13 @@ local function T(msg)
     end
 end
 
+-- Trace a live toast by its shown name and current alpha.
+local function TFrame(event, toastFrame, extra)
+    local name = toastFrame.itemNameText and toastFrame.itemNameText:GetText()
+    T(("%s  [%s]  alpha=%.2f%s"):format(event, tostring(name),
+        toastFrame:GetAlpha() or 0, extra and ("  " .. extra) or ""))
+end
+
 -- Construct a toast frame's visuals on a parent. Shared by the live pool and
 -- the settings preview. Does not pool or set live behavior.
 local function ConstructToastFrame(parent)
@@ -471,6 +478,8 @@ local function Restack()
     local panel = _G.RetroRunsMainFrame
     local anchored = panel and panel:IsShown()
     local savedPoint, savedX, savedY = GetSavedAnchor()
+    T(("RESTACK  live=%d  anchor=%s"):format(#Presenter.live,
+        savedPoint and "saved" or (anchored and "panel" or "center")))
 
     for i, f in ipairs(Presenter.live) do
         f:ClearAllPoints()
@@ -537,6 +546,7 @@ end
 
 -- Remove a toast immediately: a right-click, or the end of its fade.
 local function DismissToast(toastFrame)
+    TFrame("DISMISS", toastFrame, "live=" .. #Presenter.live)
     for i, lf in ipairs(Presenter.live) do
         if lf == toastFrame then table.remove(Presenter.live, i) break end
     end
@@ -1184,6 +1194,7 @@ end
 -- The fade-out from `fromAlpha` (1, or wherever a hover stopped it), at the
 -- full fade's rate.
 local function PlayFadeOut(toastFrame, fromAlpha)
+    TFrame("FADE-OUT", toastFrame, ("from=%.2f"):format(fromAlpha))
     toastFrame.fadeFrom = fromAlpha
     toastFrame.fadeOutAlpha:SetFromAlpha(fromAlpha)
     toastFrame.fadeOutAlpha:SetDuration(FADE_OUT * fromAlpha)
@@ -1209,6 +1220,7 @@ local function StartFade(toastFrame)
     StopToastFade(toastFrame)
     toastFrame.hoverStart = nil
     toastFrame:SetScript("OnEnter", function(self)
+        TFrame("HOVER-IN", self, ("fadingOut=%s"):format(tostring(self.fadeOut:IsPlaying())))
         self.hoverStart = GetTime()
         if self.holdTimer then
             self.holdLeft = self.holdEnds - self.hoverStart
@@ -1224,6 +1236,8 @@ local function StartFade(toastFrame)
     end)
     toastFrame:SetScript("OnLeave", function(self)
         if not self.hoverStart then return end
+        TFrame("HOVER-OUT", self, ("resume=%s holdLeft=%s"):format(
+            tostring(self.resumeAlpha), tostring(self.holdLeft)))
         self.hoverStart = nil
         if self.resumeAlpha then
             PlayFadeOut(self, self.resumeAlpha)
@@ -1234,6 +1248,7 @@ local function StartFade(toastFrame)
         end
     end)
 
+    TFrame("FADE-START", toastFrame, ("shown=%s"):format(tostring(toastFrame:IsShown())))
     toastFrame:SetAlpha(0)
     toastFrame.fadeIn:Play()
     if not StayUntilClick() then
@@ -1313,6 +1328,8 @@ local function ShowOne(toast)
     local headerKey = ToastHeaderKey(toast)
     toastFrame.header:SetText(headerKey and ToastHeaderText(headerKey) or "RETRORUNS")
     ApplyContent(toastFrame, toast)
+    T(("SHOW item=%s quality=%s looted=%s"):format(tostring(toast.itemID),
+        tostring(toast.quality), tostring(toast.lootedLink ~= nil)))
     RR.UI.SetBreathing(toastFrame.glow, true, GLOW_BREATH_LOW, GLOW_BREATH_HALF)
 
     -- Let a pending item load refresh this frame.
@@ -1618,6 +1635,8 @@ local Summary = {
     windowOpen = false,  -- true between LOOT_OPENED and LOOT_CLOSED
     batch      = nil,    -- toast descriptors accumulating for the current flush
     links      = nil,    -- vendor-grade item links for the current flush
+    lastLinks  = nil,    -- the previous flush's links, for a trailing appearance
+    lastLinksAt = 0,     -- when that flush ran
     newApp     = nil,    -- set: itemID -> true for new appearances this flush
     seenVisual = nil,    -- set: visualID -> true, to dedupe sources of one appearance
     flushTimer = nil,    -- pending C_Timer handle for the quiet-period flush
@@ -1633,9 +1652,50 @@ local Summary = {
 -- LOOT_CLOSED catches the straggler wave.
 local QUIET_FLUSH = 0.5
 local POST_CLOSE_GRACE = 1.5
--- Once every counted item has its loot line and the window is shut, only the
--- appearance events are still to come, a few frames behind their lines.
+-- Once every counted item has its loot line, the window is shut and no looted
+-- item still owes its appearance event, the batch is complete.
 local COMPLETE_TAIL = 0.2
+-- How long a flushed batch's loot lines still answer an appearance event
+-- that lands after them.
+local LATE_APPEARANCE_WINDOW = 2
+
+-- The looted link for itemID: this batch's loot lines first, then the last
+-- flush's while a trailing appearance can still belong to them.
+local function LootedLinkFor(itemID)
+    local now = GetTime and GetTime() or 0
+    local recent = (now - Summary.lastLinksAt) <= LATE_APPEARANCE_WINDOW
+        and Summary.lastLinks
+    for _, list in ipairs({ Summary.links or {}, recent or {} }) do
+        for _, entry in ipairs(list) do
+            if tonumber(entry.link:match("item:(%d+)")) == itemID then
+                return entry.link
+            end
+        end
+    end
+    return nil
+end
+
+-- The first looted item still owed its appearance event (uncollected,
+-- learnable here, none landed this batch), or nil.
+local function OwedAppearanceItem()
+    local transmog = C_TransmogCollection
+    if not (transmog and transmog.GetItemInfo and transmog.GetSourceInfo
+            and transmog.PlayerCanCollectSource) then
+        return nil
+    end
+    for _, entry in ipairs(Summary.links or {}) do
+        local itemID = tonumber(entry.link:match("item:(%d+)"))
+        if itemID and not (Summary.newApp and Summary.newApp[itemID]) then
+            local _, sourceID = transmog.GetItemInfo(entry.link)
+            local info = sourceID and transmog.GetSourceInfo(sourceID)
+            if info and not info.isCollected then
+                local _, canCollect = transmog.PlayerCanCollectSource(sourceID)
+                if canCollect then return itemID end
+            end
+        end
+    end
+    return nil
+end
 
 local FlushBatch  -- forward declaration (defined below, after the formatters)
 local QualityColoredLink  -- forward declaration (FlushBatch needs it as an upvalue)
@@ -1657,11 +1717,16 @@ local function ArmFlush(delay)
         Summary.flushTimer:Cancel()
     end
     delay = delay or QUIET_FLUSH
-    -- Every counted item has arrived: nothing but the appearance events is
-    -- left to wait for, so the straggler grace no longer applies.
+    -- Every counted item has arrived and none still owes its appearance,
+    -- so the straggler grace no longer applies.
     if Summary.expected > 0 and Summary.received >= Summary.expected
         and not Summary.windowOpen and delay > COMPLETE_TAIL then
-        delay = COMPLETE_TAIL
+        local owed = OwedAppearanceItem()
+        if owed then
+            T(("ArmFlush  tail held, appearance owed for item:%d"):format(owed))
+        else
+            delay = COMPLETE_TAIL
+        end
     end
     Summary.flushTimer = C_Timer.NewTimer(delay, function()
         Summary.flushTimer = nil
@@ -1805,6 +1870,7 @@ local function OnDropEvent(_, event, ...)
                     if not toast.icon then toast.icon = ic end
                     if lk then toast.link = lk end
                     if toast.frame and toast.frame:IsShown() then
+                        TFrame("REFRESH", toast.frame, "async item load")
                         ApplyContent(toast.frame, toast)
                     end
                 elseif tries < 20 then
@@ -1912,16 +1978,13 @@ local function OnDropEvent(_, event, ...)
         if itemID then
             -- The looted link outranks the bare item, whose quality can differ
             -- from the drop's. FlushBatch matches a loot line that arrives later.
-            local lootedLink
-            for _, entry in ipairs(Summary.links or {}) do
-                if tonumber(entry.link:match("item:(%d+)")) == itemID then
-                    lootedLink = entry.link
-                    break
-                end
-            end
+            local lootedLink = LootedLinkFor(itemID)
             toast.lootedLink = lootedLink
             -- Synchronous attempt first (cached items fill in immediately).
             local name, _, quality = C_Item.GetItemInfo(lootedLink or itemID)
+            T(("APPEARANCE-QUALITY item=%s quality=%s looted=%s"):format(
+                tostring(itemID), tostring(quality),
+                lootedLink and lootedLink:gsub("|", "||") or "nil"))
             if name then
                 toast.name = name
                 toast.quality = quality
@@ -1938,6 +2001,8 @@ local function OnDropEvent(_, event, ...)
                     end
                     toast.name = linkName or item:GetItemName() or toast.name
                     toast.quality = linkQuality or item:GetItemQuality() or toast.quality
+                    T(("APPEARANCE-QUALITY async item=%s link=%s final=%s"):format(
+                        tostring(itemID), tostring(linkQuality), tostring(toast.quality)))
                     if not toast.icon then toast.icon = item:GetItemIcon() end
                     -- Grab the source link if it wasn't ready at detection.
                     if not toast.link and C_TransmogCollection
@@ -1949,6 +2014,7 @@ local function OnDropEvent(_, event, ...)
                         end
                     end
                     if toast.frame and toast.frame:IsShown() then
+                        TFrame("REFRESH", toast.frame, "async item load")
                         ApplyContent(toast.frame, toast)
                     end
                 end)
@@ -2090,6 +2156,10 @@ FlushBatch = function()
     Summary.capturing = false
     Summary.batch = nil
     Summary.links = nil
+    if links then
+        Summary.lastLinks = links
+        Summary.lastLinksAt = GetTime and GetTime() or 0
+    end
     Summary.newApp = nil
     Summary.seenVisual = nil
     Summary.expected = 0
@@ -2223,7 +2293,8 @@ FlushBatch = function()
         for _, toast in ipairs(batch) do
             if toast.isAppearance then
                 -- Link priority: looted link > source link > nil.
-                local appLink = (toast.itemID and lootedByItemID[toast.itemID]) or toast.link
+                local appLink = (toast.itemID and lootedByItemID[toast.itemID])
+                    or toast.lootedLink or toast.link
                 items[#items + 1] = { kind = "appearance", itemID = toast.itemID,
                                       name = toast.name, link = appLink }
             elseif toast.isSpecial then
@@ -2655,6 +2726,7 @@ local function DeactivateToaster()
     Summary.received = 0
     Summary.batch  = nil
     Summary.links  = nil
+    Summary.lastLinks = nil
     Summary.newApp = nil
     Summary.seenVisual = nil
     if Summary.flushTimer then

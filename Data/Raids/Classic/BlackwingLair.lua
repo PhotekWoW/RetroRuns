@@ -518,6 +518,7 @@ RetroRuns_Data[469] = {
                 {
                     when        = { mapID = 290 },
                     kind        = "poi",
+                    poiKind     = "talk",
                     mapLabel    = "Talk to Victor",
                     mapLabelPos = "below",
                     points      = {

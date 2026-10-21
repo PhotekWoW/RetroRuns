@@ -30,6 +30,11 @@ RetroRuns_DungeonData[721] = {
         rewardName         = "Leyfeather Hippogryph",
     },
 
+    -- Instance-wide achievements with no single boss; every boss lists them.
+    raidAchievements = {
+        { id = 10544, name = "Stag Party", meta = true, soloable = "yes" },
+    },
+
     bosses = {
         {
             index              = 1,
@@ -107,6 +112,7 @@ RetroRuns_DungeonData[721] = {
             dungeonEncounterID = 1809,
             achievements       = {
                 { id = 10542, name = "I Got What You Mead", meta = true, soloable = "yes" },
+                { id = 10543, name = "Surge Protector", meta = true, soloable = "yes" },
             },
             loot = {
                 { id = 133765, slot = "Back", name = "Cape of Valarjar Courage", sources = { [14]=76910, [15]=80805, [16]=76910 } },

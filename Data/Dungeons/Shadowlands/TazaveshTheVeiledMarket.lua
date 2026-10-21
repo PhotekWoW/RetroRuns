@@ -158,6 +158,7 @@ RetroRuns_DungeonData[1194] = {
             achievements       = {
                 { id = 15106, name = "Quality Control", soloable = "no" },
                 { id = 15190, name = "Mischief!", soloable = "yes" },
+                { id = 15178, name = "Fake It 'Til You Make It", soloable = "yes" },
             },
             loot = {
                 { id = 185801, slot = "Legs", name = "Anomalous Starlit Breeches", sources = { [15]=116681, [16]=116681 } },

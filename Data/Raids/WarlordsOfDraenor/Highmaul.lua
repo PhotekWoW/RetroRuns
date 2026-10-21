@@ -289,6 +289,7 @@ RetroRuns_Data[1228] = {
                         {
                             when            = { mapID = 611 },
                             kind            = "poi",
+                            poiKind         = "talk",
                             noMarker        = true,
                             highlightCircle = true,
                             mapLabel        = "Talk to Gharg",
@@ -530,6 +531,7 @@ RetroRuns_Data[1228] = {
                 {
                     when            = { mapID = 611 },
                     kind            = "poi",
+                    poiKind         = "talk",
                     noMarker        = true,
                     highlightCircle = true,
                     mapLabel        = "Talk to Gharg",
