@@ -15,11 +15,12 @@ RetroRuns_DungeonData[558] = {
     difficultyModel   = "dungeonTiered",
     availableDifficulties = { 14, 15, 16 },
     patch             = "6.0.2",
+    routedIn          = "3.4.0",
 
     entrance = {
         mapID = 543,
-        x     = 0.4560,
-        y     = 0.1356,
+        x     = 0.454,
+        y     = 0.135,
     },
 
     gloryMeta = {
@@ -222,6 +223,111 @@ RetroRuns_DungeonData[558] = {
             },
             specialLoot = {
                 { id = 245434, kind = "decor", name = "Orgrimmar Sconce", decorID = 1323 },
+            },
+        },
+    },
+
+    exitNote    = "None available",
+    minExitNote = "None available",
+
+    routing = {
+        -- 1. Fleshrender Nok'gar (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Fleshrender Nok'gar",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 595 },
+                    kind    = "path",
+                    note    = "After zoning in, move ahead to find ^Fleshrender Nok'gar^ riding around on ^Dreadfang^.",
+                    minNote = "Nok'gar ahead riding on Dreadfang",
+                    points  = {
+                        { 0.330, 0.423 },
+                        { 0.449, 0.346 },
+                    },
+                },
+            },
+        },
+        -- 2. Grimrail Enforcers (boss 2).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Grimrail Enforcers",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 595 },
+                    kind    = "path",
+                    note    = "After defeating ^Fleshrender Nok'gar^, make your way through the path to the south until you reach the ^Grimrail Enforcers^.",
+                    minNote = "South path to Grimrail Enforcers",
+                    points  = {
+                        { 0.493, 0.384 },
+                        { 0.494, 0.476 },
+                        { 0.432, 0.475 },
+                        { 0.371, 0.485 },
+                        { 0.371, 0.559 },
+                        { 0.545, 0.691 },
+                        { 0.544, 0.741 },
+                        { 0.571, 0.789 },
+                        { 0.628, 0.790 },
+                        { 0.639, 0.762 },
+                        { 0.676, 0.761 },
+                        { 0.676, 0.819 },
+                        { 0.722, 0.819 },
+                        { 0.721, 0.752 },
+                        { 0.776, 0.752 },
+                    },
+                },
+            },
+        },
+        -- 3. Oshir (boss 3).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Oshir",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 595 },
+                    kind    = "path",
+                    note    = "After defeating the ^Grimrail Enforcers^, go north on the linear path to reach ^Oshir^.",
+                    minNote = "North to Oshir",
+                    points  = {
+                        { 0.834, 0.762 },
+                        { 0.862, 0.761 },
+                        { 0.858, 0.230 },
+                        { 0.830, 0.206 },
+                    },
+                },
+            },
+        },
+        -- 4. Skulloc (boss 4).
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Skulloc",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 595 },
+                    kind    = "path",
+                    note    = "After killing ^Oshir^, take the southwest bridge onto the boat to find the final boss, ^Skulloc, Son of Gruul^.",
+                    minNote = "Find Skulloc on boat",
+                    points  = {
+                        { 0.794, 0.218 },
+                        { 0.772, 0.236 },
+                        { 0.756, 0.269 },
+                        { 0.721, 0.276 },
+                        { 0.702, 0.306 },
+                        { 0.690, 0.403 },
+                    },
+                },
             },
         },
     },

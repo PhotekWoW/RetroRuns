@@ -14,6 +14,7 @@ RetroRuns_DungeonData[1194] = {
     expansion         = "Shadowlands",
     difficultyModel   = "dungeonBinary",
     availableDifficulties = { 15, 16 },
+    unsavedDifficulties = { 15 },
     patch             = "9.1.0",
 
     entrance = {

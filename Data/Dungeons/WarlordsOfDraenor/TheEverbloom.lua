@@ -16,11 +16,12 @@ RetroRuns_DungeonData[556] = {
     availableDifficulties = { 14, 15, 16 },
     patch             = "6.0.2",
     timewalking       = true,
+    routedIn          = "3.4.0",
 
     entrance = {
         mapID = 543,
-        x     = 0.5967,
-        y     = 0.4603,
+        x     = 0.596,
+        y     = 0.457,
     },
 
     gloryMeta = {
@@ -267,6 +268,162 @@ RetroRuns_DungeonData[556] = {
                 { id = 109939, slot = "Shoulder", name = "Streamslither Spaulders", sources = { [14]=61401, [15]=61402, [16]=59601 } },
                 { id = 109944, slot = "Shoulder", name = "Verdant Plate Spaulders", sources = { [14]=61457, [15]=61426, [16]=59606 } },
                 { id = 119181, slot = "Weapon", name = "Hoof of Yalnu", sources = { [14]=66856, [15]=66857, [16]=66855 } },
+            },
+        },
+    },
+
+    exitNote    = "Jump off the ledge to respawn at the entrance.",
+    minExitNote = "Jump off ledge to respawn at entrance",
+
+    routing = {
+        -- 1. Witherbark (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Witherbark",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 620 },
+                    kind    = "path",
+                    note    = "After zoning in, go left at the fork to reach ^Witherbark^. Clear the trash around him to start the encounter.",
+                    minNote = "Left at fork to Witherbark",
+                    points  = {
+                        { 0.706, 0.526 },
+                        { 0.691, 0.497 },
+                        { 0.668, 0.480 },
+                        { 0.651, 0.494 },
+                        { 0.639, 0.542 },
+                        { 0.635, 0.573 },
+                        { 0.611, 0.602 },
+                        { 0.583, 0.611 },
+                        { 0.554, 0.594 },
+                    },
+                },
+            },
+        },
+        -- 2. Ancient Protectors (boss 2).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Ancient Protectors",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 620 },
+                    kind    = "path",
+                    note    = "After defeating ^Witherbark^, exit north and follow the path until you reach the ^Ancient Protectors^.",
+                    minNote = "North to Ancient Protectors",
+                    points  = {
+                        { 0.537, 0.523 },
+                        { 0.545, 0.479 },
+                        { 0.573, 0.451 },
+                        { 0.602, 0.475 },
+                        { 0.628, 0.480 },
+                        { 0.673, 0.479 },
+                        { 0.684, 0.446 },
+                        { 0.700, 0.429 },
+                        { 0.702, 0.377 },
+                        { 0.715, 0.301 },
+                        { 0.713, 0.257 },
+                        { 0.697, 0.213 },
+                        { 0.681, 0.203 },
+                    },
+                },
+            },
+        },
+        -- 3. Xeri'tac (boss 4), ahead of Archmage Sol on the route. Optional,
+        -- and left out once he has nothing left to collect.
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 4,
+            optional  = true,
+            skipWhenCollected = true,
+            title     = "Xeri'tac",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 620 },
+                    kind    = "path",
+                    note    = "After killing the ^Ancient Protectors^, follow the path to the north to find ^Xeri'tac^ in the underground burrow. Click the ^Toxic Eggs^ to start the encounter.",
+                    minNote = "North to Xeri'tac",
+                    points  = {
+                        { 0.637, 0.267 },
+                        { 0.623, 0.288 },
+                        { 0.601, 0.268 },
+                        { 0.585, 0.217 },
+                        { 0.576, 0.192 },
+                        { 0.586, 0.159 },
+                    },
+                },
+            },
+        },
+        -- 4. Archmage Sol (boss 3).
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Archmage Sol",
+            requires  = { },
+            segments  = {
+                {
+                    when         = { mapID = 620 },
+                    kind         = "path",
+                    note         = "After defeating ^Xeri'tac^, exit the burrow and go south to find ^Archmage Sol^. Kill the trash around her to start the encounter.",
+                    minNote      = "South to Archmage Sol",
+                    skipWhenBoss = 4,
+                    skipNote     = "After defeating the ^Ancient Protectors^, follow the path west to reach ^Archmage Sol^.",
+                    skipMinNote  = "West to Archmage Sol",
+                    points       = {
+                        { 0.584, 0.166 },
+                        { 0.574, 0.193 },
+                        { 0.574, 0.227 },
+                        { 0.567, 0.264 },
+                        { 0.577, 0.313 },
+                    },
+                    skipPoints   = {
+                        { 0.635, 0.267 },
+                        { 0.619, 0.289 },
+                        { 0.596, 0.252 },
+                        { 0.567, 0.252 },
+                        { 0.572, 0.288 },
+                        { 0.572, 0.323 },
+                    },
+                },
+            },
+        },
+        -- 5. Yalnu (boss 5).
+        {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 5,
+            title     = "Yalnu",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 620 },
+                    kind    = "path",
+                    note    = "After killing ^Archmage Sol^, follow the NPC west to the portal. On the other side of the portal, you will encounter the final boss, ^Yalnu^.",
+                    minNote = "West portal to Yalnu",
+                    points  = {
+                        { 0.535, 0.337 },
+                        { 0.475, 0.342 },
+                    },
+                },
+                {
+                    when        = { mapID = 620 },
+                    kind        = "poi",
+                    note        = "After killing ^Archmage Sol^, follow the NPC west to the portal. On the other side of the portal, you will encounter the final boss, ^Yalnu^.",
+                    minNote     = "West portal to Yalnu",
+                    mapLabel    = "Enter Portal",
+                    mapLabelPos = "above",
+                    points      = {
+                        { 0.435, 0.349 },
+                    },
+                },
             },
         },
     },

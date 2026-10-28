@@ -145,7 +145,7 @@ RetroRuns_Data[754] = {
             specialLoot = {
                 { id = 63041, kind = "mount", name = "Reins of the Drake of the South Wind" },
                 { id = 152973, kind = "pet", name = "Zephyr's Call" },
-                { id = 138836, kind = "illusion", name = "Illusion: Windfury", sourceID = 5875 },
+                { id = 138836, kind = "illusion", name = "Illusion: Windfury", sourceID = 5875, restrictedToClass = 7 },
             },
             -- Essence of the Forlorn buys any of the fifteen Tier 11 set
             -- tokens -- all five slots, all three armor groups -- from the

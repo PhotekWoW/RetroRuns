@@ -14,6 +14,7 @@ RetroRuns_DungeonData[1178] = {
     expansion         = "Battle for Azeroth",
     difficultyModel   = "dungeonTiered",
     availableDifficulties = { 15, 16 },
+    unsavedDifficulties = { 15 },
     patch             = "8.2.0",
 
     entrance = {

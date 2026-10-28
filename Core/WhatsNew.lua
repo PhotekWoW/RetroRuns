@@ -26,6 +26,40 @@
 local RR = RetroRuns
 RR.WhatsNew = {
 {
+    version  = "3.4.0",
+    date     = "2026-10-28",
+    sections = {
+        {
+            heading = "Added",
+            bullets = {
+                "**Every Warlords of Draenor dungeon is routed:** Auchindoun, Bloodmaul Slag Mines, Grimrail Depot, Iron Docks, Shadowmoon Burial Grounds, Skyreach, The Everbloom and Upper Blackrock Spire.",
+                "**The Picker: Difficulties, lockouts and missing appearances at every entrance.** Walk up to a dungeon or raid entrance and a bar shows each difficulty with the appearances you still need there and whether you're saved. Hover for reset times. Move it, scale it and lock it in place from its settings page.",
+                "**Instance Limit list.** Click Instance Limit in the panel footer for a shortcut to the new Picker settings, which also displays a list of your existing lockouts contributing to the hourly limit.",
+                "**Reset Here and Reset All** in settings, reset one page or reset every setting back to its default.",
+                "**Hover a dungeon's difficulty pill** to see which difficulties you're saved to, how far along you are, and when each resets.",
+                "**Three more illusions are tracked:** Mark of Shadowmoon from Ner'zhul in Shadowmoon Burial Grounds, and Mongoose and Sunfire from Moroes and the Shade of Medivh in Return to Karazhan.",
+            },
+        },
+        {
+            heading = "Changed",
+            bullets = {
+                "**Clicking an achievement opens the Achievements window at that achievement** instead of the small link popup, on the main panel, in the RetroRuns Achievements window and in the skip details. Shift-click still links it in chat.",
+                "**The transmog browser, Achievements and Skips windows open on the left of the main panel when there is no room on the right**, so a panel parked at the right edge of the screen no longer gets covered. A window you drag stays where you put it.",
+                "**Class-locked special loot is tagged with its class**, such as \"(Shaman)\" on Illusion: Flametongue.",
+            },
+        },
+        {
+            heading = "Fixed",
+            bullets = {
+                "**Dungeons that never save a lockout on Heroic, like Skyreach and Pit of Saron, no longer show a Heroic pill in the dungeon list.**",
+                "**Illusion: Colossus in Mogu'shan Vaults now tracks the right illusion.**",
+                "**Clicking a mount or item in Special Loot no longer throws an error.** Hover it for its tooltip; shift-click links it in chat.",
+                "**Garrisons no longer count toward the Instance Limit.**",
+            },
+        },
+    },
+},
+{
     version  = "3.3.7",
     date     = "2026-10-21",
     sections = {
@@ -145,26 +179,6 @@ RR.WhatsNew = {
                 "**Map markers from an instance you've left no longer show their popup in the next one.**",
                 "**Toast headers in French, Portuguese and other accented languages no longer come out in mixed case.**",
                 "**Long search results stay inside the search box's popup**, ending in \"...\" instead of running past its edge.",
-            },
-        },
-    },
-},
-{
-    version  = "3.3.3",
-    date     = "2026-10-01",
-    sections = {
-        {
-            heading = "Added",
-            bullets = {
-                "**Four more Cataclysm dungeons.** Lost City of the Tol'vir, Halls of Origination, The Stonecore and Shadowfang Keep.",
-            },
-        },
-        {
-            heading = "Changed",
-            bullets = {
-                "**Optional bosses the route skips as fully collected now read \"(ignored: fully collected)\" in Boss Progress, and the run-complete screen lists them under their own heading.**",
-                "**The current boss's arrow in Boss Progress pulses.**",
-                "**Transmog browser: single-checkbox rows and difficulty-strip rows now align on their own**, so a lone checkbox row no longer sits far from its name.",
             },
         },
     },

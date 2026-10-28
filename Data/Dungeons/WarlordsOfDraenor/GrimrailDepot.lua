@@ -16,11 +16,12 @@ RetroRuns_DungeonData[536] = {
     availableDifficulties = { 14, 15, 16 },
     patch             = "6.0.2",
     timewalking       = true,
+    routedIn          = "3.4.0",
 
     entrance = {
         mapID = 543,
-        x     = 0.5500,
-        y     = 0.3118,
+        x     = 0.550,
+        y     = 0.313,
     },
 
     gloryMeta = {
@@ -166,6 +167,121 @@ RetroRuns_DungeonData[536] = {
                 { id = 109873, slot = "Wrist", name = "Sharpeye Bracers", sources = { [14]=61353, [15]=61354, [16]=59541 } },
                 { id = 109872, slot = "Wrist", name = "Streamslither Bracers", sources = { [14]=61351, [15]=61352, [16]=59540 } },
                 { id = 109877, slot = "Wrist", name = "Verdant Plate Wristguards", sources = { [14]=61452, [15]=61421, [16]=59545 } },
+            },
+        },
+    },
+
+    exitNote    = "After killing the final boss, you are dropped by the exit.",
+    minExitNote = "Exit is nearby",
+
+    routing = {
+        -- 1. Rocketspark and Borka (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Rocketspark and Borka",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 606 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the linear path until you reach ^Rocketspark and Borka^.",
+                    minNote = "Linear path to Rocketspark and Borka",
+                    points  = {
+                        { 0.324, 0.293 },
+                        { 0.326, 0.532 },
+                        { 0.455, 0.531 },
+                        { 0.510, 0.428 },
+                        { 0.568, 0.428 },
+                        { 0.691, 0.549 },
+                    },
+                },
+            },
+        },
+        -- 2. Nitrogg Thundertower (boss 2).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Nitrogg Thundertower",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 606 },
+                    kind    = "path",
+                    note    = "After defeating ^Rocketspark and Borka^, exit north and go up the ramps. Kill all trash along the way to unlock the door at the top. Eventually, you will trigger a cutscene and end up aboard the Grimrail.",
+                    minNote = "Exit north, path to Grimrail",
+                    points  = {
+                        { 0.703, 0.535 },
+                        { 0.699, 0.175 },
+                        { 0.747, 0.245 },
+                    },
+                },
+                {
+                    -- Noteless: the ramps on the upper map, reading segment 1's note.
+                    when    = { mapID = 607 },
+                    kind    = "path",
+                    points  = {
+                        { 0.682, 0.257 },
+                        { 0.637, 0.257 },
+                        { 0.638, 0.240 },
+                        { 0.715, 0.134 },
+                        { 0.727, 0.149 },
+                        { 0.704, 0.302 },
+                        { 0.705, 0.722 },
+                    },
+                },
+                {
+                    when    = { mapID = 608 },
+                    kind    = "path",
+                    note    = "Once you're on the train, fight your way down the path until you reach ^Nitrogg Thundertower^.",
+                    minNote = "West through train to Nitrogg",
+                    points  = {
+                        { 0.881, 0.521 },
+                        { 0.828, 0.522 },
+                        { 0.817, 0.500 },
+                        { 0.792, 0.501 },
+                        { 0.778, 0.533 },
+                        { 0.747, 0.534 },
+                        { 0.746, 0.494 },
+                        { 0.718, 0.494 },
+                        { 0.680, 0.516 },
+                        { 0.591, 0.516 },
+                        { 0.581, 0.546 },
+                        { 0.554, 0.546 },
+                        { 0.538, 0.490 },
+                        { 0.503, 0.490 },
+                        { 0.498, 0.536 },
+                        { 0.451, 0.536 },
+                        { 0.437, 0.518 },
+                        { 0.086, 0.518 },
+                    },
+                },
+            },
+        },
+        -- 3. Skylord Tovra (boss 3).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Skylord Tovra",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 609 },
+                    kind    = "path",
+                    note    = "After defeating ^Nitrogg Thundertower^, continue west until you reach the final boss, ^Skylord Tovra^. Kill trash to start the encounter.",
+                    minNote = "Continue ahead to Skylord Tovra",
+                    points  = {
+                        { 0.616, 0.514 },
+                        { 0.555, 0.515 },
+                        { 0.531, 0.558 },
+                        { 0.398, 0.558 },
+                        { 0.372, 0.517 },
+                        { 0.113, 0.517 },
+                    },
+                },
             },
         },
     },

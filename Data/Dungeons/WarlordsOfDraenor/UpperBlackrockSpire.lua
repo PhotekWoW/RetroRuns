@@ -15,6 +15,7 @@ RetroRuns_DungeonData[559] = {
     difficultyModel   = "dungeonTiered",
     availableDifficulties = { 14, 15, 16 },
     patch             = "6.0.2",
+    routedIn          = "3.4.0",
 
     entrance = {
         mapID = 33,
@@ -30,8 +31,18 @@ RetroRuns_DungeonData[559] = {
         rewardName         = "Frostplains Battleboar",
     },
 
+    pois = {
+        { mapID = 617, poiKind = "rare", rareNpc = "The Lanticore",
+          hintNote = "Rare spawn, Heroic and Mythic only",
+          points = { { 0.387, 0.425 } } },
+        { mapID = 618, poiKind = "rare", tag = "Son of the Beast",
+          mapLabelPos = "above",
+          points = { { 0.636, 0.365 } } },
+    },
+
     trashLoot = {
-        { id = 117528, kind = "pet", name = "Lanticore Spawnling", heroicOnly = true, rareNpc = "The Lanticore" },
+        { id = 117528, kind = "pet", name = "Lanticore Spawnling", heroicMythicOnly = true, rareNpc = "The Lanticore" },
+        { id = 120340, slot = "Weapon", name = "Son of the Beast's Bloody Paw", sources = { [14]=67972, [15]=67973, [16]=67971 }, bind = "BoP", tag = "Son of the Beast" },
     },
 
     bosses = {
@@ -40,6 +51,8 @@ RetroRuns_DungeonData[559] = {
             name               = "Orebender Gor'ashan",
             journalEncounterID = 1226,
             dungeonEncounterID = 1761,
+            -- The kill criterion says "Gor'ashan defeated" without the Orebender.
+            scenarioCriteriaID = 24322,
             achievements       = {
                 { id = 9045, name = "Magnets, How Do They Work?", meta = true, soloable = "yes" },
             },
@@ -123,6 +136,8 @@ RetroRuns_DungeonData[559] = {
             name               = "Commander Tharbek",
             journalEncounterID = 1228,
             dungeonEncounterID = 1759,
+            -- The kill criterion says "Tharbek defeated" without the Commander.
+            scenarioCriteriaID = 24619,
             achievements       = {
             },
             loot = {
@@ -175,6 +190,8 @@ RetroRuns_DungeonData[559] = {
             name               = "Ragewing the Untamed",
             journalEncounterID = 1229,
             dungeonEncounterID = 1760,
+            -- The kill criterion says "Ragewing defeated" without the Untamed.
+            scenarioCriteriaID = 24624,
             achievements       = {
                 { id = 9056, name = "Bridge Over Troubled Fire", meta = true, soloable = "yes" },
             },
@@ -278,6 +295,166 @@ RetroRuns_DungeonData[559] = {
             },
             specialLoot = {
                 { id = 245435, kind = "decor", name = "Horde Battle Emblem", decorID = 1324 },
+            },
+        },
+    },
+
+    exitNote    = "None available",
+    minExitNote = "None available",
+
+    routing = {
+        -- 1. Orebender Gor'ashan (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Orebender Gor'ashan",
+            requires  = { },
+            segments  = {
+                {
+                    when             = { mapID = 616 },
+                    kind             = "poi",
+                    note             = "After zoning in, you have to clear the five small rooms to extinguish the runes on the floor.",
+                    minNote          = "Clear five side rooms",
+                    markAllPoints    = true,
+                    poiIcon          = "Interface\\AddOns\\RetroRuns\\Media\\Icons\\QuestMarker",
+                    poiSize          = 18,
+                    markHint         = "Clear this room to extinguish its rune",
+                    markHintScenario = 24309,
+                    completionCheck  = true,
+                    points           = {
+                        { 0.335, 0.250 },
+                        { 0.410, 0.251 },
+                        { 0.391, 0.150 },
+                        { 0.350, 0.128 },
+                        { 0.304, 0.187 },
+                    },
+                },
+                {
+                    -- Opens on "Runes Extinguished", the scenario's first stage.
+                    when         = { mapID = 616 },
+                    kind         = "path",
+                    note         = "After dealing with the runes, exit the room to the north and climb some stairs.",
+                    minNote      = "After runes, take stairs to north",
+                    triggeredBy  = { scenario = 24309, stage = 1 },
+                    drawWhenOpen = true,
+                    points       = {
+                        { 0.333, 0.161 },
+                        { 0.333, 0.132 },
+                        { 0.304, 0.132 },
+                        { 0.304, 0.164 },
+                    },
+                },
+                {
+                    when    = { mapID = 617 },
+                    kind    = "path",
+                    note    = "In the boss room, disable all of the ^Rune Conduit^s to activate ^Orebender Gor'ashan^.",
+                    minNote = "Disable Rune Conduits for Gor'ashan",
+                    points  = { },
+                },
+            },
+        },
+        -- 2. Kyrak (boss 2).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Kyrak",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 617 },
+                    kind    = "path",
+                    note    = "After killing ^Orebender Gor'ashan^, exit to the south to enter the next room. You will find ^Kyrak^ standing at the far end of the room.",
+                    minNote = "Exit south to Kyrak",
+                    points  = {
+                        { 0.304, 0.311 },
+                        { 0.304, 0.370 },
+                        { 0.365, 0.370 },
+                    },
+                },
+            },
+        },
+        -- 3. Commander Tharbek (boss 3).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Commander Tharbek",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 617 },
+                    kind    = "path",
+                    note    = "After defeating ^Kyrak^, climb the rubble ramp at the west side of the room to reach the next area.",
+                    minNote = "Up rubble ramp to west",
+                    points  = {
+                        { 0.363, 0.396 },
+                        { 0.284, 0.396 },
+                        { 0.279, 0.378 },
+                        { 0.283, 0.346 },
+                        { 0.295, 0.336 },
+                    },
+                },
+                {
+                    when    = { mapID = 618 },
+                    kind    = "path",
+                    note    = "Follow the path around to ^Commander Tharbek^. Jump in the pit below the boss to start the encounter.",
+                    minNote = "Follow path to Tharbek",
+                    points  = {
+                        { 0.304, 0.341 },
+                        { 0.305, 0.277 },
+                        { 0.485, 0.279 },
+                    },
+                },
+            },
+        },
+        -- 4. Ragewing the Untamed (boss 4).
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Ragewing the Untamed",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 618 },
+                    kind    = "path",
+                    note    = "After killing ^Commander Tharbek^, exit through the gate to the south. Take a left at the fork and follow the path around to ^Ragewing the Untamed^.",
+                    minNote = "Exit south, path to Ragewing",
+                    points  = {
+                        { 0.487, 0.294 },
+                        { 0.487, 0.355 },
+                        { 0.549, 0.355 },
+                        { 0.548, 0.461 },
+                        { 0.483, 0.461 },
+                    },
+                },
+            },
+        },
+        -- 5. Warlord Zaela (boss 5).
+        {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 5,
+            title     = "Warlord Zaela",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 618 },
+                    kind    = "path",
+                    note    = "After you bring down ^Ragewing the Untamed^, continue west until you reach the final boss, ^Warlord Zaela^.",
+                    minNote = "West to Warlord Zaela",
+                    points  = {
+                        { 0.428, 0.456 },
+                        { 0.408, 0.457 },
+                        { 0.299, 0.521 },
+                        { 0.231, 0.507 },
+                        { 0.208, 0.493 },
+                        { 0.191, 0.477 },
+                        { 0.175, 0.477 },
+                    },
+                },
             },
         },
     },

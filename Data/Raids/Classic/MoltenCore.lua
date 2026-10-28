@@ -324,7 +324,7 @@ RetroRuns_Data[409] = {
                 { id = 18816, slot = "Weapon", name = "Perdition's Blade", sources = { [14]=7496 } },
             },
             specialLoot = {
-                { id = 138833, kind = "illusion", name = "Illusion: Flametongue", sourceID = 5872 },
+                { id = 138833, kind = "illusion", name = "Illusion: Flametongue", sourceID = 5872, restrictedToClass = 7 },
             },
         },
     },

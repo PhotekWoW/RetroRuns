@@ -14,6 +14,7 @@ RetroRuns_DungeonData[1201] = {
     expansion         = "Dragonflight",
     difficultyModel   = "dungeonTiered",
     availableDifficulties = { 14, 15, 16 },
+    unsavedDifficulties = { 15 },
     patch             = "10.0.2",
     timewalking       = true,
 

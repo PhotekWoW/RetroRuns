@@ -14,6 +14,7 @@ RetroRuns_DungeonData[278] = {
     expansion         = "Wrath of the Lich King",
     difficultyModel   = "dungeonBinary",
     availableDifficulties = { 14, 15, 24 },
+    unsavedDifficulties = { 15 },
     patch             = "3.3.0",
     timewalking       = true,
 

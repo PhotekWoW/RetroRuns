@@ -14,13 +14,15 @@ RetroRuns_DungeonData[476] = {
     expansion         = "Warlords of Draenor",
     difficultyModel   = "dungeonTiered",
     availableDifficulties = { 14, 15, 16 },
+    unsavedDifficulties = { 15 },
     patch             = "6.0.2",
     timewalking       = true,
+    routedIn          = "3.4.0",
 
     entrance = {
         mapID = 542,
-        x     = 0.4100,
-        y     = 0.3142,
+        x     = 0.356,
+        y     = 0.336,
     },
 
     bosses = {
@@ -210,6 +212,134 @@ RetroRuns_DungeonData[476] = {
             },
             specialLoot = {
                 { id = 258744, kind = "decor", name = "Skyreach Circular Table", decorID = 12204 },
+            },
+        },
+    },
+
+    exitNote    = "Talk to Reshad nearby to be sent outside.",
+    minExitNote = "Talk to Reshad for exit",
+
+    routing = {
+        -- 1. Ranjit (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Ranjit",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 601 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the linear path around to ^Ranjit^. Clear trash on the platform to spawn the boss.",
+                    minNote = "Follow path to Ranjit",
+                    points  = {
+                        { 0.588, 0.228 },
+                        { 0.582, 0.191 },
+                        { 0.601, 0.144 },
+                        { 0.637, 0.124 },
+                        { 0.667, 0.148 },
+                        { 0.659, 0.169 },
+                        { 0.672, 0.204 },
+                        { 0.690, 0.212 },
+                        { 0.689, 0.235 },
+                        { 0.649, 0.281 },
+                        { 0.638, 0.349 },
+                    },
+                },
+            },
+        },
+        -- 2. Araknath (boss 2).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Araknath",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 601 },
+                    kind    = "path",
+                    note    = "After defeating ^Ranjit^, continue up the stairs behind him to find ^Araknath^ in the next room. Clear trash to activate the boss.",
+                    minNote = "Upstairs to Araknath",
+                    points  = {
+                        { 0.607, 0.436 },
+                        { 0.585, 0.474 },
+                        { 0.598, 0.535 },
+                        { 0.559, 0.582 },
+                    },
+                },
+            },
+        },
+        -- 3. Rukhran (boss 3).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Rukhran",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 601 },
+                    kind    = "path",
+                    note    = "After killing ^Araknath^, continue southwest up the stairs. Clear trash on the next platform to activate the fight with ^Rukhran^.",
+                    minNote = "Southwest stairs to Rukhran",
+                    points  = {
+                        { 0.482, 0.617 },
+                        { 0.464, 0.623 },
+                        { 0.456, 0.650 },
+                        { 0.463, 0.669 },
+                        { 0.486, 0.688 },
+                        { 0.446, 0.781 },
+                    },
+                },
+            },
+        },
+        -- 4. High Sage Viryx (boss 4).
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "High Sage Viryx",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 601 },
+                    kind    = "path",
+                    note    = "After killing ^Rukhran^, continue west up the stairs. While walking against the wind and dodging tornadoes, work your way around the platform and up the next stairwell.",
+                    minNote = "West upstairs, across wind platform",
+                    points  = {
+                        { 0.407, 0.753 },
+                        { 0.393, 0.715 },
+                        { 0.373, 0.718 },
+                        { 0.357, 0.692 },
+                        { 0.355, 0.661 },
+                        { 0.369, 0.635 },
+                        { 0.390, 0.630 },
+                        { 0.406, 0.649 },
+                        { 0.413, 0.673 },
+                        { 0.420, 0.688 },
+                        { 0.445, 0.701 },
+                    },
+                },
+                {
+                    when    = { mapID = 602 },
+                    kind    = "path",
+                    note    = "Work your way around the upper walkway to reach the final platform and clear trash to begin the final encounter with ^High Sage Viryx^.",
+                    minNote = "Cross upper walkway to Viryx",
+                    points  = {
+                        { 0.194, 0.743 },
+                        { 0.268, 0.808 },
+                        { 0.311, 0.720 },
+                        { 0.264, 0.671 },
+                        { 0.245, 0.559 },
+                        { 0.260, 0.423 },
+                        { 0.331, 0.346 },
+                        { 0.369, 0.358 },
+                        { 0.437, 0.443 },
+                        { 0.495, 0.321 },
+                    },
+                },
             },
         },
     },

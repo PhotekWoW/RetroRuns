@@ -71,7 +71,7 @@ RetroRuns_Data[548] = {
                 -- Elemental battle pet, part of the Raiding with
                 -- Leashes II pet collection.
                 { id = 97553, kind = "pet", name = "Tainted Waveling" },
-                { id = 138834, kind = "illusion", name = "Illusion: Frostbrand", sourceID = 5873 },
+                { id = 138834, kind = "illusion", name = "Illusion: Frostbrand", sourceID = 5873, restrictedToClass = 7 },
             },
         },
         {

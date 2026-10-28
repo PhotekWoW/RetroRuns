@@ -325,7 +325,9 @@ end
 -- deactivated"): those read completed only at full count, but a gate can sit
 -- on an earlier tick. Still server state -- quantity holds for the rest of
 -- the run -- so the reload semantics above are unchanged.
-function RR:IsScenarioCriterionComplete(criteriaID, minQuantity)
+-- stage names the scenario stage holding the criterion; once the scenario
+-- is past that stage, the criterion counts as complete.
+function RR:IsScenarioCriterionComplete(criteriaID, minQuantity, stage)
     local complete = false
     ForEachScenarioCriterion(function(info)
         if info.criteriaID == criteriaID then
@@ -337,7 +339,36 @@ function RR:IsScenarioCriterionComplete(criteriaID, minQuantity)
             return true
         end
     end)
+    if not complete and stage and C_Scenario and C_Scenario.GetInfo then
+        local _, currentStage = C_Scenario.GetInfo()
+        currentStage = tonumber(currentStage)
+        complete = currentStage ~= nil and currentStage > stage
+    end
     return complete
+end
+
+-- A counter criterion's live progress: quantity, required total and the
+-- client's own localized description. Nil while the criterion is not listed.
+function RR:GetScenarioCriterionProgress(criteriaID)
+    local quantity, total, description
+    ForEachScenarioCriterion(function(info)
+        if info.criteriaID == criteriaID then
+            local secret = issecretvalue and (issecretvalue(info.quantity)
+                or issecretvalue(info.totalQuantity)
+                or issecretvalue(info.description))
+            if not secret then
+                quantity = tonumber(info.quantity)
+                total = tonumber(info.totalQuantity)
+                description = info.description
+            end
+            return true
+        end
+    end)
+    if not quantity or not total or total <= 0
+        or type(description) ~= "string" or description == "" then
+        return nil
+    end
+    return quantity, total, description
 end
 
 -- The number a UI widget shows: the first integer in its text, or a status
@@ -405,7 +436,7 @@ function RR:IsSegGateOpen(stepIndex, seg, segIndex, segments)
     end
     if seg.triggeredBy.scenario then
         return self:IsScenarioCriterionComplete(seg.triggeredBy.scenario,
-            seg.triggeredBy.quantity)
+            seg.triggeredBy.quantity, seg.triggeredBy.stage)
     end
     if seg.triggeredBy.widget then
         return self:IsWidgetAtValue(seg.triggeredBy.widget, seg.triggeredBy.value)
@@ -936,6 +967,19 @@ local INSTANCE_HISTORY_WINDOW = 60 * 60
 -- server drops it. A return after a longer gap is a new spawn. Approximate,
 -- and short on purpose: overcounting warns early, undercounting warns late.
 local INSTANCE_EMPTY_TIMEOUT  = 30 * 60
+-- Garrison maps report as dungeon instances but are neither a dungeon nor a
+-- slot toward the cap.
+local GARRISON_INSTANCE_IDS = {
+    [1152] = true, [1153] = true, [1154] = true, [1158] = true, [1159] = true,
+    [1160] = true, [1187] = true, [1188] = true, [1189] = true, [1232] = true,
+    [1233] = true, [1234] = true, [1235] = true, [1236] = true, [1237] = true,
+    [1238] = true, [1239] = true, [1240] = true, [1241] = true, [1242] = true,
+    [1243] = true, [1244] = true, [1245] = true, [1330] = true, [1331] = true,
+}
+
+function RR:IsGarrisonInstance(instanceID)
+    return GARRISON_INSTANCE_IDS[instanceID] == true
+end
 
 function RR:TrackInstanceEntry(info)
     if self.state.testMode then
@@ -944,6 +988,10 @@ function RR:TrackInstanceEntry(info)
     end
     info = info or self:GetCurrentInstanceInfo()
     if info.instanceType ~= "party" and info.instanceType ~= "raid" then return end
+    if self:IsGarrisonInstance(info.instanceID) then
+        self:ZoneLog("instance history: skipped (garrison)")
+        return
+    end
     RetroRunsDB = RetroRunsDB or {}
     RetroRunsDB.instanceHistory = RetroRunsDB.instanceHistory or {}
     RetroRunsDB.instanceLastSpawn = RetroRunsDB.instanceLastSpawn or {}
@@ -1049,6 +1097,29 @@ function RR:GetInstanceUseCount()
     local secondsUntilFree = oldestOpened
         and (oldestOpened + INSTANCE_HISTORY_WINDOW - now) or nil
     return liveCount, secondsUntilFree, INSTANCE_HISTORY_LIMIT
+end
+
+-- Every live slot, oldest first: who opened it, which instance and
+-- difficulty, and seconds until it frees. Read back from the slot key.
+function RR:GetInstanceUseEntries()
+    self:GetInstanceUseCount()
+    local history = RetroRunsDB and RetroRunsDB.instanceHistory
+    local entries = {}
+    if not history then return entries end
+    local now = time()
+    for key, entry in pairs(history) do
+        local player, instanceID, difficultyID = key:match("^(.+):([^:]+):([^:]+):[^:]+$")
+        local opened = entry.create or entry.last or 0
+        entries[#entries + 1] = {
+            player = player,
+            instanceID = tonumber(instanceID),
+            difficultyID = tonumber(difficultyID),
+            opened = opened,
+            secondsLeft = math.max(0, opened + INSTANCE_HISTORY_WINDOW - now),
+        }
+    end
+    table.sort(entries, function(a, b) return a.opened < b.opened end)
+    return entries
 end
 
 -- The stored run belongs to an instantiation that no longer exists, proven
@@ -1707,7 +1778,7 @@ local function TriggerMatches(seg, event, eventData)
 
     if seg.triggeredBy.scenario then
         return RR:IsScenarioCriterionComplete(seg.triggeredBy.scenario,
-            seg.triggeredBy.quantity)
+            seg.triggeredBy.quantity, seg.triggeredBy.stage)
     end
 
     if seg.triggeredBy.item then

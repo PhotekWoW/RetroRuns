@@ -2,6 +2,27 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.4.0] - 2026-10-28
+
+### Added
+- **Every Warlords of Draenor dungeon is routed:** Auchindoun, Bloodmaul Slag Mines, Grimrail Depot, Iron Docks, Shadowmoon Burial Grounds, Skyreach, The Everbloom and Upper Blackrock Spire.
+- **The Picker: Difficulties, lockouts and missing appearances at every entrance.** Walk up to a dungeon or raid entrance and a bar shows each difficulty with the appearances you still need there and whether you're saved. Hover for reset times. Move it, scale it and lock it in place from its settings page.
+- **Instance Limit list.** Click Instance Limit in the panel footer for a shortcut to the new Picker settings, which also displays a list of your existing lockouts contributing to the hourly limit.
+- **Reset Here and Reset All** in settings, reset one page or reset every setting back to its default.
+- **Hover a dungeon's difficulty pill** to see which difficulties you're saved to, how far along you are, and when each resets.
+- **Three more illusions are tracked:** Mark of Shadowmoon from Ner'zhul in Shadowmoon Burial Grounds, and Mongoose and Sunfire from Moroes and the Shade of Medivh in Return to Karazhan.
+
+### Changed
+- **Clicking an achievement opens the Achievements window at that achievement** instead of the small link popup, on the main panel, in the RetroRuns Achievements window and in the skip details. Shift-click still links it in chat.
+- **The transmog browser, Achievements and Skips windows open on the left of the main panel when there is no room on the right**, so a panel parked at the right edge of the screen no longer gets covered. A window you drag stays where you put it.
+- **Class-locked special loot is tagged with its class**, such as "(Shaman)" on Illusion: Flametongue.
+
+### Fixed
+- **Dungeons that never save a lockout on Heroic, like Skyreach and Pit of Saron, no longer show a Heroic pill in the dungeon list.**
+- **Illusion: Colossus in Mogu'shan Vaults now tracks the right illusion.**
+- **Clicking a mount or item in Special Loot no longer throws an error.** Hover it for its tooltip; shift-click links it in chat.
+- **Garrisons no longer count toward the Instance Limit.**
+
 ## [3.3.7] - 2026-10-21
 
 ### Added

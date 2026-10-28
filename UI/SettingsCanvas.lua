@@ -87,6 +87,8 @@ panel:HookScript("OnHide", function()
     if RR.SetSetting then RR:SetSetting("toasterLocked", true) end
     if RR.LockToasterAnchor then RR:LockToasterAnchor() end
     if RR._toasterLootSummaryReset then RR._toasterLootSummaryReset() end
+    if RR.SetSetting then RR:SetSetting("pickerLocked", true) end
+    if UI.PickerBar then UI.PickerBar.Lock() end
 end)
 
 local function ApplyPanel()
@@ -171,6 +173,7 @@ local function AddButtonPair(page, label, indent, trueLabel, falseLabel, getValu
         ul:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -2)
         ul:SetPoint("TOPRIGHT", fs, "BOTTOMRIGHT", 0, -2)
         ul:Hide()
+        UI.BuildUnderlineDraw(ul)
         btn.underline = ul
         -- OnClick is wired below (MakeClick) so it can respect the operable gate.
         return btn
@@ -252,13 +255,14 @@ local function AddButtonPair(page, label, indent, trueLabel, falseLabel, getValu
         local selColor = operable and COLOR_CYAN or COLOR_DIM
         trueBtn.fs:SetTextColor(unpack(on and selColor or COLOR_DIM))
         falseBtn.fs:SetTextColor(unpack((not on) and selColor or COLOR_DIM))
-        trueBtn.underline:SetShown(on)
-        falseBtn.underline:SetShown(not on)
         -- Mute the underline color when locked. SetColorTexture needs an explicit
         -- alpha; the COLOR_* tables carry only RGB, so pass 1 or it renders clear.
+        -- Only the selected line is recolored: one shrinking away keeps its own.
         local ur, ug, ub = unpack(operable and COLOR_PINK or COLOR_DIM)
-        trueBtn.underline:SetColorTexture(ur, ug, ub, 1)
-        falseBtn.underline:SetColorTexture(ur, ug, ub, 1)
+        local selectedBtn = on and trueBtn or falseBtn
+        selectedBtn.underline:SetColorTexture(ur, ug, ub, 1)
+        UI.SetUnderlineDrawn(trueBtn, on)
+        UI.SetUnderlineDrawn(falseBtn, not on)
         local pixelHeight = UNDERLINE_PIXELS / (trueBtn.underline:GetEffectiveScale() or 1)
         trueBtn.underline:SetHeight(pixelHeight)
         falseBtn.underline:SetHeight(pixelHeight)
@@ -425,9 +429,10 @@ end
 
 -- ---- Build the three pages -----------------------------------------------
 
-local pageGeneral, pageAppearance, pageToaster, pageCustomize, pageWhatsNew,
-    pageMap, pageHelp =
-    NewPage(), NewPage(), NewPage(), NewPage(), NewPage(), NewPage(), NewPage()
+local pageGeneral, pageAppearance, pageToaster, pageCustomize, pagePicker,
+    pagePickerCustomize, pageWhatsNew, pageMap, pageHelp =
+    NewPage(), NewPage(), NewPage(), NewPage(), NewPage(), NewPage(), NewPage(),
+    NewPage(), NewPage()
 
 -- General (was "Behavior")
 AddPageTitle(pageGeneral, RR.L["General"], RR.L["Startup, Boss Order & Transmog Defaults"])
@@ -552,18 +557,24 @@ end
 
 AddButtonPair(pageToaster, RR.L["Toaster:"], 0, RR.L["Enable"], RR.L["Disable"],
     ToasterEnabled,
-    function(value) if RR.SetToaster then RR:SetToaster(value) end end)
+    function(value) if RR.SetToaster then RR:SetToaster(value) end end,
+    { hintTitle = RR.L["Toaster"],
+      hint = RR.L["Inside supported instances, replaces Blizzard's loot and collection pop-ups with toasts for new appearances and special loot."] })
 
 -- Sub-rows are operable only when the Toaster is enabled.
 AddToggle(pageToaster, RR.L["Loot Summary:"], SUB_INDENT,
     function() return RR:GetSetting("toasterLootSummary", true) ~= false end,
     function(value) RR:SetSetting("toasterLootSummary", value) end,
-    { isOperable = ToasterEnabled })
+    { isOperable = ToasterEnabled,
+      hintTitle = RR.L["Loot Summary"],
+      hint = RR.L["Consolidates the loot lines from each kill into one chat line, with [view] for the full list. Turn off to keep Blizzard's own loot lines."] })
 
 AddToggle(pageToaster, RR.L["Reputation Summary:"], SUB_INDENT,
     function() return RR:GetSetting("toasterReputationSummary", true) ~= false end,
     function(value) RR:SetSetting("toasterReputationSummary", value) end,
-    { isOperable = ToasterEnabled })
+    { isOperable = ToasterEnabled,
+      hintTitle = RR.L["Reputation Summary"],
+      hint = RR.L["Consolidates the reputation lines from a fight into one chat line after combat ends, with [view] for each faction's gain."] })
 
 -- Stored value means "suppress Blizzard's banner": On = hidden. Default on
 -- (true) so the banner is hidden whenever the Toaster is active. Toggling it
@@ -574,12 +585,16 @@ AddToggle(pageToaster, RR.L["Hide Blizzard Boss Banner:"], SUB_INDENT,
         RR:SetSetting("toasterHideBossBanner", value)
         if RR._RefreshToasterBannerSuppression then RR._RefreshToasterBannerSuppression() end
     end,
-    { isOperable = ToasterEnabled })
+    { isOperable = ToasterEnabled,
+      hintTitle = RR.L["Hide Blizzard Boss Banner"],
+      hint = RR.L["Hides the loot list under Blizzard's boss kill banner, since the toasts and loot summary already show it. The banner itself still appears."] })
 
 AddToggle(pageToaster, RR.L["Coin SFX:"], SUB_INDENT,
     function() return RR:GetSetting("toasterSound", true) ~= false end,
     function(value) RR:SetSetting("toasterSound", value) end,
-    { isOperable = ToasterEnabled })
+    { isOperable = ToasterEnabled,
+      hintTitle = RR.L["Coin SFX"],
+      hint = RR.L["Plays a coin chime with each toast."] })
 
 -- Spacing + divider separating the controls above from the preview below.
 do
@@ -1111,6 +1126,186 @@ AddToggle(pageMap, RR.L["Enhanced Boss Icons:"], 0,
     { hintTitle = RR.L["Enhanced Boss Icons"],
       hint = RR.L["When hovering a boss icon, you will see the collection status for each item the boss drops"] })
 
+-- Picker: the same shape as the Toaster page, a read-only Status line, the
+-- Enable | Disable pair, and indented sub-preferences.
+AddPageTitle(pagePicker, RR.L["Pick your difficulty before you zone in."],
+    RR.L["Difficulties, Lockouts & Missing Appearances at Every Entrance"])
+
+local pickerStatusArrow, pickerStatusValue
+do
+    NewText(pagePicker, SEG_FONT_SIZE, COLOR_LABEL, RR.L["Active Status:"])
+        :SetPoint("TOPLEFT", 0, pageCursor[pagePicker])
+    pickerStatusArrow = pagePicker:CreateTexture(nil, "ARTWORK")
+    pickerStatusArrow:SetSize(12, 12)
+    pickerStatusArrow:SetTexture(ARROW_TEX)
+    pickerStatusArrow:SetPoint("TOPLEFT", VALUE_X, pageCursor[pagePicker] - 2)
+    pickerStatusValue = NewText(pagePicker, STATUS_FONT_SIZE)
+    pickerStatusValue:SetPoint("LEFT", pickerStatusArrow, "RIGHT", 5, 0)
+    pageCursor[pagePicker] = pageCursor[pagePicker] - (CHECK_H + 4)
+end
+
+local function PickerEnabled()
+    return RR:GetSetting("pickerEnabled", true) ~= false
+end
+
+local function RefreshPickerBar()
+    if UI.PickerBar then UI.PickerBar.Refresh() end
+end
+
+AddButtonPair(pagePicker, RR.L["Picker:"], 0, RR.L["Enable"], RR.L["Disable"],
+    PickerEnabled,
+    function(value)
+        RR:SetSetting("pickerEnabled", value and true or false)
+        if RR.PickerTick then RR:PickerTick() end
+    end,
+    { hintTitle = RR.L["Picker"],
+      hint = RR.L["Shows an instance's difficulties when you walk up to its entrance, so you can switch before zoning in."] })
+
+AddToggle(pagePicker, RR.L["Show Lockouts:"], SUB_INDENT,
+    function() return RR:GetSetting("pickerShowLockouts", true) ~= false end,
+    function(value)
+        RR:SetSetting("pickerShowLockouts", value)
+        RefreshPickerBar()
+    end,
+    { isOperable = PickerEnabled,
+      hintTitle = RR.L["Show Lockouts"],
+      hint = RR.L["Shows how many bosses you've defeated on each difficulty this week."] })
+
+AddToggle(pagePicker, RR.L["Show Missing Appearances:"], SUB_INDENT,
+    function() return RR:GetSetting("pickerShowMissing", true) ~= false end,
+    function(value)
+        RR:SetSetting("pickerShowMissing", value)
+        RefreshPickerBar()
+    end,
+    { isOperable = PickerEnabled,
+      hintTitle = RR.L["Show Missing Appearances"],
+      hint = RR.L["Shows how many appearances each difficulty still has for you."] })
+
+-- Instance Limit: the hourly count, then one row per instance entered in
+-- the last hour, oldest first, each with the minutes until it frees.
+do
+    local ROW_H, LIST_FONT_SIZE = 18, 13
+    local NAME_W, PLAYER_X = 230, 238
+
+    pageCursor[pagePicker] = pageCursor[pagePicker] - 6
+    AddGemDivider(pagePicker)
+    pageCursor[pagePicker] = pageCursor[pagePicker] - 14
+
+    NewText(pagePicker, SEG_FONT_SIZE, COLOR_CYAN, RR.L["Instance Limit:"])
+        :SetPoint("TOPLEFT", 0, pageCursor[pagePicker])
+    local countText = NewText(pagePicker, SEG_FONT_SIZE)
+    countText:SetPoint("TOPLEFT", VALUE_X, pageCursor[pagePicker])
+    pageCursor[pagePicker] = pageCursor[pagePicker] - (CHECK_H + 2)
+
+    local listTop = pageCursor[pagePicker]
+    local emptyText = NewText(pagePicker, LIST_FONT_SIZE, COLOR_DIM,
+        RR.L["No instances entered in the last hour."])
+    emptyText:SetPoint("TOPLEFT", 0, listTop)
+
+    local listRows = {}
+    local function AcquireListRow(index)
+        local row = listRows[index]
+        if row then return row end
+        local y = listTop - (index - 1) * ROW_H
+        row = {}
+        row.name = NewText(pagePicker, LIST_FONT_SIZE, COLOR_LABEL)
+        row.name:SetPoint("TOPLEFT", 0, y)
+        row.name:SetWidth(NAME_W)
+        row.name:SetJustifyH("LEFT")
+        row.name:SetWordWrap(false)
+        row.player = NewText(pagePicker, LIST_FONT_SIZE, COLOR_DIM)
+        row.player:SetPoint("TOPLEFT", PLAYER_X, y)
+        row.player:SetPoint("RIGHT", pagePicker, "TOPRIGHT", -60, 0)
+        row.player:SetJustifyH("LEFT")
+        row.player:SetWordWrap(false)
+        row.time = NewText(pagePicker, LIST_FONT_SIZE, COLOR_DIM)
+        row.time:SetPoint("TOPRIGHT", pagePicker, "TOPRIGHT", -8, y)
+        row.time:SetJustifyH("RIGHT")
+        listRows[index] = row
+        return row
+    end
+
+    local function RefreshInstanceLimitList()
+        if not pagePicker:IsVisible() then return end
+        countText:SetText(UI.InstanceLimitValueText and UI.InstanceLimitValueText() or "")
+        local entries = RR.GetInstanceUseEntries and RR:GetInstanceUseEntries() or {}
+        local realmSuffix = "-" .. (GetRealmName() or "")
+        local fits = math.max(1, math.floor((pagePicker:GetHeight() + listTop) / ROW_H))
+        local shown = math.min(#entries, fits)
+        emptyText:SetShown(#entries == 0)
+        for index = 1, shown do
+            local entry = entries[index]
+            local row = AcquireListRow(index)
+            local zoneName = entry.instanceID and GetRealZoneText(entry.instanceID)
+            if not zoneName or zoneName == "" then
+                zoneName = tostring(entry.instanceID or "?")
+            end
+            local difficultyName = entry.difficultyID and GetDifficultyInfo(entry.difficultyID)
+            row.name:SetText(difficultyName and ("%s (%s)"):format(zoneName, difficultyName)
+                or zoneName)
+            local player = entry.player or ""
+            if player:sub(-#realmSuffix) == realmSuffix then
+                player = player:sub(1, -#realmSuffix - 1)
+            end
+            row.player:SetText(player)
+            row.time:SetText(("%dm"):format(math.ceil(entry.secondsLeft / 60)))
+            row.name:Show(); row.player:Show(); row.time:Show()
+        end
+        for index = shown + 1, #listRows do
+            local row = listRows[index]
+            row.name:Hide(); row.player:Hide(); row.time:Hide()
+        end
+    end
+    UI.RefreshInstanceLimitList = RefreshInstanceLimitList
+    pagePicker:HookScript("OnShow", RefreshInstanceLimitList)
+end
+
+-- ---- Picker Customize submenu page ---------------------------------------
+-- Indented under Picker in the nav rail, built like the Toaster's: scale,
+-- Reset Position, the lock pinned top right, and a live preview pinned to
+-- the bottom.
+do
+    AddPageTitle(pagePickerCustomize, RR.L["Customize Picker"], RR.L["Size, Position & Preview"])
+
+    AddSlider(pagePickerCustomize, RR.L["Picker Scale"], 50, 150, 5,
+        function() return math.floor((RR:GetSetting("pickerScale", 1.0) * 100) + 0.5) end,
+        function(value)
+            RR:SetSetting("pickerScale", value / 100)
+            if UI.PickerBar then UI.PickerBar.Refresh() end
+        end,
+        function(value) return value .. "%" end)
+
+    pageCursor[pagePickerCustomize] = pageCursor[pagePickerCustomize] - 2
+    local resetPosBtn = MakeTextButton(RR.L["Reset Position"], 0, 0, 140, function()
+        if UI.PickerBar then UI.PickerBar.ResetPosition() end
+    end)
+    resetPosBtn:SetParent(pagePickerCustomize)
+    resetPosBtn:ClearAllPoints()
+    resetPosBtn:SetPoint("TOPLEFT", 0, pageCursor[pagePickerCustomize])
+    pageCursor[pagePickerCustomize] = pageCursor[pagePickerCustomize] - 28
+
+    -- The preview hangs from an unscaled holder under its label, so it grows
+    -- down and right at any scale and its spot never moves.
+    pageCursor[pagePickerCustomize] = pageCursor[pagePickerCustomize] - 10
+    NewText(pagePickerCustomize, CONTROL_FONT_SIZE, COLOR_LABEL, RR.L["Live Preview:"])
+        :SetPoint("TOPLEFT", 0, pageCursor[pagePickerCustomize])
+    pageCursor[pagePickerCustomize] = pageCursor[pagePickerCustomize] - (CONTROL_FONT_SIZE + 8)
+    local previewHolder = CreateFrame("Frame", nil, pagePickerCustomize)
+    previewHolder:SetSize(1, 1)
+    previewHolder:SetPoint("TOPLEFT", 0, pageCursor[pagePickerCustomize])
+
+    -- Built on first show, repainted on every visit.
+    local preview
+    pagePickerCustomize:HookScript("OnShow", function()
+        if not preview and UI.PickerBar and UI.PickerBar.BuildPreview then
+            preview = UI.PickerBar.BuildPreview(pagePickerCustomize)
+            preview.maxWidth = CONTENT_W
+            preview.frame:SetPoint("TOPLEFT", previewHolder, "TOPLEFT", 0, 0)
+        end
+        if preview then preview:Refresh() end
+    end)
+end
+
 -- ---- Left nav tab rail ---------------------------------------------------
 
 local tabs = {}
@@ -1144,6 +1339,7 @@ local function SelectTab(index)
     if panel.RR_UpdateDisclaimerVisibility then
         panel.RR_UpdateDisclaimerVisibility()
     end
+    if panel.RR_UpdateResetHere then panel.RR_UpdateResetHere() end
 end
 
 local function MakeTab(index, text, page, withStatusDot, indented, yOffset)
@@ -1193,20 +1389,39 @@ local toasterTab = MakeTab(3, RR.L["Toaster"], pageToaster, true)
 -- the even slot). Help follows, shifted up by the same amount so the gap
 -- below Customize reads as a normal tab gap rather than a double gap.
 MakeTab(4, RR.L["Customize"],   pageCustomize, false, true, 10)
-MakeTab(5, RR.L["What's New"],  pageWhatsNew,  false, false, 10)
-MakeTab(6, RR.L["Map"],         pageMap,       false, false, 10)
-MakeTab(7, RR.L["Help"],        pageHelp,      false, false, 10)
+local pickerTab = MakeTab(5, RR.L["Picker"], pagePicker, true, false, 10)
+MakeTab(6, RR.L["Customize"],   pagePickerCustomize, false, true, 20)
+MakeTab(7, RR.L["What's New"],  pageWhatsNew,  false, false, 20)
+MakeTab(8, RR.L["Map"],         pageMap,       false, false, 20)
+MakeTab(9, RR.L["Help"],        pageHelp,      false, false, 20)
 
 -- ---- Footer: reset + feedback icons --------------------------------------
+-- The Toaster and Picker on/off switches are not here: no reset turns a
+-- feature on or off.
 local RESET_DEFAULTS = {
     fontSize = 12, windowScale = 1.0, panelOpacity = 1.0,
     bodyFontStyle = "standard", launchMode = "minimized", bossOrderMode = "rr",
-    showMinimap = true, toasterEnabled = false, toasterLootSummary = true,
-    toasterReputationSummary = true,
+    tmogDefaultClassFilter = "mine", showMinimap = true,
+    toasterLootSummary = true, toasterReputationSummary = true,
     toasterScale = 1.0, toasterLocked = true, toasterAnchor = nil,
     toasterDuration = 5.0, toasterStayUntilClick = false,
-    toasterHideBossBanner = true,
+    toasterHideBossBanner = true, toasterSound = true,
     mapPois = true, showCollectedRares = true, enhancedBossIcons = true,
+    pickerShowLockouts = true, pickerShowMissing = true,
+    pickerScale = 1.0, pickerLocked = true, pickerAnchor = nil,
+}
+
+-- The settings each page owns, for Reset Here. Reset All takes them all.
+local PAGE_RESET_KEYS = {
+    [pageGeneral]    = { "launchMode", "bossOrderMode", "tmogDefaultClassFilter", "showMinimap" },
+    [pageAppearance] = { "fontSize", "windowScale", "panelOpacity", "bodyFontStyle" },
+    [pageToaster]    = { "toasterLootSummary", "toasterReputationSummary",
+                         "toasterHideBossBanner", "toasterSound" },
+    [pageCustomize]  = { "toasterScale", "toasterDuration", "toasterStayUntilClick",
+                         "toasterLocked", "toasterAnchor" },
+    [pageMap]        = { "mapPois", "showCollectedRares", "enhancedBossIcons" },
+    [pagePicker]     = { "pickerShowLockouts", "pickerShowMissing" },
+    [pagePickerCustomize] = { "pickerScale", "pickerLocked", "pickerAnchor" },
 }
 
 -- Reconcile the Toaster tab: the read-only Status word reflects live truth,
@@ -1240,6 +1455,19 @@ RefreshToasterControls = function()
         toasterTab.statusDot:SetVertexColor(unpack(stateColor))
     end
 
+    -- Picker has no instance to wait for: it is active whenever enabled.
+    local pickerOn = RR:GetSetting("pickerEnabled", true) ~= false
+    local pickerColor = pickerOn and COLOR_GREEN or COLOR_RED
+    if pickerStatusValue then
+        pickerStatusArrow:SetRotation(pickerOn and math.pi or 0)
+        pickerStatusArrow:SetVertexColor(unpack(pickerColor))
+        pickerStatusValue:SetText(pickerOn and RR.L["ACTIVE"] or RR.L["MANUALLY DISABLED"])
+        pickerStatusValue:SetTextColor(unpack(pickerColor))
+    end
+    if pickerTab and pickerTab.statusDot then
+        pickerTab.statusDot:SetVertexColor(unpack(pickerColor))
+    end
+
     for _, row in ipairs(pairRows) do row.Refresh() end
 end
 
@@ -1250,32 +1478,83 @@ local function RefreshAllControls()
     RefreshToasterControls()
 end
 
-local function ResetRetroRuns()
-    -- Preserve the Toaster on/off state: resetting everything else shouldn't
-    -- silently switch off a feature the player is actively using.
-    local toasterWasEnabled = RR:GetSetting("toasterEnabled", false)
-
-    for key, value in pairs(RESET_DEFAULTS) do RR:SetSetting(key, value) end
-    RR:SetSetting("toasterEnabled", toasterWasEnabled)
+-- Restores the given settings and re-applies only what they drive.
+local function ResetKeys(keys)
+    local reset = {}
+    for _, key in ipairs(keys) do
+        RR:SetSetting(key, RESET_DEFAULTS[key])
+        reset[key] = true
+    end
 
     ApplyPanel()
     if UI.Update then UI.Update() end
-    if RR.minimapButton then
+    if reset.showMinimap and RR.minimapButton then
         if RESET_DEFAULTS.showMinimap then RR.minimapButton:Show() else RR.minimapButton:Hide() end
     end
-    if RR._toasterMock then RR._toasterMock:SetToastScale(RESET_DEFAULTS.toasterScale) end
-    if RR.ApplyToasterScale then RR:ApplyToasterScale() end
+    if reset.tmogDefaultClassFilter and UI.RefreshTmogWindowIfShown then
+        UI.RefreshTmogWindowIfShown()
+    end
+    if reset.toasterScale then
+        if RR._toasterMock then RR._toasterMock:SetToastScale(RESET_DEFAULTS.toasterScale) end
+        if RR.ApplyToasterScale then RR:ApplyToasterScale() end
+    end
     -- Position lock: clear any custom anchor and re-lock (hides the overlay).
-    if RR.ResetToasterAnchor then RR:ResetToasterAnchor() end
-    if RR.LockToasterAnchor then RR:LockToasterAnchor() end
+    if reset.toasterAnchor and RR.ResetToasterAnchor then RR:ResetToasterAnchor() end
+    if reset.toasterLocked and RR.LockToasterAnchor then RR:LockToasterAnchor() end
+    if UI.PickerBar then
+        if reset.pickerLocked then UI.PickerBar.Lock() end
+        UI.PickerBar.Refresh()
+    end
     RefreshAllControls()
 end
 
-local resetButton = MakeTextButton(RR.L["Reset to Defaults"], 24, 16, 160, ResetRetroRuns)
--- Move Reset up to the title row, right-aligned, so it shares the band with
--- the RETRO RUNS wordmark instead of sitting in the footer.
-resetButton:ClearAllPoints()
-resetButton:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -24, -20)
+local function ResetAll()
+    local keys = {}
+    for _, pageKeys in pairs(PAGE_RESET_KEYS) do
+        for _, key in ipairs(pageKeys) do keys[#keys + 1] = key end
+    end
+    ResetKeys(keys)
+    -- The main panel back to its default spot, after the scale reset.
+    RR:SetSetting("panelX", 0)
+    RR:SetSetting("panelY", 0)
+    RR:SetSetting("panelAnchorSet", false)
+    if RR.RestorePanelPosition then RR:RestorePanelPosition("reset-all") end
+    ApplyPanel()
+end
+
+local function ResetHere()
+    local keys = PAGE_RESET_KEYS[pages[selectedIndex]]
+    if keys then ResetKeys(keys) end
+end
+
+StaticPopupDialogs["RETRORUNS_RESET_ALL"] = {
+    text = RR.L["Reset all RetroRuns settings?"],
+    button1 = YES,
+    button2 = NO,
+    OnAccept = ResetAll,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
+
+-- Both resets sit in the title row, right-aligned, sharing the band with the
+-- RETRO RUNS wordmark.
+local resetAllButton = MakeTextButton(RR.L["Reset All"], 24, 16, 110, function()
+    StaticPopup_Show("RETRORUNS_RESET_ALL")
+end)
+resetAllButton:ClearAllPoints()
+resetAllButton:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -24, -20)
+
+local resetHereButton = MakeTextButton(RR.L["Reset Here"], 24, 16, 110, ResetHere)
+resetHereButton:ClearAllPoints()
+resetHereButton:SetPoint("RIGHT", resetAllButton, "LEFT", -8, 0)
+
+-- Grayed on a tab with nothing to reset (What's New, Help).
+panel.RR_UpdateResetHere = function()
+    resetHereButton:SetEnabled(PAGE_RESET_KEYS[pages[selectedIndex]] ~= nil)
+end
+panel.RR_UpdateResetHere()
 
 -- RR.L["Lock toasts:"] pair on the Customize tab. On = locked (default);
 -- Off surfaces the drag overlay to reposition the toasts.
@@ -1296,6 +1575,28 @@ do
           hint = RR.L["Turn OFF to drag the toasters around, and back ON to lock them"] })
     lockRow.falseBtn:ClearAllPoints()
     lockRow.falseBtn:SetPoint("TOPRIGHT", pageCustomize, "TOPRIGHT", -8, SECTION_TOP)
+    lockRow.sep:ClearAllPoints()
+    lockRow.sep:SetPoint("RIGHT", lockRow.falseBtn, "LEFT", -6, 0)
+    lockRow.trueBtn:ClearAllPoints()
+    lockRow.trueBtn:SetPoint("RIGHT", lockRow.sep, "LEFT", -6, 0)
+    lockRow.label:ClearAllPoints()
+    lockRow.label:SetPoint("TOPRIGHT", lockRow.trueBtn, "TOPLEFT", -12, 0)
+end
+
+-- RR.L["Lock Position:"] pair on the Picker's Customize tab. Off shows the bar
+-- (a sample away from an entrance) so it can be dragged.
+do
+    local lockRow = AddToggle(pagePickerCustomize, RR.L["Lock Position:"], 0,
+        function() return RR:GetSetting("pickerLocked", true) end,
+        function(locked)
+            RR:SetSetting("pickerLocked", locked)
+            if not UI.PickerBar then return end
+            if locked then UI.PickerBar.Lock() else UI.PickerBar.Unlock() end
+        end,
+        { hintTitle = RR.L["Lock Position"],
+          hint = RR.L["Turn OFF to drag the Picker around, and back ON to lock it"] })
+    lockRow.falseBtn:ClearAllPoints()
+    lockRow.falseBtn:SetPoint("TOPRIGHT", pagePickerCustomize, "TOPRIGHT", -8, SECTION_TOP)
     lockRow.sep:ClearAllPoints()
     lockRow.sep:SetPoint("RIGHT", lockRow.falseBtn, "LEFT", -6, 0)
     lockRow.trueBtn:ClearAllPoints()
@@ -1394,9 +1695,16 @@ function UI.OpenSettingsToToaster()
     SelectTab(3)
 end
 
+-- Open settings straight to the Picker tab. Used by the main panel's
+-- footer instance limit.
+function UI.OpenSettingsToPicker()
+    UI.OpenSettings()
+    SelectTab(5)
+end
+
 -- Open settings straight to the What's New tab. Used by the main panel's
 -- footer "What's New?" link (replaces the old standalone popup window).
 function UI.OpenSettingsToWhatsNew()
     UI.OpenSettings()
-    SelectTab(5)
+    SelectTab(7)
 end

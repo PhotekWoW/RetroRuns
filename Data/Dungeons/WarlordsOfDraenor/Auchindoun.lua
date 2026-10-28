@@ -16,11 +16,12 @@ RetroRuns_DungeonData[547] = {
     availableDifficulties = { 14, 15, 16 },
     patch             = "6.0.2",
     timewalking       = true,
+    routedIn          = "3.4.0",
 
     entrance = {
         mapID = 535,
-        x     = 0.4669,
-        y     = 0.7371,
+        x     = 0.464,
+        y     = 0.738,
     },
 
     gloryMeta = {
@@ -223,6 +224,123 @@ RetroRuns_DungeonData[547] = {
             },
             specialLoot = {
                 { id = 251331, kind = "decor", name = "Draenic Ottoman", decorID = 8178 },
+            },
+        },
+    },
+
+    exitNote    = "Take the Soul Transporter at the south end of the platform, then walk to the exit.",
+    minExitNote = "Soul Transporter then walk out",
+
+    routing = {
+        -- 1. Vigilant Kaathar (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Vigilant Kaathar",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 593 },
+                    kind    = "path",
+                    note    = "After zoning in, follow ^Soulbinder Tuulani^ to the west. Witness her several lines of dialog on her way to unsealing the door to ^Vigilant Kaathar^. Clear trash to spawn the boss.",
+                    minNote = "Follow Tuulani west to Kaathar",
+                    points  = {
+                        { 0.496, 0.878 },
+                        { 0.499, 0.678 },
+                        { 0.446, 0.675 },
+                        { 0.357, 0.615 },
+                        { 0.305, 0.522 },
+                        { 0.289, 0.469 },
+                        { 0.290, 0.376 },
+                    },
+                },
+            },
+        },
+        -- 2. Soulbinder Nyami (boss 2).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Soulbinder Nyami",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 593 },
+                    kind    = "path",
+                    note    = "After defeating ^Vigilant Kaathar^, backtrack to the crossroads to face ^Soulbinder Nyami^.",
+                    minNote = "Backtrack to find Nyami",
+                    points  = {
+                        { 0.289, 0.376 },
+                        { 0.292, 0.471 },
+                        { 0.320, 0.555 },
+                        { 0.388, 0.640 },
+                        { 0.434, 0.673 },
+                        { 0.477, 0.673 },
+                    },
+                },
+            },
+        },
+        -- 3. Azzakel (boss 3).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Azzakel",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 593 },
+                    kind    = "path",
+                    note    = "After killing ^Soulbinder Nyami^, wait on a brief dialog then take the eastern path until you reach ^Azzakel^. Kill all of the demons to spawn the boss.",
+                    minNote = "East path to Azzakel",
+                    points  = {
+                        { 0.526, 0.679 },
+                        { 0.572, 0.664 },
+                        { 0.638, 0.609 },
+                        { 0.682, 0.541 },
+                        { 0.701, 0.492 },
+                        { 0.707, 0.456 },
+                        { 0.707, 0.365 },
+                    },
+                },
+            },
+        },
+        -- 4. Teron'gor (boss 4).
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Teron'gor",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 593 },
+                    kind    = "path",
+                    note    = "After defeating ^Azzakel^, backtrack to the crossroads and take the northern path to use the ^Soul Transporter^. Kill all enemies on three consecutive platforms to finally arrive at ^Teron'gor^.",
+                    minNote = "Soul Transporter to adds then Teron'gor",
+                    points  = {
+                        { 0.707, 0.365 },
+                        { 0.707, 0.460 },
+                        { 0.691, 0.529 },
+                        { 0.655, 0.589 },
+                        { 0.596, 0.648 },
+                        { 0.558, 0.672 },
+                        { 0.500, 0.680 },
+                        { 0.499, 0.535 },
+                        { 0.472, 0.535 },
+                        { 0.480, 0.508 },
+                    },
+                },
+                {
+                    when        = { mapID = 593 },
+                    kind        = "poi",
+                    mapLabel    = "Soul Transporter",
+                    mapLabelPos = "above",
+                    points      = {
+                        { 0.498, 0.486 },
+                    },
+                },
             },
         },
     },

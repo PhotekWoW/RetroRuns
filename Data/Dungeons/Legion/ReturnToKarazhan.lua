@@ -14,6 +14,7 @@ RetroRuns_DungeonData[860] = {
     expansion         = "Legion",
     difficultyModel   = "dungeonTiered",
     availableDifficulties = { 15, 16 },
+    unsavedDifficulties = { 15 },
     patch             = "7.1.0",
 
     entrance = {
@@ -130,6 +131,9 @@ RetroRuns_DungeonData[860] = {
                 { id = 142134, slot = "Head", name = "Castellan's Blinders", sources = { [15]=83044, [16]=83044 } },
                 { id = 142143, slot = "Legs", name = "Willbreaker Legguards", sources = { [15]=83037, [16]=83037 } },
             },
+            specialLoot = {
+                { id = 138797, kind = "illusion", name = "Illusion: Mongoose", sourceID = 2673 },
+            },
         },
         {
             index              = 7,
@@ -159,6 +163,9 @@ RetroRuns_DungeonData[860] = {
                 { id = 142152, slot = "Shoulder", name = "Shoulderpads of Chaotic Thought", sources = { [15]=83030, [16]=83030 } },
                 { id = 142145, slot = "Waist", name = "Girdle of Ghostly Exclusion", sources = { [15]=83039, [16]=83039 } },
                 { id = 142129, slot = "Waist", name = "Spellwarding Waistguard", sources = { [15]=83055, [16]=83055 } },
+            },
+            specialLoot = {
+                { id = 138798, kind = "illusion", name = "Illusion: Sunfire", sourceID = 5865 },
             },
         },
         {

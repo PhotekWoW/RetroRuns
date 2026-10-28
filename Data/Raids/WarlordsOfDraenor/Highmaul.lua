@@ -141,7 +141,7 @@ RetroRuns_Data[1228] = {
                 -- Illusion: Rockbiter. Weapon enchant illusion modeled
                 -- on the Shaman ability of the same name. Shaman-only
                 -- drop.
-                { id = 138835, kind = "illusion", name = "Illusion: Rockbiter", sourceID = 5874 },
+                { id = 138835, kind = "illusion", name = "Illusion: Rockbiter", sourceID = 5874, restrictedToClass = 7 },
             },
             loot = {
                 { id = 116210, slot = "Chest",    name = "Chestwrap of Violent Upheaval",  sources = { [17]=66888 } },

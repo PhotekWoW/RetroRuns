@@ -562,6 +562,18 @@ local function ShowMarkTooltip(btn)
         return
     end
     if not seg.markHint then return end
+    -- A scenario counter: the seg's line, then the objective as the
+    -- client words it ("3/5 Runes Extinguished").
+    if seg.markHintScenario then
+        local rows = { { text = RR.L[seg.markHint], right = RETRO_MARK, header = true } }
+        local quantity, required, description =
+            RR:GetScenarioCriterionProgress(seg.markHintScenario)
+        if quantity then
+            rows[#rows + 1] = { text = ("%d/%d %s"):format(quantity, required, description) }
+        end
+        ShowMapTip(btn, rows)
+        return
+    end
     local total = seg.markHintTotal or 0
     local remaining = RR.ReadWidgetNumber and RR:ReadWidgetNumber(seg.markHintWidget)
     if remaining == nil then remaining = total end

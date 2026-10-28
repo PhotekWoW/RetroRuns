@@ -213,7 +213,7 @@ RetroRuns_Data[1008] = {
             },
             specialLoot = {
                 -- Weapon enchant illusion. Drops on all difficulties.
-                { id = 138804, kind = "illusion", name = "Illusion: Colossus", sourceID = 5861 },
+                { id = 138804, kind = "illusion", name = "Illusion: Colossus", sourceID = 4445 },
                 -- Mogu statuette battle pet, part of the Raiding with
                 -- Leashes VI pet collection. Drops on all difficulties.
                 { id = 167050, kind = "pet", name = "Mogu Statue" },

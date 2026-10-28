@@ -345,7 +345,7 @@ RetroRuns_Data[1530] = {
                 -- as Illusion: Chronos on Chronomatic Anomaly and most
                 -- other non-gear collectibles in this raid.
                 { id = 119211, kind = "toy", name = "Golden Hearthstone Card: Lord Jaraxxus" },
-                { id = 143544, kind = "toy", name = "Skull of Corruption", classes = { 12 } },
+                { id = 143544, kind = "toy", name = "Skull of Corruption", restrictedToClass = 12 },
                 { id = 137575, kind = "mount", name = "Fiendish Hellfire Core" },
                 { id = 137574, kind = "mount", name = "Living Infernal Core" },
             },

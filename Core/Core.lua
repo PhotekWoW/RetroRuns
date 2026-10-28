@@ -6,7 +6,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "3.3.7"
+local VERSION    = "3.4.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -82,7 +82,8 @@ RetroRuns = {
         -- and the restore applied it to the 460-tall frame, putting the top
         -- edge (460-44)/2 = 208px out, compounding every launch.
         -- panelAnchorSet gates the one-time migration and is cleared by
-        -- Reset to Defaults, so a reset re-derives from panelX/panelY = 0.
+        -- /rr reset and the settings' Reset All, so either puts the panel
+        -- back at the default upper-left spot.
         panelAnchorSet = false,
         -- Compact title-bar mode (toggled via the minimize button).
         -- Persists across /reload.
@@ -118,6 +119,13 @@ RetroRuns = {
         -- Toggled by the checkbox on the world map; route markers are
         -- unaffected.
         mapPois = true,
+        -- Picker: the difficulty bar at instance entrances, and its two
+        -- optional lines per difficulty.
+        pickerEnabled = true,
+        pickerShowLockouts = true,
+        pickerShowMissing = true,
+        pickerScale = 1.0,
+        pickerLocked = true,
     },
 }
 
@@ -1135,10 +1143,31 @@ local function TopLeftOffsets(frame)
 end
 RR.TopLeftOffsets = TopLeftOffsets
 
+-- The default spot, upper left, in screen units from the top-left corner.
+local DEFAULT_PANEL_LEFT, DEFAULT_PANEL_TOP = 24, -16
+
 function RR:RestorePanelPosition(source)
     if not RetroRunsUI then return end
     local trace = RR.UI and RR.UI._panelPosTrace
     RetroRunsUI:ClearAllPoints()
+
+    -- No anchor and no legacy offset (a new install or a reset): the default
+    -- spot, in the frame's own scaled space.
+    if not self:GetSetting("panelAnchorSet")
+        and self:GetSetting("panelX", 0) == 0 and self:GetSetting("panelY", 0) == 0 then
+        local ratio = RetroRunsUI:GetEffectiveScale()
+            / math.max(UIParent:GetEffectiveScale(), 0.01)
+        local left, top = DEFAULT_PANEL_LEFT / ratio, DEFAULT_PANEL_TOP / ratio
+        self:SetSetting("panelAnchorX", left)
+        self:SetSetting("panelAnchorY", top)
+        self:SetSetting("panelAnchorSet", true)
+        RetroRunsUI:SetPoint("TOPLEFT", UIParent, "TOPLEFT", left, top)
+        if trace then
+            table.insert(trace, ("DEFAULT(%s) left=%s top=%s"):format(
+                source or "?", math.floor(left + 0.5), math.floor(top + 0.5)))
+        end
+        return
+    end
 
     if not self:GetSetting("panelAnchorSet") then
         -- One-time migration. Apply the legacy CENTER offset, read where
@@ -1563,6 +1592,40 @@ function RR:FoldDifficulty(raid, liveDifficultyID)
     if not liveDifficultyID then return liveDifficultyID end
     local model = self:GetDifficultyModel(raid)
     return model.fold[liveDifficultyID] or liveDifficultyID
+end
+
+-- True for a display bucket that never saves a lockout: dungeon Normal, and
+-- any bucket the instance lists in unsavedDifficulties.
+function RR:BucketNeverSaves(instance, bucket)
+    if not instance then return false end
+    if instance.kind == "dungeon" and bucket == 14 then return true end
+    for _, unsaved in ipairs(instance.unsavedDifficulties or {}) do
+        if unsaved == bucket then return true end
+    end
+    return false
+end
+
+-- Seconds until each saved bucket's lockout resets, from the saved rows.
+function RR:GetResetsByBucket(instance)
+    local resets = {}
+    if not (instance and GetNumSavedInstances and GetSavedInstanceInfo) then return resets end
+    local fold = self:GetDifficultyModel(instance).fold
+    local wantRaidRow = instance.kind ~= "dungeon"
+    for index = 1, GetNumSavedInstances() do
+        local _, _, reset, difficultyID, locked, _, _, isRaid,
+              _, _, _, _, _, instanceID = GetSavedInstanceInfo(index)
+        if locked and instanceID == instance.instanceID
+            and (isRaid and true or false) == wantRaidRow then
+            local bucket = fold[difficultyID]
+            if bucket and reset and reset > 0 then resets[bucket] = reset end
+        end
+    end
+    return resets
+end
+
+function RR:ResetText(seconds)
+    if not (seconds and SecondsToTime) then return nil end
+    return (self.L["Resets in %s"]):format(SecondsToTime(seconds, true, false, 2))
 end
 
 -- True for any raw difficulty that folds to LFR under some model.
@@ -2875,8 +2938,9 @@ function RR:HandleLocationChange()
 
     -- Dungeons ("party") are supported instances too, so they fall
     -- through to the same load path raids take. Anything else -- the open
-    -- world, battlegrounds, scenarios -- unloads.
-    if info.instanceType ~= "raid" and info.instanceType ~= "party" then
+    -- world, battlegrounds, scenarios, garrisons -- unloads.
+    if (info.instanceType ~= "raid" and info.instanceType ~= "party")
+        or self:IsGarrisonInstance(info.instanceID) then
         self:ApplyPendingInstanceGeneration()
         self:ClearEnteredWing()
         self.currentRaid                 = nil
@@ -4521,14 +4585,16 @@ RR.frame:RegisterEvent("ADDON_RESTRICTION_STATE_CHANGED")
 -- buffer (60 entries per minute) and evicts the entries that matter.
 local heartbeatTicks = 0
 C_Timer.NewTicker(1.0, function()
+    if RR.PickerTick then RR:PickerTick() end
+    if RR.UI and RR.UI.RefreshInstanceLimitList then RR.UI.RefreshInstanceLimitList() end
     -- Outside an instance the full heartbeat stays off, but the footer's
     -- instance counter is a CLOCK -- its minutes tick down while the player
     -- stands still, and zone events are the only other repaint out there.
-    -- A narrow refresh every 30s keeps it honest without waking the panel.
+    -- A narrow refresh every tick keeps it in step with the settings list
+    -- without waking the panel.
     if not RR.currentRaid then
         heartbeatTicks = heartbeatTicks + 1
-        if heartbeatTicks % 30 == 0
-            and RR.UI and RR.UI.RefreshFooterStatus then
+        if RR.UI and RR.UI.RefreshFooterStatus then
             RR.UI.RefreshFooterStatus()
         end
         return

@@ -16,6 +16,7 @@ RetroRuns_DungeonData[385] = {
     availableDifficulties = { 14, 15, 16 },
     patch             = "6.0.2",
     timewalking       = true,
+    routedIn          = "3.4.0",
 
     entrance = {
         mapID = 525,
@@ -239,6 +240,122 @@ RetroRuns_DungeonData[385] = {
                 { id = 109939, slot = "Shoulder", name = "Streamslither Spaulders", sources = { [14]=61401, [15]=61402, [16]=59601 } },
                 { id = 109944, slot = "Shoulder", name = "Verdant Plate Spaulders", sources = { [14]=61457, [15]=61426, [16]=59606 } },
                 { id = 110042, slot = "Weapon", name = "Gug'rokk's Smasher", sources = { [14]=61135, [15]=61136, [16]=59646 } },
+            },
+        },
+    },
+
+    exitNote    = "Jump in the lava for a quick trip to the exit.",
+    minExitNote = "Jump in lava for shortcut to exit",
+
+    routing = {
+        -- 1. Magmolatus (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Magmolatus",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 573 },
+                    kind    = "path",
+                    note    = "After zoning in, take a left when you reach the fork and follow the path to ^Magmolatus^. Kill ^Forgemaster Gog'duh^ to start the encounter.",
+                    minNote = "Left path to Magmolatus",
+                    points  = {
+                        { 0.519, 0.838 },
+                        { 0.498, 0.806 },
+                        { 0.489, 0.767 },
+                        { 0.487, 0.683 },
+                        { 0.454, 0.652 },
+                        { 0.444, 0.598 },
+                        { 0.438, 0.554 },
+                        { 0.348, 0.560 },
+                        { 0.341, 0.589 },
+                        { 0.318, 0.604 },
+                        { 0.300, 0.577 },
+                        { 0.287, 0.567 },
+                    },
+                },
+            },
+        },
+        -- 2. Slave Watcher Crushto (boss 2).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Slave Watcher Crushto",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 573 },
+                    kind    = "path",
+                    note    = "After defeating ^Magmolatus^, backtrack to the main loop and follow the path east to reach ^Slave Watcher Crushto^.",
+                    minNote = "East to Slave Watcher",
+                    points  = {
+                        { 0.294, 0.563 },
+                        { 0.310, 0.593 },
+                        { 0.338, 0.587 },
+                        { 0.353, 0.556 },
+                        { 0.443, 0.552 },
+                        { 0.439, 0.495 },
+                        { 0.452, 0.450 },
+                        { 0.492, 0.405 },
+                        { 0.517, 0.420 },
+                        { 0.551, 0.439 },
+                        { 0.550, 0.467 },
+                        { 0.540, 0.505 },
+                        { 0.532, 0.547 },
+                        { 0.537, 0.597 },
+                        { 0.563, 0.597 },
+                    },
+                },
+            },
+        },
+        -- 3. Roltall (boss 3).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Roltall",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 573 },
+                    kind    = "path",
+                    note    = "After killing ^Slave Watcher Crushto^, go north from the main loop until you reach ^Roltall^.",
+                    minNote = "North path to Roltall",
+                    points  = {
+                        { 0.562, 0.599 },
+                        { 0.529, 0.592 },
+                        { 0.534, 0.531 },
+                        { 0.556, 0.448 },
+                        { 0.529, 0.424 },
+                        { 0.491, 0.413 },
+                        { 0.490, 0.382 },
+                    },
+                },
+            },
+        },
+        -- 4. Gug'rokk (boss 4).
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Gug'rokk",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 573 },
+                    kind    = "path",
+                    note    = "After killing ^Roltall^, continue north to reach ^Gug'rokk^.",
+                    minNote = "North to Gug'rokk",
+                    points  = {
+                        { 0.488, 0.282 },
+                        { 0.488, 0.250 },
+                        { 0.505, 0.232 },
+                        { 0.630, 0.230 },
+                    },
+                },
             },
         },
     },

@@ -858,8 +858,7 @@ RetroRuns_Data[631] = {
                 { id = 51563, slot = "Wrist", name = "Taiga Bindings", sources = { [3]=25403, [5]=25560 } },
             },
             specialLoot = {
-                -- Drops on the 25-player sizes only.
-                { id = 138832, kind = "illusion", name = "Illusion: Earthliving", sourceID = 5871 },
+                { id = 138832, kind = "illusion", name = "Illusion: Earthliving", sourceID = 5871, size25Only = true, restrictedToClass = 7 },
             },
         },
         {
@@ -1142,7 +1141,7 @@ RetroRuns_Data[631] = {
                 { id = 50818, kind = "mount", name = "Invincible's Reins", heroic25Only = true },
                 { id = 142098, kind = "pet", name = "Drudge Ghoul" },
                 { id = 142099, kind = "pet", name = "Wicked Soul" },
-                { id = 138955, kind = "illusion", name = "Illusion: Rune of Razorice", sourceID = 5869 },
+                { id = 138955, kind = "illusion", name = "Illusion: Rune of Razorice", sourceID = 5869, restrictedToClass = 6 },
                 { id = 122229, kind = "musicroll", name = "Music Roll: Invincible", questID = 38092 },
             },
         },

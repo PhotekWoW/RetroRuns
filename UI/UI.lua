@@ -306,6 +306,26 @@ panel:HookScript("OnHide", function(self)
     if UI.PlaceUseButton then UI.PlaceUseButton() end
 end)
 
+-- Opens an auxiliary window beside the main panel: right when it fits on
+-- screen, otherwise left. A window the player dragged stays where it was put.
+function UI.PlaceBesidePanel(window)
+    if window.userPlaced then return end
+    local gap = 6
+    local panelLeft, panelRight = panel:GetLeft(), panel:GetRight()
+    window:ClearAllPoints()
+    if panelLeft and panelRight then
+        local panelScale = panel:GetEffectiveScale()
+        local needed = (window:GetWidth() + gap) * window:GetEffectiveScale()
+        local roomRight = UIParent:GetRight() * UIParent:GetEffectiveScale()
+            - panelRight * panelScale
+        if roomRight < needed and panelLeft * panelScale >= needed then
+            window:SetPoint("TOPRIGHT", panel, "TOPLEFT", -gap, 0)
+            return
+        end
+    end
+    window:SetPoint("TOPLEFT", panel, "TOPRIGHT", gap, 0)
+end
+
 -- Forward declarations for auxiliary windows (assigned further down).
 local tmogWindow
 local browserState
@@ -777,7 +797,7 @@ panel:SetScript("OnHyperlinkClick", function(_, link, text, button)
         end
         return
     end
-    SetItemRef(link, text, button)
+    UI.OpenLink(link, text, button)
 end)
 
 -- Title (two FontStrings, split only at color boundary). Anchored to the
@@ -1601,14 +1621,41 @@ RR.LockoutTipByModel.sizesShared      = RR.LockoutTipByModel.shared
 -- The Timewalking models lock exactly like their base models.
 RR.LockoutTipByModel.singleTw         = RR.LockoutTipByModel.single
 RR.LockoutTipByModel.independentTw    = RR.LockoutTipByModel.independent
--- Dungeons: one wording for both appearance shapes. Normal 5-mans never
--- save an instance, so only Heroic and Mythic pill.
-RR.LockoutTipByModel.dungeon = {
-    label = RR.L["Dungeon lockouts"],
-    gloss = RR.L["Heroic resets daily, Mythic weekly. Normal never locks."],
-}
-RR.LockoutTipByModel.dungeonBinary = RR.LockoutTipByModel.dungeon
-RR.LockoutTipByModel.dungeonTiered = RR.LockoutTipByModel.dungeon
+-- Dungeons take no gloss: their hover lists each saved difficulty, its
+-- count and its reset (UI.DungeonLockoutLines), and nothing while unsaved.
+function UI.DungeonLockoutLines(instance)
+    local lines = {}
+    if not (instance and instance.kind == "dungeon") then return lines end
+    local resets = RR:GetResetsByBucket(instance)
+    local counts = RR:GetPerDifficultyKillCountsForRaid(instance) or {}
+    local LIVE_ID = { [15] = 2, [16] = 23 }
+    for _, bucket in ipairs(RR:GetDisplayBuckets(instance)) do
+        local count, seconds = counts[bucket], resets[bucket]
+        if LIVE_ID[bucket] and seconds and count and count.total > 0 then
+            local name = (GetDifficultyInfo and GetDifficultyInfo(LIVE_ID[bucket]))
+                or tostring(bucket)
+            local cleared = count.complete >= count.total
+            lines[#lines + 1] = {
+                left  = ("%s %d/%d"):format(name, count.complete, count.total),
+                right = RR:ResetText(seconds) or "",
+                r = cleared and 0 or 1, g = cleared and 1 or 0.58, b = cleared and 0 or 0.2,
+            }
+        end
+    end
+    return lines
+end
+
+-- Adds the lines under a "Dungeon lockouts" heading; false when there are none.
+function UI.AddDungeonLockoutLines(lines)
+    if #lines == 0 then return false end
+    GameTooltip:AddLine(RR.L["Dungeon lockouts"], 1, 1, 1, true)
+    for _, line in ipairs(lines) do
+        GameTooltip:AddDoubleLine(line.left, line.right,
+            line.r, line.g, line.b, 0.8, 0.8, 0.8)
+    end
+    return true
+end
+
 function RR:GetLockoutTooltipInfo(model)
     return self.LockoutTipByModel[model or "independent"]
 end
@@ -1625,6 +1672,14 @@ panel.pillsHover._lockoutTip = false
 panel.pillsHover._lockoutModel = nil
 panel.pillsHover:SetScript("OnEnter", function(self)
     if not self._lockoutTip then return end
+    if self._lockoutInstance then
+        local lines = UI.DungeonLockoutLines(self._lockoutInstance)
+        if #lines == 0 then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        UI.AddDungeonLockoutLines(lines)
+        GameTooltip:Show()
+        return
+    end
     local tipInfo = RR:GetLockoutTooltipInfo(self._lockoutModel)
     if not tipInfo then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -1749,18 +1804,37 @@ panel.encounter.achievements.label:SetWidth(BODY_WIDTH)
 panel.encounter.achievements.label:SetJustifyH("LEFT")
 panel.encounter.achievements.label:SetWordWrap(true)
 panel.encounter.achievements.label:SetNonSpaceWrap(true)
-panel.encounter.achievements:SetHyperlinksEnabled(true)
-panel.encounter.achievements:SetScript("OnHyperlinkClick", function(_, link, text, button)
-    -- The "None" row on bosses without achievements opens the
-    -- achievements window, the same destination a real achievement
-    -- link resolves to.
+-- Its links are wired with UI.WireItemLinks once that is defined, below.
+
+-- Every link click in the addon. An achievement opens in the achievements
+-- window.
+function UI.OpenLink(link, text, button)
+    -- The "None" row on bosses without achievements opens the achievements
+    -- window, the same destination a real achievement link resolves to.
     if link == "rrachui" then
         if not AchievementFrame then AchievementFrame_LoadUI() end
         ToggleAchievementFrame()
         return
     end
-    SetItemRef(link, text, button)
-end)
+    local achievementID = tonumber(link and link:match("^achievement:(%d+)"))
+    if achievementID then
+        if IsModifiedClick("CHATLINK") and ChatEdit_InsertLink then
+            ChatEdit_InsertLink(text)
+            return
+        end
+        if not AchievementFrame then AchievementFrame_LoadUI() end
+        if AchievementFrame and AchievementFrame_SelectAchievement then
+            if not AchievementFrame:IsShown() then ToggleAchievementFrame() end
+            AchievementFrame_SelectAchievement(achievementID, true)
+        end
+        return
+    end
+    -- Anything else: shift-click links it, ctrl-click previews it; a plain
+    -- click leaves the hover tooltip and opens no popup.
+    if IsModifiedClick() and HandleModifiedItemClick then
+        HandleModifiedItemClick(text)
+    end
+end
 
 -- Special loot sub-widget: hyperlinks-only, no toggle.
 panel.encounter.specialLoot = CreateFrame("Frame", nil, panel.encounter)
@@ -1772,25 +1846,29 @@ panel.encounter.specialLoot.label:SetWidth(BODY_WIDTH)
 panel.encounter.specialLoot.label:SetJustifyH("LEFT")
 panel.encounter.specialLoot.label:SetWordWrap(true)
 panel.encounter.specialLoot.label:SetNonSpaceWrap(true)
-panel.encounter.specialLoot:SetHyperlinksEnabled(true)
-panel.encounter.specialLoot:SetScript("OnHyperlinkClick", function(_, link, text, button)
-    SetItemRef(link, text, button)
-end)
+-- Its links are wired with UI.WireItemLinks once that is defined, below.
 
 -- Clickable links with hover tooltips on a frame whose FontStrings carry
--- them. SetItemRef routes every link type and ignores unknown ones.
+-- them. UI.OpenLink routes every link type and ignores unknown ones.
 function UI.WireItemLinks(frame)
     frame:SetHyperlinksEnabled(true)
     frame:SetScript("OnHyperlinkClick", function(_, link, text, button)
-        SetItemRef(link, text, button)
+        UI.OpenLink(link, text, button)
     end)
     frame:SetScript("OnHyperlinkEnter", function(self, link)
+        -- Our own links ("rrachui") carry no game tooltip.
+        if not (link and link:find(":", 1, true)) then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetHyperlink(link)
         GameTooltip:Show()
     end)
     frame:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
 end
+
+-- The main panel's achievements click and hover like the achievements
+-- window's; its special loot hovers like any other item link.
+UI.WireItemLinks(panel.encounter.achievements)
+UI.WireItemLinks(panel.encounter.specialLoot)
 
 -- Forward declarations (defined later).
 local GetOrCreateTmogWindow
@@ -3048,7 +3126,8 @@ local function AcquirePillHoverFrame()
         -- nothing to do with lockouts (the Timewalking marker).
         local tipInfo = self._lockoutModel
             and RR:GetLockoutTooltipInfo(self._lockoutModel) or nil
-        if not tipInfo and not self._underDevelopment
+        local dungeonLines = UI.DungeonLockoutLines(self._lockoutInstance)
+        if not tipInfo and #dungeonLines == 0 and not self._underDevelopment
             and not self._timewalking and not self._seasonal then
             return
         end
@@ -3112,6 +3191,11 @@ local function AcquirePillHoverFrame()
         if tipInfo then
             GameTooltip:AddLine(tipInfo.label, 1, 1, 1, true)
             GameTooltip:AddLine(tipInfo.gloss, 0.8, 0.8, 0.8, true)
+        elseif #dungeonLines > 0 then
+            if self._timewalking or self._seasonal or self._underDevelopment then
+                GameTooltip:AddLine(" ")
+            end
+            UI.AddDungeonLockoutLines(dungeonLines)
         end
         GameTooltip:Show()
     end)
@@ -3374,7 +3458,7 @@ end
 -- supported raid" there, while the cap is exactly what decides whether the
 -- next run on that list can start. The count is every instance, raids
 -- included, because the game's cap is.
-panel.instanceLimit = CreateFrame("Frame", nil, panel)
+panel.instanceLimit = CreateFrame("Button", nil, panel)
 panel.instanceLimit:SetSize(160, 14)
 panel.instanceLimit:SetPoint("BOTTOM", 0, 8 + FRAME_INSET_Y)
 do
@@ -3401,6 +3485,14 @@ do
         instanceLimit.value:SetPoint("BOTTOMLEFT", instanceLimit.label, "BOTTOMRIGHT", gap, 0)
         instanceLimit:SetWidth(total + 8)
     end
+
+    -- Clickable shortcut into the Picker settings tab, lit on hover like the
+    -- Toaster status.
+    instanceLimit:SetScript("OnEnter", function() instanceLimit.label:SetTextColor(0.95, 0.95, 0.95) end)
+    instanceLimit:SetScript("OnLeave", function() instanceLimit.label:SetTextColor(0.62, 0.62, 0.62) end)
+    instanceLimit:SetScript("OnClick", function()
+        if UI.OpenSettingsToPicker then UI.OpenSettingsToPicker() end
+    end)
     instanceLimit:Hide()
 end
 
@@ -5658,14 +5750,15 @@ BuildSpecialLootSection = function(boss)
         else
             -- Standard (non-barter or mount-already-collected) path. Same
             -- rendering as before: single row, collected or not.
-            local display, kindColor, kindInner = UI.FormatSpecialRowParts(item)
+            local display, kindColor, kindInner, classTag = UI.FormatSpecialRowParts(item)
 
             -- State cell before the name. The itemLink keeps its native
             -- quality color in BOTH states so collected rows stay
             -- clickable (players still want preview/link access).
             local collected = SpecialCollectionStateForItem(item) == "collected"
             table.insert(lines, { cell = collected and "collected" or "missing",
-                text = ("%s |c%s(%s)|r"):format(display, kindColor, kindInner) })
+                text = ("%s |c%s(%s)|r"):format(display, kindColor, kindInner)
+                    .. (classTag and (" " .. classTag) or "") })
         end
     end
     return header, lines
@@ -5719,7 +5812,16 @@ function UI.FormatSpecialRowParts(item)
     elseif item.heroicMythicOnly then
         kindInner = kindLabel .. ", |r|cffF259C7" .. RR.L["Heroic/Mythic only"] .. "|r|c" .. kindColor
     end
-    return display, kindColor, kindInner
+
+    -- A class-locked drop gets the same "(<Class>)" tag gear rows carry.
+    local classTag
+    local classToken = item.restrictedToClass and CLASS_ID_TO_TOKEN[item.restrictedToClass]
+    local className = classToken and ClassNameForID(item.restrictedToClass)
+    if className then
+        classTag = ("|cffffffff(|r|c%s%s|r|cffffffff)|r"):format(
+            UI.ClassHex(classToken) or "ffff8000", className)
+    end
+    return display, kindColor, kindInner, classTag
 end
 
 -- Drops a trailing colon, ASCII or full-width, with the spaces around it.
@@ -5732,8 +5834,9 @@ end
 -- indicator cell, the item link as the name, the kind tag and any
 -- acquisition tag after it.
 function UI.SpecialTrashRow(item)
-    local display, kindColor, kindInner = UI.FormatSpecialRowParts(item)
+    local display, kindColor, kindInner, classTag = UI.FormatSpecialRowParts(item)
     local tagParts = { ("|c%s(%s)|r"):format(kindColor, kindInner) }
+    if classTag then table.insert(tagParts, classTag) end
     UI.AppendAcquisitionTags(item, tagParts)
     return { kind = "item", itemID = item.id,
         pills = { { icon = (SpecialCollectionStateForItem(item) == "collected")
@@ -9396,6 +9499,7 @@ GetOrCreateTmogWindow = function()
     tmogFrame:SetScript("OnDragStart", tmogFrame.StartMoving)
     tmogFrame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
+        self.userPlaced = true
         -- Re-anchor by the top-left corner so a later expand/collapse grows
         -- the window downward from a fixed top, not outward from its center.
         local left, top = self:GetLeft(), self:GetTop()
@@ -10849,6 +10953,27 @@ function UI.RefreshTmogWindowIfShown()
     end
 end
 
+-- The hourly count as colored text, "7/10 (12m)". Shared by the footer and
+-- the Picker settings page.
+function UI.InstanceLimitValueText()
+    local usedCount, freeSeconds, capLimit = RR:GetInstanceUseCount()
+    -- Urgency colors the count on the headroom left, not on the count
+    -- itself, so the reading matches the run-complete reset reminder.
+    local remainingCount = math.max(0, capLimit - usedCount)
+    local countColor = (remainingCount >= 5 and "|cff00ff00")
+        or (remainingCount >= 2 and "|cffffff00")
+        or "|cffff0000"
+    -- No entries means nothing to expire, so the parenthetical drops
+    -- rather than rendering a reset for a clock that is not running.
+    local valueText = ("%s%d|r|cff9d9d9d/%d|r")
+        :format(countColor, usedCount, capLimit)
+    if freeSeconds then
+        valueText = valueText .. ("|cff9d9d9d (%dm)|r")
+            :format(math.ceil(freeSeconds / 60))
+    end
+    return valueText
+end
+
 -- Repaint the footer's center slot. While a run is being guided it carries
 -- the "Toaster:" arrow -- green up = active (enabled + in a supported raid),
 -- amber down = enabled but not in a supported raid, red down = disabled,
@@ -10871,23 +10996,13 @@ function UI.RefreshFooterStatus()
 
     if instanceLimit and UI.IsShowingInstanceList and UI.IsShowingInstanceList() then
         toastStatus:Hide()
-        local usedCount, freeSeconds, capLimit = RR:GetInstanceUseCount()
-        -- Urgency colors the count on the headroom left, not on the count
-        -- itself, so the reading matches the run-complete reset reminder.
-        local remainingCount = math.max(0, capLimit - usedCount)
-        local countColor = (remainingCount >= 5 and "|cff00ff00")
-            or (remainingCount >= 2 and "|cffffff00")
-            or "|cffff0000"
-        -- No entries means nothing to expire, so the parenthetical drops
-        -- rather than rendering a reset for a clock that is not running.
-        local valueText = ("%s%d|r|cff9d9d9d/%d|r")
-            :format(countColor, usedCount, capLimit)
-        if freeSeconds then
-            valueText = valueText .. ("|cff9d9d9d (%dm)|r")
-                :format(math.ceil(freeSeconds / 60))
+        -- Re-lay out only when the text changes; this runs every second.
+        local valueText = UI.InstanceLimitValueText()
+        if valueText ~= instanceLimit.shownText then
+            instanceLimit.shownText = valueText
+            instanceLimit.value:SetText(valueText)
+            instanceLimit.Layout()
         end
-        instanceLimit.value:SetText(valueText)
-        instanceLimit.Layout()
         instanceLimit:Show()
         return
     end
@@ -10954,6 +11069,7 @@ function UI.OpenTransmogBrowser()
     window._factionTierExpanded = false
     window._factionExpanded = false
     window:RefreshAll()
+    UI.PlaceBesidePanel(window)
     window:Show()
     -- One more AutoSize after Show so the first visible frame is already at
     -- the final size. Otherwise the initial creation's SetSize(440, MIN)
@@ -11829,7 +11945,10 @@ GetOrCreateSkipsWindow = function()
     skipsFrame:EnableMouse(true)
     skipsFrame:RegisterForDrag("LeftButton")
     skipsFrame:SetScript("OnDragStart", skipsFrame.StartMoving)
-    skipsFrame:SetScript("OnDragStop",  skipsFrame.StopMovingOrSizing)
+    skipsFrame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        self.userPlaced = true
+    end)
     skipsFrame:SetClampedToScreen(true)
     skipsFrame:SetFrameStrata("HIGH")
     skipsFrame:Hide()
@@ -11939,6 +12058,7 @@ function UI.OpenSkipsWindow()
     -- when the raid has not changed since the last one.
     window._raidFlashKey = nil
     RefreshSkipsContent()
+    UI.PlaceBesidePanel(window)
     window:Show()
 end
 
@@ -12005,7 +12125,8 @@ end -- do block
 
 -- Per-raid pill row for the idle list. Same shape as the in-raid row, but
 -- colored by each pill's OWN lockout state: green cleared, amber partial,
--- gray untouched, dim "-" where the difficulty doesn't apply.
+-- gray untouched, dim "-" where the difficulty doesn't apply. The second
+-- return is each difficulty pill on its own, for the dungeon list's columns.
 local function BuildIdleListPills(raid)
     local counts = RR:GetPerDifficultyKillCountsForRaid(raid)
     if not counts then return "" end
@@ -12023,10 +12144,9 @@ local function BuildIdleListPills(raid)
     local PILLS = {}
     for _, bucket in ipairs(RR:GetDisplayBuckets(raid)) do
         local label = BUCKET_LABEL[bucket]
-        -- Dungeon Normal never locks, so its pill could only ever read
-        -- fresh; dungeons pill their lockout difficulties (Heroic daily,
-        -- Mythic weekly), and a Normal-only dungeon carries no pill row.
-        if raid.kind == "dungeon" and bucket == 14 then
+        -- A difficulty that never saves could only ever read fresh, so it
+        -- gets no pill; a dungeon with nothing that saves has no pill row.
+        if RR:BucketNeverSaves(raid, bucket) then
             label = nil
         end
         if label then
@@ -12081,7 +12201,7 @@ local function BuildIdleListPills(raid)
             lfrToken, chevronSlot)
     end
 
-    local parts = {}
+    local parts, pillParts = {}, {}
     for _, p in ipairs(PILLS) do
         local count = counts[p.id]
         local label = p.label
@@ -12111,6 +12231,7 @@ local function BuildIdleListPills(raid)
                 table.insert(parts, ("|cff%s-|r%s"):format(INACTIVE, lock))
             end
         end
+        pillParts[#pillParts + 1] = { bucket = p.id, text = parts[#parts] }
     end
 
     -- N/H/M difficulty pills in their own bracket group.
@@ -12126,7 +12247,7 @@ local function BuildIdleListPills(raid)
     if lfrSegment and diffSegment then
         return lfrSegment .. "  " .. diffSegment
     end
-    return lfrSegment or diffSegment or ""
+    return lfrSegment or diffSegment or "", pillParts
 end
 
 -- Structured rows for RefreshIdleList to render: expansionHeader, raidName,
@@ -12275,7 +12396,7 @@ local function BuildIdleListRows()
     -- A dungeon is ONE row: nav plane, name, then its lockout pills on the
     -- same line. Raids need a pill sub-line because they carry up to four
     -- pills over a boss count in double digits; a dungeon carries at most
-    -- two (Heroic daily, Mythic weekly -- Normal never locks), so a second
+    -- two (Normal never locks), so a second
     -- line would spend a whole row on a handful of characters. Halves the
     -- tallest lists: TBC and Wrath run 16 dungeons each.
     -- No skip-marker column -- dungeons have no skip mechanic -- so a
@@ -12319,6 +12440,7 @@ local function BuildIdleListRows()
                 .. name:gsub("%%", "%%%%") .. "|r"
                 .. UI.InstanceTagText(dungeon):gsub("%%", "%%%%"))
         end
+        local pillText, pillParts = BuildIdleListPills(dungeon)
         table.insert(rows, {
             kind = "raidName",
             text = (leading .. RR.PILL_PLANE_GUTTER .. nameGap .. "|cff%s%s|r%s")
@@ -12327,7 +12449,8 @@ local function BuildIdleListRows()
             revealTemplate = revealTemplate,
             -- Rendered into its own cell at a shared x, not appended here:
             -- the pill column has to line up ACROSS rows.
-            pillText = BuildIdleListPills(dungeon),
+            pillText = pillText,
+            pillParts = pillParts,
             raid = dungeon,
             hasPlane = hasPlane,
             -- 17 is PositionEntranceButton's own default, the raid rows'.
@@ -12583,17 +12706,47 @@ RefreshIdleList = function()
     end
     local measureFS = panel._idleMeasureFS
     SetBodyFont(measureFS, fontSize, "")
-    local widestPill = 0
     for _, row in ipairs(rows) do
         if row.pillText and row.pillText ~= "" then
             measureFS:SetText(row.text or "")
             local nameWidth = measureFS:GetStringWidth() or 0
             if nameWidth > pillColumnX then pillColumnX = nameWidth end
-            measureFS:SetText(row.pillText)
-            local pillWidth = measureFS:GetStringWidth() or 0
-            if pillWidth > widestPill then widestPill = pillWidth end
         end
     end
+    -- Each difficulty's pill is its own cell at that difficulty's column,
+    -- with the bracket or separator hung off its left edge, so a row
+    -- without a Heroic pill still has its Mythic in the Mythic column. A
+    -- difficulty no row on screen shows takes no column.
+    local PILL_OPEN, PILL_SEP, PILL_CLOSE =
+        "|cff777777[ |r", "|cff555555 | |r", "|cff777777 ]|r"
+    local widestPill = 0
+    local pillColumns = {}
+    local function MeasurePills()
+        local widths, buckets = {}, {}
+        for _, row in ipairs(rows) do
+            for _, pill in ipairs(row.pillParts or {}) do
+                if not widths[pill.bucket] then buckets[#buckets + 1] = pill.bucket end
+                measureFS:SetText(pill.text)
+                widths[pill.bucket] = math.max(widths[pill.bucket] or 0,
+                    measureFS:GetStringWidth() or 0)
+            end
+        end
+        table.sort(buckets)
+        local function Width(text)
+            measureFS:SetText(text)
+            return measureFS:GetStringWidth() or 0
+        end
+        local scale = measureFS:GetEffectiveScale() or 1
+        local sepWidth = Width(PILL_SEP)
+        local x = Width(PILL_OPEN)
+        wipe(pillColumns)
+        for _, bucket in ipairs(buckets) do
+            pillColumns[bucket] = math.floor(x * scale + 0.5) / scale
+            x = x + widths[bucket] + sepWidth
+        end
+        widestPill = (#buckets > 0) and (x - sepWidth + Width(PILL_CLOSE)) or 0
+    end
+    MeasurePills()
     local dungeonPillFontSize = fontSize
     if pillColumnX > 0 then
         pillColumnX = math.ceil(pillColumnX) + 12
@@ -12602,13 +12755,7 @@ RefreshIdleList = function()
         while dungeonPillFontSize > 8 and pillColumnX + widestPill > BODY_WIDTH do
             dungeonPillFontSize = dungeonPillFontSize - 1
             SetBodyFont(measureFS, dungeonPillFontSize, "")
-            widestPill = 0
-            for _, row in ipairs(rows) do
-                if row.pillText and row.pillText ~= "" then
-                    measureFS:SetText(row.pillText)
-                    widestPill = math.max(widestPill, measureFS:GetStringWidth() or 0)
-                end
-            end
+            MeasurePills()
         end
         -- Never push the column so far right that the pills leave the
         -- panel; the longest name yields rather than the pills clipping.
@@ -12633,6 +12780,16 @@ RefreshIdleList = function()
         end
         if widestPillRow <= BODY_WIDTH - 2 then break end
         pillFontSize = pillFontSize - 1
+    end
+
+    local function PillCell(text)
+        local cell = UI.AcquireIdlePillCell()
+        SetBodyFont(cell, dungeonPillFontSize, "")
+        cell:SetText(text)
+        cell:ClearAllPoints()
+        cell:Show()
+        table.insert(panel.idlePillCells, cell)
+        return cell
     end
 
     local prev = nil  -- previous FontString, for anchor chaining
@@ -12703,6 +12860,7 @@ RefreshIdleList = function()
                         textWidth, 0)
                     hoverFrame:Show()
                     hoverFrame._lockoutModel = nil
+                    hoverFrame._lockoutInstance = nil
                     hoverFrame._underDevelopment = nil
                     hoverFrame._seasonal = nil
                     hoverFrame._timewalking = true
@@ -12766,14 +12924,15 @@ RefreshIdleList = function()
             -- full rendered pill string.
             -- Dungeon pills: their own cell at the shared column x, so the
             -- column is straight by construction at any font or scale.
-            if row.pillText and row.pillText ~= "" then
-                local pillCell = UI.AcquireIdlePillCell()
-                SetBodyFont(pillCell, dungeonPillFontSize, "")
-                pillCell:SetText(row.pillText)
-                pillCell:ClearAllPoints()
-                pillCell:SetPoint("LEFT", fs, "LEFT", pillColumnX, 0)
-                pillCell:Show()
-                table.insert(panel.idlePillCells, pillCell)
+            local pillParts = row.pillParts or {}
+            for index, pill in ipairs(pillParts) do
+                local cell = PillCell(pill.text)
+                cell:SetPoint("LEFT", fs, "LEFT", pillColumnX + (pillColumns[pill.bucket] or 0), 0)
+                PillCell(index == 1 and PILL_OPEN or PILL_SEP)
+                    :SetPoint("RIGHT", cell, "LEFT", 0, 0)
+                if index == #pillParts then
+                    PillCell(PILL_CLOSE):SetPoint("LEFT", cell, "RIGHT", 0, 0)
+                end
             end
 
             -- Where the row's rendered content ends, measured from the
@@ -12797,8 +12956,12 @@ RefreshIdleList = function()
                 hoverFrame:SetPoint("BOTTOMRIGHT", fs, "BOTTOMLEFT",
                     rowContentRight, 0)
                 hoverFrame:Show()
-                hoverFrame._lockoutModel =
-                    row.raid and (row.raid.difficultyModel or "independent") or nil
+                -- A dungeon row shows its saves and resets, a raid row the
+                -- lockout model's gloss.
+                local isDungeon = row.raid and row.raid.kind == "dungeon"
+                hoverFrame._lockoutModel = (row.raid and not isDungeon)
+                    and (row.raid.difficultyModel or "independent") or nil
+                hoverFrame._lockoutInstance = isDungeon and row.raid or nil
                 -- Dungeons ship for browsing first and gain routing in
                 -- phases; the gray name says so and this says why. Raids
                 -- are all routed, so the flag is dungeon-only rather than
@@ -13225,6 +13388,7 @@ function UI.EnsureIdleModeLine()
         underline:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -2)
         underline:SetPoint("TOPRIGHT", fs, "BOTTOMRIGHT", 0, -2)
         underline:Hide()
+        UI.BuildUnderlineDraw(underline)
         btn.underline = underline
         return btn
     end
@@ -13251,7 +13415,7 @@ function UI.EnsureIdleModeLine()
             else
                 btn.fs:SetTextColor(0.62, 0.62, 0.62)
             end
-            btn.underline:SetShown(selected)
+            UI.SetUnderlineDrawn(btn, selected)
         end
         paint(line.raidBtn, not dungeonMode)
         paint(line.dungeonBtn, dungeonMode)
@@ -13442,6 +13606,7 @@ function UI.Update()
         if panel.pillsHover then
             panel.pillsHover._lockoutTip = true
             panel.pillsHover._lockoutModel = raid.difficultyModel
+            panel.pillsHover._lockoutInstance = (raid.kind == "dungeon") and raid or nil
             panel.pillsHover:ClearAllPoints()
             -- The pill row is centered in a full-width FontString, so the
             -- text starts well right of the string's own left edge; the
@@ -14142,7 +14307,7 @@ local function GetOrCreateSkipDetailFrame()
 
     -- Hyperlink routing on the body FontString's parent frame. Quest
     -- links open the Wowhead URL StaticPopup; native achievement links
-    -- fall through to SetItemRef (opens the in-game Achievement frame).
+    -- fall through to UI.OpenLink (opens the in-game Achievement frame).
     -- Because this frame is not a StaticPopup, spawning the URL popup
     -- doesn't relayout or move it.
     detailFrame:SetHyperlinksEnabled(true)
@@ -14157,7 +14322,7 @@ local function GetOrCreateSkipDetailFrame()
                     or (RR.L["Quest "] .. questID))
             return
         end
-        SetItemRef(link, text, button)
+        UI.OpenLink(link, text, button)
     end)
     detailFrame:SetScript("OnHyperlinkEnter", function(self2, link)
         -- In-game tooltip for native achievement links on hover. RR_quest
@@ -15275,6 +15440,7 @@ GetOrCreateAchievementsWindow = function()
     achFrame:SetScript("OnDragStart", achFrame.StartMoving)
     achFrame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
+        self.userPlaced = true
         UI.SnapProgressCells()
     end)
     achFrame:HookScript("OnShow", UI.SnapProgressCells)
@@ -16265,6 +16431,7 @@ function UI.OpenAchievementsWindow()
     window._bossFlashKey = nil
     UI.InvalidateAchievementsCache()
     window:RefreshAll()
+    UI.PlaceBesidePanel(window)
     window:Show()
 end
 
@@ -16298,6 +16465,48 @@ function UI.SetBreathing(region, on, lowAlpha, halfPeriod)
         if not anim:IsPlaying() then anim:Play() end
     elseif anim and anim:IsPlaying() then
         anim:Stop()
+    end
+end
+
+-- The selection underline's switch: the new one draws out from its center,
+-- the old one shrinks back into its center.
+UI.UNDERLINE_DRAW_IN, UI.UNDERLINE_DRAW_OUT = 0.18, 0.3
+
+function UI.BuildUnderlineDraw(underline)
+    local drawIn = underline:CreateAnimationGroup()
+    local grow = drawIn:CreateAnimation("Scale")
+    grow:SetOrigin("CENTER", 0, 0)
+    grow:SetScaleFrom(0.01, 1)
+    grow:SetScaleTo(1, 1)
+    grow:SetDuration(UI.UNDERLINE_DRAW_IN)
+    grow:SetSmoothing("OUT")
+    local drawOut = underline:CreateAnimationGroup()
+    local shrink = drawOut:CreateAnimation("Scale")
+    shrink:SetOrigin("CENTER", 0, 0)
+    shrink:SetScaleFrom(1, 1)
+    shrink:SetScaleTo(0.01, 1)
+    shrink:SetDuration(UI.UNDERLINE_DRAW_OUT)
+    shrink:SetSmoothing("IN")
+    drawOut:SetScript("OnFinished", function() underline:Hide() end)
+    underline.drawIn, underline.drawOut = drawIn, drawOut
+end
+
+-- Shows or hides holder.underline. It animates only when the selection
+-- flips between repaints for the same key (default: one key per holder).
+function UI.SetUnderlineDrawn(holder, selected, key)
+    key = key or "selection"
+    local underline = holder.underline
+    local changed = holder.underlineKey == key and holder.underlineOn ~= selected
+    holder.underlineKey, holder.underlineOn = key, selected
+    if selected then
+        underline.drawOut:Stop()
+        underline:Show()
+        if changed then underline.drawIn:Play() end
+    elseif changed then
+        underline.drawIn:Stop()
+        underline.drawOut:Play()
+    elseif not underline.drawOut:IsPlaying() then
+        underline:Hide()
     end
 end
 

@@ -14,6 +14,7 @@ RetroRuns_DungeonData[726] = {
     expansion         = "Legion",
     difficultyModel   = "dungeonTiered",
     availableDifficulties = { 15, 16 },
+    unsavedDifficulties = { 15 },
     patch             = "7.0.3",
 
     entrance = {

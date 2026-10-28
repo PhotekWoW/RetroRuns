@@ -16,6 +16,7 @@ RetroRuns_DungeonData[537] = {
     availableDifficulties = { 14, 15, 16 },
     patch             = "6.0.2",
     timewalking       = true,
+    routedIn          = "3.4.0",
 
     entrance = {
         mapID = 539,
@@ -218,6 +219,148 @@ RetroRuns_DungeonData[537] = {
                 { id = 109986, slot = "Head", name = "Verdant Plate Crown", sources = { [14]=61455, [15]=61424, [16]=59628 } },
                 { id = 110039, slot = "Two-Hand", name = "Portal-Ripper's Staff", sources = { [14]=61175, [15]=61176, [16]=59643 } },
                 { id = 110038, slot = "Weapon", name = "Ner'zhul's Ritual Blade", sources = { [14]=61177, [15]=61178, [16]=59642 } },
+            },
+            specialLoot = {
+                { id = 138806, kind = "illusion", name = "Illusion: Mark of Shadowmoon", sourceID = 5335 },
+            },
+        },
+    },
+
+    exitNote    = "Click the nearby portal to be teleported close to the entrance.",
+    minExitNote = "Portal sends you close to entrance",
+
+    routing = {
+        -- 1. Sadana Bloodfury (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Sadana Bloodfury",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 574 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the path ahead and go south at the fork. Jump in the hole, then loop around to ^Sadana Bloodfury^.",
+                    minNote = "Path to hole, then Sadana",
+                    points  = {
+                        { 0.122, 0.691 },
+                        { 0.145, 0.652 },
+                        { 0.150, 0.581 },
+                        { 0.172, 0.531 },
+                        { 0.227, 0.509 },
+                        { 0.377, 0.509 },
+                        { 0.378, 0.631 },
+                        { 0.444, 0.738 },
+                        { 0.491, 0.745 },
+                        { 0.526, 0.759 },
+                        { 0.526, 0.796 },
+                    },
+                },
+                {
+                    -- Noteless: the loop below the hole, reading segment 1's note.
+                    when    = { mapID = 574 },
+                    kind    = "path",
+                    points  = {
+                        { 0.524, 0.696 },
+                        { 0.524, 0.669 },
+                        { 0.442, 0.669 },
+                        { 0.423, 0.616 },
+                        { 0.423, 0.507 },
+                        { 0.492, 0.507 },
+                    },
+                },
+            },
+        },
+        -- 2. Nhallish (boss 2).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Nhallish",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 574 },
+                    kind    = "path",
+                    note    = "After killing ^Sadana Bloodfury^, follow the short path to the east until you reach ^Nhallish^.",
+                    minNote = "East to Nhallish",
+                    points  = {
+                        { 0.567, 0.508 },
+                        { 0.712, 0.508 },
+                        { 0.766, 0.532 },
+                        { 0.781, 0.581 },
+                        { 0.785, 0.699 },
+                    },
+                },
+            },
+        },
+        -- 3. Bonemaw (boss 3).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Bonemaw",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 574 },
+                    kind    = "path",
+                    note    = "After defeating ^Nhallish^, go east to the next area.",
+                    minNote = "East to next area",
+                    points  = {
+                        { 0.822, 0.739 },
+                        { 0.837, 0.689 },
+                        { 0.867, 0.658 },
+                        { 0.882, 0.619 },
+                        { 0.870, 0.563 },
+                        { 0.884, 0.525 },
+                        { 0.907, 0.515 },
+                        { 0.942, 0.518 },
+                    },
+                },
+                {
+                    when    = { mapID = 575 },
+                    kind    = "path",
+                    note    = "Continue on the linear path as it loops around below. Cross the narrow walkway to reach ^Bonemaw^.",
+                    minNote = "Continue on path to Bonemaw",
+                    points  = {
+                        { 0.066, 0.652 },
+                        { 0.065, 0.616 },
+                        { 0.079, 0.592 },
+                        { 0.110, 0.586 },
+                        { 0.151, 0.578 },
+                        { 0.191, 0.591 },
+                        { 0.218, 0.628 },
+                        { 0.221, 0.672 },
+                        { 0.217, 0.703 },
+                        { 0.196, 0.720 },
+                        { 0.174, 0.709 },
+                        { 0.167, 0.670 },
+                        { 0.185, 0.636 },
+                        { 0.376, 0.522 },
+                    },
+                },
+            },
+        },
+        -- 4. Ner'zhul (boss 4).
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Ner'zhul",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 575 },
+                    kind    = "path",
+                    note    = "After killing ^Bonemaw^, continue past him to the southeast. Kill the two ^Void Spawn^ to open the door. Proceed ahead to witness a cutscene, after which you will be dropped right in front of the final boss, ^Ner'zhul^.",
+                    minNote = "East to be teleported to Ner'zhul",
+                    points  = {
+                        { 0.434, 0.535 },
+                        { 0.743, 0.732 },
+                    },
+                },
             },
         },
     },
