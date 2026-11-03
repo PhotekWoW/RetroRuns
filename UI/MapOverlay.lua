@@ -487,7 +487,16 @@ local function ShowSpotTooltip(btn)
     -- lets the hint say it in words, and say it only when it is needed.
     -- The marker itself always shows, for anyone browsing from elsewhere.
     if btn.hintNote then
-        rows[#rows + 1] = { text = HighlightCarets(RR.L[btn.hintNote]), wrap = true }
+        local hint = RR.L[btn.hintNote]
+        -- A class vendor's hint names its class, in the class color.
+        local className, classToken
+        if btn.poiClass and GetClassInfo then
+            className, classToken = GetClassInfo(btn.poiClass)
+        end
+        local classHex = RR.UI.ClassHex(classToken)
+        hint = hint:gsub("{class}", className and classHex
+            and ("|c%s%s|r"):format(classHex, className) or className or "")
+        rows[#rows + 1] = { text = HighlightCarets(hint), wrap = true }
     end
     if btn.hintWhere then
         local here = (GetSubZoneText and GetSubZoneText()) or ""
@@ -1116,6 +1125,7 @@ function overlay:DrawGlobalPOIsForMap(mapID)
                 button.spotColor = spotColor
                 button.poiKind   = poi.poiKind
                 button.hintNote  = poi.hintNote
+                button.poiClass  = poi.class
                 button.hintWhere = poi.hintWhere
                 button.poiSubZone = poi.subZone
                 button.hintBoss  = poi.hintBoss
@@ -1186,6 +1196,8 @@ end
 function overlay:DrawSegmentsForMap(mapID)
     -- A completed route draws nothing.
     if RR.IsActiveRouteComplete and RR:IsActiveRouteComplete() then return end
+    -- Nor does one whose layout the map has yet to show.
+    if RR.IsDetectingLayout and RR:IsDetectingLayout() then return end
 
     local step = RR.state.activeStep
     if not step then return end
@@ -1503,7 +1515,7 @@ local function BuildWorldMapButton()
     button:SetupMenu(function(dropdown, rootDescription)
         rootDescription:SetTag("MENU_WORLD_MAP_RETRORUNS")
         rootDescription:CreateTitle(RETRO_WORDMARK)
-        rootDescription:CreateCheckbox(RR.L["Enable Map POIs"],
+        rootDescription:CreateCheckbox(RR.L["Map POIs"],
             function() return RR:GetSetting("mapPois", true) ~= false end,
             function()
                 RR:SetSetting("mapPois",
@@ -1513,7 +1525,7 @@ local function BuildWorldMapButton()
         -- The stored setting is SHOW; this entry asks the opposite, so the
         -- tick reads as "hidden" without migrating anyone's saved value.
         local collectedEntry = rootDescription:CreateCheckbox(
-            RR.L["Hide fully collected POIs from map"],
+            RR.L["Hide fully collected POIs"],
             function()
                 return RR:GetSetting("showCollectedRares", true) == false
             end,

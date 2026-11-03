@@ -6,7 +6,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "3.4.0"
+local VERSION    = "3.5.0"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -69,6 +69,11 @@ RetroRuns = {
         showPanel    = false,
         debug        = false,
         windowScale  = 1.0,
+        -- Each sub-panel's own factor on top of windowScale, set by its
+        -- corner grips.
+        tmogScale         = 1.0,
+        skipsScale        = 1.0,
+        achievementsScale = 1.0,
         fontSize     = 12,
         panelOpacity = 1.0,
         -- Legacy CENTER-relative offsets. Kept only as the migration
@@ -2918,6 +2923,8 @@ function RR:LoadCurrentRaid(variant)
         end
         self:PersistRouteVariant(self.state.activeRouteVariant)
     end
+    -- An instance with layouts may already show which one this run is.
+    self:CheckLayout()
 
     -- Show the panel, but honor the user's minimized choice: the
     -- minimized bar now carries the active step and its note, so forcing
@@ -3000,14 +3007,22 @@ function RR:HandleLocationChange()
     -- Landing in a set member's shrine names it before the route advances.
     if self.DetectSpawnFromSubZone then self:DetectSpawnFromSubZone(subZoneText) end
 
+    local advanced = false
     if currentMapID and previousMapID and currentMapID ~= previousMapID then
-        self:AdvanceProgress("zone")
+        advanced = self:AdvanceProgress("zone")
     end
 
     -- A subZone can change without the mapID changing. No-op when no advance
     -- is computed.
     if currentMapID and previousMapID and currentMapID == previousMapID then
-        self:AdvanceProgress("zone")
+        advanced = self:AdvanceProgress("zone")
+    end
+
+    -- Repaint at once, or the note drawn on the way in stays until the
+    -- next heartbeat.
+    if advanced and self.currentRaid then
+        RR.UI.Update()
+        if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
     end
 
     if currentMapID then
@@ -3661,7 +3676,7 @@ end
 
 local DEV_COMMANDS = {
     sessionlog = true, mapicons = true, lfrwing = true, ej = true, newtag = true,
-    locale = true, localeharvest = true, devtools = true, dt = true, record = true,
+    localeharvest = true, devtools = true, dt = true, record = true,
     lfrbits = true, lootprobe = true, lockprobe = true,
 }
 
@@ -3848,9 +3863,6 @@ SlashCmdList["RETRORUNS"] = function(input)
     elseif cmd == "newtag" and RR.NewTagCommand then
         RR:NewTagCommand(args[2], RR.Trim(rest:sub(#(args[2] or "") + 1)))
 
-    elseif cmd == "locale" then
-        RR:DevLocaleCommand(rest)
-
     elseif cmd == "localeharvest" then
         if args[2] == "misses" then
             RR:LocaleHarvestMisses(false)
@@ -3982,11 +3994,7 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
             RR:ExpandSetSteps(RetroRuns_Data)
             RR:ExpandSetSteps(RetroRuns_DataHorde)
             RR:ExpandSetSteps(RetroRuns_DungeonData)
-            RR:ApplyLocale()
-            -- The locale choice is final once the saved override has been
-            -- read, and RR.L holds the active strings, so the ten source
-            -- tables (nine of them for other clients) can go to the
-            -- collector instead of living in memory all session.
+            -- RR.L holds the active strings; release the source tables.
             RR.LocaleTables = {}
             C_Timer.After(0, function()
                 RR:RestorePanelPosition("addon-loaded")
@@ -4453,6 +4461,10 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         end
 
     elseif event == "AREA_POIS_UPDATED" then
+        -- A layout's markers can arrive after the load reads the map.
+        if RR.currentRaid and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
+            RR:CheckLayout()
+        end
         -- A map marker came or went (the Culling's wave flags); the
         -- overlay rings them and should follow at once, not on its next
         -- second.
@@ -4620,9 +4632,19 @@ C_Timer.NewTicker(1.0, function()
             local nowMapID = C_Map.GetBestMapForUnit("player")
             if nowMapID and nowMapID ~= RR.state.lastPolledMapID then
                 RR.state.lastPolledMapID = nowMapID
-                RR:AdvanceProgress("heartbeat")
+                -- Repaint at once, or the note the tick just drew stays a second.
+                if RR:AdvanceProgress("heartbeat") then
+                    RR.UI.Update()
+                    if WorldMapFrame and WorldMapFrame:IsShown() and RetroRunsMapOverlay then
+                        RetroRunsMapOverlay:Refresh()
+                    end
+                end
             end
         end
+
+        -- The layout is re-read every tick until a boss dies on it; its
+        -- markers can miss both the load and their update event.
+        if RR.currentRaid.layouts then RR:CheckLayout() end
 
         -- Scenario-criteria backstop, every fifth tick. SCENARIO_CRITERIA_
         -- UPDATE is the primary path; this bounds how long a missed kill

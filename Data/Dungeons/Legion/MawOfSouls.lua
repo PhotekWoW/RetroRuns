@@ -15,6 +15,7 @@ RetroRuns_DungeonData[727] = {
     difficultyModel   = "dungeonTiered",
     availableDifficulties = { 14, 15, 16 },
     patch             = "7.0.3",
+    routedIn          = "3.5.0",
 
     entrance = {
         mapID = 634,
@@ -92,6 +93,109 @@ RetroRuns_DungeonData[727] = {
                 { id = 134184, slot = "Shoulder", name = "Skoldiir Shoulderguards", sources = { [14]=77488, [15]=77488, [16]=77488 } },
                 { id = 137331, slot = "Waist", name = "Belt of Eternal Torment", sources = { [14]=78931, [15]=80032, [16]=78931 } },
                 { id = 133770, slot = "Waist", name = "Slack Tide Girdle", sources = { [14]=76912, [15]=79941, [16]=76912 } },
+            },
+        },
+    },
+
+    exitNote    = "Click the nearby portal to exit",
+    minExitNote = "Nearby exit portal",
+
+    routing = {
+        -- 1. Ymiron, the Fallen King (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Ymiron, the Fallen King",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 706 },
+                    kind    = "path",
+                    note    = "After zoning in, proceed up the path to reach ^Ymiron^.",
+                    minNote = "Ahead to Ymiron",
+                    points  = {
+                        { 0.480, 0.709 },
+                        { 0.493, 0.664 },
+                        { 0.499, 0.596 },
+                        { 0.490, 0.439 },
+                        { 0.512, 0.302 },
+                    },
+                },
+            },
+        },
+        -- 2. Harbaron (boss 2): the horn, then out of the cage and across
+        -- the Naglfar's two decks.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Harbaron",
+            requires  = { },
+            segments  = {
+                {
+                    when     = { mapID = 706 },
+                    kind     = "poi",
+                    note     = "After killing ^Ymiron^, go up the ramp behind him and blow the ^Echoing Horn of the Damned^.",
+                    minNote  = "Blow horn",
+                    mapLabel = "Blow Horn",
+                    points   = {
+                        { 0.560, 0.227 },
+                    },
+                },
+                {
+                    when    = { mapID = 707 },
+                    kind    = "path",
+                    note    = "Click your cage to escape, then go up the stairs at the far eastern end of the ship. Kill trash on the way.",
+                    minNote = "Click cage then east to stairs",
+                    points  = {
+                        { 0.326, 0.558 },
+                        { 0.421, 0.560 },
+                        { 0.422, 0.457 },
+                        { 0.462, 0.457 },
+                        { 0.498, 0.498 },
+                        { 0.547, 0.628 },
+                        { 0.652, 0.666 },
+                        { 0.713, 0.665 },
+                        { 0.774, 0.573 },
+                        { 0.853, 0.578 },
+                        { 0.888, 0.597 },
+                    },
+                },
+                {
+                    when    = { mapID = 708 },
+                    kind    = "path",
+                    note    = "You will find ^Harbaron^ on the ship at the top of the ramp.",
+                    minNote = "Kill Harbaron",
+                    points  = {
+                        { 0.825, 0.558 },
+                        { 0.749, 0.561 },
+                    },
+                },
+            },
+        },
+        -- 3. Helya (boss 3), past the miniboss Skjal.
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Helya",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 708 },
+                    kind    = "path",
+                    note    = "After defeating ^Harbaron^, continue west on the ship until you reach the miniboss, ^Skjal^. After him, jump down to face ^Helya^.",
+                    minNote = "West to Skjal then Helya",
+                    points  = {
+                        { 0.771, 0.632 },
+                        { 0.662, 0.664 },
+                        { 0.609, 0.662 },
+                        { 0.540, 0.609 },
+                        { 0.410, 0.605 },
+                        { 0.137, 0.572 },
+                    },
+                },
             },
         },
     },

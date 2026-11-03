@@ -246,6 +246,9 @@ RetroRuns_DungeonData[556] = {
             achievements       = {
                 { id = 9223, name = "Weed Whacker", meta = true, soloable = "yes" },
             },
+            specialLoot = {
+                { id = 284194, kind = "decor", name = "Everbloom Forest Floor", decorID = 25326 },
+            },
             loot = {
                 { id = 109938, slot = "Shoulder", name = "Blackwater Spaulders", sources = { [14]=61328, [15]=61329, [16]=59600 } },
                 { id = 109935, slot = "Shoulder", name = "Bloodfeather Spaulders", sources = { [14]=61280, [15]=61281, [16]=59597 } },

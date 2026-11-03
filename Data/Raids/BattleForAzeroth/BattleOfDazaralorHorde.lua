@@ -308,6 +308,7 @@ RetroRuns_DataHorde[2070] = {
             soloTip            = "Nuke her. If the fight extends into Phase 2, jump off the boat and make your way through the snow to find ^Jaina^ and finish her off.",
             specialLoot = {
                 { id = 166705, kind = "mount", name = "Glacial Tidestorm", mythicOnly = true },
+                { id = 166518, kind = "mount", name = "G.M.O.D.", lfrOnly = true },
             },
             loot = {
                 { id = 165831, slot = "Chest",            name = "Flag Officer's Overcoat",           sources = { [17]=102239, [14]=102238, [15]=102240, [16]=102241 } },

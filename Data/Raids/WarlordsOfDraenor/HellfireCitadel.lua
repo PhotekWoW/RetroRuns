@@ -562,6 +562,9 @@ RetroRuns_Data[1448] = {
             achievements       = {
                 { id = 10073, name = "Echoes of Doomfire", meta = true, soloable = "yes" },
             },
+            specialLoot = {
+                { id = 123890, kind = "mount", name = "Felsteel Annihilator", mythicOnly = true },
+            },
             loot = {
                 { id = 124144, slot = "Back",               name = "Cloak of Incendiary Wrath",                    sources = { [14]=69543, [15]=69544, [16]=69545 } },
                 { id = 124159, slot = "Head",               name = "Demon Prince's Ascendant Crown",               sources = { [14]=69593, [15]=69593, [16]=69593, [17]=69593 } },

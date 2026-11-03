@@ -44,6 +44,9 @@ function RR:ActiveVariantKey()
         and raid and raid.altRoute then
         return "alt"
     end
+    if self.state and self:LayoutForVariant(raid, self.state.activeRouteVariant) then
+        return self.state.activeRouteVariant
+    end
     return "standard"
 end
 
@@ -1025,6 +1028,11 @@ function RR:TrackInstanceEntry(info)
     end
     RetroRunsDB.instanceLastSpawn[instanceKey] = lastKey
     entry.last = now
+    -- The class colors the character's name in the settings list.
+    if UnitClass then
+        local _, classToken = UnitClass("player")
+        entry.class = classToken
+    end
 end
 
 -- The hourly book as lines for the diagnostic: every live slot with its
@@ -1099,19 +1107,27 @@ function RR:GetInstanceUseCount()
     return liveCount, secondsUntilFree, INSTANCE_HISTORY_LIMIT
 end
 
--- Every live slot, oldest first: who opened it, which instance and
--- difficulty, and seconds until it frees. Read back from the slot key.
+-- Every live slot, oldest first: who opened it and their class, which
+-- instance and difficulty, and seconds until it frees. Read back from the
+-- slot key.
 function RR:GetInstanceUseEntries()
     self:GetInstanceUseCount()
     local history = RetroRunsDB and RetroRunsDB.instanceHistory
     local entries = {}
     if not history then return entries end
     local now = time()
+    -- A slot with no class on record takes this character's when it is theirs.
+    local selfName, selfClass
+    if UnitName and UnitClass then
+        selfName = (UnitName("player") or "?") .. "-" .. (GetRealmName() or "?")
+        selfClass = select(2, UnitClass("player"))
+    end
     for key, entry in pairs(history) do
         local player, instanceID, difficultyID = key:match("^(.+):([^:]+):([^:]+):[^:]+$")
         local opened = entry.create or entry.last or 0
         entries[#entries + 1] = {
             player = player,
+            class = entry.class or (player == selfName and selfClass) or nil,
             instanceID = tonumber(instanceID),
             difficultyID = tonumber(difficultyID),
             opened = opened,
@@ -1730,6 +1746,93 @@ function RR:CheckAltRoute(eventData)
     return true
 end
 
+-- The layout whose markers are on the map now, or nil. Markers that name
+-- no layout are logged once, so a diag shows a layout the data lacks.
+function RR:ReadLayoutMarkers(raid)
+    if not (raid.layoutMap and C_AreaPoiInfo and C_AreaPoiInfo.GetAreaPOIForMap) then
+        return nil
+    end
+    local seen = C_AreaPoiInfo.GetAreaPOIForMap(raid.layoutMap) or {}
+    local present = {}
+    for _, areaPoiID in ipairs(seen) do present[areaPoiID] = true end
+    for _, layout in ipairs(raid.layouts) do
+        for _, areaPoiID in ipairs(layout.areaPois or {}) do
+            if present[areaPoiID] then return layout end
+        end
+    end
+    if #seen > 0 and self.ZoneLog then
+        local ids = table.concat(seen, ",")
+        if self.state.unmatchedLayoutMarkers ~= ids then
+            self.state.unmatchedLayoutMarkers = ids
+            self:ZoneLog(("[RetroEngine] layout markers match no layout: %s"):format(ids))
+        end
+    end
+    return nil
+end
+
+-- The layout whose route opens on the one first boss that is dead, or nil
+-- while none or several are.
+function RR:LayoutFromFirstKill(raid)
+    local found
+    for _, layout in ipairs(raid.layouts) do
+        local route = layout.routing or raid.routing
+        local first = route and route[1] and route[1].bossIndex
+        if type(first) == "number" and self:IsBossKilled(first) then
+            if found then return nil end
+            found = layout
+        end
+    end
+    return found
+end
+
+-- An instance may open one of several layouts per run (the Arcway's
+-- doors), each named in `layouts` by the area POIs only it shows on
+-- `layoutMap`. A matching read picks that layout's route; until a boss
+-- dies a later read may correct it (a variant left from an earlier
+-- instance). With no markers, a kill of one layout's first boss decides.
+function RR:CheckLayout()
+    local raid = self.currentRaid
+    if not raid or not raid.layouts then return false end
+    local current = self:LayoutForVariant(raid, self.state.activeRouteVariant)
+    if current and next(self.state.bossesKilled or {}) then return false end
+    local chosen, how = self:ReadLayoutMarkers(raid), "markers"
+    if not chosen and not current then
+        chosen, how = self:LayoutFromFirstKill(raid), "first kill"
+    end
+    if not chosen or chosen == current then return false end
+    if (chosen.routing or raid.routing) ~= self:GetActiveRouting() then
+        -- The old route's progress and gates describe a path not taken.
+        wipe(self.state.progress or {})
+        wipe(self.state.triggersFired or {})
+    end
+    if self.ZoneLog then
+        self:ZoneLog(("[RetroEngine] layout: %s (from %s)"):format(chosen.key, how))
+    end
+    self:PersistRouteVariant("layout:" .. chosen.key)
+    self:ComputeNextStep()
+    if self.RefreshAll then self:RefreshAll() end
+    return true
+end
+
+-- True while a loaded instance with layouts has yet to show which one this
+-- run is: no layout chosen, no boss dead, and the map shows no markers or
+-- ones naming a layout the route has not switched to yet.
+function RR:IsDetectingLayout()
+    local raid = self.currentRaid
+    if not (raid and raid.layouts and raid.layoutMap
+            and C_AreaPoiInfo and C_AreaPoiInfo.GetAreaPOIForMap)
+        or not self.state.loadedRaidKey
+        or self.state.loadedRaidKey ~= self:GetRaidContextKey() then
+        return false
+    end
+    if self:LayoutForVariant(raid, self.state.activeRouteVariant)
+        or next(self.state.bossesKilled or {}) then
+        return false
+    end
+    local seen = C_AreaPoiInfo.GetAreaPOIForMap(raid.layoutMap) or {}
+    return #seen == 0 or self:ReadLayoutMarkers(raid) ~= nil
+end
+
 -- triggeredBy.dialog matches an NPC dialog event's npc + text. It is one
 -- line, or a list of lines any of which opens the gate -- for a cue the
 -- game delivers through whichever NPC happens to speak first.
@@ -2054,11 +2157,13 @@ function RR:AdvanceProgress(event, eventData)
     local state = { mapID = mapID, subZone = subZone, latchPulledPast = {},
                     skipToLocation = step.skipToLocation }
 
-    -- A heard line may be the cue that swaps the whole routing; the
-    -- swap seeds the new route itself, so the event is consumed.
+    -- A heard line may be the cue that swaps the whole routing, and the
+    -- map's markers may name the layout; either swap seeds the new route
+    -- itself, so the event is consumed.
     if event == "npc-dialog" and self:CheckAltRoute(eventData) then
         return true
     end
+    if self:CheckLayout() then return true end
 
     -- The step was seeded before the game named a map. Seed again now it
     -- has one, unless the route already moved on its own.
@@ -2485,8 +2590,11 @@ function RR:BuildEngineProbeLines(opts)
     -- Bypassed bosses drive both step selection and the skip note/line
     -- variants. Without this the only sign of one is a step that quietly
     -- went missing from the pointer.
+    -- The route in force (a Tribute run, an alternate, a layout), not
+    -- always the instance's first.
+    local routing = self:GetActiveRouting() or raid.routing or {}
     local skippedNames = {}
-    for _, step in ipairs(raid.routing or {}) do
+    for _, step in ipairs(routing) do
         if self:IsBossSkipped(step.bossIndex) then
             table.insert(skippedNames, ("%s (boss %s)"):format(
                 tostring(step.title), tostring(step.bossIndex)))
@@ -2497,7 +2605,7 @@ function RR:BuildEngineProbeLines(opts)
 
     add("")
     add("-- Per-Step State --")
-    for _, step in ipairs(raid.routing or {}) do
+    for _, step in ipairs(routing) do
         local stepIndex = step.step or step.priority or 0
         local progress = self:GetProgress(stepIndex)
         add(("step %d (%s): progress=%d / %d segs"):format(
@@ -2666,6 +2774,37 @@ function RR:BuildEngineProbeLines(opts)
         end
     else
         add("(no run record for this wing)")
+    end
+
+    -- What the End of Run Summary reads for this run.
+    add("")
+    add("-- Run summary record --")
+    local summaryRecord = self.RunHistory and self.RunHistory.CurrentRun(false)
+    if summaryRecord then
+        local sourceCount, specialCount, gains = 0, 0, {}
+        for _ in pairs(summaryRecord.sources or {}) do sourceCount = sourceCount + 1 end
+        for _ in pairs(summaryRecord.specialsMissing or {}) do specialCount = specialCount + 1 end
+        for faction, amount in pairs(summaryRecord.reputation or {}) do
+            gains[#gains + 1] = ("%s %+d (id %s)"):format(faction, amount,
+                tostring(summaryRecord.factionIDs and summaryRecord.factionIDs[faction]))
+        end
+        table.sort(gains)
+        add(("started: %s  completed: %s  kills: %d  lockout: %s  spawn: %s")
+            :format(summaryRecord.startedAt and date("%H:%M:%S", summaryRecord.startedAt) or "none",
+                    summaryRecord.completedAt and date("%H:%M:%S", summaryRecord.completedAt) or "none",
+                    summaryRecord.kills or 0, tostring(summaryRecord.lockoutId),
+                    tostring(summaryRecord.spawnKey)))
+        add(("appearances: %d  specials missing at start: %d  reputation: %s")
+            :format(sourceCount, specialCount, #gains > 0 and table.concat(gains, ", ") or "(none)"))
+    else
+        add("(none for this run)")
+    end
+    local timesRun, _, timesCharacters
+    if raid then timesRun, _, timesCharacters = self:GetTimesRun(raid) end
+    if timesRun then
+        add(("times run: %d across %d character(s); statistics: %s")
+            :format(timesRun, timesCharacters, tostring(RetroRuns_RunStatistics
+                and RetroRuns_RunStatistics[raid.journalInstanceID] and "yes" or "log")))
     end
 
     return lines

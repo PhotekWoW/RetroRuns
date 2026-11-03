@@ -884,7 +884,7 @@ RetroRuns_DungeonData[228] = {
                 {
                     when    = { mapID = 243 },
                     kind    = "path",
-                    note    = "After ^Phalanx^, return to ^Plugger Spazzring^ on the bar and kill him.",
+                    note    = "With ^Phalanx^ dead or skipped, return to ^Plugger Spazzring^ on the bar and kill him.",
                     minNote = "Kill Spazzring upstairs",
                     -- No waypoints: the bar is close quarters and a drawn
                     -- line reads as clutter there.

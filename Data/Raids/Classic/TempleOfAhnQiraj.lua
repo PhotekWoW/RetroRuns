@@ -298,6 +298,9 @@ RetroRuns_Data[531] = {
                 { id = 21128, slot = "Two-Hand", name = "Staff of the Qiraji Prophets", sources = { [14]=8332 } },
                 { id = 21708, slot = "Wrist", name = "Beetle Scaled Wristguards", sources = { [14]=8606 } },
             },
+            specialLoot = {
+                { id = 93041, kind = "pet", name = "Mini Mindslayer" },
+            },
         },
         {
             index              = 2,
@@ -424,6 +427,9 @@ RetroRuns_Data[531] = {
                 { id = 21268, slot = "Weapon", name = "Blessed Qiraji War Hammer", sources = { [14]=8347 } , tokenReward = "Regalia" },
                 { id = 21622, slot = "Weapon", name = "Sharpened Silithid Femur", sources = { [14]=8561 } },
             },
+            specialLoot = {
+                { id = 93039, kind = "pet", name = "Viscidus Globule" },
+            },
         },
         {
             index              = 6,
@@ -500,6 +506,9 @@ RetroRuns_Data[531] = {
                 { id = 21268, slot = "Weapon", name = "Blessed Qiraji War Hammer", sources = { [14]=8347 } , tokenReward = "Regalia" },
                 { id = 21604, slot = "Wrist", name = "Bracelets of Royal Redemption", sources = { [14]=8545 } },
                 { id = 21602, slot = "Wrist", name = "Qiraji Execution Bracers", sources = { [14]=8543 } },
+            },
+            specialLoot = {
+                { id = 93040, kind = "pet", name = "Anubisath Idol" },
             },
         },
         {

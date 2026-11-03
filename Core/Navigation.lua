@@ -620,6 +620,7 @@ function RR:ExpandSetSteps(dataTable)
         expand(raid.routing, raid)
         expand(raid.skipRoute, raid)
         expand(raid.altRoute, raid)
+        for _, layout in ipairs(raid.layouts or {}) do expand(layout.routing, raid) end
         for _, wing in pairs(raid.lfrWings or {}) do expand(wing.routing, raid) end
     end
 end
@@ -758,15 +759,26 @@ function RR:SetSpawnedMember(bossIndex)
     return true
 end
 
--- A member's name without its set's label in front ("Cache of Madness -
--- Wushoolay" -> "Wushoolay"), or nil when the name does not carry it.
+-- How the game's languages join a set's label to a member's name: a hyphen,
+-- a colon with or without a space, an en dash, or a doubled em dash.
+local SPAWN_LABEL_JOINS = { " - ", ": ", ":", " \226\128\147 ", "\226\128\148\226\128\148" }
+
+-- A member's name without its set's label ("Cache of Madness - Wushoolay"
+-- -> "Wushoolay"), or nil when the name does not carry it. Italian puts the
+-- label last, in brackets.
 function RR:SpawnChoiceShortName(name)
     local choice = self.currentRaid and self.currentRaid.spawnChoice
     if not (choice and choice.label and name) then return nil end
     for _, label in ipairs({ RR.L[choice.label], choice.label }) do
-        local prefix = label .. " - "
-        if #name > #prefix and name:sub(1, #prefix) == prefix then
-            return name:sub(#prefix + 1)
+        for _, join in ipairs(SPAWN_LABEL_JOINS) do
+            local prefix = label .. join
+            if #name > #prefix and name:sub(1, #prefix) == prefix then
+                return name:sub(#prefix + 1)
+            end
+        end
+        local suffix = " (" .. label .. ")"
+        if #name > #suffix and name:sub(-#suffix) == suffix then
+            return name:sub(1, #name - #suffix)
         end
     end
     return nil
@@ -1213,7 +1225,23 @@ function RR:GetActiveRouting()
     if self.state.activeRouteVariant == "alt" and raid.altRoute then
         return raid.altRoute
     end
+    -- A layout without routing of its own runs the instance's.
+    local layout = self:LayoutForVariant(raid, self.state.activeRouteVariant)
+    if layout and layout.routing then
+        return layout.routing
+    end
     return raid.routing
+end
+
+-- The layout a stored variant ("layout:<key>") names, or nil.
+function RR:LayoutForVariant(raid, variant)
+    if not (raid and raid.layouts and type(variant) == "string") then return nil end
+    local key = variant:match("^layout:(.+)$")
+    if not key then return nil end
+    for _, layout in ipairs(raid.layouts) do
+        if layout.key == key then return layout end
+    end
+    return nil
 end
 
 -- The words for an instance's second route: SKIP by default, or the kind

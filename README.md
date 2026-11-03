@@ -8,7 +8,7 @@ Zone into an old raid or dungeon and RetroRuns guides you boss by boss to the en
 
 **Raids:** all 51 legacy raids, Classic through Dragonflight, with full step-by-step routing.
 
-**Dungeons:** 81 of the 123 legacy dungeons are fully routed so far:
+**Dungeons:** 86 of the 123 legacy dungeons are fully routed so far:
 
 * Classic: all 18
 * The Burning Crusade: all 16
@@ -16,6 +16,7 @@ Zone into an old raid or dungeon and RetroRuns guides you boss by boss to the en
 * Cataclysm: all 14
 * Mists of Pandaria: all 9
 * Warlords of Draenor: all 8
+* Legion: 5 of 13
 
 The rest, from Legion through Dragonflight, already show their bosses, loot and entrances in the transmog browser. Routes for them are on the way.
 
@@ -90,7 +91,7 @@ Main commands, type in chat:
 
 ## Status
 
-Version **3.4.0**
+Version **3.5.0**
 
 ## Reporting bugs / requesting features
 

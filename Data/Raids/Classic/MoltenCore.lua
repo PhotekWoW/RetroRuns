@@ -113,6 +113,9 @@ RetroRuns_Data[409] = {
                 { id = 18202, slot = "Weapon", name = "Eskhandar's Left Claw", sources = { [14]=7240 } },
                 { id = 18203, slot = "Weapon", name = "Eskhandar's Right Claw", sources = { [14]=7241 } },
             },
+            specialLoot = {
+                { id = 93034, kind = "pet", name = "Corefire Imp" },
+            },
         },
         {
             index              = 3,
@@ -244,6 +247,9 @@ RetroRuns_Data[409] = {
                 { id = 18878, slot = "Weapon", name = "Sorcerous Dagger", sources = { [14]=7536 } },
                 { id = 19146, slot = "Wrist", name = "Wristguards of Stability", sources = { [14]=7622 } },
             },
+            specialLoot = {
+                { id = 93033, kind = "pet", name = "Harbinger of Flame" },
+            },
         },
         {
             index              = 8,
@@ -274,6 +280,9 @@ RetroRuns_Data[409] = {
                 { id = 18842, slot = "Two-Hand", name = "Staff of Dominance", sources = { [14]=7515 } },
                 { id = 19136, slot = "Waist", name = "Mana Igniting Cord", sources = { [14]=7615 } },
                 { id = 17103, slot = "Weapon", name = "Azuresong Mageblade", sources = { [14]=7089 } },
+            },
+            specialLoot = {
+                { id = 93035, kind = "pet", name = "Ashstone Core" },
             },
         },
         {

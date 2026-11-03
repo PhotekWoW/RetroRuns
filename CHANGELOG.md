@@ -2,6 +2,29 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.5.0] - 2026-11-02
+
+### Added
+- **Five Legion dungeons are routed:** Vault of the Wardens, Neltharion's Lair, the Arcway, Maw of Souls and Halls of Valor. We auto-detect the randomized route in each Arcway lockout.
+- **Sunwell Plateau's Sunmote upgrades are tracked.** Similar to Firelands, we show a second dot for the upgraded look, and each boss's loot names the Isle of Quel'Danas vendors: Theremis for tier tokens, Yrma for a Sunwell drop plus a Sunmote.
+- **Resize any RetroRuns window by dragging one of its corners.** The main panel and the transmog browser, Achievements and Skips windows scale from 50% to 200%, and Window Scale in settings covers the same range. Each window can be sized on its own, and a window you move stays where you put it, across logins and characters.
+- **Switching difficulty on the Picker plays a short retro select sound.** It follows your Sound Effects volume. Disable in settings.
+- **An End of Run Summary replaces "Where to next" when you finish a run.** It shows how long the run took, how many times you've run the instance across all your characters, the reputation you gained (Warband or character), the appearances and special loot you unlocked, and what's left to collect.
+
+### Changed
+- **The Picker has a new look with custom art.**
+- **The Picker's count covers everything left to collect:** special loot, rare and trash drops and event loot join the appearances, and an instance with nothing left reads "Nothing Left to Collect".
+- **The Instance Limit list numbers its lockouts, oldest first, and shows each character's name in their class color.**
+- **Locked difficulties on the Picker can be selected,** marked with a small lock beside the lockout count.
+- **The Picker shrinks slightly where two entrances stack,** like Utgarde Keep and Utgarde Pinnacle.
+- **The Toaster prints a single reputation gain or a single vendor drop as one short line** instead of a summary.
+
+### Fixed
+- **Clicking a search glass clears its "Search" hint**, so it no longer sits over the search bar.
+- **The travel note no longer briefly shows an earlier note as you walk into the next area.**
+- **Missing pets, mounts and decor are in Special Loot:** the Raiding with Leashes pets in Molten Core, Blackwing Lair and Temple of Ahn'Qiraj, Drafty from the Conclave of Wind, Felsteel Annihilator from Mythic Archimonde, G.M.O.D. from Raid Finder Jaina, and the Everbloom Forest Floor from Yalnu.
+- **Twelve Legion dungeon weapons and shields are back in the transmog browser,** in Halls of Valor, Court of Stars, Neltharion's Lair, Black Rook Hold and Darkheart Thicket.
+
 ## [3.4.0] - 2026-10-28
 
 ### Added

@@ -37,7 +37,29 @@ RetroRuns_Data[1205] = {
     splitLootTables = true,
 
     tierSets = {
-        tokenSources = {},
+        tokenSources = {
+            [119305] = 5,  -- Chest of the Iron Conqueror
+            [119306] = 9,  -- Gauntlets of the Iron Conqueror
+            [119307] = 7,  -- Leggings of the Iron Conqueror
+            [119308] = 8,  -- Helm of the Iron Conqueror
+            [119309] = 6,  -- Shoulders of the Iron Conqueror
+            [119310] = 10,  -- Essence of the Iron Conqueror
+            [119311] = 9,  -- Gauntlets of the Iron Vanquisher
+            [119312] = 8,  -- Helm of the Iron Vanquisher
+            [119313] = 7,  -- Leggings of the Iron Vanquisher
+            [119314] = 6,  -- Shoulders of the Iron Vanquisher
+            [119315] = 5,  -- Chest of the Iron Vanquisher
+            [119316] = 10,  -- Essence of the Iron Vanquisher
+            [119318] = 5,  -- Chest of the Iron Protector
+            [119319] = 9,  -- Gauntlets of the Iron Protector
+            [119320] = 7,  -- Leggings of the Iron Protector
+            [119321] = 8,  -- Helm of the Iron Protector
+            [119322] = 6,  -- Shoulders of the Iron Protector
+            [119323] = 10,  -- Essence of the Iron Protector
+            [120277] = 10,  -- Essence of the Iron Conqueror
+            [120278] = 10,  -- Essence of the Iron Vanquisher
+            [120279] = 10,  -- Essence of the Iron Protector
+        },
     },
 
     skipQuests = {

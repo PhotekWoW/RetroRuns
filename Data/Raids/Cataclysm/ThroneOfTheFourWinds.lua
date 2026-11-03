@@ -77,6 +77,9 @@ RetroRuns_Data[754] = {
                 { id = 63491, slot = "Waist", name = "Thunder Wall Belt", sources = { [14]=31845, [15]=32909 } },
                 { id = 63493, slot = "Waist", name = "Wind Stalker Belt", sources = { [14]=31847, [15]=32910 } },
             },
+            specialLoot = {
+                { id = 152974, kind = "pet", name = "Drafty" },
+            },
             soloTip            = "Jump from West -> North -> East and kill them all within 60 seconds of eachother.",
         },
         {

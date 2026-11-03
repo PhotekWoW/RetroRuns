@@ -6,6 +6,133 @@
 
 RetroRuns_DungeonData = RetroRuns_DungeonData or {}
 
+-- The east door's route: General Xakal first.
+local eastRoute = {
+    -- 1. General Xakal (boss 3).
+    {
+        step      = 1,
+        priority  = 1,
+        bossIndex = 3,
+        title     = "General Xakal",
+        requires  = { },
+        segments  = {
+            {
+                when    = { mapID = 749 },
+                kind    = "path",
+                note    = "After zoning in, follow the eastern path to ^General Xakal^.",
+                minNote = "Eastern path to Xakal",
+                points  = {
+                    { 0.481, 0.269 },
+                    { 0.482, 0.323 },
+                    { 0.510, 0.339 },
+                    { 0.534, 0.361 },
+                    { 0.634, 0.360 },
+                    { 0.648, 0.285 },
+                    { 0.730, 0.286 },
+                    { 0.732, 0.468 },
+                },
+            },
+        },
+    },
+    -- 2. Nal'tira (boss 4).
+    {
+        step      = 2,
+        priority  = 1,
+        bossIndex = 4,
+        title     = "Nal'tira",
+        requires  = { },
+        segments  = {
+            {
+                when    = { mapID = 749 },
+                kind    = "path",
+                note    = "After defeating ^General Xakal^, backtrack north and follow the path around and south to ^Nal'tira^. Kill several waves of spiders and the boss will eventually drop from the ceiling.",
+                minNote = "Around and south to Nal'tira",
+                points  = {
+                    { 0.731, 0.451 },
+                    { 0.732, 0.286 },
+                    { 0.673, 0.285 },
+                    { 0.653, 0.293 },
+                    { 0.670, 0.348 },
+                    { 0.671, 0.447 },
+                    { 0.671, 0.536 },
+                    { 0.652, 0.616 },
+                    { 0.627, 0.692 },
+                },
+            },
+        },
+    },
+    -- 3. Corstilax (boss 2).
+    {
+        step      = 3,
+        priority  = 1,
+        bossIndex = 2,
+        title     = "Corstilax",
+        requires  = { },
+        segments  = {
+            {
+                when    = { mapID = 749 },
+                kind    = "path",
+                note    = "After defeating ^Nal'tira^, follow the path west to reach ^Corstilax^.",
+                minNote = "West to Corstilax",
+                points  = {
+                    { 0.592, 0.755 },
+                    { 0.481, 0.755 },
+                    { 0.480, 0.650 },
+                    { 0.438, 0.627 },
+                    { 0.402, 0.738 },
+                },
+            },
+        },
+    },
+    -- 4. Ivanyr (boss 1).
+    {
+        step      = 4,
+        priority  = 1,
+        bossIndex = 1,
+        title     = "Ivanyr",
+        requires  = { },
+        segments  = {
+            {
+                when    = { mapID = 749 },
+                kind    = "path",
+                note    = "After killing ^Corstilax^, exit northwest and follow the western path to ^Ivanyr^.",
+                minNote = "Exit northwest, follow path to Ivanyr",
+                points  = {
+                    { 0.386, 0.742 },
+                    { 0.381, 0.678 },
+                    { 0.355, 0.604 },
+                    { 0.191, 0.736 },
+                },
+            },
+        },
+    },
+    -- 5. Advisor Vandros (boss 5), once the first four are dead.
+    {
+        step      = 5,
+        priority  = 1,
+        bossIndex = 5,
+        title     = "Advisor Vandros",
+        requires  = { },
+        segments  = {
+            {
+                when    = { mapID = 749 },
+                kind    = "path",
+                note    = "After killing ^Ivanyr^, backtrack to the main hallway and go north. Follow the path to ^Advisor Vandros^.",
+                minNote = "Backtrack to main hallway, north to Vandros",
+                points  = {
+                    { 0.225, 0.707 },
+                    { 0.355, 0.604 },
+                    { 0.330, 0.534 },
+                    { 0.330, 0.501 },
+                    { 0.332, 0.361 },
+                    { 0.431, 0.361 },
+                    { 0.449, 0.362 },
+                },
+            },
+        },
+    },
+}
+
 RetroRuns_DungeonData[726] = {
     kind              = "dungeon",
     instanceID        = 1516,
@@ -16,6 +143,7 @@ RetroRuns_DungeonData[726] = {
     availableDifficulties = { 15, 16 },
     unsavedDifficulties = { 15 },
     patch             = "7.0.3",
+    routedIn          = "3.5.0",
 
     entrance = {
         mapID = 680,
@@ -121,6 +249,142 @@ RetroRuns_DungeonData[726] = {
                 { id = 134286, slot = "Shoulder", name = "Swordsinger's Shoulders", sources = { [15]=77567, [16]=77567 } },
                 { id = 137416, slot = "Waist", name = "Chain of Causal Links", sources = { [14]=79004, [15]=80157, [16]=79004 } },
                 { id = 137413, slot = "Waist", name = "Time-Breached Waistband", sources = { [14]=79000, [15]=80038, [16]=79000 } },
+            },
+        },
+    },
+
+    exitNote    = "Exit portal to the north",
+    minExitNote = "Exit portal to the north",
+
+    -- The open door picks the route: each layout is named by the locked-door
+    -- markers only it shows. A layout without its own routing runs this file's.
+    layoutMap = 749,
+    layouts = {
+        { key = "west", areaPois = { 5069, 5082, 5086, 5089 } },
+        { key = "east", areaPois = { 5071, 5072, 5081, 5085, 5088 }, routing = eastRoute },
+    },
+
+    routing = {
+        -- 1. Ivanyr (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Ivanyr",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 749 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the western path to ^Ivanyr^.",
+                    minNote = "Western path to Ivanyr",
+                    points  = {
+                        { 0.481, 0.269 },
+                        { 0.482, 0.323 },
+                        { 0.454, 0.339 },
+                        { 0.431, 0.361 },
+                        { 0.332, 0.361 },
+                        { 0.330, 0.501 },
+                        { 0.330, 0.534 },
+                        { 0.355, 0.604 },
+                        { 0.191, 0.736 },
+                    },
+                },
+            },
+        },
+        -- 2. Corstilax (boss 2).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Corstilax",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 749 },
+                    kind    = "path",
+                    note    = "After killing ^Ivanyr^, backtrack to the main hallway and go south to reach ^Corstilax^.",
+                    minNote = "Backtrack then south to Corstilax",
+                    points  = {
+                        { 0.225, 0.707 },
+                        { 0.355, 0.604 },
+                        { 0.381, 0.678 },
+                        { 0.386, 0.742 },
+                    },
+                },
+            },
+        },
+        -- 3. Nal'tira (boss 4).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Nal'tira",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 749 },
+                    kind    = "path",
+                    note    = "After defeating ^Corstilax^, follow the path east to reach ^Nal'tira^. Kill several waves of spiders and the boss will eventually drop from the ceiling.",
+                    minNote = "East to Nal'tira",
+                    points  = {
+                        { 0.402, 0.738 },
+                        { 0.438, 0.627 },
+                        { 0.480, 0.650 },
+                        { 0.481, 0.755 },
+                        { 0.592, 0.755 },
+                    },
+                },
+            },
+        },
+        -- 4. General Xakal (boss 3).
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "General Xakal",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 749 },
+                    kind    = "path",
+                    note    = "After defeating ^Nal'tira^, go north and follow the path around to ^General Xakal^.",
+                    minNote = "North path, around to Xakal",
+                    points  = {
+                        { 0.627, 0.692 },
+                        { 0.652, 0.616 },
+                        { 0.671, 0.536 },
+                        { 0.671, 0.447 },
+                        { 0.670, 0.348 },
+                        { 0.653, 0.293 },
+                        { 0.673, 0.285 },
+                        { 0.732, 0.286 },
+                        { 0.732, 0.468 },
+                    },
+                },
+            },
+        },
+        -- 5. Advisor Vandros (boss 5), once the first four are dead.
+        {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 5,
+            title     = "Advisor Vandros",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 749 },
+                    kind    = "path",
+                    note    = "After defeating ^General Xakal^, backtrack north then go west to reach the final boss, ^Advisor Vandros^.",
+                    minNote = "Backtrack north then west to Vandros",
+                    points  = {
+                        { 0.731, 0.451 },
+                        { 0.730, 0.286 },
+                        { 0.648, 0.285 },
+                        { 0.634, 0.360 },
+                        { 0.519, 0.362 },
+                    },
+                },
             },
         },
     },

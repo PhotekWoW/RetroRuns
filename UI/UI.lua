@@ -205,6 +205,8 @@ local function SetBodyFont(fs, baseSize, flags)
     fs:SetShadowOffset(1, -1)
     fs:SetShadowColor(0, 0, 0, 1)
 end
+UI.SetBodyFont = SetBodyFont
+UI.BODY_WIDTH = BODY_WIDTH
 
 -- Width of a FontString's whole text, even when its width cuts it short.
 function UI.FullStringWidth(fs)
@@ -218,6 +220,11 @@ end
 -- the user's body font the same way the panel does.
 function RR:GetBodyFont()
     return GetBodyFont()
+end
+
+-- The body font's render size for a base size, scaled for the active face.
+function RR:GetBodyFontSize(baseSize)
+    return GetBodyFontSize(baseSize)
 end
 
 -------------------------------------------------------------------------------
@@ -335,6 +342,36 @@ local achState
 local RefreshIdleList
 local PositionLegendDivider
 
+-- A sub-panel the player moved keeps its spot across logins, account-wide.
+-- Saved as its top-left in UIParent units, so a scale change cannot shift it.
+function UI.SaveWindowSpot(window)
+    local left, top = window:GetLeft(), window:GetTop()
+    if not (window.spotKey and left and top) then return end
+    local scale = window:GetScale()
+    RR:SetSetting(window.spotKey, { left = left * scale, top = top * scale })
+end
+
+function UI.RestoreWindowSpot(window)
+    local spot = window.spotKey and RR:GetSetting(window.spotKey)
+    if type(spot) ~= "table" or not spot.left or not spot.top then return end
+    local scale = window:GetScale()
+    window:ClearAllPoints()
+    window:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", spot.left / scale, spot.top / scale)
+    window.userPlaced = true
+end
+
+-- Reset All: every sub-panel goes back beside the panel.
+function UI.ForgetWindowSpots()
+    for _, key in ipairs({ "tmogSpot", "skipsSpot", "achievementsSpot" }) do
+        RR:SetSetting(key, nil)
+    end
+    for _, window in pairs({ tmog = tmogWindow, skips = skipsWindow,
+                             achievements = achievementsWindow }) do
+        window.userPlaced = nil
+        if window:IsShown() then UI.PlaceBesidePanel(window) end
+    end
+end
+
 -- Frame border via the engine's edgeFile nine-slice: a filmstrip of 8 slices
 -- (four edges, four corners) the engine repeats at any frame size.
 -- SetTextureSliceMargins silently no-ops on this client.
@@ -351,6 +388,7 @@ local function PanelBackdrop(edgeSize)
     }
 end
 UI.PanelBackdrop = PanelBackdrop
+UI.PANEL_EDGE_SIZE_FULL = PANEL_EDGE_SIZE_FULL
 
 -- The tooltip-style frame the auxiliary windows and the search results share.
 UI.TOOLTIP_BACKDROP = {
@@ -1022,6 +1060,7 @@ end
 
 -- The glass's "Search" tooltip, held back while its box is open: it anchors
 -- right, straight over the box, and would cover what the player is typing.
+-- Call after the glass's OnClick is set; the click hook clears the tooltip.
 function UI.SetSearchGlassTooltip(glass, box)
     glass:SetScript("OnEnter", function(self)
         if box:IsShown() then return end
@@ -1030,6 +1069,9 @@ function UI.SetSearchGlassTooltip(glass, box)
         GameTooltip:Show()
     end)
     glass:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    glass:HookScript("OnClick", function(self)
+        if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+    end)
 end
 
 -- Case-insensitive substring query against a search index (buildIndex
@@ -1218,8 +1260,10 @@ function UI.IsShowingInstanceList()
     return false
 end
 
+-- Inside an instance the glass searches its appearances, the End of Run
+-- Summary included; the instance list only shows outside.
 function UI.SearchOpensTransmog()
-    return not UI.IsShowingInstanceList()
+    return RR.currentRaid ~= nil or not UI.IsShowingInstanceList()
 end
 
 panel.searchButton:SetScript("OnClick", function()
@@ -1690,6 +1734,45 @@ end)
 panel.pillsHover:SetScript("OnLeave", function()
     GameTooltip:Hide()
 end)
+
+-- A one-pixel pink line breathing under the difficulty the player is in,
+-- peaking at 60% and dipping to a quarter, 1.4 s each way. A child of the
+-- hover frame, so it hides with the row when the panel minimizes.
+panel.pillsUnderline = panel.pillsHover:CreateTexture(nil, "ARTWORK")
+panel.pillsUnderline:SetColorTexture(C_PINK[1], C_PINK[2], C_PINK[3], 0.6)
+if panel.pillsUnderline.SetSnapToPixelGrid then
+    panel.pillsUnderline:SetSnapToPixelGrid(true)
+end
+panel.pillsUnderline:Hide()
+panel.pillsMeasure = panel:CreateFontString(nil, "ARTWORK")
+panel.pillsMeasure:Hide()
+
+-- Places the line under one pill of the centered row: prefix is the row's
+-- text before the pill, part the pill itself. No prefix hides it.
+function UI.PlacePillsUnderline(prefix, part)
+    local underline = panel.pillsUnderline
+    if not prefix or not part then
+        UI.SetBreathing(underline, false)
+        underline:Hide()
+        return
+    end
+    local measure = panel.pillsMeasure
+    SafeSetFont(measure, panel.pills:GetFont())
+    measure:SetText(prefix)
+    local prefixW = measure:GetStringWidth() or 0
+    measure:SetText(part)
+    local partW = measure:GetStringWidth() or 0
+    local textW = panel.pills:GetStringWidth() or 0
+    local inset = math.max(0, ((panel.pills:GetWidth() or textW) - textW) / 2)
+    underline:ClearAllPoints()
+    underline:SetPoint("TOPLEFT", panel.pills, "BOTTOMLEFT",
+        math.floor(inset + prefixW + 0.5), -1)
+    underline:SetWidth(math.max(1, math.floor(partW + 0.5)))
+    -- One physical pixel at whatever scale the panel is drawn.
+    underline:SetHeight(1 / (underline:GetEffectiveScale() or 1))
+    underline:Show()
+    UI.SetBreathing(underline, true, 0.4, 1.4)
+end
 
 -- Body content resumes at the left margin. The pills row above it is
 -- CENTERED in a full-width FontString, so chaining TOPLEFT off it would
@@ -3491,7 +3574,11 @@ do
     instanceLimit:SetScript("OnEnter", function() instanceLimit.label:SetTextColor(0.95, 0.95, 0.95) end)
     instanceLimit:SetScript("OnLeave", function() instanceLimit.label:SetTextColor(0.62, 0.62, 0.62) end)
     instanceLimit:SetScript("OnClick", function()
+        local inCombat = InCombatLockdown and InCombatLockdown()
         if UI.OpenSettingsToPicker then UI.OpenSettingsToPicker() end
+        -- Logged for /rr diag: the click landed, and whether settings opened.
+        RR:ZoneLog(("footer Instance Limit click: combat=%s settingsShown=%s"):format(
+            tostring(inCombat), tostring(SettingsPanel and SettingsPanel:IsShown())))
     end)
     instanceLimit:Hide()
 end
@@ -3675,8 +3762,9 @@ end
 -- panel._fontKey changed since its last render. Returns true when it did.
 function UI.RefitWindow(window, scale, opacity, forceRebuild)
     if not window then return false end
-    -- Scale first: the re-render's pixel snapping reads it.
-    window:SetScale(scale)
+    -- Scale first: the re-render's pixel snapping reads it. A window being
+    -- scaled by its corner keeps the scale the drag gave it.
+    if not window._scaleDrag then UI.ScaleGrips.SetScaleHoldingAnchor(window, scale) end
     local rebuilt = false
     if window:IsShown() and window.RefreshContent
        and (forceRebuild or window._fontKey ~= panel._fontKey) then
@@ -3698,7 +3786,8 @@ function UI.ApplySettings()
     if not RetroRunsDB then return end
 
     local scale = RR:GetSetting("windowScale", 1.0)
-    panel:SetScale(scale)
+    -- A corner drag owns the panel's scale until it lets go.
+    if not panel._scaleDrag then panel:SetScale(scale) end
 
     -- Any change to what text renders in -- typeface, size, scale, language --
     -- drops every content-keyed render cache, whichever path made it.
@@ -3711,6 +3800,7 @@ function UI.ApplySettings()
         if UI.InvalidateAchievementsCache then UI.InvalidateAchievementsCache() end
         if achievementsWindow then achievementsWindow.sessionMaxWidth = nil end
         if RR.RefreshToasterFonts then RR:RefreshToasterFonts() end
+        if UI.PickerBar then UI.PickerBar.Refresh() end
         -- A FontString's height can lag its SetFont by a frame; the list is
         -- rebuilt and the panel re-fitted once more on the next one.
         if not isFirstApply then
@@ -3770,15 +3860,16 @@ function UI.ApplySettings()
         end
     end
 
-    -- The aux windows take the panel's scale and opacity here; the settings
-    -- panel stays at 1.0x.
+    -- The aux windows take the panel's scale, times their own, and its
+    -- opacity here; the settings panel stays at 1.0x.
     local opacity = RR:GetSetting("panelOpacity", 1.0)
-    UI.RefitWindow(tmogWindow, scale, opacity)
-    if UI.RefitWindow(skipsWindow, scale, opacity,
+    local WindowScale = UI.ScaleGrips.WindowScale
+    UI.RefitWindow(tmogWindow, WindowScale("tmogScale"), opacity)
+    if UI.RefitWindow(skipsWindow, WindowScale("skipsScale"), opacity,
                       skipsWindow and skipsWindow._needsRebuild) then
         skipsWindow._needsRebuild = nil
     end
-    UI.RefitWindow(achievementsWindow, scale, opacity)
+    UI.RefitWindow(achievementsWindow, WindowScale("achievementsScale"), opacity)
 
     -- The main panel's interior fill is the backdrop bgFile; fade it via the
     -- backdrop color alpha (border stays full opacity for frame legibility).
@@ -3870,6 +3961,7 @@ local function ApplyBodyVisibility(visible)
     if panel.pillsHover then
         if visible then panel.pillsHover:Show() else panel.pillsHover:Hide() end
     end
+    if UI.SetRunSummaryVisible then UI.SetRunSummaryVisible(visible) end
     -- Hide-only: the idle-mode toggle line belongs to the plain-idle
     -- branch of UI.Update, which is the only code that shows it.
     -- Re-showing it here would leak it into non-idle states.
@@ -3995,6 +4087,8 @@ function UI.MinimizedBarRouteActive()
     if RR.IsActiveRouteComplete and RR:IsActiveRouteComplete() then
         return true
     end
+    -- Detecting a layout keeps the route form; its note row says so.
+    if RR.IsDetectingLayout and RR:IsDetectingLayout() then return true end
     local minNote = RR.GetActiveMinNote and RR:GetActiveMinNote() or nil
     if not (minNote and minNote ~= "") then return false end
     local _, total = RR:GetActiveRouteProgress()
@@ -4028,6 +4122,7 @@ local function ApplyTitleLayoutForState(minimized)
         -- art: the same test picks both, so text and frame always agree.
         local showNote = UI.MinimizedBarRouteActive()
         local minNote = RR.GetActiveMinNote and RR:GetActiveMinNote() or nil
+        local detecting = RR.IsDetectingLayout and RR:IsDetectingLayout()
 
         -- Run complete: no active step, so no minNote, but the player still
         -- needs the way out. The note row carries the short exit form, which
@@ -4035,7 +4130,7 @@ local function ApplyTitleLayoutForState(minimized)
         -- and the top line carries the completion banner in place of the
         -- boss label, which has no target to point at.
         local completeBanner
-        if showNote and not (minNote and minNote ~= "") then
+        if showNote and not detecting and not (minNote and minNote ~= "") then
             if RR:GetActiveWing() then
                 completeBanner = RR.L["|cff00ff00LFR Wing Complete!|r"]
             elseif (RR.state and RR.state.activeRouteVariant == "skip")
@@ -4074,6 +4169,9 @@ local function ApplyTitleLayoutForState(minimized)
                 -- Run complete: the top line carries the completion banner in
                 -- place of the boss label, which has no target to point at.
                 panel.titleRaidName:SetText(completeBanner)
+            elseif detecting then
+                -- No boss to name until the layout is read.
+                panel.titleRaidName:SetText("")
             elseif pos and total then
                 panel.titleRaidName:SetText(
                     ("%s %s%d/%d|r"):format(label or "", posColor, pos, total))
@@ -4084,7 +4182,8 @@ local function ApplyTitleLayoutForState(minimized)
                 * (completeBanner and UI.RR_TITLE_BANNER_SCALE or RR_TITLE_TAB_SCALE))
             panel.titleRaidName:Show()
 
-            panel.titleMinNote:SetText(minNote)
+            panel.titleMinNote:SetText(detecting
+                and UI.DetectingRouteText(panel.titleMinNote) or minNote)
             panel.titleMinNote:Show()
         else
             UI.ShowTitleWordmark()
@@ -4222,8 +4321,13 @@ function UI.ApplyMinimizedState()
     -- raid-name label, so the label's text and visibility must be current
     -- before LayoutMinbarArt runs.
     ApplyTitleLayoutForState(minimized)
+    -- The detecting dots follow whichever line carries the text.
+    local detecting = RR.IsDetectingLayout and RR:IsDetectingLayout()
+    UI.SetDetectDots(panel.next, detecting and not minimized)
+    UI.SetDetectDots(panel.titleMinNote, detecting and minimized)
     UI.RefreshMountStatus()
     ApplyBorderArtForState(minimized)
+    if UI.ScaleGrips then UI.ScaleGrips.Refresh(panel) end
 
     if minimized then
         -- Pin both edges: SetHeight and SetWidth on a CENTER-anchored frame
@@ -4343,6 +4447,13 @@ function UI.AutoSize()
         end
     end
 
+    -- (c) The End of Run Summary, as its renderer measured it.
+    local summaryShown = UI.RunSummaryShown and UI.RunSummaryShown()
+    if summaryShown then
+        listH = math.max(listH, (panel._runSummaryH or 0) + 8)
+        hasContent = true
+    end
+
     -- Skip the panel resize/re-anchor entirely while the panel is being
     -- dragged (see the OnDragStart note) or minimized; the drag-stop
     -- handler and ApplyMinimizedState re-run the layout pass. The
@@ -4355,7 +4466,9 @@ function UI.AutoSize()
         local buttonsTopFromBottom = BUTTON_Y + BUTTON_H  -- BUTTON_Y includes frame inset
         local isInRaidMode         = #panel.progressListLines > 0
         local footerReserve
-        if isInRaidMode then
+        if summaryShown then
+            footerReserve = buttonsTopFromBottom + 12
+        elseif isInRaidMode then
             -- In-raid reserve: button row plus a footnote line above it.
             local FOOTNOTE_RESERVE = GetBodyFontSize(10) + 12
             footerReserve = buttonsTopFromBottom + FOOTNOTE_RESERVE
@@ -4769,6 +4882,8 @@ local function BuildPillsText()
     local LOCK_GLYPH = " |TInterface\\PetBattles\\PetBattle-LockIcon:12:12:0:0|t"
 
     local parts = {}
+    -- The pill the player is in, without its lock glyph, for the underline.
+    local activeIndex, activeCore
 
     -- LFR pill first (easiest -> hardest ordering). LFR completion comes from
     -- the lockout bitfield, not C_RaidLocks like the other buckets, so it's
@@ -4785,6 +4900,7 @@ local function BuildPillsText()
             hex = PENDING_HEX
         end
         table.insert(parts, ("|cff%sLFR %d/%d|r"):format(hex, lfr.complete, lfr.total))
+        if RR:IsInLFR() then activeIndex, activeCore = #parts, parts[#parts] end
     end
 
     for _, p in ipairs(PILLS) do
@@ -4799,15 +4915,16 @@ local function BuildPillsText()
                 hex = PENDING_HEX
             end
             local lock = lockedBuckets[p.id] and LOCK_GLYPH or ""
+            local core
             if p.label then
-                table.insert(parts, ("|cff%s%s %d/%d|r%s"):format(
-                    hex, p.label, count.complete, count.total, lock))
+                core = ("|cff%s%s %d/%d|r"):format(hex, p.label, count.complete, count.total)
             else
                 -- Flexible with no committed difficulty yet: count only, no
                 -- N/H letter (asserting either would be inaccurate).
-                table.insert(parts, ("|cff%s%d/%d|r%s"):format(
-                    hex, count.complete, count.total, lock))
+                core = ("|cff%s%d/%d|r"):format(hex, count.complete, count.total)
             end
+            table.insert(parts, core .. lock)
+            if p.id == activeDiff then activeIndex, activeCore = #parts, core end
         end
     end
 
@@ -4818,6 +4935,12 @@ local function BuildPillsText()
     local text = bracketOpen
         .. table.concat(parts, sep)
         .. "|cff777777 ]|r"
+    -- Underlined only when the row offers more than one difficulty.
+    if activeIndex and #parts > 1 then
+        local prefix = bracketOpen .. table.concat(parts, sep, 1, activeIndex - 1)
+            .. (activeIndex > 1 and sep or "")
+        return text, prefix, activeCore
+    end
     return text
 end
 
@@ -5475,6 +5598,7 @@ local function ItemShape(item)
 
     return "perdiff"
 end
+UI.ItemShape = ItemShape
 
 -- `sources` (difficulty -> sourceID) folded to the strongest state any of
 -- them reaches for the item `ownerID`: collected > shared > missing.
@@ -6492,6 +6616,7 @@ local function FormatStatsFragment(needed, shared)
     return (RR.L["Missing"] .. " |c%s(%d)|r " .. RR.L["Shared"] .. " |c%s(%d)|r"):format(
         missingColor, needed, sharedColor, shared)
 end
+UI.FormatStatsFragment = FormatStatsFragment
 
 -- Main-panel transmog summary: header plus per-difficulty Missing/Shared
 -- counts, collapsing to "All appearances collected!" when every difficulty is
@@ -7499,7 +7624,7 @@ local function BuildSanctumLine(raid, boss)
             end
             -- Every spot filtered out leaves a bare heading, which reads as
             -- a broken hint rather than an absent one.
-            if #lines <= 2 then return nil end
+            if not emittedAnySpot then return nil end
             return table.concat(lines, "\n"), raid, nil, vendorInfo, "token",
                 hintInfo
         end
@@ -7641,6 +7766,11 @@ BuildTransmogDetail = function(stepOrCtx)
     -- scope covers every row.
     UI._suppressActiveDifficulty = not (RR.currentRaid and RR.currentRaid.bosses
         and RR.currentRaid.bosses[boss.index] == boss)
+    -- A raid whose class pieces form a class set, not numbered tier, labels
+    -- them "Set".
+    local labelRaid = stepOrCtx.raid or RR.currentRaid
+    UI._classSetLabels = (labelRaid and labelRaid.tierSets
+        and labelRaid.tierSets.classSets) == true
 
     -- Rows whose display name collides with another in this boss's loot -- the
     -- paired Warglaives of Azzinoth are the case: one main-hand, one off-hand,
@@ -7874,6 +8004,9 @@ BuildTransmogDetail = function(stepOrCtx)
         if sa ~= sb then return sa < sb end
         local pa, pb = bucketCount(a), bucketCount(b)
         if pa ~= pb then return pa < pb end
+        -- Rows with a vendor upgrade follow the plain drops as a block.
+        local ua, ub = a.upgrade ~= nil, b.upgrade ~= nil
+        if ua ~= ub then return ub end
         return (a.name or "") < (b.name or "")
     end
     table.sort(perDiffItems, CompareRegularRows)
@@ -8017,7 +8150,11 @@ BuildTransmogDetail = function(stepOrCtx)
                 -- White parentheses around the class-colored label, the
                 -- same frame the "(<Class>)" suffix uses.
                 local tierInner
-                if specIcons then
+                if UI._classSetLabels then
+                    tierInner = specIcons
+                        and (RR.L["%s Set %s"]):format(className, specIcons)
+                        or (RR.L["%s Set"]):format(className)
+                elseif specIcons then
                     tierInner = (RR.L["%s Tier %s"]):format(className, specIcons)
                 else
                     tierInner = (RR.L["%s Tier"]):format(className)
@@ -8246,8 +8383,9 @@ BuildTransmogDetail = function(stepOrCtx)
     local lastSignature
     for _, item in ipairs(perDiffLoot) do
         -- Separated on the raw difficulty set, so a folded row joins the
-        -- section it shares difficulties with rather than starting one.
-        local sig = rawSignature(item)
+        -- section it shares difficulties with rather than starting one;
+        -- upgrade rows close their section as a block of their own.
+        local sig = rawSignature(item) .. (item.upgrade and "+upgrade" or "")
         if lastSignature and sig ~= lastSignature then
             table.insert(mainRows, { kind = "blank" })
         end
@@ -8291,6 +8429,24 @@ BuildTransmogDetail = function(stepOrCtx)
 
     -- The browser passes the instance it is showing, which may not be the loaded one.
     local raid = stepOrCtx.raid or RR.currentRaid
+
+    -- Legend for rows carrying a vendor upgrade, closing the boss's own loot
+    -- on any boss that has one.
+    if raid and raid.lootNote and raid.lootNote.text then
+        local hasUpgradeRow = false
+        for _, item in ipairs(bossLoot) do
+            if item.upgrade then hasUpgradeRow = true break end
+        end
+        if hasUpgradeRow then
+            local noteText = UI.FillNoteGlyphs(RR.L[raid.lootNote.text])
+            if raid.lootNote.itemID then
+                noteText = noteText:gsub("{item}", UI.ItemLinkFor(raid.lootNote.itemID))
+            end
+            table.insert(mainRows, { kind = "blank" })
+            table.insert(mainRows, { kind = "text", soft = true,
+                text = ("|cff9d9d9d%s|r"):format(noteText) })
+        end
+    end
 
     -- Weapon-token section (Castle Nathria): each token slot with the
     -- classes its token families serve.
@@ -8467,7 +8623,17 @@ BuildTransmogDetail = function(stepOrCtx)
                     and #pilledRows > 0 then
                     table.insert(trashSectionRows, { kind = "blank" })
                 end
-                for _, item in ipairs(pilledRows) do EmitTrashRow(item) end
+                -- The upgrade rows split from the plain strips the same way.
+                local lastWasUpgrade
+                for _, item in ipairs(pilledRows) do
+                    local isUpgrade = item.upgrade ~= nil
+                    if blankBetweenShapes and lastWasUpgrade ~= nil
+                        and isUpgrade ~= lastWasUpgrade then
+                        table.insert(trashSectionRows, { kind = "blank" })
+                    end
+                    lastWasUpgrade = isUpgrade
+                    EmitTrashRow(item)
+                end
                 for _, item in ipairs(specialRows) do
                     table.insert(trashSectionRows, UI.SpecialTrashRow(item))
                 end
@@ -8727,9 +8893,11 @@ BuildTransmogDetail = function(stepOrCtx)
     -- The redemption hint belongs with the tier it explains, so it renders
     -- directly under the last tier row rather than at the foot of the
     -- list. Raids with no tier rows leave the marker out and the hint
-    -- falls back to the end of the list.
-    local placeUnderTrash = raid and raid.tokenVendors
-                            and raid.tokenVendors.below == "trash"
+    -- falls back to the end of the list. A raid may instead place it under
+    -- its trash (`below = "trash"`) or under each boss's own loot
+    -- (`below = "loot"`, which leaves every marker out).
+    local placeOutsideTier = raid and raid.tokenVendors
+                             and raid.tokenVendors.below ~= nil
     local firstTierIndex, lastTierIndex
     for index, row in ipairs(mainRows) do
         if row.isTier then
@@ -8787,7 +8955,7 @@ BuildTransmogDetail = function(stepOrCtx)
             if mainRows[index].kind == "item" then tierHasItems = true; break end
         end
         local afterTier = {}
-        if not placeUnderTrash then
+        if not placeOutsideTier then
             if tierHasItems then
                 table.insert(tierInfoRows, { kind = "sanctum" })
             else
@@ -9500,6 +9668,8 @@ GetOrCreateTmogWindow = function()
     tmogFrame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         self.userPlaced = true
+        -- Our own saved spot, not the client's per-character one.
+        self:SetUserPlaced(false)
         -- Re-anchor by the top-left corner so a later expand/collapse grows
         -- the window downward from a fixed top, not outward from its center.
         local left, top = self:GetLeft(), self:GetTop()
@@ -9507,11 +9677,15 @@ GetOrCreateTmogWindow = function()
             self:ClearAllPoints()
             self:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
         end
+        UI.SaveWindowSpot(self)
         UI.SnapProgressCells()
     end)
     tmogFrame:HookScript("OnShow", UI.SnapProgressCells)
     tmogFrame:SetClampedToScreen(true)
     tmogFrame:Hide()
+    UI.ScaleGrips.AttachSubPanel(tmogFrame, "tmogScale")
+    tmogFrame.spotKey = "tmogSpot"
+    UI.RestoreWindowSpot(tmogFrame)
 
 
     -- Item links in the window's own text (the footnote) click and hover.
@@ -11056,8 +11230,7 @@ function UI.OpenTransmogBrowser()
     -- the user's saved windowScale rather than rendering at the frame's
     -- construction-time default of 1.0. Skips and achievements apply scale
     -- at their open sites the same way.
-    local scale = RR:GetSetting("windowScale", 1.0)
-    window:SetScale(scale)
+    UI.ScaleGrips.SetScaleHoldingAnchor(window, UI.ScaleGrips.WindowScale("tmogScale"))
     -- Collapsible sections open collapsed, except the event rewards on the
     -- route that earns them.
     EnsureBrowserDefaults()
@@ -11948,10 +12121,15 @@ GetOrCreateSkipsWindow = function()
     skipsFrame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         self.userPlaced = true
+        self:SetUserPlaced(false)
+        UI.SaveWindowSpot(self)
     end)
     skipsFrame:SetClampedToScreen(true)
     skipsFrame:SetFrameStrata("HIGH")
     skipsFrame:Hide()
+    UI.ScaleGrips.AttachSubPanel(skipsFrame, "skipsScale")
+    skipsFrame.spotKey = "skipsSpot"
+    UI.RestoreWindowSpot(skipsFrame)
 
     -- The skip-detail frame is conceptually a child of this window (it
     -- opens from a row's [ i ] button). Hide it whenever this window
@@ -12052,8 +12230,7 @@ function UI.OpenSkipsWindow()
     -- Apply current settings (scale + font) before refreshing so the
     -- first visible state already matches the user's settings rather
     -- than rendering at default and then snapping to settings.
-    local scale = RR:GetSetting("windowScale", 1.0)
-    window:SetScale(scale)
+    UI.ScaleGrips.SetScaleHoldingAnchor(window, UI.ScaleGrips.WindowScale("skipsScale"))
     -- Re-arm the active-raid band flash: every open gets the flash even
     -- when the raid has not changed since the last one.
     window._raidFlashKey = nil
@@ -13533,13 +13710,16 @@ function UI.Update()
     local loaded = raid and RR.state.loadedRaidKey == RR:GetRaidContextKey()
     local step   = loaded and (RR.state.activeStep or RR:ComputeNextStep()
         or RR:GetHolidayPanelStep()) or nil
+    -- Only the run-complete branch below shows the summary.
+    if UI.HideRunSummary then UI.HideRunSummary() end
 
-    -- Footer left slot. In an active raid it shows the current route; when
-    -- idle it shows the author credit.
+    -- Footer left slot. While a run is being guided it shows the current
+    -- route; idle or once the run is complete it shows the author credit.
     if raid and loaded and RR:IsRouteStoodDownRun() then
         -- No route in a queued run, so no route to name.
         panel.credit:SetText("")
-    elseif raid and loaded then
+    elseif raid and loaded
+        and not (RR.IsActiveRouteComplete and RR:IsActiveRouteComplete()) then
         local routeLabel
         if RR:GetActiveWing() then
             -- An LFR wing route is active (overrides standard/skip, the same
@@ -13596,8 +13776,9 @@ function UI.Update()
         else
             panel.wingLine:SetText("")
         end
-        local pillsText = BuildPillsText()
+        local pillsText, activePrefix, activePill = BuildPillsText()
         panel.pills:SetText(pillsText)
+        UI.PlacePillsUnderline(activePrefix, activePill)
         -- Arm the lockout-info tooltip for every loaded raid: it names the
         -- raid's lockout system (shared / LFR-split / independent), which is
         -- useful before any kill commits a difficulty, not only when the
@@ -13642,6 +13823,14 @@ function UI.Update()
 
             -- Release any list widgets left over from a prior pass; nothing
             -- renders in their place.
+            UI.ReleaseIdleListWidgets()
+            ReleaseProgressListLines()
+            panel.listHeader:SetText("")
+        elseif step and RR:IsDetectingLayout() then
+            -- The run's layout is not on the map yet: say so, draw no route.
+            panel.next:SetText(UI.DetectingRouteText(panel.next))
+            UI.ClearRunNotes()
+            UI.ClearEncounterBlock()
             UI.ReleaseIdleListWidgets()
             ReleaseProgressListLines()
             panel.listHeader:SetText("")
@@ -14024,19 +14213,10 @@ function UI.Update()
                 UI.ReleaseIdleListWidgets()
                 UI.RenderBossProgressList()
             else
-                panel.listHeader:SetText(RR.L["|cff9d9d9dWhere to next:|r"])
+                panel.listHeader:SetText(RR.L["End of Run Summary"])
                 ReleaseProgressListLines()
-                -- Suggest more of what was just finished: a completed
-                -- dungeon offers dungeons, not the raid list. The toggle
-                -- is not on screen in this state, so the list has to pick
-                -- the sensible side itself; the choice carries into the
-                -- idle picker, where the toggle can change it.
-                if raid then
-                    RR.state = RR.state or {}
-                    RR.state.idleListMode = (raid.kind == "dungeon")
-                        and "dungeon" or "raid"
-                end
-                RefreshIdleList()
+                UI.ReleaseIdleListWidgets()
+                if UI.RenderRunSummary then UI.RenderRunSummary(raid) end
             end
         end
     else
@@ -14048,6 +14228,7 @@ function UI.Update()
         panel.raid:SetText("")
         panel.wingLine:SetText("")
         panel.pills:SetText("")
+        UI.PlacePillsUnderline(nil)
         if panel.pillsHover then panel.pillsHover._lockoutTip = false end
 
         if raid then
@@ -14535,10 +14716,10 @@ function UI.ShowSkipDetail(raid)
         detailFrame.rrSkipRaidID = raid and raid.instanceID or nil
     end
 
-    -- Apply the user's window scale before positioning so the cursor
+    -- Apply the Skips window's scale before positioning so the cursor
     -- math below uses the frame's final effective scale (mismatched
     -- scale would offset the anchor by the scale factor).
-    detailFrame:SetScale(RR:GetSetting("windowScale", 1.0))
+    detailFrame:SetScale(UI.ScaleGrips.WindowScale("skipsScale"))
 
     -- Position at the cursor, hanging down-and-right of the click point
     -- so the [ i ] button stays uncovered. GetCursorPosition returns
@@ -15441,12 +15622,17 @@ GetOrCreateAchievementsWindow = function()
     achFrame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         self.userPlaced = true
+        self:SetUserPlaced(false)
+        UI.SaveWindowSpot(self)
         UI.SnapProgressCells()
     end)
     achFrame:HookScript("OnShow", UI.SnapProgressCells)
     achFrame:SetClampedToScreen(true)
     achFrame:SetFrameStrata("HIGH")
     achFrame:Hide()
+    UI.ScaleGrips.AttachSubPanel(achFrame, "achievementsScale")
+    achFrame.spotKey = "achievementsSpot"
+    UI.RestoreWindowSpot(achFrame)
 
     -- Title plate
     local title = achFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -16422,8 +16608,7 @@ function UI.OpenAchievementsWindow()
     -- Apply current settings (scale + font) before refreshing so the first
     -- visible state already matches the user's settings rather than
     -- rendering at default and then snapping to settings.
-    local scale = RR:GetSetting("windowScale", 1.0)
-    window:SetScale(scale)
+    UI.ScaleGrips.SetScaleHoldingAnchor(window, UI.ScaleGrips.WindowScale("achievementsScale"))
     -- Re-arm the current-boss band flash: every open gets the flash even
     -- when the boss has not changed since the last one. The fingerprint
     -- cache must go with it, or the unchanged-rows short-circuit skips
@@ -16447,8 +16632,9 @@ end -- achievements do block
 -- Every pulse in the addon: one alpha swing from full down to lowAlpha (0.35
 -- unless given) and bounced back, halfPeriod seconds each way (0.8 unless
 -- given). Both are fixed when the animation is first built; a repaint never
--- restarts one already running.
-function UI.SetBreathing(region, on, lowAlpha, halfPeriod)
+-- restarts one already running. offset starts it that far into its first
+-- swing, so a row of regions can breathe as a wave.
+function UI.SetBreathing(region, on, lowAlpha, halfPeriod, offset)
     if not region then return end
     local anim = region.evenBreath
     if on then
@@ -16462,9 +16648,59 @@ function UI.SetBreathing(region, on, lowAlpha, halfPeriod)
             swing:SetSmoothing("IN_OUT")
             region.evenBreath = anim
         end
-        if not anim:IsPlaying() then anim:Play() end
+        if not anim:IsPlaying() then
+            if offset then anim:Play(false, offset) else anim:Play() end
+        end
     elseif anim and anim:IsPlaying() then
         anim:Stop()
+    end
+end
+
+-- "Detecting route" and its three dots. The text ends in a spacer as wide
+-- as the dots, and a FontString per dot sits over it, each on the shared
+-- breath and a beat behind the dot to its left.
+UI.DETECT_DOT_BEAT = 0.15
+
+function UI.DetectingRouteText(textString)
+    local dots = textString.detectDots
+    if not dots then
+        dots = {}
+        for index = 1, 3 do
+            dots[index] = textString:GetParent():CreateFontString(nil,
+                (textString:GetDrawLayer()))
+            dots[index]:Hide()
+        end
+        textString.detectDots = dots
+    end
+    local font, size, flags = textString:GetFont()
+    for _, dot in ipairs(dots) do
+        if font then SafeSetFont(dot, font, size, flags) end
+        dot:SetScale(textString:GetScale())
+        dot:SetShadowOffset(textString:GetShadowOffset())
+        dot:SetShadowColor(textString:GetShadowColor())
+        dot:SetText("|cffff9333.|r")
+    end
+    textString.detectDotW = dots[1]:GetStringWidth() or 0
+    textString.detectSpacerW = math.max(1, math.ceil(textString.detectDotW * 3))
+    return ("|cffff9333%s|r"):format(RR.L["Detecting route"])
+        .. RR.PillSpacer(textString.detectSpacerW)
+end
+
+-- Places the dots over their spacer and breathes them, or stops and hides them.
+function UI.SetDetectDots(textString, on)
+    local dots = textString and textString.detectDots
+    if not dots then return end
+    local dotW = textString.detectDotW or 0
+    local startX = (textString:GetStringWidth() or 0) - (textString.detectSpacerW or 0)
+    for index, dot in ipairs(dots) do
+        if on then
+            dot:ClearAllPoints()
+            dot:SetPoint("TOPLEFT", textString, "TOPLEFT", startX + (index - 1) * dotW, 0)
+            dot:Show()
+        else
+            dot:Hide()
+        end
+        UI.SetBreathing(dot, on, 0.2, 0.45, (3 - index) * UI.DETECT_DOT_BEAT)
     end
 end
 

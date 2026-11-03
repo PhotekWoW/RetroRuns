@@ -34,7 +34,7 @@ local CHECK_H       = 26
 local LABELED_H     = 44
 local SEG_FONT_SIZE = 15
 local SUB_INDENT    = 18
-local UNDERLINE_PIXELS = 2   -- physical pixels under the selected choice
+local UNDERLINE_PIXELS = 1   -- physical pixels under the selected choice
 local VALUE_X = 240   -- page-relative x for the value column. Sized to clear
                       -- the widest label, RR.L["Hide Blizzard Boss Banner:"] at 15pt
                       -- with its sub-indent. NOT offset by CONTENT_X since
@@ -326,8 +326,11 @@ local function AddSlider(page, label, minV, maxV, step, getValue, setValue, form
     local function SnapToStep(value) return math.floor((value / step) + 0.5) * step end
     -- A glide fires this every pixel; the setting changes only when the
     -- nearest step does.
-    local appliedValue
+    local appliedValue, refreshing
     slider:SetScript("OnValueChanged", function(_, value)
+        -- A refresh shows the saved value, which may sit between steps
+        -- (a corner drag saves whole percents); it never writes one back.
+        if refreshing then return end
         value = SnapToStep(value)
         if value == appliedValue then return end
         appliedValue = value
@@ -340,7 +343,10 @@ local function AddSlider(page, label, minV, maxV, step, getValue, setValue, form
     end)
     container.RR_Refresh = function()
         local value = getValue()
+        refreshing = true
         slider:SetValue(value)
+        refreshing = false
+        appliedValue = value
         refreshTitle(value)
     end
     controls[#controls + 1] = container
@@ -484,11 +490,12 @@ AddSlider(pageAppearance, RR.L["Font Size"], 10, RR.FONT_SIZE_MAX or 14, 1,
     end,
     function(value) return tostring(value) end)
 
-AddSlider(pageAppearance, RR.L["Window Scale"], 80, 130, 5,
+-- Same range as the corner grips; both hold the panel's top-left in place.
+AddSlider(pageAppearance, RR.L["Window Scale"],
+    UI.ScaleGrips.MIN_SCALE * 100, UI.ScaleGrips.MAX_SCALE * 100, 5,
     function() return math.floor((RR:GetSetting("windowScale", 1.0) * 100) + 0.5) end,
     function(value)
-        RR:SetSetting("windowScale", value / 100)
-        ApplyPanel()
+        UI.ScaleGrips.SetMainScale(value / 100)
     end,
     function(value) return string.format("%.2fx", value / 100) end)
 
@@ -1181,11 +1188,18 @@ AddToggle(pagePicker, RR.L["Show Missing Appearances:"], SUB_INDENT,
       hintTitle = RR.L["Show Missing Appearances"],
       hint = RR.L["Shows how many appearances each difficulty still has for you."] })
 
--- Instance Limit: the hourly count, then one row per instance entered in
--- the last hour, oldest first, each with the minutes until it frees.
+AddToggle(pagePicker, RR.L["Selection SFX:"], SUB_INDENT,
+    function() return RR:GetSetting("pickerSound", true) ~= false end,
+    function(value) RR:SetSetting("pickerSound", value) end,
+    { isOperable = PickerEnabled,
+      hintTitle = RR.L["Selection SFX"],
+      hint = RR.L["Plays a short sound when you switch difficulty."] })
+
+-- Instance Limit: the hourly count, then one numbered row per instance
+-- entered in the last hour, oldest first, each with the minutes until it frees.
 do
     local ROW_H, LIST_FONT_SIZE = 18, 13
-    local NAME_W, PLAYER_X = 230, 238
+    local NAME_X, NAME_W, PLAYER_X = 26, 230, 262
 
     pageCursor[pagePicker] = pageCursor[pagePicker] - 6
     AddGemDivider(pagePicker)
@@ -1208,8 +1222,11 @@ do
         if row then return row end
         local y = listTop - (index - 1) * ROW_H
         row = {}
+        -- Sized to its own text, right edge fixed, so "10." lines up under "9.".
+        row.number = NewText(pagePicker, LIST_FONT_SIZE, COLOR_DIM, ("%d."):format(index))
+        row.number:SetPoint("TOPRIGHT", pagePicker, "TOPLEFT", NAME_X - 6, y)
         row.name = NewText(pagePicker, LIST_FONT_SIZE, COLOR_LABEL)
-        row.name:SetPoint("TOPLEFT", 0, y)
+        row.name:SetPoint("TOPLEFT", NAME_X, y)
         row.name:SetWidth(NAME_W)
         row.name:SetJustifyH("LEFT")
         row.name:SetWordWrap(false)
@@ -1247,13 +1264,14 @@ do
             if player:sub(-#realmSuffix) == realmSuffix then
                 player = player:sub(1, -#realmSuffix - 1)
             end
-            row.player:SetText(player)
+            local classHex = UI.ClassHex and UI.ClassHex(entry.class)
+            row.player:SetText(classHex and ("|c%s%s|r"):format(classHex, player) or player)
             row.time:SetText(("%dm"):format(math.ceil(entry.secondsLeft / 60)))
-            row.name:Show(); row.player:Show(); row.time:Show()
+            row.number:Show(); row.name:Show(); row.player:Show(); row.time:Show()
         end
         for index = shown + 1, #listRows do
             local row = listRows[index]
-            row.name:Hide(); row.player:Hide(); row.time:Hide()
+            row.number:Hide(); row.name:Hide(); row.player:Hide(); row.time:Hide()
         end
     end
     UI.RefreshInstanceLimitList = RefreshInstanceLimitList
@@ -1400,6 +1418,7 @@ MakeTab(9, RR.L["Help"],        pageHelp,      false, false, 20)
 -- feature on or off.
 local RESET_DEFAULTS = {
     fontSize = 12, windowScale = 1.0, panelOpacity = 1.0,
+    tmogScale = 1.0, skipsScale = 1.0, achievementsScale = 1.0,
     bodyFontStyle = "standard", launchMode = "minimized", bossOrderMode = "rr",
     tmogDefaultClassFilter = "mine", showMinimap = true,
     toasterLootSummary = true, toasterReputationSummary = true,
@@ -1407,20 +1426,21 @@ local RESET_DEFAULTS = {
     toasterDuration = 5.0, toasterStayUntilClick = false,
     toasterHideBossBanner = true, toasterSound = true,
     mapPois = true, showCollectedRares = true, enhancedBossIcons = true,
-    pickerShowLockouts = true, pickerShowMissing = true,
+    pickerShowLockouts = true, pickerShowMissing = true, pickerSound = true,
     pickerScale = 1.0, pickerLocked = true, pickerAnchor = nil,
 }
 
 -- The settings each page owns, for Reset Here. Reset All takes them all.
 local PAGE_RESET_KEYS = {
     [pageGeneral]    = { "launchMode", "bossOrderMode", "tmogDefaultClassFilter", "showMinimap" },
-    [pageAppearance] = { "fontSize", "windowScale", "panelOpacity", "bodyFontStyle" },
+    [pageAppearance] = { "fontSize", "windowScale", "panelOpacity", "bodyFontStyle",
+                         "tmogScale", "skipsScale", "achievementsScale" },
     [pageToaster]    = { "toasterLootSummary", "toasterReputationSummary",
                          "toasterHideBossBanner", "toasterSound" },
     [pageCustomize]  = { "toasterScale", "toasterDuration", "toasterStayUntilClick",
                          "toasterLocked", "toasterAnchor" },
     [pageMap]        = { "mapPois", "showCollectedRares", "enhancedBossIcons" },
-    [pagePicker]     = { "pickerShowLockouts", "pickerShowMissing" },
+    [pagePicker]     = { "pickerShowLockouts", "pickerShowMissing", "pickerSound" },
     [pagePickerCustomize] = { "pickerScale", "pickerLocked", "pickerAnchor" },
 }
 
@@ -1486,6 +1506,8 @@ local function ResetKeys(keys)
         reset[key] = true
     end
 
+    -- The panel keeps its top-left corner through a scale reset.
+    if reset.windowScale then UI.ScaleGrips.SetMainScale(RESET_DEFAULTS.windowScale) end
     ApplyPanel()
     if UI.Update then UI.Update() end
     if reset.showMinimap and RR.minimapButton then
@@ -1519,6 +1541,7 @@ local function ResetAll()
     RR:SetSetting("panelY", 0)
     RR:SetSetting("panelAnchorSet", false)
     if RR.RestorePanelPosition then RR:RestorePanelPosition("reset-all") end
+    UI.ForgetWindowSpots()
     ApplyPanel()
 end
 
@@ -1618,6 +1641,11 @@ local function RefreshSampleToastFonts()
     end
 end
 RefreshSampleToastFontsRef = RefreshSampleToastFonts
+
+-- For changes made outside the window, such as a corner drag on the panel.
+function UI.RefreshSettingsControls()
+    if panel:IsShown() then RefreshAllControls() end
+end
 
 panel:SetScript("OnShow", function()
     RefreshAllControls()

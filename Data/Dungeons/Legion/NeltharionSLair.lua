@@ -16,6 +16,7 @@ RetroRuns_DungeonData[767] = {
     availableDifficulties = { 14, 15, 16 },
     patch             = "7.0.3",
     timewalking       = true,
+    routedIn          = "3.5.0",
 
     entrance = {
         mapID = 650,
@@ -48,6 +49,7 @@ RetroRuns_DungeonData[767] = {
                 { id = 137336, slot = "Chest", name = "Vest of Rupturing Diamonds", sources = { [14]=78936, [15]=80092, [16]=78936 } },
                 { id = 139105, slot = "Feet", name = "Rivermane Sandals", sources = { [14]=80444, [15]=80444, [16]=80444 } },
                 { id = 134427, slot = "Legs", name = "Riverrider Legwraps", sources = { [14]=78935, [15]=80016, [16]=78935 } },
+                { id = 205973, slot = "Ranged", name = "Rod of Crystalline Energies", sources = { [14]=187745, [15]=187745, [16]=187745 } },
                 { id = 139121, slot = "Shoulder", name = "Skyhorn Mantle", sources = { [14]=80457, [15]=80457, [16]=80457 } },
                 { id = 134481, slot = "Waist", name = "Boulderbuckle Strap", sources = { [14]=78941, [15]=80141, [16]=78941 } },
                 { id = 139095, slot = "Waist", name = "Greystone Belt", sources = { [14]=80437, [15]=80437, [16]=80437 } },
@@ -86,6 +88,7 @@ RetroRuns_DungeonData[767] = {
                 { id = 134416, slot = "Feet", name = "Offal Galoshes", sources = { [14]=78943, [15]=80005, [16]=78943 } },
                 { id = 137348, slot = "Hands", name = "Gauntlets of Innumerable Barbs", sources = { [14]=78945, [15]=80153, [16]=78945 } },
                 { id = 134511, slot = "Head", name = "Subterranean Horror Faceguard", sources = { [14]=78946, [15]=79953, [16]=78946 } },
+                { id = 205974, slot = "Off-hand", name = "Monstrous Gluttony", sources = { [14]=187746, [15]=187746, [16]=187746 } },
                 { id = 134458, slot = "Wrist", name = "Wristbands of Rousing Violence", sources = { [14]=78944, [15]=80083, [16]=78944 } },
             },
         },
@@ -108,11 +111,136 @@ RetroRuns_DungeonData[767] = {
                 { id = 134474, slot = "Legs", name = "Faultline Leggings", sources = { [14]=78952, [15]=80134, [16]=78952 } },
                 { id = 134154, slot = "Shoulder", name = "Steelgazer Hide Mantle", sources = { [14]=77465, [15]=77465, [16]=77465 } },
                 { id = 134517, slot = "Shoulder", name = "Tremorguard Pauldrons", sources = { [14]=78954, [15]=79959, [16]=78954 } },
+                { id = 205975, slot = "Two-Hand", name = "Hate-Sculpted Magma", sources = { [14]=187747, [15]=187747, [16]=187747 } },
                 { id = 134171, slot = "Waist", name = "Roggthread Cord", sources = { [14]=77475, [15]=77475, [16]=77475 } },
                 { id = 134455, slot = "Waist", name = "Sinister Ashfall Cord", sources = { [14]=78950, [15]=80080, [16]=78950 } },
             },
             specialLoot = {
                 { id = 245451, kind = "decor", name = "Thunder Totem Brazier", decorID = 1232 },
+            },
+        },
+    },
+
+    exitNote    = "None available",
+    minExitNote = "None available",
+
+    routing = {
+        -- 1. Rokmora (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Rokmora",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 731 },
+                    kind    = "path",
+                    note    = "After zoning in, jump into the hole. When you reach land, follow the linear path ahead until you reach ^Rokmora^.",
+                    minNote = "Follow linear path to Rokmora",
+                    points  = {
+                        { 0.849, 0.481 },
+                        { 0.831, 0.445 },
+                        { 0.798, 0.434 },
+                        { 0.724, 0.421 },
+                        { 0.724, 0.454 },
+                        { 0.702, 0.459 },
+                        { 0.679, 0.466 },
+                    },
+                },
+            },
+        },
+        -- 2. Ularogg Cragshaper (boss 2), down the river by barrel. Both legs
+        -- share one map, so the subzone tells them apart.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Ularogg Cragshaper",
+            requires  = { },
+            segments  = {
+                {
+                    when        = { mapID = 731, subZone = "The Lost Road" },
+                    kind        = "poi",
+                    note        = "After defeating ^Rokmora^, continue past him and click the ^Empty Barrel^ to be sent down the river.",
+                    minNote     = "Click Empty Barrel to reach next area",
+                    mapLabel    = "Click Empty Barrel",
+                    mapLabelPos = "above",
+                    points      = {
+                        { 0.706, 0.568 },
+                    },
+                },
+                {
+                    when    = { mapID = 731, subZone = "Broken Teeth" },
+                    kind    = "path",
+                    note    = "When you reach the other side, follow the path north until you reach ^Ularogg Cragshaper^.",
+                    minNote = "North to Ularogg",
+                    points  = {
+                        { 0.591, 0.847 },
+                        { 0.571, 0.814 },
+                        { 0.559, 0.791 },
+                        { 0.529, 0.770 },
+                        { 0.504, 0.743 },
+                        { 0.511, 0.723 },
+                        { 0.499, 0.695 },
+                        { 0.494, 0.625 },
+                        { 0.492, 0.600 },
+                        { 0.466, 0.626 },
+                        { 0.451, 0.625 },
+                        { 0.450, 0.591 },
+                    },
+                },
+            },
+        },
+        -- 3. Naraxas (boss 3).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Naraxas",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 731 },
+                    kind    = "path",
+                    note    = "After killing ^Ularogg Cragshaper^, continue north on the linear path to reach ^Naraxas^.",
+                    minNote = "North to Naraxas",
+                    points  = {
+                        { 0.427, 0.529 },
+                        { 0.427, 0.492 },
+                        { 0.447, 0.444 },
+                        { 0.456, 0.450 },
+                        { 0.465, 0.433 },
+                        { 0.467, 0.406 },
+                        { 0.460, 0.382 },
+                        { 0.468, 0.351 },
+                        { 0.440, 0.315 },
+                        { 0.413, 0.308 },
+                        { 0.336, 0.379 },
+                    },
+                },
+            },
+        },
+        -- 4. Dargrul the Underking (boss 4), down the hole past Naraxas.
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Dargrul the Underking",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 731 },
+                    kind    = "path",
+                    note    = "After defeating ^Naraxas^, jump in the hole to find his loot and to reach the next area. Continue ahead to reach the final boss, ^Dargrul the Underking^.",
+                    minNote = "Jump in hole and proceed to Dargrul",
+                    points  = {
+                        { 0.286, 0.435 },
+                        { 0.267, 0.482 },
+                        { 0.239, 0.505 },
+                        { 0.172, 0.631 },
+                    },
+                },
             },
         },
     },

@@ -16,6 +16,7 @@ RetroRuns_DungeonData[707] = {
     availableDifficulties = { 14, 15, 16 },
     patch             = "7.0.3",
     timewalking       = true,
+    routedIn          = "3.5.0",
 
     entrance = {
         mapID = 630,
@@ -127,6 +128,177 @@ RetroRuns_DungeonData[707] = {
                 { id = 137521, slot = "Shoulder", name = "Shoulderguards of Shunned Duty", sources = { [14]=79098, [15]=80172, [16]=79098 } },
                 { id = 137507, slot = "Waist", name = "Waistband of Spiritual Doom", sources = { [14]=79084, [15]=80052, [16]=79084 } },
                 { id = 137522, slot = "Wrist", name = "Bracers of Twisted Revelation", sources = { [14]=79099, [15]=80173, [16]=79099 } },
+            },
+        },
+    },
+
+    exitNote    = "After the dialog, talk to ^Drelanim Whisperwind^ to exit the instance.",
+    minExitNote = "Talk to Drelanim to exit",
+
+    routing = {
+        -- 1. Tirathon Saltheril (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Tirathon Saltheril",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 710 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the path west all the way to ^Tirathon Saltheril^. The boss will activate after the dialog completes.",
+                    minNote = "West to Tirathon",
+                    points  = {
+                        { 0.664, 0.774 },
+                        { 0.607, 0.774 },
+                        { 0.603, 0.729 },
+                        { 0.572, 0.702 },
+                        { 0.433, 0.702 },
+                        { 0.399, 0.727 },
+                        { 0.354, 0.777 },
+                        { 0.243, 0.777 },
+                        { 0.243, 0.605 },
+                    },
+                },
+            },
+        },
+        -- 2. Inquisitor Tormentorum (boss 2), on the floor below.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Inquisitor Tormentorum",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 710 },
+                    kind    = "path",
+                    note    = "After killing ^Tirathon Saltheril^, continue north and take down ^Foul Mother^ to open the locked door and ride the elevator down.",
+                    minNote = "North to ride elevator down",
+                    points  = {
+                        { 0.245, 0.509 },
+                        { 0.296, 0.446 },
+                        { 0.294, 0.328 },
+                        { 0.245, 0.293 },
+                        { 0.244, 0.242 },
+                    },
+                },
+                {
+                    -- Noteless, so the leg above keeps the pane.
+                    when            = { mapID = 710 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    mapLabel        = "Ride elevator down",
+                    mapLabelPos     = "above",
+                    points          = {
+                        { 0.243, 0.123 },
+                    },
+                },
+                {
+                    when    = { mapID = 711 },
+                    kind    = "path",
+                    note    = "After you ride the elevator down, you will find ^Inquisitor Tormentorum^ to your west.",
+                    minNote = "Inquisitor to west after elevator ride",
+                    points  = {
+                        { 0.437, 0.483 },
+                        { 0.372, 0.484 },
+                    },
+                },
+            },
+        },
+        -- 3. Ash'golm (boss 3).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Ash'golm",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 711 },
+                    kind    = "path",
+                    note    = "After defeating ^Inquisitor Tormentorum^, go south, killing ^Dreadlord Mendacius^ to open the locked door. Continue through the door to reach ^Ash'golm^.",
+                    minNote = "South to Ash'golm",
+                    points  = {
+                        { 0.468, 0.571 },
+                        { 0.468, 0.758 },
+                    },
+                },
+            },
+        },
+        -- 4. Glazer (boss 4).
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Glazer",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 711 },
+                    kind    = "path",
+                    note    = "After killing ^Ash'golm^, take the path to the east to reach ^Glazer^.",
+                    minNote = "East to Glazer",
+                    points  = {
+                        { 0.469, 0.735 },
+                        { 0.469, 0.635 },
+                        { 0.494, 0.635 },
+                        { 0.572, 0.522 },
+                        { 0.571, 0.480 },
+                        { 0.661, 0.483 },
+                    },
+                },
+            },
+        },
+        -- 5. Cordana Felsong (boss 5), on the lowest floor.
+        {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 5,
+            title     = "Cordana Felsong",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 711 },
+                    kind    = "path",
+                    note    = "After killing ^Glazer^, go all the way west and take the elevator down.",
+                    minNote = "West to ride elevator down",
+                    points  = {
+                        { 0.637, 0.482 },
+                        { 0.366, 0.483 },
+                    },
+                },
+                {
+                    -- Noteless, so the leg above keeps the pane.
+                    when            = { mapID = 711 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    mapLabel        = "Take elevator down",
+                    mapLabelPos     = "above",
+                    points          = {
+                        { 0.325, 0.484 },
+                    },
+                },
+                {
+                    when    = { mapID = 712 },
+                    kind    = "path",
+                    note    = "When you reach the bottom of the elevator, grab the ^Glowing Sentry^ and head south to reach ^Cordana Felsong^.",
+                    minNote = "Pick up Glowing Sentry and south to Cordana",
+                    points  = {
+                        { 0.529, 0.235 },
+                        { 0.549, 0.257 },
+                        { 0.552, 0.279 },
+                        { 0.534, 0.299 },
+                        { 0.503, 0.315 },
+                        { 0.507, 0.377 },
+                        { 0.511, 0.427 },
+                        { 0.501, 0.461 },
+                        { 0.502, 0.734 },
+                    },
+                },
             },
         },
     },

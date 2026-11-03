@@ -41,6 +41,8 @@ local M = {
     chatFilterInstalled = false,
     -- Window through which the appearance-collected line is suppressed.
     appearanceLineWindowUntil = 0,
+    -- Wall-clock seconds in which a suppression window opened.
+    appearanceSeconds = {},
 }
 
 -- How long after an appearance event the suppression window stays open.
@@ -1918,6 +1920,7 @@ local function OnDropEvent(_, event, ...)
         -- it (a pipeline bypass).
         T(("APPEARANCE-ARM  now=%.3f  windowUntil=%.3f")
             :format(nowT, M.appearanceLineWindowUntil))
+        M.MarkAppearanceSecond()
 
         local sourceID = ...
         if not sourceID then return end
@@ -2141,6 +2144,36 @@ local function InstallAddMessageGuard()
     T("AddMessageGuard installed on ChatFrame " .. table.concat(guarded, ","))
 end
 
+-- Marks the second for the Chattynator filter: a secret system line in the
+-- second a suppression window opened, or the next, stays hidden there.
+function M.MarkAppearanceSecond()
+    if M.enabled and LootSummaryOn() and time then
+        M.appearanceSeconds[time()] = true
+    end
+end
+
+local function ChattynatorAppearanceFilter(data)
+    local typeInfo = data and data.typeInfo
+    if not (typeInfo and typeInfo.event == "CHAT_MSG_SYSTEM") then return true end
+    if not (issecretvalue and issecretvalue(data.text)) then return true end
+    local stamp = data.timestamp
+    if type(stamp) ~= "number" then return true end
+    return not (M.appearanceSeconds[stamp] or M.appearanceSeconds[stamp - 1])
+end
+
+-- Gives the filter to every Chattynator tab. Adding it again is a no-op, so
+-- each activation also covers tabs opened since the last.
+local function InstallChattynatorFilter()
+    local api = Chattynator and Chattynator.API
+    if not (api and api.AddFilter and api.GetWindowsAndTabs) then return end
+    for windowIndex, tabs in ipairs(api.GetWindowsAndTabs()) do
+        for tabIndex in ipairs(tabs) do
+            api.AddFilter(ChattynatorAppearanceFilter, windowIndex, tabIndex)
+        end
+    end
+    T("Chattynator filter installed")
+end
+
 -- Flush the batch: reveal the toast cascade, print one consolidated chat line,
 -- and store the expansion list. Guarded against a double call.
 FlushBatch = function()
@@ -2258,19 +2291,15 @@ FlushBatch = function()
     if not LootSummaryOn() then return end
 
     -- Suppression floor: a collectible always warrants a line; vendor-grade
-    -- needs at least two items. For a lone vendor drop, re-emit Blizzard's
-    -- default loot line (the filter already swallowed the native one).
+    -- needs at least two items. A lone vendor drop prints one short line
+    -- of its own, "Loot: [Item]x3" (the filter already swallowed the
+    -- native one).
     if appCount == 0 and specialCount == 0 and #tokens == 0 and #vendor <= 1 then
         if #vendor == 1 then
             local entry = vendor[1]
-            local shownLink = QualityColoredLink(entry.link)
-            local line
-            if entry.qty and entry.qty > 1 and LOOT_ITEM_SELF_MULTIPLE then
-                line = LOOT_ITEM_SELF_MULTIPLE:format(shownLink, entry.qty)
-            elseif LOOT_ITEM_SELF then
-                line = LOOT_ITEM_SELF:format(shownLink)
-            else
-                line = "You receive loot: " .. shownLink .. "."
+            local line = RR.L["Loot:"] .. " " .. QualityColoredLink(entry.link)
+            if entry.qty and entry.qty > 1 then
+                line = line .. "x" .. entry.qty
             end
             -- Re-emit with the RR prefix, label tinted loot-green; the item
             -- link keeps its own quality color.
@@ -2506,6 +2535,7 @@ local function ParseFactionLine(msg)
     end
     return nil
 end
+RR.ParseFactionLine = ParseFactionLine
 
 local FlushReputation  -- forward declaration
 
@@ -2569,12 +2599,24 @@ function RR.FormatReputationSummaryLine(factionCount, viewID)
         .. ("  |cffffd100|Haddon:%s:vg:%d|h[" .. RR.L["view"] .. "]|h|r"):format(LINK_ADDON, viewID or 0)
 end
 
+-- One faction's gains on one short line: "Reputation: <faction> +58", the
+-- amount green, or red for a loss.
+local function SingleReputationLine(faction, amount)
+    return ("|cff4DCCFF%s|r |cffffffff%s|r |cff%s%+d|r"):format(RR.L["Reputation:"], faction,
+        (amount < 0) and "ff4040" or "00ff00", amount)
+end
+
 FlushReputation = function()
     local byFaction = Rep.batch
     Rep.batch = nil
     if not byFaction or not next(byFaction) then return end
     if not (M.enabled and RepSummaryOn()) then return end
     local rows = SortedReputationRows(byFaction)
+    -- A single faction prints on its own line; two or more summarize.
+    if #rows == 1 then
+        RR:Print(SingleReputationLine(rows[1].faction, rows[1].amount))
+        return
+    end
     EnsureLockout()
     local id = Summary.nextID
     Summary.nextID = id + 1
@@ -2704,6 +2746,7 @@ local function ActivateToaster()
     -- chatFilterInstalled: it's idempotent per frame and picks up any chat
     -- window created since the last pass.
     InstallAddMessageGuard()
+    InstallChattynatorFilter()
 
     M.enabled = true
     Suppressor.InstallGuard()

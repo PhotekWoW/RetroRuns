@@ -84,6 +84,9 @@ RetroRuns_Data[469] = {
                 { id = 16918, slot = "Wrist", name = "Netherwind Bindings", sources = { [14]=6982 }, classes = { 8 } },
                 { id = 16904, slot = "Wrist", name = "Stormrage Bracers", sources = { [14]=6968 }, classes = { 11 } },
             },
+            specialLoot = {
+                { id = 93036, kind = "pet", name = "Untamed Hatchling" },
+            },
         },
         {
             index              = 2,
@@ -128,6 +131,9 @@ RetroRuns_Data[469] = {
                 { id = 19373, slot = "Shoulder", name = "Black Brood Pauldrons", sources = { [14]=7682 } },
                 { id = 19351, slot = "Weapon", name = "Maladath, Runed Blade of the Black Flight", sources = { [14]=7662 } },
                 { id = 19374, slot = "Wrist", name = "Bracers of Arcane Accuracy", sources = { [14]=7683 } },
+            },
+            specialLoot = {
+                { id = 93037, kind = "pet", name = "Death Talon Whelpguard" },
             },
         },
         {
@@ -242,6 +248,9 @@ RetroRuns_Data[469] = {
                 { id = 19393, slot = "Waist", name = "Primalist's Linked Waistguard", sources = { [14]=7696 } },
                 { id = 19352, slot = "Weapon", name = "Chromatically Tempered Sword", sources = { [14]=7663 } },
                 { id = 19347, slot = "Weapon", name = "Claw of Chromaggus", sources = { [14]=7658 } },
+            },
+            specialLoot = {
+                { id = 93038, kind = "pet", name = "Chrominius" },
             },
         },
         {

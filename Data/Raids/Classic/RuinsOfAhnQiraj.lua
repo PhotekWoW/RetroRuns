@@ -31,6 +31,8 @@ RetroRuns_Data[509] = {
     },
 
     tierSets = {
+        -- Cenarion Circle class sets, not numbered tier: labeled "Set".
+        classSets = true,
         tokenSources = {
             [20885] = { 1, 2, 4, 5 },   -- Qiraji Martial Drape
             [20886] = { 3, 4, 5, 6 },   -- Qiraji Spiked Hilt
