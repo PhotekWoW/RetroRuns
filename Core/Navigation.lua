@@ -165,6 +165,8 @@ function RR:MarkBossKilledByEncounterID(encounterID)
             ):format(encounterID, boss.index, boss.name))
         end
         self:MarkBossKilled(boss)
+        -- A pool member its encounter names takes its slot now, not at loot.
+        self:AssignPoolSlot(boss.index)
         -- Two boss rows can share ONE explicit dungeonEncounterID when a
         -- single fight ends both -- Scarlet Monastery of Old's Mograine
         -- and Whitemane. GetBossByEncounterID returns the first match, so
@@ -737,6 +739,8 @@ function RR:ClearSpawnPicks()
     self.state.spawnedMember = nil
     self.state.spawnEarlierPicks = nil
     self.state.spawnOption = nil
+    self.state.spawnByElimination = nil
+    self.state.spawnEliminationCountdown = nil
 end
 
 function RR:SetSpawnedMember(bossIndex)
@@ -750,6 +754,7 @@ function RR:SetSpawnedMember(bossIndex)
         table.insert(self.state.spawnEarlierPicks, previous)
     end
     self.state.spawnedMember = bossIndex
+    self.state.spawnByElimination = nil
     if self.ZoneLog then
         self:ZoneLog(("spawnChoice: bossIndex %d spawned"):format(bossIndex))
     end
@@ -790,7 +795,10 @@ end
 -- only as the speaker.
 function RR:DetectSpawnFromDialog(sender, text)
     local choice = self.currentRaid and self.currentRaid.spawnChoice
-    if not choice or not self:IsSpawnChoiceOpen() then return false end
+    -- A member named by elimination gives way to one that names itself.
+    local eliminated = self.state.spawnByElimination and self.state.spawnedMember
+    if not choice or not (self:IsSpawnChoiceOpen()
+        or (eliminated and not self:IsBossKilled(eliminated))) then return false end
     for _, memberIndex in ipairs(choice) do
         local boss = self:GetBossByIndex(memberIndex)
         if boss then
@@ -808,6 +816,36 @@ function RR:DetectSpawnFromDialog(sender, text)
         end
     end
     return false
+end
+
+-- A set where one member never names itself (`spawnChoice.byElimination`):
+-- once the cue is heard, a set still unnamed after the wait is that
+-- member's. One that names itself afterwards still takes over.
+function RR:StartSpawnElimination(sender, text)
+    local raid = self.currentRaid
+    local rule = raid and raid.spawnChoice and raid.spawnChoice.byElimination
+    if not (rule and rule.dialog and rule.member and self.DialogHeard) then return false end
+    if not self:IsSpawnChoiceOpen() then return false end
+    if not self.DialogHeard(rule.dialog, { npc = sender, text = text }) then return false end
+    local wait = rule.seconds or 15
+    local countdown = {}
+    self.state.spawnEliminationCountdown = countdown
+    if self.ZoneLog then
+        self:ZoneLog(("spawnChoice: cue heard, bossIndex %d by elimination in %ds"):format(rule.member, wait))
+    end
+    C_Timer.After(wait, function()
+        if self.state.spawnEliminationCountdown ~= countdown then return end
+        self.state.spawnEliminationCountdown = nil
+        if self.currentRaid ~= raid or not self:IsSpawnChoiceOpen() then return end
+        if self.ZoneLog then
+            self:ZoneLog(("spawnChoice: nothing named in %ds -> bossIndex %d by elimination")
+                :format(wait, rule.member))
+        end
+        if self:SetSpawnedMember(rule.member) then
+            self.state.spawnByElimination = true
+        end
+    end)
+    return true
 end
 
 -- The member whose shrine has this name (`spawnChoice.shrines`), matched
@@ -872,21 +910,6 @@ function RR:DetectSpawnFromGossip()
     return false
 end
 
--- True when the pool's members share a real lockout encounter, so the
--- encounter count already covers the slots.
-function RR:PoolMembersCarryEncounters(raid)
-    local pool = raid and raid.bossPool
-    if not pool then return false end
-    for _, memberIndex in ipairs(pool.members or {}) do
-        for _, boss in ipairs(raid.bosses or {}) do
-            if boss.index == memberIndex and boss.dungeonEncounterID then
-                return true
-            end
-        end
-    end
-    return false
-end
-
 function RR:IsPoolMember(bossIndex)
     local pool = self:GetBossPool()
     if not pool then return false end
@@ -894,6 +917,12 @@ function RR:IsPoolMember(bossIndex)
         if memberIndex == bossIndex then return true end
     end
     return false
+end
+
+-- Empties the slots and their announcements; they share the kills' lifetime.
+function RR:ClearPoolSlots()
+    if self.state.poolSlotMembers then wipe(self.state.poolSlotMembers) end
+    if self.state.poolSlotAnnounced then wipe(self.state.poolSlotAnnounced) end
 end
 
 function RR:GetPoolSlotCount()
@@ -910,18 +939,20 @@ function RR:GetPoolSlotLabel(slotIndex)
 end
 
 -- A slot is complete once its criterion reports done or a member has been
--- credited to it; `member` is the boss the loot witness put there, nil
--- until the corpse is looted.
+-- credited to it; `member` is the boss its kill or corpse put there, and
+-- `announced` the one a herald named before the pull.
 function RR:GetPoolSlotState(slotIndex)
     local pool = self:GetBossPool()
     local criteriaID = pool and pool.slots and pool.slots[slotIndex]
     if not criteriaID then return nil end
     local member = self.state.poolSlotMembers
         and self.state.poolSlotMembers[slotIndex] or nil
+    local announced = self.state.poolSlotAnnounced
+        and self.state.poolSlotAnnounced[slotIndex] or nil
     local complete = member ~= nil
         or (self.IsScenarioCriterionComplete
             and self:IsScenarioCriterionComplete(criteriaID)) or false
-    return { complete = complete, member = member }
+    return { complete = complete, member = member, announced = announced }
 end
 
 function RR:CountCompletePoolSlots()
@@ -959,6 +990,45 @@ function RR:GetOpenPoolSlot()
         if slot and not slot.complete then return slotIndex end
     end
     return nil
+end
+
+-- The member a herald named for the open slot, while it is still alive.
+function RR:GetAnnouncedPoolMember()
+    local openSlot = self:GetOpenPoolSlot()
+    local announced = openSlot and self.state.poolSlotAnnounced
+        and self.state.poolSlotAnnounced[openSlot]
+    if announced and not self:IsBossKilled(announced) then return announced end
+    return nil
+end
+
+-- The pool member a herald's line names (`bossPool.announce`), or nil.
+function RR:PoolMemberForAnnouncement(sender, text)
+    local pool = self:GetBossPool()
+    if not (pool and pool.announce and self.DialogHeard) then return nil end
+    local heard = { npc = sender, text = text }
+    for _, entry in ipairs(pool.announce) do
+        if entry.dialog and self.DialogHeard(entry.dialog, heard) then
+            return entry.member
+        end
+    end
+    return nil
+end
+
+-- A herald naming the prisoner as its cell opens puts it on the open slot
+-- before the pull; its kill then seats it there.
+function RR:DetectPoolAnnouncement(sender, text)
+    local memberIndex = self:PoolMemberForAnnouncement(sender, text)
+    if not memberIndex or self:IsBossKilled(memberIndex) then return false end
+    local openSlot = self:GetOpenPoolSlot()
+    if not openSlot then return false end
+    self.state.poolSlotAnnounced = self.state.poolSlotAnnounced or {}
+    if self.state.poolSlotAnnounced[openSlot] == memberIndex then return false end
+    self.state.poolSlotAnnounced[openSlot] = memberIndex
+    if self.ZoneLog then
+        self:ZoneLog(("bossPool: slot %d announced -> bossIndex %d"):format(openSlot, memberIndex))
+    end
+    if self.RefreshAll then self:RefreshAll() end
+    return true
 end
 
 -- A slot as a boss: one row carrying every member's loot, achievements
@@ -1059,16 +1129,21 @@ function RR:GetPanelBoss(step)
     if not step then return nil end
     if step.holidayBoss then return self:GetHolidayBoss() end
     local openSlot = self:GetOpenPoolSlot()
-    if openSlot then return self:GetPoolSlotBoss(openSlot) end
+    if openSlot then
+        local announced = self:GetAnnouncedPoolMember()
+        return announced and self:GetBossByIndex(announced) or self:GetPoolSlotBoss(openSlot)
+    end
     if self:IsSpawnChoicePending() then return self:GetSpawnChoiceBoss() end
     return self:GetBossByIndex(step.bossIndex)
 end
 
 -- The member the transmog browser opens on while a slot is open: the
--- prisoner last looted, or the first member before any loot.
+-- prisoner announced for it, else the one last seated, else the first.
 function RR:GetPoolBrowseBossIndex()
     local pool = self:GetBossPool()
     if not pool then return nil end
+    local announced = self:GetAnnouncedPoolMember()
+    if announced then return announced end
     for slotIndex = self:GetPoolSlotCount(), 1, -1 do
         local member = self.state.poolSlotMembers
             and self.state.poolSlotMembers[slotIndex]
@@ -1125,7 +1200,7 @@ function RR:ClearBossState()
     wipe(self.state.bossPartialKills)
     wipe(self.state.bossesSkipped)
     if self.ResetRunStats then self:ResetRunStats() end
-    if self.state.poolSlotMembers then wipe(self.state.poolSlotMembers) end
+    self:ClearPoolSlots()
     self:ClearSpawnPicks()
     self:ClearCollectedSkips()
 end
@@ -1758,7 +1833,8 @@ function RR:GetProgressRows()
     for slotIndex = 1, self:GetPoolSlotCount() do
         local slot = self:GetPoolSlotState(slotIndex)
         local label = self:GetPoolSlotLabel(slotIndex)
-        local memberBoss = slot.member and self:GetBossByIndex(slot.member)
+        local named = slot.member or slot.announced
+        local memberBoss = named and self:GetBossByIndex(named)
         if memberBoss then
             label = label .. ": " .. self:GetLocalizedBossName(memberBoss)
         end
@@ -1918,9 +1994,9 @@ function RR:GetProgressRows()
             ignored = true
             heading = { cell = "pending", text = ("|cff9d9d9d%s|r |cff4f8f4f%s|r"):format(
                 label, RR.L["(ignored: fully collected)"]) }
-        elseif self:IsSpawnChoicePending() then
+        elseif self:IsSpawnChoicePending() and not poolActiveSlot then
             -- Any member could be next: the heading pulses until the spawn
-            -- is named.
+            -- is named, once no pool slot holds the arrow.
             heading = { cell = "pulsing", text = ("|cffffff00%s|r%s"):format(
                 label, optionalTag) }
         elseif activeMember and not poolActiveSlot then
@@ -2071,6 +2147,8 @@ local function DialogTriggerHandler(_, event, ...)
     end
 
     RR:DetectSpawnFromDialog(sender, text)
+    RR:StartSpawnElimination(sender, text)
+    RR:DetectPoolAnnouncement(sender, text)
 
     local step = RR.state and RR.state.activeStep
     if not step or not step.segments then

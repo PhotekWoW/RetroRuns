@@ -15,6 +15,41 @@ RetroRuns_DungeonData[777] = {
     difficultyModel   = "dungeonTiered",
     availableDifficulties = { 14, 15, 16 },
     patch             = "7.0.3",
+    routedIn          = "3.5.1",
+
+    -- Two of the six prisoners a run, one per stage objective. Lord Malgath
+    -- names each one as its cell opens.
+    bossPool = {
+        slotLabel = "Escaped Prisoner",
+        slots     = { 24858, 24859 },
+        members   = { 1, 2, 3, 4, 5, 6 },
+        announce  = {
+            { member = 1, dialog = { npc = "Lord Malgath", match = "wretched Abomination" } },
+            { member = 2, dialog = { npc = "Lord Malgath", match = "Shivermaw" } },
+            { member = 3, dialog = { { npc = "Lord Malgath", match = "Thal'ena" },
+                                     { npc = "Lord Malgath", match = "San'layn" } } },
+            { member = 4, dialog = { npc = "Lord Malgath", match = "Faceless One" } },
+            { member = 5, dialog = { { npc = "Lord Malgath", match = "darkest nightmares" },
+                                     { npc = "Lord Malgath", match = "bitterness in this gnome" } } },
+            { member = 6, dialog = { { npc = "Lord Malgath", match = "Crypt lords" },
+                                     { npc = "Lord Malgath", match = "Anub'esset" } } },
+        },
+    },
+
+    -- Sael'orn or Fel Lord Betrug, one a run, out when Lord Malgath dies.
+    -- The label heads the panel until then. Betrug names himself 7 s after
+    -- Malgath's death line and Sael'orn never does, so silence means her.
+    spawnChoice = {
+        7, 8, label = "Final Boss",
+        byElimination = {
+            member  = 7,
+            seconds = 8,
+            dialog  = {
+                { npc = "Lord Malgath", match = "sooner or later" },
+                { npc = "Lord Malgath", match = "I will not see the world" },
+            },
+        },
+    },
 
     entrance = {
         mapID = 627,
@@ -174,6 +209,72 @@ RetroRuns_DungeonData[777] = {
                 { id = 137455, slot = "Shoulder", name = "Spaulders of Tense Sinew", sources = { [14]=79051, [15]=80104, [16]=79051 } },
                 { id = 137456, slot = "Waist", name = "Belt of Mighty Links", sources = { [14]=79053, [15]=80162, [16]=79053 } },
                 { id = 134368, slot = "Wrist", name = "Felbat Leather Wristwraps", sources = { [14]=77629, [15]=77629, [16]=77629 } },
+            },
+        },
+    },
+
+    exitNote    = "None available",
+    minExitNote = "None available",
+
+    routing = {
+        -- 1. Sael'orn or Fel Lord Betrug (bosses 7-8). One step for the
+        -- whole event, from Sinclari to the final boss.
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = { 7, 8 },
+            title     = "Final Boss",
+            requires  = { },
+            segments  = {
+                {
+                    when            = { mapID = 732 },
+                    kind            = "poi",
+                    poiKind         = "talk",
+                    note            = "After zoning in, talk to ^Lieutenant Sinclari^ to begin the instance.",
+                    minNote         = "Talk to Sinclari to begin",
+                    mapLabel        = "Talk to Sinclari",
+                    completionCheck = true,
+                    points          = {
+                        { 0.529, 0.721 },
+                    },
+                },
+                {
+                    -- Sinclari locks the door once the event is running.
+                    when        = { mapID = 732 },
+                    kind        = "path",
+                    note        = "Clear portals until the Invasion Forces bar fills to spawn the first ^Escaped Prisoner^ at random.",
+                    minNote     = "Clear portals for boss",
+                    triggeredBy = { dialog = { npc = "Lieutenant Sinclari", match = "locking the door" } },
+                    points      = { },
+                },
+                {
+                    when        = { mapID = 732 },
+                    kind        = "path",
+                    note        = "Clear portals until the Invasion Forces bar fills again to spawn the second ^Escaped Prisoner^ at random.",
+                    minNote     = "Clear portals for boss",
+                    triggeredBy = { scenario = 24858 },
+                    points      = { },
+                },
+                {
+                    when        = { mapID = 732 },
+                    kind        = "path",
+                    note        = "Clear portals until ^Lord Malgath^ lands, then kill him to spawn the final boss.",
+                    minNote     = "Clear portals, kill Malgath",
+                    triggeredBy = { scenario = 24859 },
+                    points      = { },
+                },
+                {
+                    -- Either of Malgath's death lines.
+                    when        = { mapID = 732 },
+                    kind        = "path",
+                    note        = "Kill the final boss, ^Sael'orn^ or ^Fel Lord Betrug^, to complete the instance.",
+                    minNote     = "Kill the final boss",
+                    triggeredBy = { dialog = {
+                        { npc = "Lord Malgath", match = "sooner or later" },
+                        { npc = "Lord Malgath", match = "I will not see the world" },
+                    } },
+                    points      = { },
+                },
             },
         },
     },

@@ -16,6 +16,7 @@ RetroRuns_DungeonData[945] = {
     availableDifficulties = { 15, 16 },
     unsavedDifficulties = { 15 },
     patch             = "7.3.0",
+    routedIn          = "3.5.1",
 
     entrance = {
         mapID = 882,
@@ -102,6 +103,119 @@ RetroRuns_DungeonData[945] = {
             },
             specialLoot = {
                 { id = 241044, kind = "decor", name = "Argussian Crate", decorID = 926 },
+            },
+        },
+    },
+
+    exitNote    = "Click the nearby Void Portal to land by the entrance",
+    minExitNote = "Nearby Void Portal to entrance",
+
+    routing = {
+        -- 1. Zuraal the Ascended (boss 1), released by clearing the trash.
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Zuraal the Ascended",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 903 },
+                    kind    = "path",
+                    note    = "After zoning in, clear trash in front of you to release ^Zuraal the Ascended^.",
+                    minNote = "Clear trash for Zuraal",
+                    points  = {
+                        { 0.221, 0.856 },
+                        { 0.222, 0.820 },
+                        { 0.237, 0.761 },
+                    },
+                },
+            },
+        },
+        -- 2. Saprish (boss 2), after the four void rifts.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Saprish",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 903 },
+                    kind    = "path",
+                    note    = "After killing ^Zuraal^, follow ^Alleria Windrunner^ north and jump into the next area. Find and clear (4) void rifts. They are marked with yellow dots on the minimap.",
+                    minNote = "Clear 4 void rifts",
+                    points  = {
+                        { 0.243, 0.688 },
+                        { 0.267, 0.549 },
+                    },
+                },
+                -- One marker per rift; the hover reads the rift counter.
+                {
+                    when           = { mapID = 903 },
+                    kind           = "poi",
+                    markAllPoints  = true,
+                    poiIcon        = "Interface\\AddOns\\RetroRuns\\Media\\Icons\\QuestMarker",
+                    poiSize        = 18,
+                    markHint       = "Void Rifts Closed %d/%d",
+                    markHintWidget = 7577,
+                    markHintTotal  = 4,
+                    points         = {
+                        { 0.323, 0.387 },
+                        { 0.226, 0.540 },
+                        { 0.296, 0.540 },
+                        { 0.324, 0.684 },
+                    },
+                },
+                -- Opens once the rift counter reads 4/4.
+                {
+                    when        = { mapID = 903 },
+                    kind        = "path",
+                    note        = "With the void rifts taken care of, you will be able to defeat ^Saprish^.",
+                    minNote     = "Defeat Saprish",
+                    triggeredBy = { widget = 7577, value = 4 },
+                    points      = { },
+                },
+            },
+        },
+        -- 3. Viceroy Nezhar (boss 3), released by clearing the trash.
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "Viceroy Nezhar",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 903 },
+                    kind    = "path",
+                    note    = "After defeating ^Saprish^, go northeast and jump into the next area. Kill the two ^Grand Shadow-Weaver^s to activate ^Viceroy Nezhar^.",
+                    minNote = "Northeast to Viceroy",
+                    points  = {
+                        { 0.330, 0.352 },
+                        { 0.479, 0.180 },
+                    },
+                },
+            },
+        },
+        -- 4. L'ura (boss 4), in the building to the southeast.
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "L'ura",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 903 },
+                    kind    = "path",
+                    note    = "After killing ^Viceroy Nezhar^, enter the building to the southeast to reach the final boss, ^L'ura^.",
+                    minNote = "Find L'ura in building to southeast",
+                    points  = {
+                        { 0.532, 0.210 },
+                        { 0.584, 0.285 },
+                    },
+                },
             },
         },
     },

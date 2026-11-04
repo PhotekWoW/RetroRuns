@@ -1889,14 +1889,44 @@ panel.encounter.achievements.label:SetWordWrap(true)
 panel.encounter.achievements.label:SetNonSpaceWrap(true)
 -- Its links are wired with UI.WireItemLinks once that is defined, below.
 
+-- Opens the achievements window to an achievement, or toggles it with none.
+-- In combat the game blocks this, so the latest click waits for combat to end.
+function UI.ShowAchievement(achievementID, afterCombat)
+    if InCombatLockdown() then
+        local first = UI._achievementAfterCombat == nil
+        UI._achievementAfterCombat = { achievementID }
+        if not first then return end
+        RR:Print(RR.L["Achievements locked in combat"])
+        if not UI._achievementCombatFrame then
+            UI._achievementCombatFrame = CreateFrame("Frame")
+            UI._achievementCombatFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+            UI._achievementCombatFrame:SetScript("OnEvent", function()
+                local pending = UI._achievementAfterCombat
+                UI._achievementAfterCombat = nil
+                if pending then UI.ShowAchievement(pending[1], true) end
+            end)
+        end
+        return
+    end
+    if not AchievementFrame then AchievementFrame_LoadUI() end
+    if not achievementID then
+        -- A held click only opens; it never closes a window opened since.
+        if not (afterCombat and AchievementFrame and AchievementFrame:IsShown()) then
+            ToggleAchievementFrame()
+        end
+    elseif AchievementFrame and AchievementFrame_SelectAchievement then
+        if not AchievementFrame:IsShown() then ToggleAchievementFrame() end
+        AchievementFrame_SelectAchievement(achievementID, true)
+    end
+end
+
 -- Every link click in the addon. An achievement opens in the achievements
 -- window.
 function UI.OpenLink(link, text, button)
     -- The "None" row on bosses without achievements opens the achievements
     -- window, the same destination a real achievement link resolves to.
     if link == "rrachui" then
-        if not AchievementFrame then AchievementFrame_LoadUI() end
-        ToggleAchievementFrame()
+        UI.ShowAchievement(nil)
         return
     end
     local achievementID = tonumber(link and link:match("^achievement:(%d+)"))
@@ -1905,11 +1935,7 @@ function UI.OpenLink(link, text, button)
             ChatEdit_InsertLink(text)
             return
         end
-        if not AchievementFrame then AchievementFrame_LoadUI() end
-        if AchievementFrame and AchievementFrame_SelectAchievement then
-            if not AchievementFrame:IsShown() then ToggleAchievementFrame() end
-            AchievementFrame_SelectAchievement(achievementID, true)
-        end
+        UI.ShowAchievement(achievementID)
         return
     end
     -- Anything else: shift-click links it, ctrl-click previews it; a plain
@@ -6852,6 +6878,7 @@ local function BuildTransmogSummary(step)
     local cacheKey = tostring(RR.state.loadedRaidKey or "?")
         .. ":" .. tostring(step.bossIndex or "?")
         .. ":" .. tostring(RR:GetOpenPoolSlot() or "-")
+        .. ":" .. tostring(RR:GetAnnouncedPoolMember() or "-")
         .. ":" .. tostring(RR:IsSpawnChoicePending())
         .. ":" .. tostring(ActiveDifficulty() or "?")
         .. ":" .. tostring(RR:ActiveVariantKey())

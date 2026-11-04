@@ -269,6 +269,21 @@ local function RenderRunStats(raid, record)
         AddPair(RR.L["Run Length:"], Color(VALUE_HEX, SecondsToTime(seconds, false, false, 2)))
     end
 
+    -- The account's fastest clear here: green when this run set it, with the
+    -- holder named when it is another character.
+    local best = RR.RunHistory and RR.RunHistory.BestTime(raid,
+        record and record.difficultyID or RR.state.currentDifficultyID)
+    if best then
+        local value = Color((best.mine and record and record.newBest) and GREEN_HEX or VALUE_HEX,
+            SecondsToTime(best.seconds, false, false, 2))
+        if not best.mine then
+            local color = best.class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[best.class]
+            local name = color and color:WrapTextInColorCode(best.name) or best.name
+            value = value .. " " .. Color(GRAY_HEX, "(") .. name .. Color(GRAY_HEX, ")")
+        end
+        AddPair(RR.L["Best Time:"], value)
+    end
+
     local bucket = RR:FoldDifficulty(raid, RR.state.currentDifficultyID)
     local counts = RR:GetPerDifficultyKillCountsForRaid(raid)
     local count = bucket and counts and counts[bucket]
@@ -290,21 +305,10 @@ local function RenderRunStats(raid, record)
         end
     end
 
-    local total, rows, characters = RR:GetTimesRun(raid)
-    if total then
-        local fs = AddPair(RR.L["Times Run:"], Color(VALUE_HEX, BreakUpLargeNumbers(total)))
-        AddHover(fs, rowWidth, fs:GetStringHeight(), function(tip)
-            GameTooltip_SetTitle(tip, RR:GetLocalizedRaidName(raid) or raid.name)
-            -- Characters with no runs here are only counted, not listed.
-            for _, row in ipairs(rows) do
-                if row.count > 0 then
-                    local color = row.class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[row.class]
-                    local name = color and color:WrapTextInColorCode(row.name or "?") or (row.name or "?")
-                    tip:AddDoubleLine(name, BreakUpLargeNumbers(row.count), 1, 1, 1, 1, 1, 1)
-                end
-            end
-            GameTooltip_AddNormalLine(tip, (RR.L["Characters counted: %d"]):format(characters))
-        end)
+    if record and record.gold then
+        local value = record.gold > 0 and Color(VALUE_HEX, GetMoneyString(record.gold, true))
+            or Color(GRAY_HEX, RR.L["None"])
+        AddPair(RR.L["Gold Looted:"], value)
     end
 end
 
@@ -312,9 +316,21 @@ end
 -- Reputation Gained
 -------------------------------------------------------------------------------
 
-local function StandingLabel(reaction)
-    return GetText("FACTION_STANDING_LABEL" .. tostring(reaction), UnitSex("player"))
+-- Where each standing begins, Hated through Exalted.
+local REACTION_FLOORS = { -42000, -6000, -3000, 0, 3000, 9000, 21000, 42000 }
+
+local function StandingLabel(reaction, sex)
+    return GetText("FACTION_STANDING_LABEL" .. tostring(reaction), sex or UnitSex("player"))
         or tostring(reaction)
+end
+
+-- The standing label for a raw reputation value.
+local function LabelForStanding(standing, sex)
+    local reaction = 1
+    for index, threshold in ipairs(REACTION_FLOORS) do
+        if standing >= threshold then reaction = index end
+    end
+    return StandingLabel(reaction, sex)
 end
 
 -- Label, progress into the current standing, its span, and the label
@@ -413,6 +429,15 @@ local function AddReputationRow(row)
         if span and span > 1 then
             GameTooltip_AddHighlightLine(tip, ("%s / %s"):format(
                 BreakUpLargeNumbers(into), BreakUpLargeNumbers(span)))
+        end
+        -- Another character further along with this character-only faction.
+        local highest = not row.accountWide and row.data and RR.GetHighestReputation
+            and RR:GetHighestReputation(row.factionID)
+        if highest and highest.standing > (row.data.currentStanding or 0) then
+            local color = highest.class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[highest.class]
+            local name = color and color:WrapTextInColorCode(highest.name) or highest.name
+            GameTooltip_AddNormalLine(tip, (RR.L["Warband leader: %s (%s)"]):format(
+                name, LabelForStanding(highest.standing, highest.sex)))
         end
     end)
     cursor = cursor - math.max(lineHeight, BAR_HEIGHT) - LINE_GAP
@@ -577,7 +602,7 @@ local function RenderAppearances(raid, record)
     end
     -- Other difficulties count only the looks this one cannot drop; with
     -- none still owed there, the current count stands alone on one line,
-    -- or the Picker's "Nothing Left to Collect" once it is zero.
+    -- reading "None" once it is zero.
     local leftToCollect = Color(VALUE_HEX, RR.L["Left to Collect:"])
     if UI.InstanceLooks then
         local currentLooks, _, currentSeen = {}, nil, 0
@@ -590,7 +615,7 @@ local function RenderAppearances(raid, record)
         local needed, shared = CountLooks(currentLooks)
         if otherNeeded + otherShared == 0 then
             if currentSeen > 0 and needed + shared == 0 then
-                AddLine(Color(GREEN_HEX, RR.L["Nothing Left to Collect"]))
+                AddLine(leftToCollect .. " " .. Color(GREEN_HEX, RR.L["None"]))
             elseif currentSeen > 0 then
                 AddLine(leftToCollect .. " " .. UI.FormatStatsFragment(needed, shared))
             end
@@ -655,11 +680,12 @@ local function RenderSpecialLoot(raid, record)
         AddLine(Color(GREEN_HEX, (RR.L["Unlocked This Run (%d):"]):format(#unlocked)))
         for _, row in ipairs(unlocked) do AddSpecialLine(row, false) end
     end
+    local leftToCollect = Color(VALUE_HEX, RR.L["Left to Collect:"])
     if #missing == 0 then
-        AddLine(Color(GREEN_HEX, RR.L["Nothing Left to Collect"]))
+        AddLine(leftToCollect .. " " .. Color(GREEN_HEX, RR.L["None"]))
         return
     end
-    AddLine(Color(VALUE_HEX, RR.L["Left to Collect:"]))
+    AddLine(leftToCollect)
     for index, row in ipairs(missing) do
         if index > SPECIALS_MAX then
             AddLine(Color(GRAY_HEX, "+" .. (#missing - SPECIALS_MAX)), CONTENT_X + ROW_ICON + 6)

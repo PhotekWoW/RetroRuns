@@ -264,10 +264,11 @@ end
 
 -- Lays out `rows` and shows them against `owner`, to its right, or to its
 -- left with anchorLeft. A row is { text, right, color, header, wrap, cell,
--- indent } or { blank = true }; `wrap` rows do not widen the tooltip.
+-- indent } or { blank = true }; `wrap` rows do not widen the tooltip, so
+-- only a tooltip with one keeps the minimum width.
 local function ShowMapTip(owner, rows, anchorLeft)
     local tip = MapTip()
-    local contentW = MAP_TIP_MIN_W
+    local contentW, wraps = 0, false
     for index, row in ipairs(rows) do
         local line = MapTipLine(tip, index)
         local font = row.header and GameTooltipText or GameTooltipTextSmall
@@ -277,12 +278,14 @@ local function ShowMapTip(owner, rows, anchorLeft)
         line.right:SetText(row.right or "")
         line.textX = (row.indent or 0) + (row.cell and MAP_TIP_CELL + 4 or 0)
         line.rightW = row.right and line.right:GetUnboundedStringWidth() or 0
+        if row.wrap then wraps = true end
         if not row.blank and not row.wrap then
             local need = line.textX + line.left:GetUnboundedStringWidth()
                 + (line.rightW > 0 and line.rightW + 16 or 0)
             contentW = math.max(contentW, need)
         end
     end
+    if wraps then contentW = math.max(contentW, MAP_TIP_MIN_W) end
     contentW = math.min(math.ceil(contentW), MAP_TIP_MAX_W)
 
     local y = -MAP_TIP_PAD
@@ -555,10 +558,33 @@ local function MakePoiButton(parent)
     return btn
 end
 
+-- A counter marker's count and total. The step's gate on that counter says
+-- where it lands (0 counting down, the total counting up); before the
+-- counter appears the count sits at the other end.
+local function MarkCounterValue(seg, step)
+    local total = seg.markHintTotal or 0
+    local landed
+    for _, other in ipairs(step and step.segments or {}) do
+        local gate = other.triggeredBy
+        if gate and gate.widget and gate.widget == seg.markHintWidget then
+            landed = gate.value or 0
+            break
+        end
+    end
+    -- The counter can vanish once it has landed; the open gate says so.
+    if landed and RR.StepWidgetGateOpen and RR:StepWidgetGateOpen(step) then
+        return landed, total
+    end
+    local count = RR.ReadWidgetNumber and RR:ReadWidgetNumber(seg.markHintWidget)
+    if count == nil then
+        count = (landed and landed ~= 0) and 0 or total
+    end
+    return count, total
+end
+
 -- Tooltip for a route marker that carries a hint: the seg's line with the
 -- live count filled in, or for a boss's marker the boss and its loot as
--- the journal boss pins show them. A widget that is not up reads as
--- nothing killed.
+-- the journal boss pins show them.
 local function ShowMarkTooltip(btn)
     local seg = btn.hintSeg
     if not seg then return end
@@ -583,14 +609,8 @@ local function ShowMarkTooltip(btn)
         ShowMapTip(btn, rows)
         return
     end
-    local total = seg.markHintTotal or 0
-    local remaining = RR.ReadWidgetNumber and RR:ReadWidgetNumber(seg.markHintWidget)
-    if remaining == nil then remaining = total end
-    -- The counter can vanish once it has landed; the open gate says so.
-    if RR.StepWidgetGateOpen and RR:StepWidgetGateOpen(RR.state.activeStep) then
-        remaining = 0
-    end
-    ShowMapTip(btn, { { text = (RR.L[seg.markHint]):format(remaining, total),
+    local count, total = MarkCounterValue(seg, RR.state.activeStep)
+    ShowMapTip(btn, { { text = (RR.L[seg.markHint]):format(count, total),
         right = RETRO_MARK, header = true } })
 end
 

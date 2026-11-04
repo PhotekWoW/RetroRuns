@@ -26,6 +26,33 @@
 local RR = RetroRuns
 RR.WhatsNew = {
 {
+    version  = "3.5.1",
+    date     = "2026-11-04",
+    sections = {
+        {
+            heading = "Added",
+            bullets = {
+                "**Four more Legion dungeons are routed:** Seat of the Triumvirate, Cathedral of Eternal Night, Assault on Violet Hold and Eye of Azshara.",
+                "**The End of Run Summary remembers your characters' reputations.** Each login records reputations tied to dungeons/raids. This information is used to show you which of your characters has the highest reputation for a given instance, in case grinding reputation is your goal.",
+                "**The End of Run Summary shows your best time and the gold you looted.**",
+            },
+        },
+        {
+            heading = "Changed",
+            bullets = {
+                "**The End of Run Summary no longer shows how many times you've cleared an instance.** The data offered through Statistics was flimsy at best, and completely wrong in many cases. May revisit in the future if Blizzard ever cleans up Statistics!",
+            },
+        },
+        {
+            heading = "Fixed",
+            bullets = {
+                "**Chat lines show their own colors after the RR: prefix** instead of picking up its cyan, so the Toaster's \"Loot:\" reads green again.",
+                "**Short map marker tooltips fit their text** instead of stretching it across a wide blank gap.",
+            },
+        },
+    },
+},
+{
     version  = "3.5.0",
     date     = "2026-11-02",
     sections = {
@@ -150,34 +177,6 @@ RR.WhatsNew = {
             bullets = {
                 "**A loot toast shows the drop's real quality color** when its new appearance registers before the loot itself; a blue legacy drop no longer toasts purple.",
                 "**Picking a Dire Maul wing from the search no longer flashes Capital Gardens first.**",
-            },
-        },
-    },
-},
-{
-    version  = "3.3.5",
-    date     = "2026-10-14",
-    sections = {
-        {
-            heading = "Added",
-            bullets = {
-                "**Two more Cataclysm dungeons.** Deadmines and Zul'Gurub. Zul'Gurub's Cache of Madness is on the route only if you have Archaeology, and its recipe vendor is marked on the map.",
-            },
-        },
-        {
-            heading = "Changed",
-            bullets = {
-                "**Optional bosses now skip themselves once you've collected everything they drop**: Valithria Dreamwalker, Viscidus, Phalanx, Urok Doomhowl, Yor, Grubbis and Cho'Rush the Observer.",
-                "**Boss Progress groups bosses where only one of the set appears under one heading.** Trial of the Champion's Eadric and Paletress sit under \"Argent Champion\", and Zul'Gurub's four Cache of Madness bosses under theirs. Once the fight shows which one you got, the others are marked unavailable.",
-                "**Grim Batol no longer lists the \"Umbrage for Umbriss\" achievement**, which Blizzard moved to Legacy.",
-            },
-        },
-        {
-            heading = "Fixed",
-            bullets = {
-                "**The travel note no longer stays on a boss you've already killed** when the game never reports the fight ending.",
-                "**Jumping to a dungeon from search now clears its expansion's NEW tag.**",
-                "**The Deadmines entrance marker now points at the portal inside the Moonbrook mine.**",
             },
         },
     },

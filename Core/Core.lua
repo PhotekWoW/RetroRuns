@@ -6,7 +6,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "3.5.0"
+local VERSION    = "3.5.1"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -43,8 +43,11 @@ RetroRuns = {
         -- Which pool member filled each slot of a bossPool instance, by
         -- slot number. Same lifetime as bossesKilled.
         poolSlotMembers       = {},   -- [slotIndex] = bossIndex
-        -- The spawnChoice member out now; nil until chat or a gossip names
-        -- it. spawnEarlierPicks and spawnOption sit beside it.
+        -- The member a herald named for each slot before its kill.
+        poolSlotAnnounced     = {},   -- [slotIndex] = bossIndex
+        -- The spawnChoice member out now; nil until chat, a gossip or
+        -- elimination names it. spawnEarlierPicks, spawnOption and
+        -- spawnByElimination sit beside it.
         spawnedMember         = nil,
         activeStep            = nil,
         testMode              = false,
@@ -160,7 +163,7 @@ end
 --- Prefixed chat output.
 function RR:Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(
-        "|cff4DCCFFR|cffF259C7R|r|cff7f7f7f:|r " .. tostring(msg))
+        "|cff4DCCFFR|cffF259C7R|r|cff7f7f7f:|r|r " .. tostring(msg))
 end
 
 -- Caret-span highlight color, shared. Proper nouns in authored prose and
@@ -1786,6 +1789,13 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
     for _, memberIndex in ipairs(choice or {}) do choiceMembers[memberIndex] = true end
     local pickLimit = choice and choice.picks or 1
 
+    -- A bossPool counts as its slots, never its members: Assault on Violet
+    -- Hold's six prisoners are two encounters of a clear.
+    local pool = raid.bossPool
+    local poolMembers = {}
+    for _, memberIndex in ipairs(pool and pool.members or {}) do poolMembers[memberIndex] = true end
+    local slotCount = pool and pool.slots and #pool.slots or 0
+
     for _, bucket in ipairs(self:GetDisplayBuckets(raid)) do
         local complete = 0
         local total    = 0
@@ -1807,7 +1817,8 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
             -- would put the clear permanently out of reach. It still lists.
             if self:BossAvailableInBucket(b, bucket)
                 and not self:IsBossKillUntracked(b)
-                and not choiceMembers[b.index] then
+                and not choiceMembers[b.index]
+                and not poolMembers[b.index] then
                 -- The encounter id comes from the data file, never from a
                 -- journal walk: selecting an instance in the journal costs
                 -- the client a long frame, and this runs for every listed
@@ -1847,12 +1858,25 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
                 end
             end
         end
-        -- A pool instance fills its slots from a roster whose members carry
-        -- no encounter of their own, so the slots are what the run counts.
-        -- Members that share a real encounter were counted above.
-        if raid.bossPool and raid.bossPool.slots
-            and not self:PoolMembersCarryEncounters(raid) then
-            total = total + #raid.bossPool.slots
+        -- The pool's slots, filled as far as the lockout flags members. The
+        -- Violet Hold's prisoners carry no encounter, so only the floor fills them.
+        if slotCount > 0 then
+            local flagged = 0
+            for _, b in ipairs(raid.bosses or {}) do
+                if poolMembers[b.index] and b.dungeonEncounterID
+                    and self:BossAvailableInBucket(b, bucket)
+                    and not self:IsBossKillUntracked(b)
+                    and not self:IsBossLockoutUnreliable(b) then
+                    for _, liveId in ipairs(liveIdsForBucket[bucket] or {}) do
+                        if C_RaidLocks.IsEncounterComplete(instanceID, b.dungeonEncounterID, liveId) then
+                            flagged = flagged + 1
+                            break
+                        end
+                    end
+                end
+            end
+            total = total + slotCount
+            complete = complete + math.min(slotCount, flagged)
         end
         -- The set's members as the lockout flags them; one kill can flag
         -- several, so the share flagged gives the picks made.
@@ -1913,6 +1937,7 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
                             or (b.dungeonEncounterIDs and b.dungeonEncounterIDs[1])
                         if self.state.bossesKilled[b.index]
                             and not self.state.bossesKilledViaPairOnly[b.index]
+                            and not poolMembers[b.index]
                             and self:BossAvailableInBucket(b, floorBucket)
                             and dungeonEncID
                             and not floorEncounters[dungeonEncID] then
@@ -1928,9 +1953,7 @@ function RR:GetPerDifficultyKillCountsForRaid(raid)
                     if choice then
                         localCount = localCount + math.min(pickLimit, memberKills)
                     end
-                    if not self:PoolMembersCarryEncounters(raid) then
-                        localCount = localCount + self:CountCompletePoolSlots()
-                    end
+                    localCount = localCount + self:CountCompletePoolSlots()
                     if localCount > result[floorBucket].complete then
                         result[floorBucket].complete = localCount
                     end
@@ -3103,6 +3126,7 @@ function RR:HandleLocationChange()
             wipe(self.state.bossesKilledViaPairOnly)
             wipe(self.state.bossPartialKills)
             wipe(self.state.bossesSkipped)
+            self:ClearPoolSlots()
             self:ClearSpawnPicks()
             if self.ResetRunStats then self:ResetRunStats() end
             -- The step pointer and the per-step segment progress are keyed
@@ -3195,6 +3219,7 @@ function RR:HandleLocationChange()
         wipe(self.state.bossesKilledViaPairOnly)
         wipe(self.state.bossPartialKills)
         wipe(self.state.bossesSkipped)
+        self:ClearPoolSlots()
         self:ClearSpawnPicks()
         if self.ResetRunStats then self:ResetRunStats() end
         self:ClearEnteredWing()

@@ -1714,6 +1714,17 @@ local function DialogLineMatches(dialogTrigger, eventData)
                         1, true) ~= nil
 end
 
+-- A `dialog` field against a heard line: one line, or any of a list.
+function RR.DialogHeard(dialogTrigger, eventData)
+    if dialogTrigger[1] then
+        for _, alternative in ipairs(dialogTrigger) do
+            if DialogLineMatches(alternative, eventData) then return true end
+        end
+        return false
+    end
+    return DialogLineMatches(dialogTrigger, eventData)
+end
+
 -- An instance may carry a second routing, `altRoute`, that the engine
 -- chooses on its own when the cue in `altRouteWhen` is heard: a dialog
 -- line, optionally only while an item is NOT in the bags. The Culling of
@@ -1901,14 +1912,7 @@ local function TriggerMatches(seg, event, eventData)
     if seg.triggeredBy.dialog then
         if event ~= "npc-dialog" then return false end
         if not eventData then return false end
-        local dialogTrigger = seg.triggeredBy.dialog
-        if dialogTrigger[1] then
-            for _, alternative in ipairs(dialogTrigger) do
-                if DialogLineMatches(alternative, eventData) then return true end
-            end
-            return false
-        end
-        return DialogLineMatches(dialogTrigger, eventData)
+        return RR.DialogHeard(seg.triggeredBy.dialog, eventData)
     end
 
     return false
@@ -2798,13 +2802,6 @@ function RR:BuildEngineProbeLines(opts)
             :format(sourceCount, specialCount, #gains > 0 and table.concat(gains, ", ") or "(none)"))
     else
         add("(none for this run)")
-    end
-    local timesRun, _, timesCharacters
-    if raid then timesRun, _, timesCharacters = self:GetTimesRun(raid) end
-    if timesRun then
-        add(("times run: %d across %d character(s); statistics: %s")
-            :format(timesRun, timesCharacters, tostring(RetroRuns_RunStatistics
-                and RetroRuns_RunStatistics[raid.journalInstanceID] and "yes" or "log")))
     end
 
     return lines

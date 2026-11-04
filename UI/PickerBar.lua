@@ -21,7 +21,7 @@ local LOCK_ASPECT = 22 / 27
 local LOCK_HEIGHT = 12
 local SELECT_SOUND = "Interface\\AddOns\\RetroRuns\\Media\\Sounds\\picker-select.ogg"
 
-local TITLE_SIZE  = 18
+local TITLE_SIZE  = 16
 local BUTTON_SIZE = 14
 local LINE_SIZE   = 12
 
@@ -625,6 +625,9 @@ local function Render(view)
         local row = AcquireRow(view, rowIndex)
         SetFont(row.title, TITLE_SIZE)
         row.title:SetTextColor(unpack(CYAN))
+        -- Bold look: a shadow in the text's own color, 1px to the right.
+        row.title:SetShadowColor(CYAN[1], CYAN[2], CYAN[3], 1)
+        row.title:SetShadowOffset(1, 0)
         row.title:SetText(RR:GetLocalizedRaidName(instance) or instance.name)
         row.title:Show()
         -- The expansion in the locale table's wording, as the browser shows it.

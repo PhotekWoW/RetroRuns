@@ -1,8 +1,8 @@
 -------------------------------------------------------------------------------
 -- RetroRuns -- RunHistory.lua
 -- Copyright (c) 2026 Chris Trost (Photek). All rights reserved. See LICENSE.
--- Times run per instance across every character, and the record of the run
--- in progress that the End of Run Summary reads.
+-- The character standing highest with each character-only reputation, and
+-- the record of the run in progress that the End of Run Summary reads.
 -------------------------------------------------------------------------------
 
 local RR = RetroRuns
@@ -10,22 +10,25 @@ local RR = RetroRuns
 local History = {}
 RR.RunHistory = History
 
--- Statistics can read as unloaded for a while after login.
+-- Reputations can read as unloaded for a while after login.
 local SCAN_DELAY, SCAN_RETRY, SCAN_TRIES = 5, 5, 24
 -- Run records left untouched this long are dropped.
 local RECORD_LIFETIME = 8 * 24 * 60 * 60
--- Seconds after a finish before the statistic is compared: an early look
--- that can only confirm the game counted the run, then the final one.
-local STAT_SETTLE, STAT_SETTLE_FINAL = 5, 30
+-- Faction ids are read from 1 up to this.
+local FACTION_ID_LIMIT = 4000
+-- The bottom of Hated.
+local REPUTATION_FLOOR = -42000
+-- Coin still counts this long after the loot window closes.
+local LOOT_GRACE = 1.5
 
 local function CharacterKey()
     return (UnitName("player") or "?") .. "-" .. (GetRealmName() or "?")
 end
 
--- learned: the game's statistics, per character. logged: the runs this
--- addon saw finish, per instance, character and difficulty, with those the
--- game's statistic missed counted apart. Kept separate; only the total
--- shown combines them.
+-- learned: each character's name, class and sex. highestReputation: per
+-- character, the character-only factions it stands highest with on the
+-- account. current: per character, the run in progress at each instance.
+-- bestTimes: per character, its fastest clear of each instance and difficulty.
 local function Store()
     RetroRunsDB = RetroRunsDB or {}
     local store = RetroRunsDB.runHistory
@@ -34,116 +37,137 @@ local function Store()
         RetroRunsDB.runHistory = store
     end
     store.learned = store.learned or {}
-    store.logged = store.logged or {}
     store.current = store.current or {}
+    store.highestReputation = store.highestReputation or {}
+    store.bestTimes = store.bestTimes or {}
     return store
 end
 
-local function SumValues(values)
-    local total = 0
-    for _, value in pairs(values or {}) do total = total + value end
-    return total
+-- Clears saved data nothing reads any more: kill statistics and the run log.
+function History.DropRetiredCounts()
+    local store = Store()
+    store.logged, store.recountedMisses = nil, nil
+    for _, character in pairs(store.learned) do character.statistics = nil end
+    for _, runs in pairs(store.current) do
+        for _, record in pairs(runs) do record.statAtStart, record.settled = nil, nil end
+    end
 end
 
--- A kill statistic as a number, or nil while the statistics have not loaded.
-local function ReadStatistic(statisticID)
-    local raw = GetStatistic and GetStatistic(statisticID)
-    if type(raw) == "boolean" then return nil end
-    if type(raw) == "number" then return raw end
-    if type(raw) ~= "string" then return 0 end
-    return tonumber((raw:gsub("%D", ""))) or 0
+-------------------------------------------------------------------------------
+-- Highest reputation across the account
+-------------------------------------------------------------------------------
+
+-- Off zero and above the bottom of Hated.
+local function Progressed(standing)
+    return standing ~= 0 and standing > REPUTATION_FLOOR
 end
 
--- Every mapped statistic for this character, or nil while any is unloaded.
-local function ReadAllStatistics()
-    local counts = {}
-    for _, statistics in pairs(RetroRuns_RunStatistics or {}) do
-        if statistics then
-            for _, statisticID in ipairs(statistics) do
-                local value = ReadStatistic(statisticID)
-                if value == nil then return nil end
-                counts[statisticID] = value
+local function IsFriendship(factionID)
+    local friend = C_GossipInfo and C_GossipInfo.GetFriendshipReputation
+        and C_GossipInfo.GetFriendshipReputation(factionID)
+    return friend and friend.friendshipFactionID and friend.friendshipFactionID > 0 or false
+end
+
+-- This character's standing with each character-only faction but its
+-- friendships, and the factions that read as account-wide.
+local function ReadCharacterReputation()
+    local standings, accountWide = {}, {}
+    if not (C_Reputation and C_Reputation.GetFactionDataByID) then return standings, accountWide end
+    for factionID = 1, FACTION_ID_LIMIT do
+        local data = C_Reputation.GetFactionDataByID(factionID)
+        if data and data.name and (data.isHeaderWithRep or not data.isHeader) then
+            local standing = data.currentStanding or 0
+            if data.isAccountWide then
+                accountWide[factionID] = true
+            elseif not (Progressed(standing) and IsFriendship(factionID)) then
+                standings[factionID] = standing
             end
         end
     end
-    return counts
+    return standings, accountWide
 end
 
-local function SumStatistics(counts, statistics)
-    local total = 0
-    for _, statisticID in ipairs(statistics) do
-        total = total + (counts[statisticID] or 0)
+-- Gives each faction to whichever character stands highest and returns how
+-- many of this character's entries changed and how many of those it took
+-- the lead on. A faction it did not read keeps its holder.
+function History.UpdateHighestReputation(highest, key, standings, accountWide)
+    local holderOf = {}
+    for holderKey, factions in pairs(highest) do
+        for factionID in pairs(factions) do holderOf[factionID] = holderKey end
     end
-    return total
-end
-
--- This character's statistics for one instance, read live; nil when the
--- instance has none or they have not loaded.
-local function OwnInstanceStatistic(journalID)
-    local statistics = RetroRuns_RunStatistics and RetroRuns_RunStatistics[journalID]
-    if not statistics then return nil end
-    local total = 0
-    for _, statisticID in ipairs(statistics) do
-        local value = ReadStatistic(statisticID)
-        if value == nil then return nil end
-        total = total + value
+    local function Release(factionID)
+        local holder = holderOf[factionID]
+        if holder then highest[holder][factionID] = nil end
     end
-    return total
+    for factionID in pairs(accountWide) do Release(factionID) end
+    highest[key] = highest[key] or {}
+    local changed, taken = 0, 0
+    for factionID, standing in pairs(standings) do
+        local holder = holderOf[factionID]
+        if holder == key then
+            local kept = Progressed(standing) and standing or nil
+            if kept ~= highest[key][factionID] then changed = changed + 1 end
+            highest[key][factionID] = kept
+        elseif Progressed(standing) and (not holder or standing > highest[holder][factionID]) then
+            Release(factionID)
+            highest[key][factionID] = standing
+            changed, taken = changed + 1, taken + 1
+        end
+    end
+    for holderKey, factions in pairs(highest) do
+        if next(factions) == nil then highest[holderKey] = nil end
+    end
+    return changed, taken
 end
 
--- This character's logged runs at one instance: runs and missed, each
--- keyed by difficulty.
-local function LoggedEntry(journalID)
+-- Records this character's standings (read now unless passed in), unless
+-- none have loaded. Returns how many it recorded (on its first capture,
+-- every one with progress; after, the entries that changed) and how many it
+-- took the lead on.
+function History.ScanReputation(standings, accountWide)
+    if not standings then standings, accountWide = ReadCharacterReputation() end
+    local captured = 0
+    for _, standing in pairs(standings) do
+        if Progressed(standing) then captured = captured + 1 end
+    end
+    if captured == 0 then return nil end
     local store = Store()
     local key = CharacterKey()
-    store.logged[journalID] = store.logged[journalID] or {}
-    local entry = store.logged[journalID][key]
-    if not entry then
-        local _, classToken = UnitClass("player")
-        entry = { name = UnitName("player"), class = classToken, runs = {}, missed = {} }
-        store.logged[journalID][key] = entry
+    local changed, taken = History.UpdateHighestReputation(store.highestReputation, key,
+        standings, accountWide)
+    local character = store.learned[key]
+    if character and not character.reputationCaptured then
+        character.reputationCaptured = true
+        changed = captured
     end
-    return entry
+    return changed, taken
 end
 
--- A finished run the game's statistic did not count (a difficulty it does
--- not track) is marked missed, so the total can add it. The statistic can
--- trail the kill, so only the final check marks a run missed.
-function History.SettleRun(record, journalID, final)
-    if not record or record.settled or not record.completedAt then return end
-    if not (RetroRuns_RunStatistics and RetroRuns_RunStatistics[journalID]) then
-        record.settled = true
-        return
+-- The other character standing highest with a character-only faction, as
+-- { name, class, sex, standing }; nil when none is recorded or it is this one.
+function RR:GetHighestReputation(factionID)
+    local store = Store()
+    for holderKey, factions in pairs(store.highestReputation) do
+        local standing = factions[factionID]
+        if standing then
+            if holderKey == CharacterKey() then return nil end
+            local character = store.learned[holderKey]
+            return {
+                name = character and character.name or holderKey:match("^[^-]+"),
+                class = character and character.class,
+                sex = character and character.sex,
+                standing = standing,
+            }
+        end
     end
-    local now = OwnInstanceStatistic(journalID)
-    if now == nil then return end
-    local counted
-    if record.statAtStart then
-        counted = now > record.statAtStart
-    else
-        counted = now > 0
-    end
-    if not counted and not final then return end
-    if not counted then
-        local entry = LoggedEntry(journalID)
-        local difficultyID = record.difficultyID or 0
-        entry.missed[difficultyID] = (entry.missed[difficultyID] or 0) + 1
-    end
-    record.settled = true
-    if RR.UI and RR.UI.Update then RR.UI.Update() end
+    return nil
 end
 
-local function SettlePendingRuns()
-    local runs = Store().current[CharacterKey()]
-    for journalID, record in pairs(runs or {}) do
-        History.SettleRun(record, journalID, true)
-    end
-end
-
--- Saves this character's counts; the first time, says so in chat.
+-- Saves this character's name and reputations once the factions have
+-- loaded, and says in chat what changed since the last capture.
 function History.ScanCharacter(tries)
-    local counts = ReadAllStatistics()
-    if not counts then
+    local standings, accountWide = ReadCharacterReputation()
+    if next(standings) == nil and next(accountWide) == nil then
         tries = (tries or 0) + 1
         if tries <= SCAN_TRIES then
             C_Timer.After(SCAN_RETRY, function() History.ScanCharacter(tries) end)
@@ -152,89 +176,29 @@ function History.ScanCharacter(tries)
     end
     local store = Store()
     local key = CharacterKey()
-    local isNew = store.learned[key] == nil
+    local before = store.learned[key]
     local _, classToken = UnitClass("player")
     store.learned[key] = {
-        name = UnitName("player"), class = classToken, statistics = counts, scanned = time(),
+        name = UnitName("player"), class = classToken, sex = UnitSex("player"),
+        scanned = time(),
+        reputationCaptured = before and before.reputationCaptured or nil,
     }
-    SettlePendingRuns()
-    if not isNew then return end
-    local runs, instances = 0, 0
-    for _, statistics in pairs(RetroRuns_RunStatistics or {}) do
-        if statistics then
-            local count = SumStatistics(counts, statistics)
-            if count > 0 then
-                runs = runs + count
-                instances = instances + 1
-            end
-        end
-    end
+    local reputations, leads = History.ScanReputation(standings, accountWide)
+    reputations, leads = reputations or 0, leads or 0
     local name = UnitName("player") or "?"
     local color = classToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken]
-    RR:Print((RR.L["Instance statistics captured for %s:"]):format(color and color:WrapTextInColorCode(name) or name))
-    RR:Print("|cffffffff+|r " .. (RR.L["|cff00ff00%d|r clears across |cff00ff00%d|r instances"]):format(runs, instances))
-    RR:Print(RR.L["This is a one-time capture for each character to be used in the \"End of Run Summary\"."])
-end
-
--- Times run for an instance across the account: the total, one row per
--- character ({ name, class, count }, largest first), and how many
--- characters were counted. Where the game keeps a statistic: learned plus
--- the logged runs it missed. Where it keeps none: every logged run.
-function RR:GetTimesRun(instance)
-    local journalID = instance and instance.journalInstanceID
-    if not journalID then return nil end
-    local store = Store()
-    local rows, total = {}, 0
-    local logged = store.logged[journalID] or {}
-    local statistics = RetroRuns_RunStatistics and RetroRuns_RunStatistics[journalID]
-    if statistics then
-        -- This character reads live, so the kill that just ended the run counts.
-        local own = store.learned[CharacterKey()]
-        if own then
-            for _, statisticID in ipairs(statistics) do
-                local value = ReadStatistic(statisticID)
-                if value then own.statistics[statisticID] = value end
-            end
-        end
-        -- A run that just finished counts at once while the game's number
-        -- has not caught up with it; once it has, that number carries it.
-        local ownKey = CharacterKey()
-        local ownRuns = store.current[ownKey]
-        local pending = ownRuns and ownRuns[journalID]
-        if pending and not (pending.completedAt and not pending.settled and pending.statAtStart) then
-            pending = nil
-        end
-        local seen = {}
-        for characterKey, character in pairs(store.learned) do
-            seen[characterKey] = true
-            local entry = logged[characterKey]
-            local learned = SumStatistics(character.statistics or {}, statistics)
-            local count = learned + SumValues(entry and entry.missed)
-            if pending and characterKey == ownKey and learned <= pending.statAtStart then
-                count = count + 1
-            end
-            rows[#rows + 1] = { name = character.name, class = character.class, count = count }
-            total = total + count
-        end
-        for characterKey, entry in pairs(logged) do
-            if not seen[characterKey] then
-                local count = SumValues(entry.missed)
-                rows[#rows + 1] = { name = entry.name, class = entry.class, count = count }
-                total = total + count
-            end
-        end
-    else
-        for _, entry in pairs(logged) do
-            local count = SumValues(entry.runs)
-            rows[#rows + 1] = { name = entry.name, class = entry.class, count = count }
-            total = total + count
-        end
+    name = color and color:WrapTextInColorCode(name) or name
+    if reputations == 0 then
+        RR:Print((RR.L["Character data for %s is up to date"]):format(name))
+        return
     end
-    table.sort(rows, function(a, b)
-        if a.count ~= b.count then return a.count > b.count end
-        return (a.name or "") < (b.name or "")
-    end)
-    return total, rows, #rows
+    RR:Print((RR.L["Character data updated for %s"]):format(name))
+    if leads > 0 then
+        RR:Print("|cffffffff+|r" .. (RR.L["|cff00ff00%d|r Reputations (New leader for |cff00ff00%d|r)"])
+            :format(reputations, leads))
+    else
+        RR:Print("|cffffffff+|r" .. (RR.L["|cff00ff00%d|r Reputations"]):format(reputations))
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -322,30 +286,85 @@ function History.CurrentRun(create)
         startedAt = SpawnCreated(spawnKey) or time(),
         touched = time(),
         kills = 0,
+        gold = 0,
         sources = {},
         reputation = {},
         factionIDs = {},
         specialsMissing = SnapshotSpecials(raid),
-        statAtStart = OwnInstanceStatistic(raid.journalInstanceID),
     }
     runs[raid.journalInstanceID] = record
     return record
 end
 
--- Stamps the finish once, and logs the run, when the route completes with
--- at least one kill seen in it.
+local function BestKey(journalID, bucket)
+    return tostring(journalID) .. ":" .. tostring(bucket)
+end
+
+-- The account's fastest clear of the instance at a difficulty, as
+-- { seconds, name, class, mine }; nil before one is recorded.
+function History.BestTime(raid, difficultyID)
+    local bucket = raid and difficultyID and RR:FoldDifficulty(raid, difficultyID)
+    if not bucket then return nil end
+    local key = BestKey(raid.journalInstanceID, bucket)
+    local store = Store()
+    local ownKey = CharacterKey()
+    local seconds, holder
+    for characterKey, times in pairs(store.bestTimes) do
+        local recorded = times[key]
+        if recorded and (not seconds or recorded < seconds
+                or (recorded == seconds and characterKey == ownKey)) then
+            seconds, holder = recorded, characterKey
+        end
+    end
+    if not seconds then return nil end
+    local character = store.learned[holder]
+    return {
+        seconds = seconds,
+        name = character and character.name or holder:match("^[^-]+"),
+        class = character and character.class,
+        mine = holder == ownKey,
+    }
+end
+
+-- Kills the lockout holds, read from its saved row; nil without one.
+local function LockoutProgress(lockoutId)
+    if not (lockoutId and GetNumSavedInstances and GetSavedInstanceInfo) then return nil end
+    for index = 1, GetNumSavedInstances() do
+        local _, rowLockoutId, _, _, _, _, _, _, _, _, _, encounterProgress = GetSavedInstanceInfo(index)
+        if rowLockoutId == lockoutId then return encounterProgress end
+    end
+    return nil
+end
+
+-- Keeps the finished run's length as this character's best when it is, and
+-- marks the run when it beat the account's. A lockout holding more kills
+-- than the run saw began before it and sets nothing.
+local function RecordBestTime(raid, record)
+    if not (raid and record.startedAt and record.completedAt) then return end
+    local progress = LockoutProgress(record.lockoutId)
+    if progress and progress > (record.kills or 0) then return end
+    local bucket = RR:FoldDifficulty(raid, record.difficultyID)
+    if not bucket then return end
+    local seconds = math.max(0, record.completedAt - record.startedAt)
+    local best = History.BestTime(raid, record.difficultyID)
+    record.newBest = (not best or seconds < best.seconds) or nil
+    local store = Store()
+    local characterKey = CharacterKey()
+    store.bestTimes[characterKey] = store.bestTimes[characterKey] or {}
+    local times = store.bestTimes[characterKey]
+    local key = BestKey(raid.journalInstanceID, bucket)
+    if not times[key] or seconds < times[key] then times[key] = seconds end
+end
+
+-- Stamps the finish once, when the route completes with at least one kill
+-- seen in it.
 function History.CheckComplete()
     if not (RR.IsActiveRouteComplete and RR:IsActiveRouteComplete()) then return end
     local record = History.CurrentRun(false)
     if not record or record.completedAt or (record.kills or 0) == 0 then return end
     record.completedAt = time()
-    local journalID = RR.currentRaid.journalInstanceID
-    local entry = LoggedEntry(journalID)
     record.difficultyID = record.difficultyID or RR.state.currentDifficultyID
-    local difficultyID = record.difficultyID or 0
-    entry.runs[difficultyID] = (entry.runs[difficultyID] or 0) + 1
-    C_Timer.After(STAT_SETTLE, function() History.SettleRun(record, journalID, false) end)
-    C_Timer.After(STAT_SETTLE_FINAL, function() History.SettleRun(record, journalID, true) end)
+    RecordBestTime(RR.currentRaid, record)
 end
 
 local function PruneRuns()
@@ -364,6 +383,8 @@ end
 -------------------------------------------------------------------------------
 
 local scanned = false
+-- Money gained counts as looted while a loot window is open or just closed.
+local lootOpenUntil, lastMoney = 0, nil
 local watcher = CreateFrame("Frame")
 watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
 watcher:RegisterEvent("ZONE_CHANGED_NEW_AREA")
@@ -372,11 +393,18 @@ watcher:RegisterEvent("ENCOUNTER_END")
 watcher:RegisterEvent("TRANSMOG_COLLECTION_SOURCE_ADDED")
 watcher:RegisterEvent("CHAT_MSG_COMBAT_FACTION_CHANGE")
 watcher:RegisterEvent("FACTION_STANDING_CHANGED")
+watcher:RegisterEvent("LOOT_READY")
+watcher:RegisterEvent("LOOT_OPENED")
+watcher:RegisterEvent("LOOT_CLOSED")
+watcher:RegisterEvent("PLAYER_MONEY")
+watcher:RegisterEvent("PLAYER_LOGOUT")
 watcher:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
+        lastMoney = GetMoney()
         if not scanned then
             scanned = true
             PruneRuns()
+            History.DropRetiredCounts()
             C_Timer.After(SCAN_DELAY, function() History.ScanCharacter(0) end)
         end
         -- The run starts once the instance has loaded its data.
@@ -384,10 +412,7 @@ watcher:SetScript("OnEvent", function(_, event, ...)
             if RR.currentRaid and InInstance() then History.CurrentRun(true) end
         end)
     elseif event == "ENCOUNTER_START" then
-        local record = History.CurrentRun(true)
-        if record and record.statAtStart == nil and RR.currentRaid then
-            record.statAtStart = OwnInstanceStatistic(RR.currentRaid.journalInstanceID)
-        end
+        History.CurrentRun(true)
     elseif event == "ENCOUNTER_END" then
         local success = select(5, ...)
         if success ~= 1 then return end
@@ -416,5 +441,20 @@ watcher:SetScript("OnEvent", function(_, event, ...)
         local data = type(factionID) == "number" and C_Reputation.GetFactionDataByID(factionID)
         local record = data and data.name and History.CurrentRun(true)
         if record then record.factionIDs[data.name] = factionID end
+    elseif event == "LOOT_READY" or event == "LOOT_OPENED" then
+        lootOpenUntil = math.huge
+    elseif event == "LOOT_CLOSED" then
+        lootOpenUntil = GetTime() + LOOT_GRACE
+    elseif event == "PLAYER_MONEY" then
+        local money = GetMoney()
+        local gained = lastMoney and money - lastMoney or 0
+        lastMoney = money
+        if gained <= 0 or GetTime() > lootOpenUntil or not InInstance() then return end
+        local record = History.CurrentRun(true)
+        if not record then return end
+        record.gold = (record.gold or 0) + gained
+        if RR.UI and RR.UI.RunSummaryShown and RR.UI.RunSummaryShown() then RR.UI.Update() end
+    elseif event == "PLAYER_LOGOUT" then
+        History.ScanReputation()
     end
 end)

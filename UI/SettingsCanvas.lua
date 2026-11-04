@@ -736,7 +736,7 @@ do
         -- The summary line (always shown, carries the [view] link), then the
         -- "Looted:" expansion that [view] reveals. Both are single
         -- lines with word-wrap off so [view] stays inline.
-        local PREFIX = "|cff4DCCFFR|cffF259C7R|r|cff7f7f7f:|r "
+        local PREFIX = "|cff4DCCFFR|cffF259C7R|r|cff7f7f7f:|r|r "
         local summaryRow = container:CreateFontString(nil, "ARTWORK", "GameFontNormal")
         summaryRow:SetJustifyH("LEFT")
         summaryRow:SetPoint("TOPLEFT", summaryHdr, "BOTTOMLEFT", 0, -8)

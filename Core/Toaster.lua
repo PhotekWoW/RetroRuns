@@ -232,7 +232,7 @@ end
 -- The colored "RR:" tag prepended to every line RetroRuns prints to chat.
 -- Kept as one constant so the loot-summary emitter and the AddMessage guard
 -- (which must recognize and never suppress RetroRuns' own lines) share it.
-local CHAT_PREFIX = "|cff4DCCFFR|cffF259C7R|r|cff7f7f7f:|r "
+local CHAT_PREFIX = "|cff4DCCFFR|cffF259C7R|r|cff7f7f7f:|r|r "
 
 -- Lifecycle trace: a bounded ring of recent pipeline decision points,
 -- surfaced in the toaster debug dump. Sized to hold a full loot burst

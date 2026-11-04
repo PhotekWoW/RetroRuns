@@ -15,6 +15,7 @@ RetroRuns_DungeonData[716] = {
     difficultyModel   = "dungeonTiered",
     availableDifficulties = { 14, 15, 16 },
     patch             = "7.0.3",
+    routedIn          = "3.5.1",
     timewalking       = true,
 
     entrance = {
@@ -120,6 +121,147 @@ RetroRuns_DungeonData[716] = {
                 { id = 134225, slot = "Waist", name = "Coralplate Girdle", sources = { [14]=77519, [15]=77519, [16]=77519 } },
                 { id = 134259, slot = "Waist", name = "Seawitch Cinch", sources = { [14]=77543, [15]=77543, [16]=77543 } },
                 { id = 134459, slot = "Wrist", name = "Cuffs of the Arcane Storm", sources = { [14]=78975, [15]=80084, [16]=78975 } },
+            },
+        },
+    },
+
+    exitNote    = "None available",
+    minExitNote = "None available",
+
+    routing = {
+        -- 1. Warlord Parjesh (boss 1).
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = 1,
+            title     = "Warlord Parjesh",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 713 },
+                    kind    = "path",
+                    note    = "After zoning in, follow the path straight ahead to reach ^Warlord Parjesh^.",
+                    minNote = "Straight ahead to Warlord Parjesh",
+                    points  = {
+                        { 0.498, 0.858 },
+                        { 0.510, 0.832 },
+                        { 0.509, 0.808 },
+                        { 0.530, 0.764 },
+                        { 0.542, 0.749 },
+                        { 0.545, 0.720 },
+                    },
+                },
+            },
+        },
+        -- 2. Lady Hatecoil (boss 2), shielded until both arcanists fall.
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 2,
+            title     = "Lady Hatecoil",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 713 },
+                    kind    = "path",
+                    note    = "After defeating ^Warlord Parjesh^, backtrack to the west. Kill two shielded ^Hatecoil Arcanist^ to remove the shield from ^Lady Hatecoil^.",
+                    minNote = "Go west, kill Hatecoil Arcanists",
+                    points  = {
+                        { 0.544, 0.728 },
+                        { 0.539, 0.751 },
+                        { 0.523, 0.754 },
+                        { 0.506, 0.741 },
+                        { 0.464, 0.744 },
+                        { 0.448, 0.725 },
+                        { 0.448, 0.690 },
+                        { 0.436, 0.656 },
+                        { 0.417, 0.633 },
+                        { 0.405, 0.595 },
+                    },
+                },
+                {
+                    when            = { mapID = 713 },
+                    kind            = "poi",
+                    note            = "With ^Lady Hatecoil^ vulnerable, wade out into the shallow water and kill her.",
+                    minNote         = "Find Lady Hatecoil in the water",
+                    triggeredBy     = { dialog = { npc = "Hatecoil Arcanist", match = "Lady Hatecoil is vulnerable" } },
+                    drawWhenOpen    = true,
+                    noMarker        = true,
+                    highlightCircle = true,
+                    points          = {
+                        { 0.460, 0.500 },
+                    },
+                },
+            },
+        },
+        -- 3. Serpentrix (boss 4), before King Deepbeard on the way through.
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Serpentrix",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 713 },
+                    kind    = "path",
+                    note    = "After killing ^Lady Hatecoil^, go northeast to kill ^Serpentrix^.",
+                    minNote = "Northeast to Serpentrix",
+                    points  = {
+                        { 0.465, 0.457 },
+                        { 0.541, 0.382 },
+                    },
+                },
+            },
+        },
+        -- 4. King Deepbeard (boss 3).
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 3,
+            title     = "King Deepbeard",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 713 },
+                    kind    = "path",
+                    note    = "After defeating ^Serpentrix^, go east through the caves. After you reach the other side, work your way up the path until you reach ^King Deepbeard^.",
+                    minNote = "East through caves, path to Deepbeard",
+                    points  = {
+                        { 0.594, 0.339 },
+                        { 0.651, 0.357 },
+                        { 0.678, 0.349 },
+                        { 0.696, 0.363 },
+                        { 0.736, 0.359 },
+                        { 0.789, 0.421 },
+                        { 0.788, 0.445 },
+                        { 0.747, 0.477 },
+                        { 0.706, 0.498 },
+                    },
+                },
+            },
+        },
+        -- 5. Wrath of Azshara (boss 5).
+        {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 5,
+            title     = "Wrath of Azshara",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 713 },
+                    kind    = "path",
+                    note    = "After killing ^King Deepbeard^, exit north and jump down to reach the final boss, ^Wrath of Azshara^. Kill the four channeling enemies to start the encounter.",
+                    minNote = "Exit north, jump down to Wrath",
+                    points  = {
+                        { 0.697, 0.479 },
+                        { 0.701, 0.456 },
+                        { 0.682, 0.446 },
+                        { 0.642, 0.453 },
+                        { 0.600, 0.512 },
+                    },
+                },
             },
         },
     },

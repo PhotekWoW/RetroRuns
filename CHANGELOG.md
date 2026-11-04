@@ -2,6 +2,20 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.5.1] - 2026-11-04
+
+### Added
+- **Four more Legion dungeons are routed:** Seat of the Triumvirate, Cathedral of Eternal Night, Assault on Violet Hold and Eye of Azshara.
+- **The End of Run Summary remembers your characters' reputations.** Each login records reputations tied to dungeons/raids. This information is used to show you which of your characters has the highest reputation for a given instance, in case grinding reputation is your goal.
+- **The End of Run Summary shows your best time and the gold you looted.**
+
+### Changed
+- **The End of Run Summary no longer shows how many times you've cleared an instance.** The data offered through Statistics was flimsy at best, and completely wrong in many cases. May revisit in the future if Blizzard ever cleans up Statistics!
+
+### Fixed
+- **Chat lines show their own colors after the RR: prefix** instead of picking up its cyan, so the Toaster's "Loot:" reads green again.
+- **Short map marker tooltips fit their text** instead of stretching it across a wide blank gap.
+
 ## [3.5.0] - 2026-11-02
 
 ### Added

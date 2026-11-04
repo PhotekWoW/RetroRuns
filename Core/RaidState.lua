@@ -45,6 +45,7 @@ function RR:SyncFromSavedRaidInfo(requestRaidInfo)
         wipe(self.state.bossesKilledViaPairOnly)
         wipe(self.state.bossPartialKills)
         wipe(self.state.bossesSkipped)
+        self:ClearPoolSlots()
         self:ClearSpawnPicks()
         if self.ResetRunStats then self:ResetRunStats() end
         self:ComputeNextStep()
