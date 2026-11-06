@@ -26,6 +26,37 @@
 local RR = RetroRuns
 RR.WhatsNew = {
 {
+    version  = "3.5.2",
+    date     = "2026-11-05",
+    sections = {
+        {
+            heading = "Added",
+            bullets = {
+                "**Darkheart Thicket is routed.**",
+                "**Castle Nathria's weapon-token lines show how many appearances are left to collect**, with normal and Mythic counted separately.",
+                "**New setting, \"Auto-skip optional bosses with nothing left to collect\":** Previously, we auto-skipped optional bosses with nothing left to collect. Now, we give you the choice.",
+                "**The Skip prompt matches the rest of RetroRuns:** a new popup with SKIP and KILL buttons, plus a cog that opens Settings.",
+                "**Every setting on the General page has a hint**, with each choice named in white on its own line.",
+            },
+        },
+        {
+            heading = "Changed",
+            bullets = {
+                "**The exit note comes first after a run finishes**, above any skipped bosses and the boss list.",
+                "**The load dialog's buttons are live text**, so FULL, SKIP and TRIBUTE read in your own language with no hover needed.",
+                "**The Navigate popup has new neon buttons.**",
+            },
+        },
+        {
+            heading = "Fixed",
+            bullets = {
+                "**The Emerald Nightmare's entrance marker sits on the real entrance**, about 33 yards from where it was.",
+                "**Text in translated clients stays inside its window:** the load dialog, the Settings pages, the transmog browser and the Achievements window no longer overlap or run out of their frames, and the transmog dropdowns size to their menus.",
+            },
+        },
+    },
+},
+{
     version  = "3.5.1",
     date     = "2026-11-04",
     sections = {
@@ -147,36 +178,6 @@ RR.WhatsNew = {
                 "**Missing achievements and appearances are in.** 32 dungeon achievements across 18 dungeons, Black Temple's Horde versions of the Demon Hunter Timewalking pieces, and the Timewalking-only looks in Ulduar (the Demon Hunter and Monk sets) and Firelands (tier pieces whose look only Timewalking drops).",
                 "**A new appearance no longer occasionally prints twice in the loot summary.** The summary waits for an appearance still on its way, so the item is listed once, tagged [New!].",
                 "**Route steps that wait for an NPC's line now advance in every language.** On non-English clients, eleven dungeons held the previous step until the boss died, among them Zul'Aman, Stratholme, Dire Maul and Halls of Origination.",
-            },
-        },
-    },
-},
-{
-    version  = "3.3.6",
-    date     = "2026-10-18",
-    sections = {
-        {
-            heading = "Added",
-            bullets = {
-                "**Zul'Aman is routed**, with its hostage rescue chests in the transmog browser and the prisoners and Forest Frogs marked on the map.",
-                "**Dire Maul's Tribute run is routed.** Zoning into Gordok Commons asks whether you want the FULL run or the TRIBUTE run. The Tribute run guides you step-by-step to maximize rewards. When choosing the route, we show how many appearances remain with each option.",
-                "**Enhanced Boss Icons.** Hover a boss's icon on the map inside an instance to see what it still drops for you: missing, shared and collected appearances, and special loot.",
-            },
-        },
-        {
-            heading = "Changed",
-            bullets = {
-                "**A new, cleaner look for the loot toasts**: a neon frame, a larger item name, and mounts, pets, toys and decor named by kind in their own color, with a sparkle.",
-                "**The settings pages share one look.**",
-                "**\"Hide fully collected rares from map\" is now \"Hide fully collected POIs\"** and now hides POI map markers in addition to rares when their rewards are fully collected.",
-                "**Achievements that name several bosses show under each of them** (Earth, Wind & Fire on Archavon, Emalon and Koralon; Bear-ly Made It on Zul'Aman's four prisoner bosses), and instance-wide achievements such as The Dedicated Few show on every boss.",
-            },
-        },
-        {
-            heading = "Fixed",
-            bullets = {
-                "**A loot toast shows the drop's real quality color** when its new appearance registers before the loot itself; a blue legacy drop no longer toasts purple.",
-                "**Picking a Dire Maul wing from the search no longer flashes Capital Gardens first.**",
             },
         },
     },

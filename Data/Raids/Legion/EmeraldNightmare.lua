@@ -21,8 +21,8 @@ RetroRuns_Data[1520] = {
     -- portal at the tree's base to zone into the raid.
     entrance = {
         mapID   = 641,
-        x       = 0.567,
-        y       = 0.375,
+        x       = 0.563,
+        y       = 0.368,
         subZone = "Shaladrassil",
     },
 

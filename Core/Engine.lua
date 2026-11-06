@@ -212,6 +212,18 @@ function RR:PersistBossSkipped(bossIndex, skipped)
     store.skippedBosses[bossIndex] = skipped and true or nil
 end
 
+-- Keeps a Prompt Me answer the way a skip is kept: on the lockout store, or
+-- on the run record where there is no lockout.
+function RR:PersistSkipAnswer(bossIndex, answer)
+    local store = self:GetLockoutStore(true)
+    if not store then
+        self:PersistRunProgress()
+        return
+    end
+    store.skipAnswers = store.skipAnswers or {}
+    store.skipAnswers[bossIndex] = answer
+end
+
 -- Which pool member filled which slot. The server's saved-instance list
 -- cannot rebuild it -- pool members have no encounter -- so it rides the
 -- lockout store where one exists and the run record otherwise, the same
@@ -850,6 +862,10 @@ function RR:PersistRunProgress()
     for bossIndex in pairs(self.state.bossesSkipped or {}) do
         skipped[bossIndex] = true
     end
+    local skipAnswers = {}
+    for bossIndex, answer in pairs(self.state.collectedSkipAnswers or {}) do
+        skipAnswers[bossIndex] = answer
+    end
     -- Which prisoner filled which slot only the loot witness knows, and it
     -- is not replayable, so the slots ride the record with the kills.
     local poolSlots = {}
@@ -896,6 +912,7 @@ function RR:PersistRunProgress()
         triggers     = triggers,
         aurasSeen    = aurasSeen,
         skipped      = skipped,
+        skipAnswers  = skipAnswers,
         poolSlots    = poolSlots,
         spawnedMember = self.state.spawnedMember,
         spawnEarlierPicks = self:CopySpawnEarlierPicks(),
@@ -1397,6 +1414,10 @@ function RR:RestoreRunProgress(sameSession)
             for bossIndex in pairs(record.skipped or {}) do
                 self.state.bossesSkipped[bossIndex] = true
             end
+            self.state.collectedSkipAnswers = self.state.collectedSkipAnswers or {}
+            for bossIndex, answer in pairs(record.skipAnswers or {}) do
+                self.state.collectedSkipAnswers[bossIndex] = answer
+            end
             self.state.poolSlotMembers = self.state.poolSlotMembers or {}
             for slotIndex, bossIndex in pairs(record.poolSlots or {}) do
                 self.state.poolSlotMembers[slotIndex] = bossIndex
@@ -1471,6 +1492,7 @@ function RR:RestorePersistedProgress()
         self.state.progress      = self.state.progress or {}
         self.state.triggersFired = self.state.triggersFired or {}
         self.state.bossesSkipped = self.state.bossesSkipped or {}
+        self.state.collectedSkipAnswers = self.state.collectedSkipAnswers or {}
         self.state.aurasSeen     = self.state.aurasSeen or {}
         return
     end
@@ -1511,6 +1533,10 @@ function RR:RestorePersistedProgress()
         for bossIndex, isSkipped in pairs(store.skippedBosses) do
             if isSkipped then self.state.bossesSkipped[bossIndex] = true end
         end
+    end
+    self.state.collectedSkipAnswers = {}
+    for bossIndex, answer in pairs(store.skipAnswers or {}) do
+        self.state.collectedSkipAnswers[bossIndex] = answer
     end
     -- Named pool slots come back with their members marked dead: a member
     -- seated in a slot was looted, and the saved-instance sync cannot say
@@ -2389,31 +2415,6 @@ function RR:GetActiveExitNote()
     return nil
 end
 
--- A standalone line for a boss the route never visits, so a player reading
--- the exit note learns what is still owed there. Two wordings: one naming
--- how many appearances remain, one for a character who has them all. The
--- boss is named by `exitNoteExtraBoss` (a bosses[] index). It renders in
--- its own field under the exit note rather than joining that sentence.
-function RR:GetExitNoteExtra()
-    local raid = self.currentRaid
-    if not raid or not raid.exitNoteExtraBoss then return nil end
-    local boss = raid.bosses and raid.bosses[raid.exitNoteExtraBoss]
-    if not boss then return nil end
-    -- The browser owns the collection maths; UI.lua exposes it. Absent
-    -- (data files loaded without the UI), the line is simply skipped.
-    if not self.BossAppearancesStillNeeded then return nil end
-    local needed = self:BossAppearancesStillNeeded(boss)
-    -- Nothing countable there for this character -- say nothing at all
-    -- rather than claiming a complete collection.
-    if not needed then return nil end
-    if needed > 0 then
-        if not raid.exitNoteExtra then return nil end
-        return (RR.L[raid.exitNoteExtra]):format(needed)
-    end
-    if not raid.exitNoteExtraDone then return nil end
-    return RR.L[raid.exitNoteExtraDone]
-end
-
 -- Short exit line for the minimized bar. Same selection as
 -- GetActiveExitNote, but never nil.
 function RR:GetActiveMinExitNote()
@@ -2606,6 +2607,13 @@ function RR:BuildEngineProbeLines(opts)
     end
     add("bossesSkipped: " .. (#skippedNames > 0
         and table.concat(skippedNames, ", ") or "(none)"))
+    local skipAnswers = {}
+    for bossIndex, answer in pairs(self.state.collectedSkipAnswers or {}) do
+        table.insert(skipAnswers, ("boss %s: %s"):format(tostring(bossIndex), answer))
+    end
+    add(("collectedSkipMode: %s  answers: %s"):format(
+        tostring(self:GetSetting("collectedSkipMode", "on")),
+        #skipAnswers > 0 and table.concat(skipAnswers, ", ") or "(none)"))
 
     add("")
     add("-- Per-Step State --")

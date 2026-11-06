@@ -966,16 +966,20 @@ function UI.MenuRadio(rootDescription, text, isSelected, setSelected)
     return radio
 end
 
-function UI.MakeRetroCloseButton(parent)
+function UI.MakeRetroIconButton(parent, iconName)
     local button = CreateFrame("Button", nil, parent)
     button:SetSize(24, 24)
     local tex = button:CreateTexture(nil, "OVERLAY")
-    tex:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\CloseIcon")
+    tex:SetTexture("Interface\\AddOns\\RetroRuns\\Media\\Icons\\" .. iconName)
     tex:SetAllPoints(button)
     button._tex = tex
     button:SetScript("OnEnter", function(self) self._tex:SetVertexColor(1.4, 1.4, 1.4) end)
     button:SetScript("OnLeave", function(self) self._tex:SetVertexColor(1, 1, 1) end)
     return button
+end
+
+function UI.MakeRetroCloseButton(parent)
+    return UI.MakeRetroIconButton(parent, "CloseIcon")
 end
 
 panel.closeButton = UI.MakeRetroCloseButton(panel)
@@ -1790,12 +1794,8 @@ panel.next      = AddField(panel.progress, "TOPLEFT", "BOTTOMLEFT", -8,  BODY_WI
 -- under the "Run complete!" banner. Smaller font than the banner (see
 -- targets table). Only populated when the loaded raid authors an exitNote.
 panel.exitNote  = AddField(panel.next,     "TOPLEFT", "BOTTOMLEFT", -13, BODY_WIDTH, "GameFontNormalSmall")
--- A boss the route never visits, and what is still owed there. Its own
--- field: it is a separate thought from the exit shortcut above it, and
--- one FontString would run the two sentences together.
-panel.exitNoteExtra = AddField(panel.exitNote, "TOPLEFT", "BOTTOMLEFT", -8, BODY_WIDTH, "GameFontNormalSmall")
--- Skip-run comeback line, shown between the banner and the exit note. Its
--- own field so the exit note stays the bottom of the block.
+-- Skip-run comeback line, shown under the exit note so the exit note stays
+-- the top of the block.
 panel.skipReturn = AddField(panel.next,    "TOPLEFT", "BOTTOMLEFT", -13, BODY_WIDTH, "GameFontNormalSmall")
 -- Skip-run caveat, its own field because a FontString carries ONE font size
 -- and this line renders two points under the comeback line it follows.
@@ -2274,92 +2274,38 @@ do
             local chooserFrame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
             chooserFrame:SetFrameStrata("DIALOG")
             chooserFrame:EnableMouse(true)  -- swallow clicks on the chooser body
-            -- Thin tooltip-style border (not the heavy ornamented panel
-            -- edge, which overwhelms a small popup). Tinted to a flat
-            -- pink/blue midpoint so the border reads as a blend of the two
-            -- option colors. Backdrop border takes ONE color (no gradient),
-            -- so the midpoint blend is the "gradient" within engine limits.
+            -- A thin pink line rather than the heavy panel edge, which
+            -- overwhelms a small popup.
             chooserFrame:SetBackdrop({
-                bgFile   = "Interface/Tooltips/UI-Tooltip-Background",
-                edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-                tile = true, tileSize = 16, edgeSize = 12,
-                insets = { left = 2, right = 2, top = 2, bottom = 2 },
+                bgFile   = "Interface/Buttons/WHITE8X8",
+                edgeFile = "Interface/Buttons/WHITE8X8",
+                edgeSize = 1,
             })
             chooserFrame:SetBackdropColor(0.02, 0.03, 0.05, 0.96)
-            local BR = (C_PINK[1] + C_BLUE[1]) / 2
-            local BG = (C_PINK[2] + C_BLUE[2]) / 2
-            local BB = (C_PINK[3] + C_BLUE[3]) / 2
-            chooserFrame:SetBackdropBorderColor(BR, BG, BB, 1)
+            chooserFrame:SetBackdropBorderColor(C_PINK[1], C_PINK[2], C_PINK[3], 1)
             chooserFrame:Hide()
 
-            -- "Navigate to:" header row inside the frame (not floating above
-            -- it), so the popup is self-contained and clears the list text in
-            -- any open direction.
+            -- Header inside the frame, so the popup is self-contained and
+            -- clears the list text in any open direction.
             local title = chooserFrame:CreateFontString(nil, "OVERLAY")
-            SetBodyFont(title, math.max(9, RR:GetSetting("fontSize", 12) - 2), "")
+            SafeSetFont(title, RR:GetChromeFont(), 12, "")
             title:SetText(RR.L["Navigate to:"])
             title:SetTextColor(0.54, 0.58, 0.64, 1)  -- muted gray
-            title:SetPoint("TOPLEFT", chooserFrame, "TOPLEFT", 5, -4)
-            chooserFrame.title = title
+            title:SetPoint("TOP", chooserFrame, "TOP", 0, -6)
 
-            local PAD_X, PAD_Y = 14, 7
+            -- LFR on the left, matching the pill order.
+            local small = UI.CHOICE_BUTTON_SMALL
+            local halfStride = (small.WIDTH + small.GAP) / 2
+            chooserFrame.lfrButton = UI.MakeChoiceButton(chooserFrame, RR.L["LFR NPC"],
+                -halfStride, small)
+            chooserFrame.stdButton = UI.MakeChoiceButton(chooserFrame, RR.L["ENTRANCE"],
+                halfStride, small)
+            chooserFrame:SetSize(small.WIDTH * 2 + small.GAP + 12,
+                (title:GetStringHeight() or 12) + 11 + small.BOTTOM + small.HEIGHT
+                    + UI.ChoiceTextBand(small))
 
-            -- Build one horizontal option cell with a colored label. Font and
-            -- size come from ApplyLayout; onClick is wired per-show (closes
-            -- over the current raid).
-            local function makeOption(labelText, color)
-                local optionButton = CreateFrame("Button", nil, chooserFrame)
-                optionButton:RegisterForClicks("LeftButtonUp")
-                local fs = optionButton:CreateFontString(nil, "OVERLAY")
-                SetBodyFont(fs, RR:GetSetting("fontSize", 12), "")
-                fs:SetText(labelText)
-                fs:SetTextColor(color[1], color[2], color[3], 1)
-                fs:SetPoint("CENTER", optionButton, "CENTER", 0, 0)
-                optionButton.label = fs
-                -- Hover highlight tinted to the option color.
-                local hl = optionButton:CreateTexture(nil, "HIGHLIGHT")
-                hl:SetAllPoints(optionButton)
-                hl:SetColorTexture(color[1], color[2], color[3], 0.18)
-                return optionButton
-            end
-
-            -- Horizontal layout: [ LFR | STD ], LFR left (matches the pill
-            -- order where LFR is leftmost).
-            chooserFrame.lfrButton = makeOption("LFR", C_PINK)
-            chooserFrame.stdButton = makeOption("STD", C_BLUE)
-
-            -- 1px vertical divider between the two cells.
-            local divider = chooserFrame:CreateTexture(nil, "OVERLAY")
-            divider:SetColorTexture(BR, BG, BB, 0.8)
-            chooserFrame.divider = divider
-
-            -- Cells side by side, BELOW the title header band.
-            divider:SetPoint("TOPLEFT", chooserFrame.lfrButton, "TOPRIGHT", 0, 0)
-            divider:SetWidth(1)
-            divider:SetPoint("BOTTOMLEFT", chooserFrame.lfrButton, "BOTTOMRIGHT", 0, 0)
-            chooserFrame.stdButton:SetPoint("TOPLEFT", divider, "TOPRIGHT", 0, 0)
-
-            -- Fonts, cell sizes, frame size and scale, re-applied on every
-            -- show so the popup follows the current settings. Each cell is
-            -- its label plus padding; the frame is the title band + the two
-            -- cells + the 1px divider + a 3px inset on each side.
+            -- Parented to UIParent, so the panel's scale is copied over.
             function chooserFrame.ApplyLayout()
-                local fontSize = RR:GetSetting("fontSize", 12)
-                SetBodyFont(title, math.max(9, fontSize - 2), "")
-                local titleH = (title:GetStringHeight() or 10) + 4
-                for _, optionButton in ipairs({ chooserFrame.lfrButton, chooserFrame.stdButton }) do
-                    SetBodyFont(optionButton.label, fontSize, "")
-                    optionButton:SetSize(
-                        (optionButton.label:GetStringWidth() or 20) + PAD_X * 2,
-                        (optionButton.label:GetStringHeight() or 12) + PAD_Y * 2)
-                end
-                chooserFrame.lfrButton:ClearAllPoints()
-                chooserFrame.lfrButton:SetPoint("TOPLEFT", chooserFrame, "TOPLEFT", 3, -(3 + titleH))
-                local cellH = chooserFrame.lfrButton:GetHeight()
-                local totalW = chooserFrame.lfrButton:GetWidth() + 1
-                    + chooserFrame.stdButton:GetWidth() + 6
-                chooserFrame:SetSize(totalW, cellH + 6 + titleH)
-                -- Parented to UIParent, so the panel's scale is copied over.
                 chooserFrame:SetScale(panel:GetScale())
             end
 
@@ -3855,7 +3801,6 @@ function UI.ApplySettings()
         { panel.progress,   14, "OUTLINE" },
         { panel.next,       14, "OUTLINE" },
         { panel.exitNote,   11, "" },
-        { panel.exitNoteExtra, 11, "" },
         { panel.skipReturn, 11, "" },
         { panel.skipNote,    9, "" },
         { panel.skipList,   11, "" },
@@ -3942,7 +3887,7 @@ local function ApplyBodyVisibility(visible)
     for _, fs in ipairs({
         panel.raid, panel.wingLine, panel.pills, panel.progress, panel.next,
         panel.travel, panel.encounter, panel.transmog,
-        panel.exitNote, panel.exitNoteExtra, panel.skipReturn, panel.skipNote,
+        panel.exitNote, panel.skipReturn, panel.skipNote,
         panel.skipList,
         panel.listHeader,
         panel.credit, panel.version, panel.whatsNewLabel,
@@ -4991,13 +4936,19 @@ function UI.EncounterNoteLine()
         .. " |cff888888" .. RR.L["view special note"] .. "|r"
 end
 
+-- Skip means the raid shortcut in most languages, so leaving a boss out has
+-- its own keys. The " (boss)" only tells those keys apart and never shows.
+function UI.BossWord(text)
+    return (text:gsub(" %(boss%)$", ""))
+end
+
 -- {skip} becomes a magenta [Skip] link on an optional boss and plain text
 -- otherwise, so a line never advertises a control the player has no way to
 -- use. Shared by the travel note and the encounter line. On the UI table
 -- rather than a local: this file is at the 200-local ceiling.
 function UI.ApplySkipToken(text, step)
     if not text or not text:find("{skip}", 1, true) then return text end
-    local word = RR.L["Skip"]
+    local word = UI.BossWord(RR.L["Skip (boss)"])
     if step and step.optional then
         -- Bracketed like the header control, so the word reads as the same
         -- button rather than emphasis.
@@ -5441,6 +5392,44 @@ local function HasAppearanceViaAnySource(appearanceID, ownName, ownItemID)
         end
     end
     return owned, false
+end
+
+-- The gray line under a weapon-token line: how many of that slot's looks the
+-- account still lacks, normal and Mythic counted apart. Nil without data.
+function UI.TokenLooksLine(tokenLooks, slotLabel)
+    local offHand = slotLabel == "Off-Hand"
+    local slotLooks = tokenLooks and tokenLooks[offHand and "offHand" or "mainHand"]
+    if not slotLooks then return nil end
+    local function CountLeft(appearanceIDs)
+        local left = 0
+        for _, appearanceID in ipairs(appearanceIDs or {}) do
+            if not HasAppearanceViaAnySource(appearanceID) then left = left + 1 end
+        end
+        return left, #(appearanceIDs or {})
+    end
+    local baseLeft, baseTotal = CountLeft(slotLooks.base)
+    local mythicLeft, mythicTotal = CountLeft(slotLooks.mythic)
+    if baseTotal == 0 or mythicTotal == 0 then return nil end
+    if baseLeft > 0 and mythicLeft > 0 then
+        return (offHand
+            and RR.L["%d of %d off-hand looks left to collect (Mythic: %d of %d)"]
+            or RR.L["%d of %d main-hand looks left to collect (Mythic: %d of %d)"])
+            :format(baseLeft, baseTotal, mythicLeft, mythicTotal)
+    elseif baseLeft > 0 then
+        return (offHand
+            and RR.L["%d of %d off-hand looks left to collect (Mythic: all %d collected)"]
+            or RR.L["%d of %d main-hand looks left to collect (Mythic: all %d collected)"])
+            :format(baseLeft, baseTotal, mythicTotal)
+    elseif mythicLeft > 0 then
+        return (offHand
+            and RR.L["All %d off-hand looks collected (Mythic: %d of %d left)"]
+            or RR.L["All %d main-hand looks collected (Mythic: %d of %d left)"])
+            :format(baseTotal, mythicLeft, mythicTotal)
+    end
+    return (offHand
+        and RR.L["All %d off-hand looks collected (Mythic: all %d)"]
+        or RR.L["All %d main-hand looks collected (Mythic: all %d)"])
+        :format(baseTotal, mythicTotal)
 end
 
 -- Account-wide "does the player already own this look", by source: the
@@ -6598,19 +6587,9 @@ local function CountBossLoot(boss)
     return needed, shared, total
 end
 
--- Appearances from ONE boss this character has yet to collect, across
--- every difficulty the row carries. Exposed on RR so the exit note can
--- say how much is still owed at a boss the route does not visit.
---
--- Nil when the boss offers this character nothing countable at all -- the
--- class filter or an equip gate leaving no candidate. That is not the same
--- as owning every appearance, and a caller must not report it as such.
-function RR:BossAppearancesStillNeeded(boss)
-    return (CountBossLoot(boss))
-end
-
 -- Rows from ONE boss whose own source is not collected: missing plus
--- shared. Nil on the same terms as BossAppearancesStillNeeded.
+-- shared. Nil when the boss offers this character nothing countable (the
+-- class filter or an equip gate leaving no candidate).
 function RR:BossSourcesNotCollected(boss)
     local needed, shared = CountBossLoot(boss)
     if not needed then return nil end
@@ -8476,10 +8455,10 @@ BuildTransmogDetail = function(stepOrCtx)
     end
 
     -- Weapon-token section (Castle Nathria): each token slot with the
-    -- classes its token families serve.
-    local tokenPools   = raid and raid.weaponTokenPools
+    -- classes its token families serve, and the looks still to collect.
+    local tokenLooks   = raid and raid.weaponTokenLooks
     local tokenSources = raid and raid.tierSets and raid.tierSets.tokenSources
-    if tokenPools and tokenSources then
+    if tokenLooks and tokenSources then
         -- Walk this boss's token drops. For each match, attribute the
         -- token to its slot ("Main-Hand" / "Off-Hand") and collect
         -- the union of classes that family is usable by. A single
@@ -8539,7 +8518,13 @@ BuildTransmogDetail = function(stepOrCtx)
             if classSet and next(classSet) then
                 local label = (RR.L["%s Weapon Token: %s"]):format(
                     RR.L[slot], FormatClassList(classSet, slot))
-                table.insert(tokenRows, ("|cffffffff%s|r"):format(label))
+                table.insert(tokenRows, { kind = "text", isTier = true,
+                    text = ("|cffffffff%s|r"):format(label) })
+                local looksLine = UI.TokenLooksLine(tokenLooks, slot)
+                if looksLine then
+                    table.insert(tokenRows, { kind = "text", isTier = true,
+                        text = ("|cff9d9d9d%s|r"):format(looksLine) })
+                end
             end
         end
 
@@ -8548,8 +8533,7 @@ BuildTransmogDetail = function(stepOrCtx)
             -- below draws them under TIER / TOKENS with the redemption hint
             -- and closes them with LOOT, the shape every tier boss has.
             for offset = #tokenRows, 1, -1 do
-                table.insert(mainRows, 1,
-                    { kind = "text", text = tokenRows[offset], isTier = true })
+                table.insert(mainRows, 1, tokenRows[offset])
             end
 
             -- Vendor hint line is rendered separately as its own
@@ -9755,6 +9739,7 @@ GetOrCreateTmogWindow = function()
             -- bar. Left-justified inside a fixed-width box, a short caption
             -- ("Exp:") drifts far from its bar while a long one hugs it.
             lbl:SetJustifyH("RIGHT")
+            lbl:SetWordWrap(false)
             dd.label = lbl
         end
         return dd
@@ -9776,7 +9761,8 @@ GetOrCreateTmogWindow = function()
         local textWidth = capMeasure:GetStringWidth() or 0
         if textWidth > LABEL_W then LABEL_W = textWidth end
     end
-    LABEL_W = math.ceil(LABEL_W)
+    -- Two spare pixels: a caption boxed at exactly its own width can break.
+    LABEL_W = math.ceil(LABEL_W) + 2
     -- The bar's frame edge is its visible edge.
     local DD_INSET   = 0
 
@@ -9920,9 +9906,8 @@ GetOrCreateTmogWindow = function()
     end
 
     -- Sizes each dropdown bar by MEASURING its widest candidate with a hidden
-    -- FontString at the dropdown's own font, plus padding. Expansion measures
-    -- against the full expansion-order constant, including expansions with no
-    -- data yet. Re-runnable on every RefreshDropdowns.
+    -- FontString at the dropdown's own font, plus padding. Re-runnable on every
+    -- RefreshDropdowns.
     local measureFS = tmogFrame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     measureFS:Hide()
     -- Measure at the bar's own font so the fit survives a template change.
@@ -9935,63 +9920,60 @@ GetOrCreateTmogWindow = function()
         -- the arrow never overlaps the longest string.
         local ARROW_PAD = 34
 
-        -- Measured once per session. The Encounter Journal walk below is
-        -- too slow for the script time limit in combat, so a combat
-        -- measurement uses the authored names and is redone out of combat.
-        local widths = self._dropdownWidths
-        if widths and not widths.provisional then
-            ddRaid:SetWidth(widths.wide)
-            ddBoss:SetWidth(widths.wide)
-            ddExp:SetWidth(widths.narrow)
-            ddClass:SetWidth(widths.narrow)
-            return
-        end
-        local inCombat = InCombatLockdown and InCombatLockdown() or false
-
-        local expW = UI.WidestTextWidth(measureFS, UI.LocalizedExpansionNames())
-
-        -- Raid + Boss: every current raid and boss name.
-        local raidNames, bossNames = {}, {}
-        for _, dataTable in ipairs({ RetroRuns_Data, RetroRuns_DungeonData }) do
-            for _, raid in pairs(dataTable or {}) do
-                if raid.instanceID and raid.instanceID > 0 then
-                    raidNames[#raidNames + 1] = RR:GetLocalizedRaidName(raid) or ""
-                    for _, boss in ipairs(raid.bosses or {}) do
-                        bossNames[#bossNames + 1] = inCombat and boss.name
-                            or RR:GetLocalizedBossName(boss) or ""
-                    end
-                    local eventBoss = RR:GetEventBoss(raid)
-                    if eventBoss then
-                        bossNames[#bossNames + 1] = UI.EventBossLabel(raid, eventBoss)
-                    end
+        -- Expansion, Type and Class offer the same names all session.
+        if not self._narrowBarWidth then
+            local classNames = { RR.L["All classes"] }
+            for classID = 1, 13 do
+                if CLASS_ID_TO_TOKEN[classID] then
+                    classNames[#classNames + 1] = ClassNameForID(classID) or ""
                 end
             end
+            self._narrowBarWidth = math.ceil(math.max(
+                UI.WidestTextWidth(measureFS, UI.LocalizedExpansionNames()),
+                UI.WidestTextWidth(measureFS, { RR.L["Raids"], RR.L["Dungeons"] }),
+                UI.WidestTextWidth(measureFS, classNames))) + ARROW_PAD
         end
-        local raidW = UI.WidestTextWidth(measureFS, raidNames)
-        local bossW = UI.WidestTextWidth(measureFS, bossNames)
+        local narrow = self._narrowBarWidth
 
-        -- Class: localized class names plus the "All classes" entry.
-        local classNames = { RR.L["All classes"] }
-        for classID = 1, 13 do
-            if CLASS_ID_TO_TOKEN[classID] then
-                classNames[#classNames + 1] = ClassNameForID(classID) or ""
+        -- Inst and Boss fit what their menus offer now, so one long name in
+        -- another expansion leaves no dead space here. They share a width.
+        -- The Encounter Journal walk is too slow for the script time limit
+        -- in combat, so a combat measurement uses the authored names and is
+        -- not kept.
+        local inCombat = InCombatLockdown and InCombatLockdown() or false
+        local widthKey = tostring(browserState.instanceKind) .. ":"
+            .. tostring(browserState.expansion)
+        self._wideBarWidths = self._wideBarWidths or {}
+        local wide = self._wideBarWidths[widthKey]
+        if not wide then
+            local raidNames, bossNames = {}, {}
+            local byExp = UI.EnumerateInstances(browserState.instanceKind)
+            for _, raid in ipairs(byExp[browserState.expansion] or {}) do
+                raidNames[#raidNames + 1] = RR:GetLocalizedRaidName(raid) or ""
+                for _, boss in ipairs(raid.bosses or {}) do
+                    bossNames[#bossNames + 1] = inCombat and boss.name
+                        or RR:GetLocalizedBossName(boss) or ""
+                end
+                local eventBoss = RR:GetEventBoss(raid)
+                if eventBoss then
+                    bossNames[#bossNames + 1] = UI.EventBossLabel(raid, eventBoss)
+                end
             end
+            wide = math.ceil(math.max(UI.WidestTextWidth(measureFS, raidNames),
+                UI.WidestTextWidth(measureFS, bossNames))) + ARROW_PAD
+            if not inCombat then self._wideBarWidths[widthKey] = wide end
         end
-        local classW = UI.WidestTextWidth(measureFS, classNames)
+        wide = math.max(wide, narrow + DD_STEP)
 
-        -- Pair the widths so the layout stays tidy: Raid and Boss share the
-        -- wider of the two (the "2" slots), Exp and Class share the wider of
-        -- those two (the "1" slots). This keeps clean uniform pairs while
-        -- still fitting the longest content in each pair -- ragged per-bar
-        -- widths would look messy.
-        local wide   = math.ceil(math.max(raidW, bossW)) + ARROW_PAD
-        local narrow = math.ceil(math.max(expW, classW)) + ARROW_PAD
-        self._dropdownWidths = { wide = wide, narrow = narrow,
-                                 provisional = inCombat }
-        ddRaid:SetWidth(wide)
+        -- The bars step right down the stack, so each is shorter than the one
+        -- above by that step: right edges stay flush. The Boss bar's right
+        -- edge is what the frame has to hold.
+        ddExp:SetWidth(narrow + DD_STEP * 4)
+        ddType:SetWidth(narrow + DD_STEP * 3)
+        ddRaid:SetWidth(wide + DD_STEP)
         ddBoss:SetWidth(wide)
-        ddExp:SetWidth(narrow)
         ddClass:SetWidth(narrow)
+        self.barsRight = barLeft + DD_STEP * 3 + wide
     end
 
     -- Class display order for the dropdown: ascending class ID, matching the
@@ -10589,7 +10571,7 @@ GetOrCreateTmogWindow = function()
         -- Width first: the design width is a floor, and wrapping rows
         -- need the final viewport width before their heights can be read.
         local margin = self.contentMargin or 22
-        local popupW = math.max(UI.POPUP_DESIGN_W,
+        local popupW = math.max(UI.POPUP_DESIGN_W, (self.barsRight or 0) + 14,
             math.min(UI.POPUP_MAX_W, math.ceil(maxRowW) + margin + 28 + 2))
         self:SetWidth(popupW)
         local viewportW = math.max(1, popupW - margin - 28)
@@ -13691,7 +13673,7 @@ end
 
 -- Empties and hides the run-note fields under the banner.
 function UI.ClearRunNotes()
-    for _, field in ipairs({ panel.exitNote, panel.exitNoteExtra,
+    for _, field in ipairs({ panel.exitNote,
                              panel.skipReturn, panel.skipList, panel.skipNote }) do
         field:SetText("")
         field:Hide()
@@ -14029,8 +14011,8 @@ function UI.Update()
                     and RR:ActiveRouteSkippedOptionalBoss())
 
             -- Run-complete state: every boss in the active route cleared.
-            -- Drops the Travel line, re-anchors listHeader under the exit
-            -- note (or panel.next when there's no exit note), and shows the
+            -- Drops the Travel line, re-anchors listHeader under the lowest
+            -- note shown (or panel.next when there is none), and shows the
             -- idle per-raid pill list instead of the boss checklist.
             -- Uncaptured-raid state (routeComplete=false) uses the same
             -- layout with different text.
@@ -14052,7 +14034,7 @@ function UI.Update()
                 local exitNote = RR:GetActiveExitNote()
                 local exitFontSize = RR:GetSetting("fontSize", 12)
                 -- A skip run ends with a boss still alive, so the block under
-                -- the banner invites the player back and says plainly that
+                -- the exit note invites the player back and says plainly that
                 -- routing stays down for the rest of the lockout. The caveat
                 -- rides its own field: two points down and indented, which
                 -- one FontString cannot express.
@@ -14159,37 +14141,12 @@ function UI.Update()
                     panel.exitNote:SetText("")
                     panel.exitNote:Hide()
                 end
-                -- The exit note closes the block, so on a skip run it moves
-                -- below the caveat and dedents back to the block's left edge.
-                panel.exitNote:ClearAllPoints()
-                if panel.skipNote:IsShown() then
-                    panel.exitNote:SetPoint("TOPLEFT", panel.skipNote, "BOTTOMLEFT", -12, -13)
-                elseif panel.skipList:IsShown() then
-                    panel.exitNote:SetPoint("TOPLEFT", panel.skipList, "BOTTOMLEFT", -12, -13)
-                elseif panel.skipReturn:IsShown() then
-                    panel.exitNote:SetPoint("TOPLEFT", panel.skipReturn, "BOTTOMLEFT", 0, -13)
-                else
-                    panel.exitNote:SetPoint("TOPLEFT", panel.next, "BOTTOMLEFT", 0, -13)
-                end
-                -- Below the exit note, on its own line: the boss the route
-                -- never sent the player to, and what is left to collect
-                -- there. Hangs off panel.exitNote, so it follows wherever
-                -- the note moved to.
-                local exitExtra = RR.GetExitNoteExtra and RR:GetExitNoteExtra()
-                if exitExtra and exitExtra ~= "" then
-                    -- Orange "Note:" label, the way the exit note above it
-                    -- carries its own magenta one, so the two lines read as
-                    -- a pair of labelled notes rather than a run-on.
-                    panel.exitNoteExtra:SetText(
-                        OrangeText(RR.L["Note:"]) .. " "
-                        .. HighlightNames(exitExtra))
-                    panel.exitNoteExtra:SetTextColor(1, 1, 1)
-                    SetBodyFont(panel.exitNoteExtra, exitFontSize, "")
-                    panel.exitNoteExtra:Show()
-                else
-                    panel.exitNoteExtra:SetText("")
-                    panel.exitNoteExtra:Hide()
-                end
+                -- The exit note leads the block, so the comeback line and
+                -- what hangs from it sit below it.
+                panel.skipReturn:ClearAllPoints()
+                panel.skipReturn:SetPoint("TOPLEFT",
+                    panel.exitNote:IsShown() and panel.exitNote or panel.next,
+                    "BOTTOMLEFT", 0, -13)
             else
                 -- Dungeons list and load before their routes exist, by
                 -- design -- browsing, the toaster and boss progress all
@@ -14218,16 +14175,14 @@ function UI.Update()
             -- straight to panel.next there drew the list over that line.
             -- skipNote carries a 12px indent of its own, hence the -12.
             panel.listHeader:ClearAllPoints()
-            if panel.exitNoteExtra:IsShown() then
-                panel.listHeader:SetPoint("TOPLEFT", panel.exitNoteExtra, "BOTTOMLEFT", 0, -12)
-            elseif panel.exitNote:IsShown() then
-                panel.listHeader:SetPoint("TOPLEFT", panel.exitNote, "BOTTOMLEFT", 0, -12)
-            elseif panel.skipNote:IsShown() then
+            if panel.skipNote:IsShown() then
                 panel.listHeader:SetPoint("TOPLEFT", panel.skipNote, "BOTTOMLEFT", -12, -12)
             elseif panel.skipList:IsShown() then
                 panel.listHeader:SetPoint("TOPLEFT", panel.skipList, "BOTTOMLEFT", -12, -12)
             elseif panel.skipReturn:IsShown() then
                 panel.listHeader:SetPoint("TOPLEFT", panel.skipReturn, "BOTTOMLEFT", 0, -12)
+            elseif panel.exitNote:IsShown() then
+                panel.listHeader:SetPoint("TOPLEFT", panel.exitNote, "BOTTOMLEFT", 0, -12)
             else
                 panel.listHeader:SetPoint("TOPLEFT", panel.next, "BOTTOMLEFT", 0, -12)
             end
@@ -14337,39 +14292,213 @@ local GetOrCreateAchievementsWindow
 
 -- StaticPopup for the "copy Wowhead URL" dialog (Ctrl+C, dismiss). Addons
 -- can't open URLs directly, so a copy-popup is the standard pattern.
--- Confirmation for bypassing an optional boss. The choice lasts the whole
--- lockout and has no in-panel undo, so it asks first.
-StaticPopupDialogs["RETRORUNS_SKIP_BOSS"] = {
-    text         = RR.L["Skip %s for this lockout?\n\nThe route will continue past this boss."],
-    button1      = YES or RR.L["Yes"],
-    button2      = NO or RR.L["No"],
-    timeout      = 0,
-    whileDead    = true,
-    hideOnEscape = true,
-    -- preferredIndex 3 sidesteps the RAID_WARNING taint chain.
-    preferredIndex = 3,
-    OnAccept = function(_, data)
-        if data and data.bossIndex then
-            RR:SetBossSkipped(data.bossIndex, true)
-            UI.Update()
-        end
-    end,
-}
+-- The skip question, styled like the load dialog: the wordmark, the question,
+-- and the neon buttons. A skip lasts the whole lockout with no in-panel undo,
+-- so both the panel's Skip controls and Prompt Me ask here.
+function UI._GetOrCreateSkipPrompt()
+    if UI._skipPromptFrame then return UI._skipPromptFrame end
+
+    local prompt = CreateFrame("Frame", "RetroRunsSkipPrompt", UIParent, "BackdropTemplate")
+    prompt:SetSize(340, 175)
+    prompt:SetBackdrop(PanelBackdrop(PANEL_EDGE_SIZE_FULL))
+    prompt:SetBackdropBorderColor(1, 1, 1, 1)
+    prompt:SetFrameStrata("FULLSCREEN_DIALOG")
+    prompt:SetPoint("CENTER", UIParent, "CENTER", 0, 240)
+    prompt:EnableMouse(true)
+    prompt:SetClampedToScreen(true)
+    -- Esc closes it, the same as the [X].
+    table.insert(UISpecialFrames, "RetroRunsSkipPrompt")
+
+    local brand = prompt:CreateFontString(nil, "OVERLAY")
+    SafeSetFont(brand, TITLE_FONT, 22, "OUTLINE")
+    brand:SetPoint("TOP", prompt, "TOP", 0, -24)
+    brand:SetText("|cffF259C7RETRO|r|cff4DCCFFRUNS|r")
+    prompt.brand = brand
+
+    -- A localized string, so it takes the chrome font rather than the pixel
+    -- face, which covers ASCII only.
+    local question = prompt:CreateFontString(nil, "OVERLAY")
+    SafeSetFont(question, RR:GetChromeFont(), 14, "")
+    question:SetPoint("TOP", brand, "BOTTOM", 0, -14)
+    question:SetWidth(300)
+    question:SetWordWrap(true)
+    question:SetJustifyH("CENTER")
+    prompt.question = question
+
+    local metrics = UI.CHOICE_BUTTON
+    local pairOffset = (metrics.WIDTH + metrics.GAP) / 2
+    prompt.skipBtn = UI.MakeChoiceButton(prompt, UI.BossWord(RR.L["SKIP (boss)"]), -pairOffset)
+    prompt.killBtn = UI.MakeChoiceButton(prompt, RR.L["KILL"], pairOffset)
+    prompt.skipBtn:SetScript("OnClick", function() UI.ChooseSkipPrompt("onSkip") end)
+    prompt.killBtn:SetScript("OnClick", function() UI.ChooseSkipPrompt("onKill") end)
+
+    local closeBtn = UI.MakeRetroCloseButton(prompt)
+    closeBtn:SetPoint("TOPRIGHT", -10 - FRAME_INSET_X, -4 - FRAME_INSET_Y)
+    closeBtn:SetScript("OnClick", function() prompt:Hide() end)
+
+    local settingsBtn = UI.MakeRetroIconButton(prompt, "SettingsIcon")
+    settingsBtn:SetPoint("RIGHT", closeBtn, "LEFT", -2, 0)
+    settingsBtn:SetScript("OnClick", UI.OpenSkipPromptSettings)
+    settingsBtn:HookScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip_SetTitle(GameTooltip, RR.L["Settings"])
+        GameTooltip:Show()
+    end)
+    settingsBtn:HookScript("OnLeave", GameTooltip_Hide)
+
+    -- Closed by the [X] or Esc: a cancel. IsShown stays true when only
+    -- UIParent went away (Alt-Z, a cinematic), which is no choice at all.
+    prompt:SetScript("OnHide", function(self)
+        if not self:IsShown() then UI.ChooseSkipPrompt("onCancel") end
+    end)
+
+    prompt:Hide()
+    UI._skipPromptFrame = prompt
+    return prompt
+end
+
+-- The one skip question, whichever way it was reached, for one boss. The
+-- wording follows the boss, not the path that opened the prompt.
+-- handlers: onSkip, onKill, onCancel.
+function UI.ShowSkipPrompt(bossIndex, handlers)
+    local prompt = UI._GetOrCreateSkipPrompt()
+    UI.HideSkipPrompt()
+    prompt.handlers = handlers
+    prompt:SetBackdropColor(1, 1, 1, RR:GetSetting("panelOpacity", 1.0))
+    SafeSetFont(prompt.question, RR:GetChromeFont(), 14, "")
+
+    local boss = RR:GetBossByIndex(bossIndex)
+    local bossName = (boss and RR:GetLocalizedBossName(boss)) or RR.L["Unknown"]
+    local coloredName = ("|cffffff00%s|r"):format(bossName)
+    prompt.question:SetText(RR:BossHasNothingLeft(boss)
+        and (RR.L["%s has nothing left to collect."]):format(coloredName)
+        or (RR.L["Skip %s for this lockout?\n\nThe route will continue past this boss."])
+            :format(coloredName))
+
+    -- Sized from the measured text, the same way as the load dialog.
+    local metrics = UI.CHOICE_BUTTON
+    local titleBlock = 24 + (prompt.brand:GetStringHeight() or 22) + 14
+        + (prompt.question:GetStringHeight() or 14)
+    prompt:SetHeight(math.ceil(titleBlock) + 12 + metrics.BOTTOM + metrics.HEIGHT
+        + UI.ChoiceTextBand(metrics))
+    prompt:Show()
+end
+
+function UI.IsSkipPromptShown()
+    return UI._skipPromptFrame ~= nil and UI._skipPromptFrame:IsShown()
+end
+
+-- Closes the prompt with no choice made.
+function UI.HideSkipPrompt()
+    local prompt = UI._skipPromptFrame
+    if not prompt then return end
+    prompt.handlers = nil
+    UI._collectedSkipBoss = nil
+    prompt:Hide()
+end
+
+-- The prompt's cog: Settings opens on the General tab, where the auto-skip
+-- setting lives. The prompt closes with no choice made.
+function UI.OpenSkipPromptSettings()
+    RR:ZoneLog("skip prompt: settings")
+    UI.HideSkipPrompt()
+    if UI.OpenSettings then UI.OpenSettings() end
+    UI.AskAfterSettings()
+end
+
+-- A question held back by Settings comes back one frame after Settings closes.
+function UI.AskAfterSettings()
+    if UI._askAfterSettingsHooked or not SettingsPanel then return end
+    UI._askAfterSettingsHooked = true
+    SettingsPanel:HookScript("OnHide", function() C_Timer.After(0, UI.AskCollectedSkip) end)
+end
+
+-- Closes the prompt and runs the choice, so the handler can open the next one.
+function UI.ChooseSkipPrompt(handlerName)
+    local handlers = UI._skipPromptFrame and UI._skipPromptFrame.handlers
+    if not handlers then return end
+    RR:ZoneLog(("skip prompt: %s"):format(handlerName))
+    UI.HideSkipPrompt()
+    local handler = handlers[handlerName]
+    if handler then handler() end
+end
 
 -- Shared entry point for both skip controls (the header button and the
 -- {skip} link inside the note), so they cannot drift apart.
 function UI.ConfirmSkipBoss(bossIndex)
     if not bossIndex or not RR:IsBossOptional(bossIndex) then return end
-    local boss = RR:GetBossByIndex(bossIndex)
-    local bossName = (boss and RR:GetLocalizedBossName(boss)) or RR.L["Unknown"]
     -- Say why rather than opening a confirmation that would fail: from here
     -- the route has nowhere to send them once this step is gone.
     if not RR:CanSkipBoss(bossIndex) then
+        RR:ZoneLog(("boss skip: boss %d refused from here"):format(bossIndex))
         RR:Print(RR.L["Cannot skip from here -- keep going until the route reaches the next boss."])
         return
     end
-    StaticPopup_Show("RETRORUNS_SKIP_BOSS", bossName, nil,
-        { bossIndex = bossIndex })
+    RR:ZoneLog(("boss skip: confirming boss %d"):format(bossIndex))
+    -- Keeping the boss also answers a Prompt Me question waiting on it.
+    local function Keep()
+        UI.AnswerCollectedSkip(bossIndex, "keep")
+        UI.AskCollectedSkip()
+    end
+    UI.ShowSkipPrompt(bossIndex, {
+        onSkip = function()
+            RR:SetBossSkipped(bossIndex, true)
+            UI.Update()
+        end,
+        onKill   = Keep,
+        onCancel = Keep,
+    })
+end
+
+-- Prompt Me's question, for the lockout: SKIP leaves the boss out as the On
+-- setting does; KILL, the [X] or Esc keeps it as Off does. Shows it for the
+-- boss the route has reached, or takes it down when there is none, and in
+-- combat waits for the fight to end. A Skip confirmation already up stays.
+function UI.AskCollectedSkip()
+    local bossIndex = RR:CollectedSkipQuestion()
+    if not bossIndex then
+        if UI._collectedSkipBoss then
+            RR:ZoneLog(("collected-skip: boss %d closed unanswered"):format(UI._collectedSkipBoss))
+            UI.HideSkipPrompt()
+        end
+        return
+    end
+    if bossIndex == UI._collectedSkipBoss then return end
+    if UI.IsSkipPromptShown() and not UI._collectedSkipBoss then return end
+    if SettingsPanel and SettingsPanel:IsShown() then
+        UI.AskAfterSettings()
+        return
+    end
+    if InCombatLockdown() then
+        if not UI._collectedSkipCombatFrame then
+            UI._collectedSkipCombatFrame = CreateFrame("Frame")
+            UI._collectedSkipCombatFrame:SetScript("OnEvent", function(frame)
+                frame:UnregisterEvent("PLAYER_REGEN_ENABLED")
+                UI.AskCollectedSkip()
+            end)
+        end
+        if not UI._collectedSkipCombatFrame:IsEventRegistered("PLAYER_REGEN_ENABLED") then
+            RR:ZoneLog(("collected-skip: boss %d waits for combat to end"):format(bossIndex))
+            UI._collectedSkipCombatFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        end
+        return
+    end
+    local function Keep() UI.AnswerCollectedSkip(bossIndex, "keep") end
+    RR:ZoneLog(("collected-skip: asking about boss %d"):format(bossIndex))
+    UI.ShowSkipPrompt(bossIndex, {
+        onSkip   = function() UI.AnswerCollectedSkip(bossIndex, "skip") end,
+        onKill   = Keep,
+        onCancel = Keep,
+    })
+    UI._collectedSkipBoss = bossIndex
+end
+
+-- Takes the answer while the question still stands.
+function UI.AnswerCollectedSkip(bossIndex, answer)
+    if RR:CollectedSkipQuestion() ~= bossIndex then return end
+    RR:SetCollectedSkipAnswer(bossIndex, answer)
+    RR:ComputeNextStep()
+    UI.Update()
 end
 
 -- A copy-URL popup: the heading over an EditBox holding data.url, selected
@@ -14783,6 +14912,94 @@ function UI.ToggleSkipDetail(raid)
     UI.ShowSkipDetail(raid)
 end
 
+-- The neon choice buttons of the load dialog and the skip prompt: one wordless
+-- frame in four states, which the engine swaps on hover, press and disable,
+-- with the word drawn live so it can say anything in any language. WORD_WIDTH
+-- is what fits inside the frame. The small size is for popups over the panel.
+UI.CHOICE_BUTTON_SMALL = { WIDTH = 100, HEIGHT = 28, GAP = 4, BOTTOM = 7,
+                           WORD_SIZE = 12, WORD_WIDTH = 66, TEXT_BAND = 6 }
+UI.CHOICE_BUTTON = { WIDTH = 140, HEIGHT = 36, GAP = 4, BOTTOM = 30,
+                     WORD_SIZE = 16, WORD_WIDTH = 92, TEXT_BAND = 17,
+                     WORD_COLOR = { 0.5, 0.91, 0.96 },
+                     WORD_HOVER_COLOR = { 0.85, 0.98, 1 },
+                     WORD_DISABLED_COLOR = { 0.6, 0.63, 0.68 } }
+
+-- Extra room between a popup's text and its buttons on a client using the body
+-- font. The pixel font needs none.
+function UI.ChoiceTextBand(metrics)
+    return (RR:GetChromeFont() == TITLE_FONT) and 0 or metrics.TEXT_BAND
+end
+
+-- A long translation steps down in size until it fits inside the frame.
+function UI.SetChoiceButtonWord(choiceButton, word)
+    local metrics = choiceButton.metrics or UI.CHOICE_BUTTON
+    local label = choiceButton.wordLabel
+    local size = metrics.WORD_SIZE
+    SafeSetFont(label, RR:GetChromeFont(), size, "")
+    choiceButton:SetText(word)
+    while label:GetStringWidth() > metrics.WORD_WIDTH and size > 9 do
+        size = size - 1
+        SafeSetFont(label, RR:GetChromeFont(), size, "")
+    end
+end
+
+-- The word's resting color: gray on a disabled button, to match the frame.
+function UI.RestChoiceButtonWord(choiceButton)
+    local metrics = UI.CHOICE_BUTTON
+    choiceButton.wordLabel:SetTextColor(unpack(choiceButton:IsEnabled()
+        and metrics.WORD_COLOR or metrics.WORD_DISABLED_COLOR))
+end
+
+function UI.SetChoiceButtonEnabled(choiceButton, enabled)
+    choiceButton:SetEnabled(enabled)
+    UI.RestChoiceButtonWord(choiceButton)
+end
+
+function UI.MakeChoiceButton(parent, word, anchorX, metrics)
+    metrics = metrics or UI.CHOICE_BUTTON
+    local media = "Interface\\AddOns\\RetroRuns\\Media\\Buttons\\ChoiceButton"
+    local choiceButton = CreateFrame("Button", nil, parent)
+    choiceButton:SetSize(metrics.WIDTH, metrics.HEIGHT)
+    choiceButton.metrics = metrics
+    choiceButton.anchorX = anchorX
+    choiceButton:SetPoint("BOTTOM", parent, "BOTTOM", anchorX, metrics.BOTTOM)
+    choiceButton:SetNormalTexture(media)
+    choiceButton:SetPushedTexture(media .. "_Pushed")
+    choiceButton:SetDisabledTexture(media .. "_Disabled")
+    -- Highlight overlays the current state on hover. BLEND (not ADD) since
+    -- these are full opaque buttons, not glow-only deltas.
+    choiceButton:SetHighlightTexture(media .. "_Highlight", "BLEND")
+
+    -- The hover highlight overlay sits above the pushed texture and masks
+    -- it; hide the highlight on press so the pushed art shows, restore it on
+    -- release.
+    choiceButton:SetScript("OnMouseDown", function(self)
+        if self:IsEnabled() then
+            local hl = self:GetHighlightTexture()
+            if hl then hl:Hide() end
+        end
+    end)
+    choiceButton:SetScript("OnMouseUp", function(self)
+        local hl = self:GetHighlightTexture()
+        if hl then hl:Show() end
+    end)
+
+    choiceButton.wordLabel = choiceButton:CreateFontString(nil, "OVERLAY")
+    choiceButton:SetFontString(choiceButton.wordLabel)
+    choiceButton:SetPushedTextOffset(1, -1)
+    UI.SetChoiceButtonWord(choiceButton, word)
+    UI.RestChoiceButtonWord(choiceButton)
+
+    -- The word lights up with the frame. A button hidden under the cursor
+    -- gets no OnLeave, so hiding rests it too.
+    choiceButton:SetScript("OnEnter", function(self)
+        self.wordLabel:SetTextColor(unpack(UI.CHOICE_BUTTON.WORD_HOVER_COLOR))
+    end)
+    choiceButton:SetScript("OnLeave", UI.RestChoiceButtonWord)
+    choiceButton:SetScript("OnHide", UI.RestChoiceButtonWord)
+    return choiceButton
+end
+
 function UI._GetOrCreateLoadDialog()
     if UI._loadDialogFrame then return UI._loadDialogFrame end
 
@@ -14848,87 +15065,15 @@ function UI._GetOrCreateLoadDialog()
     loading:SetText(LOAD_DIALOG_BASE)
     loadDialog.loading = loading
 
-    -- Button row: FULL / SKIP, centered as a pair. Each uses custom neon
-    -- textures (the word is baked into the art) for all four button
-    -- states; the engine swaps them automatically on hover/press/disable.
-    -- Cancel is handled by the close [X] in the top-right corner.
-    local BTN_W, BTN_H, BTN_GAP, BTN_BOTTOM = 140, 36, 4, 30
+    -- Button row: FULL / SKIP, centered as a pair. Cancel is handled by the
+    -- close [X] in the top-right corner.
+    local metrics = UI.CHOICE_BUTTON
     -- The button row's share of the frame height, from the bottom edge.
-    loadDialog.buttonBand = BTN_BOTTOM + BTN_H
-    loadDialog.buttonBottom, loadDialog.buttonHeight = BTN_BOTTOM, BTN_H
-    local MEDIA = "Interface\\AddOns\\RetroRuns\\Media\\Buttons\\"
-    local function SetButtonArt(choiceButton, baseName)
-        choiceButton.artName = baseName
-        choiceButton:SetNormalTexture(MEDIA .. baseName)
-        choiceButton:SetPushedTexture(MEDIA .. baseName .. "_Pushed")
-        choiceButton:SetDisabledTexture(MEDIA .. baseName .. "_Disabled")
-        -- Highlight overlays the current state on hover. BLEND (not ADD)
-        -- since these are full opaque buttons, not glow-only deltas.
-        choiceButton:SetHighlightTexture(MEDIA .. baseName .. "_Highlight", "BLEND")
-    end
-    loadDialog.SetButtonArt = SetButtonArt
-    local function MakeTextureButton(baseName, anchorX)
-        local choiceButton = CreateFrame("Button", nil, loadDialog)
-        choiceButton:SetSize(BTN_W, BTN_H)
-        choiceButton.anchorX = anchorX
-        choiceButton:SetPoint("BOTTOM", loadDialog, "BOTTOM", anchorX, BTN_BOTTOM)
-        SetButtonArt(choiceButton, baseName)
-
-        -- The hover highlight overlay sits above the pushed texture and
-        -- masks it; hide the highlight on press so the pushed art shows,
-        -- restore it on release.
-        choiceButton:SetScript("OnMouseDown", function(self)
-            if self:IsEnabled() then
-                local hl = self:GetHighlightTexture()
-                if hl then hl:Hide() end
-            end
-        end)
-        choiceButton:SetScript("OnMouseUp", function(self)
-            local hl = self:GetHighlightTexture()
-            if hl then hl:Show() end
-        end)
-        return choiceButton
-    end
-    local halfStride = (BTN_W + BTN_GAP) / 2
-    loadDialog.fullBtn = MakeTextureButton("FullButton", -halfStride)
-    loadDialog.skipBtn = MakeTextureButton("SkipButton", halfStride)
-
-    -- The button words are baked into the art in English. When the locale
-    -- table translates them, a small translated word sits just above the
-    -- button (outer-aligned, tinted to the button's neon color) and shows
-    -- only while that button is hovered. English clients (and any locale
-    -- keeping the English word) get nothing.
-    local SUB_LABEL_SIZE = 8   -- native pixel-font size, renders crisp
-    local SUB_LABEL_GAP  = 3   -- px between label baseline and button top
-    loadDialog.subLabelBand = SUB_LABEL_SIZE + SUB_LABEL_GAP + 6
-    local function AddTranslatedSubLabel(button, colorHex, outerSide)
-        local label = button:CreateFontString(nil, "OVERLAY")
-        SafeSetFont(label, RR:GetChromeFont(), SUB_LABEL_SIZE, "")
-        if outerSide == "LEFT" then
-            label:SetPoint("BOTTOMLEFT", button, "TOPLEFT", 4, SUB_LABEL_GAP)
-        else
-            label:SetPoint("BOTTOMRIGHT", button, "TOPRIGHT", -4, SUB_LABEL_GAP)
-        end
-        label:Hide()
-        button.subLabel, button.subLabelColor = label, colorHex
-        -- Hover-only. Motion scripts stay live on a disabled button so a
-        -- locked SKIP still reveals its translation on hover.
-        button:SetMotionScriptsWhileDisabled(true)
-        button:HookScript("OnEnter", function()
-            if button.subLabelWord then label:Show() end
-        end)
-        button:HookScript("OnLeave", function() label:Hide() end)
-    end
-    -- The word under the art, when the client translates it, in a band the
-    -- frame reserves above the button.
-    function loadDialog.SetSubLabelWord(button, translated, englishWord)
-        local word = (translated ~= englishWord) and translated or nil
-        button.subLabelWord = word
-        button.subLabel:SetText(word and ("|c%s%s|r"):format(button.subLabelColor, word) or "")
-    end
-    AddTranslatedSubLabel(loadDialog.fullBtn, "ff4dccff", "LEFT")
-    AddTranslatedSubLabel(loadDialog.skipBtn, "fff259c7", "RIGHT")
-    loadDialog.SetSubLabelWord(loadDialog.fullBtn, RR.L["FULL"], "FULL")
+    loadDialog.buttonBand = metrics.BOTTOM + metrics.HEIGHT
+    loadDialog.buttonBottom, loadDialog.buttonHeight = metrics.BOTTOM, metrics.HEIGHT
+    local halfStride = (metrics.WIDTH + metrics.GAP) / 2
+    loadDialog.fullBtn = UI.MakeChoiceButton(loadDialog, RR.L["FULL"], -halfStride)
+    loadDialog.skipBtn = UI.MakeChoiceButton(loadDialog, RR.L["SKIP"], halfStride)
 
     loadDialog.fullBtn:SetScript("OnClick", function()
         loadDialog:Hide()
@@ -15020,20 +15165,15 @@ function UI.ShowLoadDialog(raidName)
     -- The title block is anchored down from the top and the buttons up from
     -- the bottom, so the frame is sized from the measured block: wordmark,
     -- name (wrapped or not), difficulty (zero when empty) and prompt, a clear
-    -- band, the button row, and the hover sub-label band on locales that
-    -- translate the button words.
+    -- band and the button row.
     local nameTextHeight = dialog.raidName:GetStringHeight() or 16
     local difficultyHeight = dialog.difficultyLine:GetStringHeight() or 0
     local titleBlock = 24 + (dialog.brand:GetStringHeight() or 22) + 14
         + nameTextHeight + difficultyHeight + 14
         + (dialog.loading:GetStringHeight() or 14)
-    -- The right-hand button's art and word follow the instance's second
-    -- route (SKIP, or Dire Maul's TRIBUTE).
-    local skipText = RR:SkipRouteText(raid)
-    if dialog.skipBtn.artName ~= skipText.button then
-        dialog.SetButtonArt(dialog.skipBtn, skipText.button)
-    end
-    dialog.SetSubLabelWord(dialog.skipBtn, skipText.word, skipText.englishWord)
+    -- The right-hand button's word follows the instance's second route (SKIP,
+    -- or Dire Maul's TRIBUTE).
+    UI.SetChoiceButtonWord(dialog.skipBtn, RR:SkipRouteText(raid).word)
 
     -- Resolve SKIP state. Gate on the chain the authored route targets:
     -- a raid with multiple skip chains (HFC: Iskar + Mannoroth) but one
@@ -15054,16 +15194,16 @@ function UI.ShowLoadDialog(raidName)
     local resumeIsSkip = showContinue and savedVariant == "skip" and unlocked
     -- FULL is always a valid choice; ensure it's enabled and full-color
     -- (it may have been left desaturated from a prior disabled state).
-    dialog.fullBtn:SetEnabled(true)
+    UI.SetChoiceButtonEnabled(dialog.fullBtn, true)
     if hasRoute and unlocked then
-        dialog.skipBtn:SetEnabled(true)
+        UI.SetChoiceButtonEnabled(dialog.skipBtn, true)
         -- When SKIP is the route being resumed, the footer becomes the
         -- "Continue?" hint (replacing the boss name) so it lands in the
         -- footer slot rather than stacking onto the frame border below it.
         dialog.skipFooter:SetText(resumeIsSkip and RR.L["Continue?"]
             or (RR:GetLocalizedSkipTargetName(raid) or ""))
     else
-        dialog.skipBtn:SetEnabled(false)
+        UI.SetChoiceButtonEnabled(dialog.skipBtn, false)
         if not hasRoute then
             dialog.skipFooter:SetText(RR.L["N/A"])
         elseif not RR:RaidSkipIsCascading(raid) then
@@ -15116,10 +15256,11 @@ function UI.ShowLoadDialog(raidName)
         choiceButton:SetPoint("BOTTOM", dialog, "BOTTOM", choiceButton.anchorX,
             dialog.buttonBottom + countBand)
     end
-    local subLabelBand = (dialog.fullBtn.subLabelWord or dialog.skipBtn.subLabelWord)
-        and dialog.subLabelBand or 0
     dialog:SetHeight(math.ceil(titleBlock) + 12 + dialog.buttonBand + countBand
-        + subLabelBand)
+        + UI.ChoiceTextBand(UI.CHOICE_BUTTON))
+    RR:ZoneLog(("load dialog: brand=%.1f name=%.1f difficulty=%.1f prompt=%.1f height=%.1f"):format(
+        dialog.brand:GetStringHeight() or 0, nameTextHeight, difficultyHeight,
+        dialog.loading:GetStringHeight() or 0, dialog:GetHeight()))
 
     dialog:Show()
 end
@@ -15689,6 +15830,7 @@ GetOrCreateAchievementsWindow = function()
             local lbl = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
             lbl:SetText(labelText)
             lbl:SetJustifyH("RIGHT")
+            lbl:SetWordWrap(false)
             dd.label = lbl
         end
         return dd
@@ -15710,7 +15852,8 @@ GetOrCreateAchievementsWindow = function()
         local textWidth = capMeasure:GetStringWidth() or 0
         if textWidth > LABEL_W then LABEL_W = textWidth end
     end
-    LABEL_W = math.ceil(LABEL_W)
+    -- Two spare pixels, as in the transmog browser.
+    LABEL_W = math.ceil(LABEL_W) + 2
     -- The bar's frame edge is its visible edge.
     local DD_INSET = 0
 
@@ -15797,31 +15940,28 @@ GetOrCreateAchievementsWindow = function()
     end
 
     -- Size the bars to their content, matching the transmog browser's rule:
-    -- each bar fits its longest string plus room for the arrow. Exp uses the
-    -- expansion list; Raid uses every current raid name.
+    -- each bar fits its longest string plus room for the arrow, Inst fits what
+    -- its menu offers now, and right edges stay flush down the stack.
     achFrame.SizeDropdownsToContent = function(self)
         local ARROW_PAD = 34
         -- Measure at the bar's own font so the fit survives a template change.
         if ddExp.Text and ddExp.Text.GetFontObject and ddExp.Text:GetFontObject() then
             capMeasure:SetFontObject(ddExp.Text:GetFontObject())
         end
-        local expW = UI.WidestTextWidth(capMeasure, UI.LocalizedExpansionNames())
-        -- Measured across BOTH tables so the bar does not resize when the
-        -- Type dropdown switches; dungeon names run longer than raid names.
+        local narrow = math.ceil(math.max(
+            UI.WidestTextWidth(capMeasure, UI.LocalizedExpansionNames()),
+            UI.WidestTextWidth(capMeasure, { RR.L["Raids"], RR.L["Dungeons"] }))) + ARROW_PAD
         local instanceNames = {}
-        for _, source in ipairs({ RetroRuns_Data, RetroRuns_DungeonData }) do
-            for _, instance in pairs(source or {}) do
-                if instance.instanceID and instance.instanceID > 0 then
-                    instanceNames[#instanceNames + 1] =
-                        RR:GetLocalizedRaidName(instance) or ""
-                end
-            end
+        local byExp = UI.EnumerateInstances(achState.instanceKind)
+        for _, instance in ipairs(byExp[achState.expansion] or {}) do
+            instanceNames[#instanceNames + 1] = RR:GetLocalizedRaidName(instance) or ""
         end
-        local raidW = UI.WidestTextWidth(capMeasure, instanceNames)
-        local typeW = UI.WidestTextWidth(capMeasure, { RR.L["Raids"], RR.L["Dungeons"] })
-        ddExp:SetWidth(math.ceil(expW)  + ARROW_PAD)
-        ddType:SetWidth(math.ceil(typeW) + ARROW_PAD)
-        ddRaid:SetWidth(math.ceil(raidW) + ARROW_PAD)
+        local wide = math.max(narrow,
+            math.ceil(UI.WidestTextWidth(capMeasure, instanceNames)) + ARROW_PAD)
+        ddExp:SetWidth(narrow + DD_STEP * 2)
+        ddType:SetWidth(narrow + DD_STEP)
+        ddRaid:SetWidth(wide)
+        self.barsRight = barLeft + DD_STEP * 2 + wide
     end
 
     -- Scrollable row region. Wrath-era raids carry enough achievements
@@ -16193,6 +16333,9 @@ GetOrCreateAchievementsWindow = function()
                 achFrame.sessionMaxWidth or 0, windowW)
             windowW = achFrame.sessionMaxWidth
         end
+        -- The Inst bar stays inside the frame whatever the language.
+        windowW = math.max(windowW,
+            (achFrame.barsRight or 0) + 14 - ACH_SCROLLBAR_GUTTER)
         achFrame:SetWidth(windowW + ACH_SCROLLBAR_GUTTER)
 
         -- The scroll viewport starts below the dropdown stack (title +

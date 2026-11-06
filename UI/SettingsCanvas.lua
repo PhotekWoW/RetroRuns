@@ -135,11 +135,65 @@ end
 
 -- ---- Control builders (operate on a given page) --------------------------
 
+-- Everything in a page's value column, so the column can move as one.
+local valueColumn = {}
+
+-- control sits in the column at height y. indent shifts it right of the column;
+-- minX is the x its own label needs it to clear.
+local function AddToValueColumn(page, control, y, indent, minX)
+    valueColumn[#valueColumn + 1] = { page = page, control = control, y = y,
+                                      indent = indent, minX = minX }
+end
+
+-- A long translated label needs more room than VALUE_X. The whole page's column
+-- moves out to the widest row, so the rows stay lined up in every language.
+-- Returns each page's column.
+local function AlignValueColumns()
+    local columnX = {}
+    for _, entry in ipairs(valueColumn) do
+        columnX[entry.page] = math.max(columnX[entry.page] or VALUE_X,
+                                       entry.minX - entry.indent)
+    end
+    for _, entry in ipairs(valueColumn) do
+        entry.control:ClearAllPoints()
+        -- Whole pixels: on a fractional x the 1px underline can fall between
+        -- pixels and vanish at some UI scales.
+        entry.control:SetPoint("TOPLEFT", entry.page, "TOPLEFT",
+            math.ceil(columnX[entry.page] + entry.indent), entry.y)
+    end
+    return columnX
+end
+
+-- A tooltip over a row's label and its controls. Each of `choices`, when
+-- given, adds a line of its own with the choice's name in white.
+local function AddRowHint(parent, labelText, controls, title, hint, choices)
+    local function ShowHint(owner)
+        GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+        GameTooltip_SetTitle(GameTooltip, title)
+        GameTooltip_AddNormalLine(GameTooltip, hint)
+        for _, choice in ipairs(choices or {}) do
+            GameTooltip_AddNormalLine(GameTooltip,
+                ("|cffffffff%s:|r %s"):format(choice.name, choice.text))
+        end
+        GameTooltip:Show()
+    end
+    local labelHover = CreateFrame("Frame", nil, parent)
+    labelHover:SetAllPoints(labelText)
+    labelHover:EnableMouse(true)
+    labelHover:HookScript("OnEnter", ShowHint)
+    labelHover:HookScript("OnLeave", GameTooltip_Hide)
+    for _, control in ipairs(controls) do
+        control:HookScript("OnEnter", ShowHint)
+        control:HookScript("OnLeave", GameTooltip_Hide)
+    end
+end
+
 -- A pair of clickable text buttons (e.g. Enable | Disable, On | Off). The
 -- selected one is cyan with a magenta underline; the other is gray. getValue
 -- returns the current bool; setValue(bool) writes it. opts.isOperable locks
 -- the pair while it returns false; opts.hint is a tooltip over the row,
--- titled opts.hintTitle.
+-- titled opts.hintTitle; opts.offNote is a line under the row, shown while the
+-- pair is off.
 local function AddButtonPair(page, label, indent, trueLabel, falseLabel, getValue, setValue, opts)
     opts = opts or {}
     indent = indent or 0
@@ -196,25 +250,29 @@ local function AddButtonPair(page, label, indent, trueLabel, falseLabel, getValu
         labelW = maxLabelW
     end
 
-    -- The value column is a minimum: rows whose localized label runs past
-    -- it push their buttons right instead of being overdrawn.
-    -- Ceil to a whole pixel: string widths are fractional, and a row whose
-    -- label pushes its buttons past the shared column would otherwise land
-    -- on a fractional x, where the 1px underline can fall between pixels
-    -- and vanish at some UI scales.
     -- An indented row indents its choices too, so the sub-rows read as a
     -- block under their parent rather than sharing its column, unless
     -- opts.flushChoices keeps them in the page's column. opts.followLabel
-    -- skips the column and sets the choices just after the label.
-    local choiceIndent = opts.flushChoices and 0 or indent
-    local columnX = opts.followLabel and 0 or (VALUE_X + choiceIndent)
-    local valueX = math.ceil(math.max(columnX, indent + labelW + 12))
-    trueBtn:SetPoint("TOPLEFT", page, "TOPLEFT", valueX, rowY)
+    -- skips the column and sets the choices just after the label. The column
+    -- itself is settled once every row exists (AlignValueColumns).
+    local labelEnd = indent + labelW + 12
+    if opts.followLabel then
+        trueBtn:SetPoint("TOPLEFT", page, "TOPLEFT", math.ceil(labelEnd), rowY)
+    else
+        AddToValueColumn(page, trueBtn, rowY, opts.flushChoices and 0 or indent, labelEnd)
+    end
     sep:SetPoint("LEFT", trueBtn, "RIGHT", 6, 0)
     falseBtn:SetPoint("LEFT", sep, "RIGHT", 6, 0)
 
     pageCursor[page] = pageCursor[page]
         - math.max(CHECK_H + 4, math.ceil(lbl:GetStringHeight()) + 8)
+
+    local offNote
+    if opts.offNote then
+        offNote = NewText(page, 12, COLOR_DIM, opts.offNote)
+        offNote:SetPoint("TOPLEFT", indent, pageCursor[page])
+        pageCursor[page] = pageCursor[page] - 18
+    end
 
     local row = { label = lbl, trueBtn = trueBtn, sep = sep, falseBtn = falseBtn }
     local operable = true   -- when false, clicks are ignored and both dim
@@ -231,19 +289,7 @@ local function AddButtonPair(page, label, indent, trueLabel, falseLabel, getValu
 
     -- The hint shows over the label and both choices.
     if opts.hint then
-        local function ShowHint(owner)
-            GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
-            GameTooltip_SetTitle(GameTooltip, opts.hintTitle or label)
-            GameTooltip_AddNormalLine(GameTooltip, opts.hint)
-            GameTooltip:Show()
-        end
-        local labelHover = CreateFrame("Frame", nil, page)
-        labelHover:SetAllPoints(lbl)
-        labelHover:EnableMouse(true)
-        for _, hoverFrame in ipairs({ labelHover, trueBtn, falseBtn }) do
-            hoverFrame:HookScript("OnEnter", ShowHint)
-            hoverFrame:HookScript("OnLeave", GameTooltip_Hide)
-        end
+        AddRowHint(page, lbl, { trueBtn, falseBtn }, opts.hintTitle or label, opts.hint)
     end
 
     -- Locked while opts.isOperable returns false (e.g. Coin SFX when the
@@ -252,6 +298,7 @@ local function AddButtonPair(page, label, indent, trueLabel, falseLabel, getValu
     function row.Refresh()
         operable = not opts.isOperable or opts.isOperable()
         local on = getValue()
+        if offNote then offNote:SetShown(not on) end
         local selColor = operable and COLOR_CYAN or COLOR_DIM
         trueBtn.fs:SetTextColor(unpack(on and selColor or COLOR_DIM))
         falseBtn.fs:SetTextColor(unpack((not on) and selColor or COLOR_DIM))
@@ -355,18 +402,38 @@ local function AddSlider(page, label, minV, maxV, step, getValue, setValue, form
     return container
 end
 
-local function AddDropdown(page, label, options, getValue, setValue)
+-- A labeled dropdown; opts.hint is a tooltip over the row, titled
+-- opts.hintTitle or the label, with a line for each option carrying a hint,
+-- named opt.hintName or its text.
+local function AddDropdown(page, label, options, getValue, setValue, opts)
+    opts = opts or {}
     local container = CreateFrame("Frame", nil, page)
-    container:SetSize(CONTENT_W, LABELED_H)
     container:SetPoint("TOPLEFT", 0, pageCursor[page])
 
     local title = NewText(container, CONTROL_FONT_SIZE, COLOR_LABEL, label)
     title:SetPoint("TOPLEFT", 4, 0)
+    title:SetWidth(CONTENT_W - 8)
+    title:SetJustifyH("LEFT")
+    -- A label too long for the row wraps and moves the dropdown down.
+    local titleH = math.ceil(title:GetStringHeight())
+    local wrapH = (titleH > CONTROL_FONT_SIZE * 1.5) and (titleH - CONTROL_FONT_SIZE) or 0
+    container:SetSize(CONTENT_W, LABELED_H + wrapH)
 
     local dd = CreateFrame("DropdownButton", nil, container, "WowStyle1DropdownTemplate")
-    dd:SetPoint("TOPLEFT", 0, -18)
+    dd:SetPoint("TOPLEFT", 0, -18 - wrapH)
     dd:SetWidth(CONTENT_W - 8)
     if UI.StyleDropdown then UI.StyleDropdown(dd) end
+    -- After StyleDropdown, whose own OnEnter clears the template's tooltip.
+    if opts.hint then
+        local choices = {}
+        for _, opt in ipairs(options) do
+            if opt.hint then
+                choices[#choices + 1] = { name = opt.hintName or opt.text, text = opt.hint }
+            end
+        end
+        AddRowHint(container, title, { dd }, opts.hintTitle or label, opts.hint, choices)
+        dd:HookScript("OnMouseDown", GameTooltip_Hide)
+    end
 
     dd:SetupMenu(function(_, rootDescription)
         for _, opt in ipairs(options) do
@@ -387,7 +454,7 @@ local function AddDropdown(page, label, options, getValue, setValue)
         if dd.GenerateMenu then dd:GenerateMenu() end
     end
     controls[#controls + 1] = container
-    pageCursor[page] = pageCursor[page] - (LABELED_H + ROW_GAP)
+    pageCursor[page] = pageCursor[page] - (LABELED_H + wrapH + ROW_GAP)
     return container
 end
 
@@ -444,29 +511,57 @@ local pageGeneral, pageAppearance, pageToaster, pageCustomize, pagePicker,
 AddPageTitle(pageGeneral, RR.L["General"], RR.L["Startup, Boss Order & Transmog Defaults"])
 
 AddDropdown(pageGeneral, RR.L["On Login Show RetroRuns"], {
-        { value = "minimized", text = RR.L["Open minimized"] },
-        { value = "full",      text = RR.L["Open full"] },
-        { value = "hidden",    text = RR.L["Don't open"] },
+        { value = "minimized", text = RR.L["Open minimized"],
+          hint = RR.L["Just the small bar"] },
+        { value = "full",      text = RR.L["Open full"],
+          hint = RR.L["The whole panel"] },
+        { value = "hidden",    text = RR.L["Don't open"],
+          hint = RR.L["Stays closed until you open it"] },
     },
     function() return RR:GetSetting("launchMode", "minimized") end,
-    function(value) RR:SetSetting("launchMode", value) end)
+    function(value) RR:SetSetting("launchMode", value) end,
+    { hint = RR.L["Sets how the RetroRuns panel opens when you log in. A /reload leaves it as it was."] })
 
 AddDropdown(pageGeneral, RR.L["Boss Progress Display"], {
-        { value = "rr", text = RR.L["Kill Order (Default)"] },
-        { value = "ej", text = RR.L["Blizzard Journal Order"] },
+        { value = "rr", text = RR.L["Kill Order (Default)"],
+          hint = RR.L["The order the route takes"] },
+        { value = "ej", text = RR.L["Blizzard Journal Order"],
+          hint = RR.L["The order in Blizzard's Adventure Guide"] },
     },
     function() return RR:GetSetting("bossOrderMode", "rr") end,
-    function(value) RR:SetSetting("bossOrderMode", value); if UI.Update then UI.Update() end end)
+    function(value) RR:SetSetting("bossOrderMode", value); if UI.Update then UI.Update() end end,
+    { hint = RR.L["Sets the order of the Boss Progress list. This doesn't change the route."] })
+
+AddDropdown(pageGeneral, RR.L["Auto-skip optional bosses with nothing left to collect"], {
+        { value = "on",     text = RR.L["On"],
+          hint = RR.L["Auto-skips"] },
+        { value = "off",    text = RR.L["Off"],
+          hint = RR.L["Includes the boss anyway"] },
+        { value = "prompt", text = RR.L["Prompt Me"],
+          hint = RR.L["Asks you each run"] },
+    },
+    function() return RR:GetSetting("collectedSkipMode", "on") end,
+    function(value)
+        RR:ZoneLog(("collectedSkipMode: %s -> %s"):format(
+            tostring(RR:GetSetting("collectedSkipMode", "on")), tostring(value)))
+        RR:SetSetting("collectedSkipMode", value)
+        RR:ComputeNextStep()
+        if UI.Update then UI.Update() end
+    end,
+    { hint = RR.L["Sets what the addon does with a boss that has nothing left for you to collect."] })
 
 AddDropdown(pageGeneral, RR.L["Default Transmog Filter"], {
-        { value = "mine", text = RR.L["Show My Class"] },
-        { value = "all",  text = RR.L["Show All Classes"] },
+        { value = "mine", text = RR.L["Show My Class"], hintName = RR.L["My Class"],
+          hint = RR.L["Filter to your own class"] },
+        { value = "all",  text = RR.L["Show All Classes"], hintName = RR.L["All Classes"],
+          hint = RR.L["Filter to show all classes"] },
     },
     function() return RR:GetSetting("tmogDefaultClassFilter", "mine") end,
     function(value)
         RR:SetSetting("tmogDefaultClassFilter", value)
         if UI.RefreshTmogWindowIfShown then UI.RefreshTmogWindowIfShown() end
-    end)
+    end,
+    { hint = RR.L["For bosses that drop class-specific loot, sets the default filter view."] })
 
 AddToggle(pageGeneral, RR.L["Minimap Button:"], 0,
     function() return RR:GetSetting("showMinimap") ~= false end,
@@ -476,7 +571,8 @@ AddToggle(pageGeneral, RR.L["Minimap Button:"], 0,
             if value then RR.minimapButton:Show() else RR.minimapButton:Hide() end
         end
     end,
-    { followLabel = true })
+    { followLabel = true,
+      offNote = RR.L["Type |cffffffff/rr|r to open the addon."] })
 
 -- Appearance
 AddPageTitle(pageAppearance, RR.L["Appearance"], RR.L["Font, Scale & Opacity"])
@@ -549,7 +645,7 @@ do
     statusArrow = pageToaster:CreateTexture(nil, "ARTWORK")
     statusArrow:SetSize(12, 12)
     statusArrow:SetTexture(ARROW_TEX)   -- white asset; tinted per-state below
-    statusArrow:SetPoint("TOPLEFT", VALUE_X, pageCursor[pageToaster] - 2)
+    AddToValueColumn(pageToaster, statusArrow, pageCursor[pageToaster] - 2, 0, 0)
 
     -- The state word; Refresh sets its text and color.
     statusValue = NewText(pageToaster, STATUS_FONT_SIZE)
@@ -574,14 +670,14 @@ AddToggle(pageToaster, RR.L["Loot Summary:"], SUB_INDENT,
     function(value) RR:SetSetting("toasterLootSummary", value) end,
     { isOperable = ToasterEnabled,
       hintTitle = RR.L["Loot Summary"],
-      hint = RR.L["Consolidates the loot lines from each kill into one chat line, with [view] for the full list. Turn off to keep Blizzard's own loot lines."] })
+      hint = RR.L["Consolidates the loot lines from each kill into one chat line, with |cffffffff[view]|r for the full list. Turn |cffffffffoff|r to keep Blizzard's own loot lines."] })
 
 AddToggle(pageToaster, RR.L["Reputation Summary:"], SUB_INDENT,
     function() return RR:GetSetting("toasterReputationSummary", true) ~= false end,
     function(value) RR:SetSetting("toasterReputationSummary", value) end,
     { isOperable = ToasterEnabled,
       hintTitle = RR.L["Reputation Summary"],
-      hint = RR.L["Consolidates the reputation lines from a fight into one chat line after combat ends, with [view] for each faction's gain."] })
+      hint = RR.L["Consolidates the reputation lines from a fight into one chat line after combat ends, with |cffffffff[view]|r for each faction's gain."] })
 
 -- Stored value means "suppress Blizzard's banner": On = hidden. Default on
 -- (true) so the banner is hidden whenever the Toaster is active. Toggling it
@@ -734,20 +830,20 @@ do
         local leftBottom = legendTop - blockHeight(legend, 16)
 
         -- The summary line (always shown, carries the [view] link), then the
-        -- "Looted:" expansion that [view] reveals. Both are single
-        -- lines with word-wrap off so [view] stays inline.
+        -- "Looted:" expansion that [view] reveals. Both hold the column's
+        -- width, so a long translation wraps inside the page.
         local PREFIX = "|cff4DCCFFR|cffF259C7R|r|cff7f7f7f:|r|r "
         local summaryRow = container:CreateFontString(nil, "ARTWORK", "GameFontNormal")
         summaryRow:SetJustifyH("LEFT")
         summaryRow:SetPoint("TOPLEFT", summaryHdr, "BOTTOMLEFT", 0, -8)
-        summaryRow:SetWordWrap(false)
+        summaryRow:SetWidth(CONTENT_W / PREVIEW_SCALE - RIGHT_X)
 
         local expRows = {}
         local function buildExpRow(i, anchorTo)
             local cl = container:CreateFontString(nil, "ARTWORK", "GameFontNormal")
             cl:SetJustifyH("LEFT")
             cl:SetPoint("TOPLEFT", anchorTo, "BOTTOMLEFT", 0, -4)
-            cl:SetWordWrap(false)
+            cl:SetWidth(CONTENT_W / PREVIEW_SCALE - RIGHT_X)
             cl:Hide()
             expRows[i] = cl
             return cl
@@ -818,9 +914,9 @@ do
 
         -- Container bottom must clear BOTH columns: the loot summary
         -- preview's full extent on the right (header, summary line, and the
-        -- [view]-revealed expansion rows at ~15px each), and the click-action
-        -- legend on the left.
-        local total = 1 + #expansionRows
+        -- [view]-revealed expansion rows at ~15px each, with a line spare for
+        -- a summary that wraps), and the click-action legend on the left.
+        local total = 2 + #expansionRows
         cy = math.min(leftBottom, summaryTop - 18 - (total * 15)) - 6
     else
         cy = cy - 30
@@ -869,6 +965,21 @@ end
 do
     AddPageTitle(pageCustomize, RR.L["Customize Toaster"], RR.L["Size, Position & Preview"])
 
+    -- On = locked (default); Off surfaces the drag overlay to reposition the
+    -- toasts.
+    AddToggle(pageCustomize, RR.L["Lock toasts:"], 0,
+        function() return RR:GetSetting("toasterLocked", true) end,
+        function(locked)
+            RR:SetSetting("toasterLocked", locked)
+            if locked then
+                if RR.LockToasterAnchor then RR:LockToasterAnchor() end
+            else
+                if RR.UnlockToasterAnchor then RR:UnlockToasterAnchor() end
+            end
+        end,
+        { hintTitle = RR.L["Lock toasts"],
+          hint = RR.L["Turn |cffffffffOFF|r to drag the toasters around, and back |cffffffffON|r to lock them"] })
+
     -- Toast scale (toasterScale, 0.5-1.5). Updates the mockup and live toasts.
     AddSlider(pageCustomize, RR.L["Toast Scale"], 50, 150, 5,
         function() return math.floor((RR:GetSetting("toasterScale", 1.0) * 100) + 0.5) end,
@@ -905,29 +1016,29 @@ do
     -- Sync the slider's grayed state whenever the page refreshes (e.g. reopen
     -- or reset), not just on click.
     controls[#controls + 1] = { RR_Refresh = ApplyDurationSliderState }
-    -- Reset Position: return the toasts to the default panel-anchored spot,
-    -- clearing any custom dragged position. Anchored to the page via the
-    -- cursor (MakeTextButton positions on the panel, so re-anchor it here).
-    pageCursor[pageCustomize] = pageCursor[pageCustomize] - 2
-    local resetPosBtn = MakeTextButton(RR.L["Reset Position"], 0, 0, 140, function()
-        if RR.ResetToasterAnchor then RR:ResetToasterAnchor() end
-    end)
-    resetPosBtn:SetParent(pageCustomize)
-    resetPosBtn:ClearAllPoints()
-    resetPosBtn:SetPoint("TOPLEFT", 0, pageCursor[pageCustomize])
-    pageCursor[pageCustomize] = pageCursor[pageCustomize] - 28
 
     -- Live mockup pinned to the bottom of the page (stays put as settings grow
-    -- above it). Its RR.L["Live Preview:"] label sits just above it.
+    -- above it). Its RR.L["Live Preview:"] label sits just above it, with
+    -- Reset Position across from the label.
     if RR.BuildToasterMockup then
         local MOCK_SCALE = 0.5
 
         local mock = RR:BuildToasterMockup(pageCustomize, MOCK_SCALE)
-        mock.frame:SetPoint("BOTTOMLEFT", pageCustomize, "BOTTOMLEFT", 8, 8)
+        mock.frame:SetPoint("BOTTOMLEFT", pageCustomize, "BOTTOMLEFT", 8, 2)
         RR._toasterMock = mock   -- handle for live updates as controls change
 
         NewText(pageCustomize, CONTROL_FONT_SIZE, COLOR_LABEL, RR.L["Live Preview:"])
             :SetPoint("BOTTOMLEFT", mock.frame, "TOPLEFT", -8, 6)
+
+        -- Returns the toasts to the default panel-anchored spot, clearing any
+        -- custom dragged position. MakeTextButton positions on the panel, so
+        -- it is re-anchored here.
+        local resetPosBtn = MakeTextButton(RR.L["Reset Position"], 0, 0, 140, function()
+            if RR.ResetToasterAnchor then RR:ResetToasterAnchor() end
+        end)
+        resetPosBtn:SetParent(pageCustomize)
+        resetPosBtn:ClearAllPoints()
+        resetPosBtn:SetPoint("BOTTOMRIGHT", mock.frame, "TOPLEFT", CONTENT_W - 16, 3)
     end
 end
 
@@ -1029,9 +1140,15 @@ do
     for _, entry in ipairs(commands) do
         NewText(pageHelp, 12, COLOR_CYAN, entry[1])
             :SetPoint("TOPLEFT", 8, pageCursor[pageHelp])
-        NewText(pageHelp, 12, COLOR_DIM, entry[2])
-            :SetPoint("TOPLEFT", 8 + CMD_COL, pageCursor[pageHelp])
-        pageCursor[pageHelp] = pageCursor[pageHelp] - CMD_ROW_H
+        -- Width before text, so a long translation wraps and the height
+        -- measures it.
+        local description = NewText(pageHelp, 12, COLOR_DIM)
+        description:SetPoint("TOPLEFT", 8 + CMD_COL, pageCursor[pageHelp])
+        description:SetWidth(CONTENT_W - 8 - 8 - CMD_COL)
+        description:SetJustifyH("LEFT")
+        description:SetText(entry[2])
+        pageCursor[pageHelp] = pageCursor[pageHelp]
+            - math.max(CMD_ROW_H, math.ceil(description:GetStringHeight()) + 6)
     end
 
     pageCursor[pageHelp] = pageCursor[pageHelp] - 10
@@ -1115,7 +1232,7 @@ AddToggle(pageMap, RR.L["Map POIs:"], 0,
         RepaintMapOverlay()
     end,
     { hintTitle = RR.L["Map POIs"],
-      hint = RR.L["Shows rares, vendors, treasure and other points of interest on the map inside an instance. The route still shows when this is off."] })
+      hint = RR.L["Shows rares, vendors, treasure and other points of interest on the map inside an instance. The route still shows when this is |cffffffffoff|r."] })
 
 -- Stored as SHOW, asked as HIDE, as the world-map menu asks it, so
 -- nobody's saved value has to migrate. Locked while POIs are off.
@@ -1145,7 +1262,7 @@ do
     pickerStatusArrow = pagePicker:CreateTexture(nil, "ARTWORK")
     pickerStatusArrow:SetSize(12, 12)
     pickerStatusArrow:SetTexture(ARROW_TEX)
-    pickerStatusArrow:SetPoint("TOPLEFT", VALUE_X, pageCursor[pagePicker] - 2)
+    AddToValueColumn(pagePicker, pickerStatusArrow, pageCursor[pagePicker] - 2, 0, 0)
     pickerStatusValue = NewText(pagePicker, STATUS_FONT_SIZE)
     pickerStatusValue:SetPoint("LEFT", pickerStatusArrow, "RIGHT", 5, 0)
     pageCursor[pagePicker] = pageCursor[pagePicker] - (CHECK_H + 4)
@@ -1205,10 +1322,11 @@ do
     AddGemDivider(pagePicker)
     pageCursor[pagePicker] = pageCursor[pagePicker] - 14
 
-    NewText(pagePicker, SEG_FONT_SIZE, COLOR_CYAN, RR.L["Instance Limit:"])
-        :SetPoint("TOPLEFT", 0, pageCursor[pagePicker])
+    local limitLabel = NewText(pagePicker, SEG_FONT_SIZE, COLOR_CYAN, RR.L["Instance Limit:"])
+    limitLabel:SetPoint("TOPLEFT", 0, pageCursor[pagePicker])
     local countText = NewText(pagePicker, SEG_FONT_SIZE)
-    countText:SetPoint("TOPLEFT", VALUE_X, pageCursor[pagePicker])
+    AddToValueColumn(pagePicker, countText, pageCursor[pagePicker], 0,
+        limitLabel:GetStringWidth() + 12)
     pageCursor[pagePicker] = pageCursor[pagePicker] - (CHECK_H + 2)
 
     local listTop = pageCursor[pagePicker]
@@ -1279,11 +1397,21 @@ do
 end
 
 -- ---- Picker Customize submenu page ---------------------------------------
--- Indented under Picker in the nav rail, built like the Toaster's: scale,
--- Reset Position, the lock pinned top right, and a live preview pinned to
--- the bottom.
+-- Indented under Picker in the nav rail, built like the Toaster's: the lock,
+-- scale, and a live preview with Reset Position across from its label.
 do
     AddPageTitle(pagePickerCustomize, RR.L["Customize Picker"], RR.L["Size, Position & Preview"])
+
+    -- Off shows the bar (a sample away from an entrance) so it can be dragged.
+    AddToggle(pagePickerCustomize, RR.L["Lock Position:"], 0,
+        function() return RR:GetSetting("pickerLocked", true) end,
+        function(locked)
+            RR:SetSetting("pickerLocked", locked)
+            if not UI.PickerBar then return end
+            if locked then UI.PickerBar.Lock() else UI.PickerBar.Unlock() end
+        end,
+        { hintTitle = RR.L["Lock Position"],
+          hint = RR.L["Turn |cffffffffOFF|r to drag the Picker around, and back |cffffffffON|r to lock it"] })
 
     AddSlider(pagePickerCustomize, RR.L["Picker Scale"], 50, 150, 5,
         function() return math.floor((RR:GetSetting("pickerScale", 1.0) * 100) + 0.5) end,
@@ -1293,20 +1421,19 @@ do
         end,
         function(value) return value .. "%" end)
 
-    pageCursor[pagePickerCustomize] = pageCursor[pagePickerCustomize] - 2
+    -- The preview hangs from an unscaled holder under its label, so it grows
+    -- down and right at any scale and its spot never moves.
+    pageCursor[pagePickerCustomize] = pageCursor[pagePickerCustomize] - 10
+    local previewLabel = NewText(pagePickerCustomize, CONTROL_FONT_SIZE, COLOR_LABEL,
+        RR.L["Live Preview:"])
+    previewLabel:SetPoint("TOPLEFT", 0, pageCursor[pagePickerCustomize])
+
     local resetPosBtn = MakeTextButton(RR.L["Reset Position"], 0, 0, 140, function()
         if UI.PickerBar then UI.PickerBar.ResetPosition() end
     end)
     resetPosBtn:SetParent(pagePickerCustomize)
     resetPosBtn:ClearAllPoints()
-    resetPosBtn:SetPoint("TOPLEFT", 0, pageCursor[pagePickerCustomize])
-    pageCursor[pagePickerCustomize] = pageCursor[pagePickerCustomize] - 28
-
-    -- The preview hangs from an unscaled holder under its label, so it grows
-    -- down and right at any scale and its spot never moves.
-    pageCursor[pagePickerCustomize] = pageCursor[pagePickerCustomize] - 10
-    NewText(pagePickerCustomize, CONTROL_FONT_SIZE, COLOR_LABEL, RR.L["Live Preview:"])
-        :SetPoint("TOPLEFT", 0, pageCursor[pagePickerCustomize])
+    resetPosBtn:SetPoint("BOTTOMRIGHT", previewLabel, "BOTTOMLEFT", CONTENT_W - 8, -3)
     pageCursor[pagePickerCustomize] = pageCursor[pagePickerCustomize] - (CONTROL_FONT_SIZE + 8)
     local previewHolder = CreateFrame("Frame", nil, pagePickerCustomize)
     previewHolder:SetSize(1, 1)
@@ -1420,7 +1547,7 @@ local RESET_DEFAULTS = {
     fontSize = 12, windowScale = 1.0, panelOpacity = 1.0,
     tmogScale = 1.0, skipsScale = 1.0, achievementsScale = 1.0,
     bodyFontStyle = "standard", launchMode = "minimized", bossOrderMode = "rr",
-    tmogDefaultClassFilter = "mine", showMinimap = true,
+    tmogDefaultClassFilter = "mine", showMinimap = true, collectedSkipMode = "on",
     toasterLootSummary = true, toasterReputationSummary = true,
     toasterScale = 1.0, toasterLocked = true, toasterAnchor = nil,
     toasterDuration = 5.0, toasterStayUntilClick = false,
@@ -1432,7 +1559,8 @@ local RESET_DEFAULTS = {
 
 -- The settings each page owns, for Reset Here. Reset All takes them all.
 local PAGE_RESET_KEYS = {
-    [pageGeneral]    = { "launchMode", "bossOrderMode", "tmogDefaultClassFilter", "showMinimap" },
+    [pageGeneral]    = { "launchMode", "bossOrderMode", "tmogDefaultClassFilter", "showMinimap",
+                         "collectedSkipMode" },
     [pageAppearance] = { "fontSize", "windowScale", "panelOpacity", "bodyFontStyle",
                          "tmogScale", "skipsScale", "achievementsScale" },
     [pageToaster]    = { "toasterLootSummary", "toasterReputationSummary",
@@ -1579,53 +1707,13 @@ panel.RR_UpdateResetHere = function()
 end
 panel.RR_UpdateResetHere()
 
--- RR.L["Lock toasts:"] pair on the Customize tab. On = locked (default);
--- Off surfaces the drag overlay to reposition the toasts.
--- Pinned to the page's top-right corner, label on the left; nothing lays
--- out from the cursor after it.
-do
-    local lockRow = AddToggle(pageCustomize, RR.L["Lock toasts:"], 0,
-        function() return RR:GetSetting("toasterLocked", true) end,
-        function(locked)
-            RR:SetSetting("toasterLocked", locked)
-            if locked then
-                if RR.LockToasterAnchor then RR:LockToasterAnchor() end
-            else
-                if RR.UnlockToasterAnchor then RR:UnlockToasterAnchor() end
-            end
-        end,
-        { hintTitle = RR.L["Lock toasts"],
-          hint = RR.L["Turn OFF to drag the toasters around, and back ON to lock them"] })
-    lockRow.falseBtn:ClearAllPoints()
-    lockRow.falseBtn:SetPoint("TOPRIGHT", pageCustomize, "TOPRIGHT", -8, SECTION_TOP)
-    lockRow.sep:ClearAllPoints()
-    lockRow.sep:SetPoint("RIGHT", lockRow.falseBtn, "LEFT", -6, 0)
-    lockRow.trueBtn:ClearAllPoints()
-    lockRow.trueBtn:SetPoint("RIGHT", lockRow.sep, "LEFT", -6, 0)
-    lockRow.label:ClearAllPoints()
-    lockRow.label:SetPoint("TOPRIGHT", lockRow.trueBtn, "TOPLEFT", -12, 0)
-end
+local columnX = AlignValueColumns()
 
--- RR.L["Lock Position:"] pair on the Picker's Customize tab. Off shows the bar
--- (a sample away from an entrance) so it can be dragged.
-do
-    local lockRow = AddToggle(pagePickerCustomize, RR.L["Lock Position:"], 0,
-        function() return RR:GetSetting("pickerLocked", true) end,
-        function(locked)
-            RR:SetSetting("pickerLocked", locked)
-            if not UI.PickerBar then return end
-            if locked then UI.PickerBar.Lock() else UI.PickerBar.Unlock() end
-        end,
-        { hintTitle = RR.L["Lock Position"],
-          hint = RR.L["Turn OFF to drag the Picker around, and back ON to lock it"] })
-    lockRow.falseBtn:ClearAllPoints()
-    lockRow.falseBtn:SetPoint("TOPRIGHT", pagePickerCustomize, "TOPRIGHT", -8, SECTION_TOP)
-    lockRow.sep:ClearAllPoints()
-    lockRow.sep:SetPoint("RIGHT", lockRow.falseBtn, "LEFT", -6, 0)
-    lockRow.trueBtn:ClearAllPoints()
-    lockRow.trueBtn:SetPoint("RIGHT", lockRow.sep, "LEFT", -6, 0)
-    lockRow.label:ClearAllPoints()
-    lockRow.label:SetPoint("TOPRIGHT", lockRow.trueBtn, "TOPLEFT", -12, 0)
+-- A status can be a whole sentence ("Travel to a Supported Instance"), so it
+-- wraps inside the page, past the arrow and its gap.
+for page, statusText in pairs({ [pageToaster] = statusValue, [pagePicker] = pickerStatusValue }) do
+    statusText:SetWidth(CONTENT_W - 8 - columnX[page] - 17)
+    statusText:SetJustifyH("LEFT")
 end
 
 -- The sample toasts (Toaster page stack, Customize page mockup) baked their

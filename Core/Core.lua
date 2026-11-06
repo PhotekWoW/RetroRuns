@@ -6,7 +6,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "3.5.1"
+local VERSION    = "3.5.2"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -40,6 +40,7 @@ RetroRuns = {
         -- lifetime as bossesKilled, so every reset that clears kills
         -- clears these too.
         bossesSkipped         = {},   -- [bossIndex] = true
+        collectedSkipAnswers  = {},   -- [bossIndex] = "skip" or "keep"
         -- Which pool member filled each slot of a bossPool instance, by
         -- slot number. Same lifetime as bossesKilled.
         poolSlotMembers       = {},   -- [slotIndex] = bossIndex
@@ -112,6 +113,11 @@ RetroRuns = {
         --   "rr" - the route order this addon walks (default)
         --   "ej" - the in-game Encounter Journal order
         bossOrderMode = "rr",
+        -- collectedSkipMode: bosses with nothing left to collect. Values:
+        --   "on"     - left out of the route (default)
+        --   "off"    - kept on the route
+        --   "prompt" - asked once per lockout
+        collectedSkipMode = "on",
         -- toasterEnabled: master switch for the Toaster feature. When on,
         -- toasts auto-activate in supported raids and deactivate elsewhere.
         -- Default OFF -- the feature is opt-in; users enable it in Settings.
@@ -3126,6 +3132,7 @@ function RR:HandleLocationChange()
             wipe(self.state.bossesKilledViaPairOnly)
             wipe(self.state.bossPartialKills)
             wipe(self.state.bossesSkipped)
+            self.state.collectedSkipAnswers = {}
             self:ClearPoolSlots()
             self:ClearSpawnPicks()
             if self.ResetRunStats then self:ResetRunStats() end
@@ -3219,6 +3226,7 @@ function RR:HandleLocationChange()
         wipe(self.state.bossesKilledViaPairOnly)
         wipe(self.state.bossPartialKills)
         wipe(self.state.bossesSkipped)
+        self.state.collectedSkipAnswers = {}
         self:ClearPoolSlots()
         self:ClearSpawnPicks()
         if self.ResetRunStats then self:ResetRunStats() end
@@ -3273,6 +3281,8 @@ function RR:RefreshAll()
         if changed == false and self:GetCurrentLockoutId() then return end
     else
         self.state.activeStep = nil
+        -- Takes down a Prompt Me question left open on the way out.
+        if RR.UI and RR.UI.AskCollectedSkip then RR.UI.AskCollectedSkip() end
     end
     self:ZoneLog("RefreshAll: calling UI.Update + MapOverlay:Refresh")
     RR.UI.Update()

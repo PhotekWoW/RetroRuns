@@ -2,6 +2,24 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.5.2] - 2026-11-05
+
+### Added
+- **Darkheart Thicket is routed.**
+- **Castle Nathria's weapon-token lines show how many appearances are left to collect**, with normal and Mythic counted separately.
+- **New setting, "Auto-skip optional bosses with nothing left to collect":** Previously, we auto-skipped optional bosses with nothing left to collect. Now, we give you the choice.
+- **The Skip prompt matches the rest of RetroRuns:** a new popup with SKIP and KILL buttons, plus a cog that opens Settings.
+- **Every setting on the General page has a hint**, with each choice named in white on its own line.
+
+### Changed
+- **The exit note comes first after a run finishes**, above any skipped bosses and the boss list.
+- **The load dialog's buttons are live text**, so FULL, SKIP and TRIBUTE read in your own language with no hover needed.
+- **The Navigate popup has new neon buttons.**
+
+### Fixed
+- **The Emerald Nightmare's entrance marker sits on the real entrance**, about 33 yards from where it was.
+- **Text in translated clients stays inside its window:** the load dialog, the Settings pages, the transmog browser and the Achievements window no longer overlap or run out of their frames, and the transmog dropdowns size to their menus.
+
 ## [3.5.1] - 2026-11-04
 
 ### Added

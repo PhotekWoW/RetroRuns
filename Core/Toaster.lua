@@ -1617,7 +1617,10 @@ end
 
 -- Re-fonts every toast on screen or in settings after a font change.
 function RR:RefreshToasterFonts()
-    for _, toastFrame in ipairs(Presenter.live) do ApplyToastFonts(toastFrame) end
+    for _, toastFrame in ipairs(Presenter.live) do
+        ApplyToastFonts(toastFrame)
+        LayoutToastText(toastFrame)
+    end
     for _, toastFrame in ipairs((UnlockOverlay and UnlockOverlay.samples) or {}) do
         ApplyToastFonts(toastFrame)
     end
@@ -2901,6 +2904,7 @@ function RR:BuildPreviewBatch(parent)
     function group:RefreshFonts()
         for _, toastFrame in ipairs(self.frames) do
             ApplyToastFonts(toastFrame)
+            LayoutToastText(toastFrame)
         end
     end
     function group:PlayReveal()
@@ -3036,6 +3040,7 @@ function RR:BuildToasterMockup(parent, mockScale)
     -- again whenever the font settings change.
     function handle:RefreshFonts()
         ApplyToastFonts(self.toast)
+        LayoutToastText(self.toast)
     end
 
     -- Apply the user's toast scale (mock factor * user scale), anchored to the

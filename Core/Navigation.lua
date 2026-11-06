@@ -415,14 +415,55 @@ function RR:BossHasNothingLeft(boss)
     return true, true
 end
 
--- A step flagged skipWhenCollected is left out of the route -- not
--- offered, not holding the run open -- while its boss has nothing left
--- for the character. Cached per boss; the cache clears with the kill
--- state and on every collection event.
+-- This lockout's Prompt Me answer for a boss: "skip", "keep" or nil.
+function RR:CollectedSkipAnswer(bossIndex)
+    local answers = self.state.collectedSkipAnswers
+    return answers and answers[bossIndex]
+end
+
+function RR:SetCollectedSkipAnswer(bossIndex, answer)
+    self.state.collectedSkipAnswers = self.state.collectedSkipAnswers or {}
+    self.state.collectedSkipAnswers[bossIndex] = answer
+    self:PersistSkipAnswer(bossIndex, answer)
+    if self.ZoneLog then
+        self:ZoneLog(("collected-skip: boss %d answered %s"):format(bossIndex, tostring(answer)))
+    end
+end
+
+-- The boss the route has reached that Prompt Me still has to ask about, or
+-- nil.
+function RR:CollectedSkipQuestion()
+    if self:GetSetting("collectedSkipMode", "on") ~= "prompt" then return nil end
+    if not self.currentRaid
+        or self.state.loadedRaidKey ~= self:GetRaidContextKey() then
+        return nil
+    end
+    local step = self.state.activeStep
+    if not (step and step.skipWhenCollected and step.bossIndex) then return nil end
+    if self:CollectedSkipAnswer(step.bossIndex) then return nil end
+    if not self:StepHasNothingLeft(step) then return nil end
+    return step.bossIndex
+end
+
+-- A step flagged skipWhenCollected is left out of the route -- not offered,
+-- not holding the run open -- while its boss has nothing left, by the
+-- collectedSkipMode setting: "on" always, "off" never, "prompt" on a Yes.
 function RR:IsStepCollectedSkipped(step)
     if not step or not step.skipWhenCollected or not step.bossIndex then
         return false
     end
+    local mode = self:GetSetting("collectedSkipMode", "on")
+    if mode == "off" then return false end
+    if mode == "prompt" and self:CollectedSkipAnswer(step.bossIndex) ~= "skip" then
+        return false
+    end
+    return self:StepHasNothingLeft(step)
+end
+
+-- True while a flagged step's boss has nothing left for the character.
+-- Cached per boss; the cache clears with the kill state and on every
+-- collection event.
+function RR:StepHasNothingLeft(step)
     -- A boss absent from this run is left out as absent, not as collected.
     if not self:BossReachableHere(step.bossIndex) then return false end
     self.state.collectedSkip = self.state.collectedSkip or {}
@@ -448,10 +489,10 @@ function RR:IsStepCollectedSkipped(step)
                     uncached = uncached + 1
                 end
             end
-            self:ZoneLog(("collected-skip: boss %d nothingLeft=%s known=%s difficulty=%s owed=%s uncachedItems=%d")
+            self:ZoneLog(("collected-skip: boss %d nothingLeft=%s known=%s difficulty=%s owed=%s uncachedItems=%d mode=%s")
                 :format(step.bossIndex, tostring(verdict), tostring(known),
                     tostring(self.state.currentDifficultyID), tostring(owed),
-                    uncached))
+                    uncached, tostring(self:GetSetting("collectedSkipMode", "on"))))
         end
     end
     return verdict
@@ -1199,6 +1240,7 @@ function RR:ClearBossState()
     wipe(self.state.bossesKilledViaPairOnly)
     wipe(self.state.bossPartialKills)
     wipe(self.state.bossesSkipped)
+    self.state.collectedSkipAnswers = {}
     if self.ResetRunStats then self:ResetRunStats() end
     self:ClearPoolSlots()
     self:ClearSpawnPicks()
@@ -1266,6 +1308,9 @@ function RR:SetBossSkipped(bossIndex, skipped)
     self.state.bossesSkipped[bossIndex] = skipped and true or nil
     -- Survives /reload: unlike a kill, nothing external can rebuild this.
     self:PersistBossSkipped(bossIndex, skipped)
+    if self.ZoneLog then
+        self:ZoneLog(("boss skip: boss %d skipped=%s"):format(bossIndex, tostring(skipped and true or false)))
+    end
     self:ComputeNextStep()
     return true
 end
@@ -1325,11 +1370,9 @@ function RR:SkipRouteText(raid)
     raid = raid or self.currentRaid
     if raid and raid.skipRouteKind == "tribute" then
         return { label = RR.L["Tribute"], word = RR.L["TRIBUTE"],
-                 englishWord = "TRIBUTE", button = "TributeButton",
                  banner = RR.L["|cff00ff00Tribute Run Complete!|r"] }
     end
-    return { label = RR.L["Skip"], word = RR.L["SKIP"], englishWord = "SKIP",
-             button = "SkipButton",
+    return { label = RR.L["Skip"], word = RR.L["SKIP"],
              banner = RR.L["|cff00ff00Skip Run Complete!|r"] }
 end
 
@@ -1535,6 +1578,8 @@ end
 -- Resets step-scoped runtime state and seeds the RetroEngine for the
 -- new step.
 function RR:OnActiveStepChanged(prevStep, newStep)
+    -- Ahead of the same-step return: a verdict can land after the step does.
+    if RR.UI and RR.UI.AskCollectedSkip then RR.UI.AskCollectedSkip() end
     if prevStep == newStep then return end
     if self.state.backtraceLastCurrent then
         wipe(self.state.backtraceLastCurrent)
