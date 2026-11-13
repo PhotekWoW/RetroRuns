@@ -2,6 +2,18 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.5.3] - 2026-11-13
+
+### Added
+- **Black Rook Hold is routed.**
+- **Vixx the Collector has a rare marker on Seat of the Triumvirate's map.** He drops two toys on Heroic.
+
+### Changed
+- **No more chat line at login when nothing changed.** The line only appears when a login records new reputation data for that character.
+
+### Fixed
+- **The Blizzard Journal Order setting names the Adventure Guide the way the game does** in Spanish, French, Portuguese and Russian.
+
 ## [3.5.2] - 2026-11-05
 
 ### Added

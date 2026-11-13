@@ -26,6 +26,31 @@
 local RR = RetroRuns
 RR.WhatsNew = {
 {
+    version  = "3.5.3",
+    date     = "2026-11-13",
+    sections = {
+        {
+            heading = "Added",
+            bullets = {
+                "**Black Rook Hold is routed.**",
+                "**Vixx the Collector has a rare marker on Seat of the Triumvirate's map.** He drops two toys on Heroic.",
+            },
+        },
+        {
+            heading = "Changed",
+            bullets = {
+                "**No more chat line at login when nothing changed.** The line only appears when a login records new reputation data for that character.",
+            },
+        },
+        {
+            heading = "Fixed",
+            bullets = {
+                "**The Blizzard Journal Order setting names the Adventure Guide the way the game does** in Spanish, French, Portuguese and Russian.",
+            },
+        },
+    },
+},
+{
     version  = "3.5.2",
     date     = "2026-11-05",
     sections = {
@@ -149,35 +174,6 @@ RR.WhatsNew = {
                 "**Illusion: Colossus in Mogu'shan Vaults now tracks the right illusion.**",
                 "**Clicking a mount or item in Special Loot no longer throws an error.** Hover it for its tooltip; shift-click links it in chat.",
                 "**Garrisons no longer count toward the Instance Limit.**",
-            },
-        },
-    },
-},
-{
-    version  = "3.3.7",
-    date     = "2026-10-21",
-    sections = {
-        {
-            heading = "Added",
-            bullets = {
-                "**Cataclysm dungeons are completed.** Well of Eternity, Hour of Twilight and End Time round out the roster.",
-                "**Holiday bosses are in the transmog browser.** The Headless Horseman, Coren Direbrew, the Crown Chemical Co. and Ahune each exist on their dungeon's Boss list, tagged with their holiday.",
-            },
-        },
-        {
-            heading = "Changed",
-            bullets = {
-                "**\"Talk to\" markers on the map are a chat bubble with a pink glow** instead of a star, in every routed raid and dungeon, and a marker dims once you're past it.",
-                "**Queuing for a holiday boss no longer loads the dungeon's route.** The panel shows the holiday boss instead: his Transmog Needed and Special Loot, and one Boss Progress row for his kill.",
-                "**The TW pill in the transmog browser now marks only looks you can get nowhere else in the raid.** Black Temple's Normal loot no longer carries one.",
-            },
-        },
-        {
-            heading = "Fixed",
-            bullets = {
-                "**Missing achievements and appearances are in.** 32 dungeon achievements across 18 dungeons, Black Temple's Horde versions of the Demon Hunter Timewalking pieces, and the Timewalking-only looks in Ulduar (the Demon Hunter and Monk sets) and Firelands (tier pieces whose look only Timewalking drops).",
-                "**A new appearance no longer occasionally prints twice in the loot summary.** The summary waits for an appearance still on its way, so the item is listed once, tagged [New!].",
-                "**Route steps that wait for an NPC's line now advance in every language.** On non-English clients, eleven dungeons held the previous step until the boss died, among them Zul'Aman, Stratholme, Dire Maul and Halls of Origination.",
             },
         },
     },

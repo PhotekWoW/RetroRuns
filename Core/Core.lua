@@ -6,7 +6,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "3.5.2"
+local VERSION    = "3.5.3"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -3948,7 +3948,7 @@ SlashCmdList["RETRORUNS"] = function(input)
         elseif sub == "reset"  then RR:ResetRecording()
         elseif sub == "status" then RR:RecordingStatus()
         else
-            RR:Print(RR.L["Record: /rr record [start|stop|dump|reset|status]"])
+            RR:Print(RR.L["Record: /rr record [start||stop||dump||reset||status]"])
         end
 
     elseif cmd == "lootprobe" then
@@ -3994,7 +3994,7 @@ SlashCmdList["RETRORUNS"] = function(input)
             RR:Print(RR.L["  /rr  kill <name> | unkill <name> (manual kill-state override)"])
             -- DevTools-only commands are listed only when DevTools is loaded.
             if RR.ToggleDevTools then
-                RR:Print(RR.L["  /rr  record [start|stop|dump|reset|status]"])
+                RR:Print(RR.L["  /rr  record [start||stop||dump||reset||status]"])
                 RR:Print(RR.L["  /rr  sessionlog [all]            (recorder session log; omit `all` for current-instance only)"])
             end
             RR:Print(RR.L["  /rr  diag                        (consolidated engine, zone and session logs)"])

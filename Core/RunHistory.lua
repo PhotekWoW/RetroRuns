@@ -185,13 +185,10 @@ function History.ScanCharacter(tries)
     }
     local reputations, leads = History.ScanReputation(standings, accountWide)
     reputations, leads = reputations or 0, leads or 0
+    if reputations == 0 then return end
     local name = UnitName("player") or "?"
     local color = classToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken]
     name = color and color:WrapTextInColorCode(name) or name
-    if reputations == 0 then
-        RR:Print((RR.L["Character data for %s is up to date"]):format(name))
-        return
-    end
     RR:Print((RR.L["Character data updated for %s"]):format(name))
     if leads > 0 then
         RR:Print("|cffffffff+|r" .. (RR.L["|cff00ff00%d|r Reputations (New leader for |cff00ff00%d|r)"])
