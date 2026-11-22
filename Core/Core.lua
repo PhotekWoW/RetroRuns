@@ -6,7 +6,7 @@
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = "RetroRuns"
-local VERSION    = "3.5.3"
+local VERSION    = "3.5.4"
 
 -------------------------------------------------------------------------------
 -- Namespace
@@ -3281,8 +3281,9 @@ function RR:RefreshAll()
         if changed == false and self:GetCurrentLockoutId() then return end
     else
         self.state.activeStep = nil
-        -- Takes down a Prompt Me question left open on the way out.
+        -- Takes down a Prompt Me or summon question left open on the way out.
         if RR.UI and RR.UI.AskCollectedSkip then RR.UI.AskCollectedSkip() end
+        if RR.UI and RR.UI.AskSummonChoice then RR.UI.AskSummonChoice() end
     end
     self:ZoneLog("RefreshAll: calling UI.Update + MapOverlay:Refresh")
     RR.UI.Update()
@@ -4108,6 +4109,10 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
         RR:ZoneLog(("PEW: isInitialLogin=%s isReloadingUi=%s"):format(
             tostring(isInitialLogin), tostring(isReloadingUi)))
 
+        -- A summon question put off with the [X] or Esc asks again on the
+        -- next arrival.
+        RR.state.summonChoiceLater = nil
+
         -- Re-assert the saved panel position. The client applies its own
         -- cached frame layout between ADDON_LOADED and here, which can
         -- override the position applied at load time on installs where a
@@ -4149,6 +4154,16 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
             -- so the wing hold stays provisional
             -- until it closes.
             RR.state.loginSettleUntil = GetTime() + 30
+        end
+
+        -- Arriving in a dungeon or raid, the panel waits for the route
+        -- rather than showing what it showed outside until the location is
+        -- read below. A by-hand open from outside ends at the door.
+        local _, arrivalType, _, _, _, _, _, arrivalID = GetInstanceInfo()
+        if (arrivalType == "party" or arrivalType == "raid")
+            and not RR:IsGarrisonInstance(arrivalID) then
+            RR.state.panelOpenedByHand = nil
+            if RetroRunsUI and not InCombatLockdown() then RetroRunsUI:Hide() end
         end
 
         C_Timer.After(1.0, function() RR:HandleLocationChange() end)
@@ -4457,6 +4472,12 @@ RR.frame:SetScript("OnEvent", function(_, event, ...)
             RR:AdvanceProgress("aura")
             RR:RefreshAll()
         end
+        -- A summon window's buff came, went, gained time or a stack: the boss
+        -- row's clock follows, and a gate waiting on its stacks may open.
+        if RR.currentRaid and RR:SummonAuraChanged() and RR.UI and RR.UI.Update then
+            if RR.state.loadedRaidKey then RR:AdvanceProgress("aura") end
+            RR.UI.Update()
+        end
 
     elseif event == "UPDATE_UI_WIDGET" then
         -- A counter widget changed; the gate reads the widget itself.
@@ -4648,6 +4669,9 @@ C_Timer.NewTicker(1.0, function()
     end
     if RR.currentRaid
         and RR.state.loadedRaidKey == RR:GetRaidContextKey() then
+        -- A summon buff gone stays gone with no event to say so; a gate
+        -- waiting on it may open as the attempt is lost.
+        if RR:SummonAuraChanged() then RR:AdvanceProgress("aura") end
         heartbeatTicks = heartbeatTicks + 1
         RR.UI.Update()
         if WorldMapFrame and WorldMapFrame:IsShown() and RetroRunsMapOverlay then

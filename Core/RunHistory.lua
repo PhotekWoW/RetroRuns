@@ -216,20 +216,21 @@ local function SpawnCreated(spawnKey)
     return entry and entry.create
 end
 
--- Every special-loot row the instance offers this character.
+-- Every special-loot row the instance offers this character, with its boss
+-- or the section ("trash", "event") it drops in.
 function History.SpecialRows(instance)
     local rows = {}
     local classID = RR.PlayerClassID and RR.PlayerClassID()
-    local function Add(item, boss)
+    local function Add(item, boss, section)
         if not item.kind or not RR:SpecialLootForPlayer(item) then return end
         if item.restrictedToClass and item.restrictedToClass ~= classID then return end
-        rows[#rows + 1] = { item = item, boss = boss }
+        rows[#rows + 1] = { item = item, boss = boss, section = section }
     end
     for _, boss in ipairs(instance.bosses or {}) do
         for _, item in ipairs(boss.specialLoot or {}) do Add(item, boss) end
     end
-    for _, item in ipairs(instance.trashLoot or {}) do Add(item, nil) end
-    for _, item in ipairs(instance.eventLoot or {}) do Add(item, nil) end
+    for _, item in ipairs(instance.trashLoot or {}) do Add(item, nil, "trash") end
+    for _, item in ipairs(instance.eventLoot or {}) do Add(item, nil, "event") end
     return rows
 end
 
@@ -238,13 +239,33 @@ local function SpecialKey(item)
 end
 History.SpecialKey = SpecialKey
 
--- The special loot still to collect when the run began.
+-- True for a mount row the journal cannot place yet: its item data is still
+-- loading after a login or reload, so an owned mount would read as missing.
+local function MountItemLoading(item)
+    if item.kind ~= "mount" or item.mountID or not item.id then return false end
+    if not (C_MountJournal and C_MountJournal.GetMountFromItem) then return false end
+    if C_MountJournal.GetMountFromItem(item.id) then return false end
+    if C_Item and C_Item.IsItemDataCachedByID and C_Item.IsItemDataCachedByID(item.id) then
+        return false
+    end
+    return Item ~= nil and Item.CreateFromItemID ~= nil
+end
+
+-- The special loot still to collect when the run began. A mount still
+-- loading is judged once its item arrives.
 local function SnapshotSpecials(instance)
     local missing = {}
     if not RR.SpecialCollectionStateForItem then return missing end
     for _, row in ipairs(History.SpecialRows(instance)) do
-        if RR.SpecialCollectionStateForItem(row.item) ~= "collected" then
-            missing[SpecialKey(row.item)] = true
+        local item, key = row.item, SpecialKey(row.item)
+        if MountItemLoading(item) then
+            Item:CreateFromItemID(item.id):ContinueOnItemLoad(function()
+                if RR.SpecialCollectionStateForItem(item) ~= "collected" then
+                    missing[key] = true
+                end
+            end)
+        elseif RR.SpecialCollectionStateForItem(item) ~= "collected" then
+            missing[key] = true
         end
     end
     return missing

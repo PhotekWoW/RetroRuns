@@ -2,6 +2,23 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.5.4] - 2026-11-22
+
+### Added
+- **Return to Karazhan is routed**, including the Opera Hall play of the week.
+- **Nightbane on Mythic Return to Karazhan:** Want to farm the mount but don't want to hassle with learning how to spawn Nightbane? We've got step by step routing to get you there without thinking.
+- **Shift-click an item on the End of Run Summary to link it in chat, or ctrl-click to preview it.**
+
+### Changed
+- **Entering a dungeon or raid no longer flashes the panel you had open outside.** It opens with the route.
+- **The Skip prompt's question uses the font you picked in Settings.**
+- **Special Loot on the End of Run Summary shows each item in its own quality color and icon**, and trash and event drops will say where they drop.
+
+### Fixed
+- **A mount you already own no longer shows as "Unlocked This Run"** after a login or reload.
+- **Brazilian Portuguese route notes read properly.** 532 notes and labels, mostly in the older raids, had English words left in them or broken grammar.
+- **German text uses the formal "Ihr" throughout**, as the rest of RetroRuns does; 60 lines, mostly route notes in the Classic raids, used "du".
+
 ## [3.5.3] - 2026-11-13
 
 ### Added

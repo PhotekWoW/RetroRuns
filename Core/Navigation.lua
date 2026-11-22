@@ -452,6 +452,8 @@ function RR:IsStepCollectedSkipped(step)
     if not step or not step.skipWhenCollected or not step.bossIndex then
         return false
     end
+    -- KILL on a summon question keeps the boss, whatever the setting.
+    if self:CollectedSkipAnswer(step.bossIndex) == "kill" then return false end
     local mode = self:GetSetting("collectedSkipMode", "on")
     if mode == "off" then return false end
     if mode == "prompt" and self:CollectedSkipAnswer(step.bossIndex) ~= "skip" then
@@ -527,14 +529,17 @@ function RR:IsBossArchaeologySkipped(bossIndex)
     return false
 end
 
--- A boss skipped by hand, or left out as fully collected or unsummonable.
--- A kill overrides the automatic reasons.
+-- A boss skipped by hand, left out as fully collected or unsummonable,
+-- whose summon failed, or absent from this run (Nightbane off Mythic). A
+-- kill overrides the automatic reasons.
 function RR:IsBossBypassed(bossIndex)
     if not bossIndex then return false end
     if self:IsBossSkipped(bossIndex) then return true end
     if self:IsBossKilled(bossIndex) then return false end
     return self:IsBossCollectedSkipped(bossIndex)
         or self:IsBossArchaeologySkipped(bossIndex)
+        or self:IsSummonWindowFailed(bossIndex)
+        or not self:BossReachableHere(bossIndex)
 end
 
 -- Localized names of every boss the active route left out as collected,
@@ -831,15 +836,23 @@ function RR:SpawnChoiceShortName(name)
 end
 
 -- A member named by speaker or text of an NPC line is the one that spawned
--- (the herald's announcement, the crowd's cheer, the champion's own lines).
--- A member listed under its set speaks under its short name, which counts
--- only as the speaker.
+-- (the herald's announcement, the crowd's cheer, the champion's own lines),
+-- or by a line its set's `announce` list gives it. A member listed under its
+-- set speaks under its short name, which counts only as the speaker.
 function RR:DetectSpawnFromDialog(sender, text)
     local choice = self.currentRaid and self.currentRaid.spawnChoice
     -- A member named by elimination gives way to one that names itself.
     local eliminated = self.state.spawnByElimination and self.state.spawnedMember
     if not choice or not (self:IsSpawnChoiceOpen()
         or (eliminated and not self:IsBossKilled(eliminated))) then return false end
+    if choice.announce and self.DialogHeard then
+        local heard = { npc = sender, text = text }
+        for _, entry in ipairs(choice.announce) do
+            if entry.dialog and self.DialogHeard(entry.dialog, heard) then
+                return self:SetSpawnedMember(entry.member)
+            end
+        end
+    end
     for _, memberIndex in ipairs(choice) do
         local boss = self:GetBossByIndex(memberIndex)
         if boss then
@@ -1302,9 +1315,11 @@ end
 -- Bypass an optional boss. Only optional bosses qualify: skipping a
 -- mandatory one would strand the run with no reachable next step.
 -- Restoring one is always allowed -- it can only add guidance back.
-function RR:SetBossSkipped(bossIndex, skipped)
+-- `ahead` skips a boss the route has not reached, from wherever the player
+-- stands: no step is guiding them through his part of the route yet.
+function RR:SetBossSkipped(bossIndex, skipped, ahead)
     if not bossIndex or not self:IsBossOptional(bossIndex) then return false end
-    if skipped and not self:CanSkipBoss(bossIndex) then return false end
+    if skipped and not ahead and not self:CanSkipBoss(bossIndex) then return false end
     self.state.bossesSkipped[bossIndex] = skipped and true or nil
     -- Survives /reload: unlike a kill, nothing external can rebuild this.
     self:PersistBossSkipped(bossIndex, skipped)
@@ -1511,6 +1526,7 @@ function RR:GetAvailableSteps()
             and not self:IsBossSkipped(step.bossIndex)
             and not self:IsStepCollectedSkipped(step)
             and not self:IsStepArchaeologySkipped(step)
+            and not self:IsSummonWindowFailed(step.bossIndex)
             and self:RequirementsMet(step.requires) then
             table.insert(results, step)
         end
@@ -1580,6 +1596,7 @@ end
 function RR:OnActiveStepChanged(prevStep, newStep)
     -- Ahead of the same-step return: a verdict can land after the step does.
     if RR.UI and RR.UI.AskCollectedSkip then RR.UI.AskCollectedSkip() end
+    if RR.UI and RR.UI.AskSummonChoice then RR.UI.AskSummonChoice() end
     if prevStep == newStep then return end
     if self.state.backtraceLastCurrent then
         wipe(self.state.backtraceLastCurrent)
@@ -1999,6 +2016,23 @@ function RR:GetProgressRows()
             row = { cell = "pending", text = ("|cff9d9d9d%s|r%s"):format(
                 displayName, optionalTag) }
         end
+        -- A summon against a clock: the time left to start it, then the
+        -- buff's time once it is under way, or Failed. Both count to a
+        -- kept end time, so combat hiding the buff leaves the clock running.
+        local windowState, windowValue = self:SummonWindowState(boss)
+        -- A boss the route leaves out carries neither.
+        if self:IsBossSkipped(boss.index) or self:IsBossCollectedSkipped(boss.index) then
+            windowState = nil
+        end
+        if windowState == "failed" then
+            row.text = row.text .. " |cffff3333" .. RR.L["Failed"] .. "|r"
+            -- Nothing dead yet, so nothing saved: a reset brings a fresh try.
+            if next(self.state.bossesKilled or {}) == nil then
+                row.text = row.text .. " |cff808080" .. RR.L["(reset dungeon to retry)"] .. "|r"
+            end
+        elseif windowState then
+            row.countdown = { deadline = windowValue, seconds = math.ceil(windowValue - time()) }
+        end
         return row
     end
 
@@ -2151,6 +2185,217 @@ function RR:ShowCurrentMapForStep()
 end
 
 -------------------------------------------------------------------------------
+-- Summon windows
+-------------------------------------------------------------------------------
+-- A boss summoned against a clock (Return to Karazhan's Nightbane) carries a
+-- `summonWindow`: a line opens it, a line fails it, a line starts the summon.
+-- The run record keeps all three so a reload keeps the count.
+function RR:DetectSummonWindow(sender, text)
+    local raid = self.currentRaid
+    if not (raid and raid.bosses and self.DialogHeard) then return end
+    local heard = { npc = sender, text = text }
+    for _, boss in ipairs(raid.bosses) do
+        local window = boss.summonWindow
+        if window then
+            local opened = window.opens and self.DialogHeard(window.opens.dialog, heard)
+            local failed = window.fails and self.DialogHeard(window.fails.dialog, heard)
+            local summoned = window.summoned and self.DialogHeard(window.summoned.dialog, heard)
+            local run = (opened or failed or summoned) and self.RunHistory
+                and self.RunHistory.CurrentRun(true)
+            if run then
+                run.summonWindows = run.summonWindows or {}
+                local entry = run.summonWindows[boss.index] or {}
+                if opened and not entry.openedAt then entry.openedAt = time() end
+                if failed then entry.failed = true end
+                if summoned then entry.summoned = true end
+                run.summonWindows[boss.index] = entry
+                self:ZoneLog(("summonWindow: boss %d %s"):format(boss.index,
+                    failed and "failed" or summoned and "summoned" or "opened"))
+                -- A failed window takes the boss's step off the route.
+                if failed and self.ComputeNextStep then self:ComputeNextStep() end
+                if self.UI and self.UI.Update then self.UI.Update() end
+            end
+        end
+    end
+end
+
+-- "failed" once the attempt is lost; "buff" with the time() the buff on the
+-- player runs out; "open" with the window's end while it runs before the
+-- first click; nil otherwise: never opened, summoned, or the boss dead.
+function RR:SummonWindowState(boss)
+    local window = boss and boss.summonWindow
+    if not window or self:IsBossKilled(boss.index) then return nil end
+    local run = self.RunHistory and self.RunHistory.CurrentRun(false)
+    local entry = run and run.summonWindows and run.summonWindows[boss.index]
+    if not entry or entry.summoned then return nil end
+    if entry.failed then return "failed" end
+    local now = time()
+    if entry.buffEnds then
+        if now < entry.buffEnds then return "buff", entry.buffEnds end
+        return nil
+    end
+    local deadline = entry.openedAt and not entry.stacks and entry.openedAt + window.seconds
+    if deadline and now < deadline then return "open", deadline end
+    return nil
+end
+
+-- True once a boss's summon window failed this run: its step leaves the
+-- route and the markers that serve it hide.
+function RR:IsSummonWindowFailed(bossIndex)
+    return self:SummonWindowState(self:GetBossByIndex(bossIndex)) == "failed"
+end
+
+-- The summoned boss to ask about as the run starts, or nil: an optional
+-- one offered at this difficulty, not yet answered, put off this visit,
+-- skipped, dead or lost.
+function RR:SummonChoiceQuestion()
+    local raid = self.currentRaid
+    if not (raid and raid.bosses and self.state.currentDifficultyID) then return nil end
+    if self.state.loadedRaidKey ~= self:GetRaidContextKey() then return nil end
+    for _, boss in ipairs(raid.bosses) do
+        local index = boss.index
+        if boss.summonWindow and self:IsBossOptional(index)
+            and self:BossReachableHere(index)
+            and not self:IsBossKilled(index) and not self:IsBossSkipped(index)
+            and not self:CollectedSkipAnswer(index)
+            and not (self.state.summonChoiceLater and self.state.summonChoiceLater[index])
+            and not self:IsSummonWindowFailed(index) then
+            return index
+        end
+    end
+    return nil
+end
+
+-- KILL keeps the boss on the route even with nothing left to collect; SKIP
+-- leaves him out for the lockout before the route reaches him; "later" (the
+-- [X] or Esc) answers nothing and stops asking until the next arrival, with
+-- him on the route meanwhile.
+function RR:AnswerSummonChoice(bossIndex, answer)
+    self:ZoneLog(("summon choice: boss %d %s"):format(bossIndex, tostring(answer)))
+    if answer == "skip" then
+        self:SetBossSkipped(bossIndex, true, true)
+    elseif answer == "later" then
+        self.state.summonChoiceLater = self.state.summonChoiceLater or {}
+        self.state.summonChoiceLater[bossIndex] = true
+    else
+        self:SetCollectedSkipAnswer(bossIndex, "kill")
+        self:ComputeNextStep()
+    end
+end
+
+-- Stacks of one of the player's buffs, or nil when it is not up or the
+-- client hides the count. A buff up with no count reads as one stack.
+function RR:PlayerAuraStacks(spellID)
+    if not (C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID) then return nil end
+    local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, spellID)
+    if not ok or type(aura) ~= "table" then return nil end
+    local stacks = aura.applications
+    if issecretvalue and issecretvalue(stacks) then return nil end
+    if type(stacks) ~= "number" then return nil end
+    return math.max(stacks, 1)
+end
+
+-- How long both summon buffs must stay off, out of combat, before the
+-- attempt counts as lost; a reload or loading screen can hide them briefly.
+local SUMMON_BUFF_GONE_SECONDS = 10
+
+-- On a player aura change and once a second: keeps the most Echo stacks
+-- reached and when the buff on now runs out on the run record, and ends the
+-- attempt once both buffs stay off. True when the row or markers must follow.
+function RR:SummonAuraChanged()
+    local raid = self.currentRaid
+    if not (raid and raid.bosses and self.PlayerHasAura) then return false end
+    self.state.summonAuraUp = self.state.summonAuraUp or {}
+    self.state.summonBuffGoneSince = self.state.summonBuffGoneSince or {}
+    local changed = false
+    for _, boss in ipairs(raid.bosses) do
+        local window = boss.summonWindow
+        local spellID = window and window.aura
+        if spellID then
+            local echoUp = self:PlayerHasAura(spellID) == true
+            local readyUp = window.readyAura ~= nil and self:PlayerHasAura(window.readyAura) == true
+            local up = echoUp or readyUp
+            if up ~= (self.state.summonAuraUp[spellID] == true) then
+                self.state.summonAuraUp[spellID] = up
+                changed = true
+            end
+            local stacks = echoUp and self:PlayerAuraStacks(spellID) or nil
+            local secondsLeft = up and self.UI and self.UI.PlayerAuraSecondsLeft
+                and self.UI.PlayerAuraSecondsLeft(readyUp and window.readyAura or spellID)
+            local ends = secondsLeft and time() + secondsLeft or nil
+            local run = self.RunHistory and self.RunHistory.CurrentRun((stacks or ends) ~= nil)
+            local entry = run and run.summonWindows and run.summonWindows[boss.index]
+            if run and (stacks or ends) then
+                run.summonWindows = run.summonWindows or {}
+                entry = entry or {}
+                run.summonWindows[boss.index] = entry
+                if stacks and stacks > (entry.stacks or 0) then
+                    entry.stacks = stacks
+                    changed = true
+                end
+                -- A second either way is the read's rounding, not new time.
+                if ends and math.abs(ends - (entry.buffEnds or 0)) > 1 then
+                    entry.buffEnds = ends
+                    changed = true
+                end
+            end
+            if up then
+                self.state.summonBuffGoneSince[boss.index] = nil
+            elseif self:SummonBuffLost(boss, entry) then
+                changed = true
+            end
+        end
+    end
+    return changed
+end
+
+-- With neither summon buff on: once a buff was on (or the window ran out
+-- with none), and they stay off for SUMMON_BUFF_GONE_SECONDS while the
+-- client can see them, the attempt is marked failed. True when it was.
+function RR:SummonBuffLost(boss, entry)
+    local goneSince = self.state.summonBuffGoneSince
+    local now = time()
+    local windowOver = entry and entry.openedAt
+        and now >= entry.openedAt + boss.summonWindow.seconds
+    local hadBuff = entry and (entry.stacks or entry.buffEnds)
+    -- Judged only where buffs read true: out of combat and encounters, alive.
+    local visible = not (InCombatLockdown and InCombatLockdown())
+        and not (IsEncounterInProgress and IsEncounterInProgress())
+        and not (UnitIsDeadOrGhost and UnitIsDeadOrGhost("player"))
+    if not (entry and visible and (hadBuff or windowOver))
+        or entry.failed or entry.summoned or self:IsBossKilled(boss.index) then
+        goneSince[boss.index] = nil
+        return false
+    end
+    goneSince[boss.index] = goneSince[boss.index] or now
+    if now - goneSince[boss.index] < SUMMON_BUFF_GONE_SECONDS then return false end
+    goneSince[boss.index] = nil
+    entry.failed = true
+    self:ZoneLog(("summonWindow: boss %d failed (%s)"):format(boss.index,
+        hadBuff and "buff gone" or "window ran out"))
+    if self.ComputeNextStep then self:ComputeNextStep() end
+    return true
+end
+
+-- True once a summon marker's turn has come: it is the first, or the buff
+-- has reached the stacks of the one before it.
+function RR:IsSummonMarkerReached(poi)
+    if not (poi and poi.summonFor and poi.summonOrder) or poi.summonOrder <= 1 then
+        return true
+    end
+    return self:IsSummonMarkerDone({ summonFor = poi.summonFor, summonOrder = poi.summonOrder - 1 })
+end
+
+-- True once a summon marker's turn has passed: the summon's buff has
+-- reached the marker's `summonOrder` stacks this run.
+function RR:IsSummonMarkerDone(poi)
+    if not (poi and poi.summonFor and poi.summonOrder) then return false end
+    local run = self.RunHistory and self.RunHistory.CurrentRun(false)
+    local entry = run and run.summonWindows and run.summonWindows[poi.summonFor]
+    return entry ~= nil and (entry.stacks or 0) >= poi.summonOrder
+end
+
+-------------------------------------------------------------------------------
 -- Dialog-trigger advancement
 -------------------------------------------------------------------------------
 -- Watches monster yell/say/emote against per-seg
@@ -2194,6 +2439,7 @@ local function DialogTriggerHandler(_, event, ...)
     RR:DetectSpawnFromDialog(sender, text)
     RR:StartSpawnElimination(sender, text)
     RR:DetectPoolAnnouncement(sender, text)
+    RR:DetectSummonWindow(sender, text)
 
     local step = RR.state and RR.state.activeStep
     if not step or not step.segments then
@@ -2237,6 +2483,9 @@ end
 
 function RR:IsPanelAllowed()
     if not self:GetSetting("showPanel") then return false end
+    -- The summon question asked as the run starts holds the route back
+    -- until it is answered, from the moment it is waiting.
+    if self:SummonChoiceQuestion() then return false end
     -- Inside an instance nothing loaded for -- unsupported, or a seasonal
     -- dungeon stood down from -- the panel stays out of the way rather
     -- than opening the idle list over a run.

@@ -16,6 +16,18 @@ RetroRuns_DungeonData[860] = {
     availableDifficulties = { 15, 16 },
     unsavedDifficulties = { 15 },
     patch             = "7.1.0",
+    routedIn          = "3.5.4",
+
+    -- One of the three Opera Hall plays runs each week; Barnes's opening
+    -- lines name it.
+    spawnChoice = {
+        1, 2, 3, label = "Opera Hall",
+        announce = {
+            { member = 1, dialog = { npc = "Barnes", match = "ladies and gentlemen, to our" } },
+            { member = 2, dialog = { npc = "Barnes", match = "Sentinel Hill" } },
+            { member = 3, dialog = { npc = "Barnes", match = "skin deep" } },
+        },
+    },
 
     entrance = {
         mapID = 42,
@@ -25,12 +37,31 @@ RetroRuns_DungeonData[860] = {
 
     -- Instance-wide achievements with no single boss; every boss lists them.
     raidAchievements = {
-        { id = 11430, name = "One Night in Karazhan", soloable = "yes" },
         { id = 11433, name = "Burn After Reading", soloable = "yes" },
     },
 
-    trashLoot = {
-        { id = 142552, kind = "mount", name = "Smoldering Ember Wyrm", mythicOnly = true, bossNpc = "Nightbane" },
+    pois = {
+        -- Always on: the vendor in the Livery Stables.
+        { mapID = 809, poiKind = "vendor", mapLabel = "Vendor NPC",
+          mapLabelPos = "below",
+          points = { { 0.422, 0.721 } } },
+        -- Nightbane's Soul Fragments in click order, Mythic only, gone once
+        -- he is dead or out of the run, and checked off as Medivh's Echo
+        -- reaches each one's stack. The first appears once the Opera Hall
+        -- ends, each later one once the one before it is clicked; the fifth
+        -- drops from The Curator.
+        { mapID = 812, poiKind = "quest", mapLabel = "Soul Fragment 1", availableDifficulties = { 16 },
+          requires = { 1 }, summonFor = 11, summonOrder = 1,
+          points = { { 0.260, 0.357 } } },
+        { mapID = 812, poiKind = "quest", mapLabel = "Soul Fragment 2", availableDifficulties = { 16 },
+          summonFor = 11, summonOrder = 2,
+          points = { { 0.814, 0.217 } } },
+        { mapID = 811, poiKind = "quest", mapLabel = "Soul Fragment 3", mapLabelPos = "above",
+          availableDifficulties = { 16 }, summonFor = 11, summonOrder = 3,
+          points = { { 0.220, 0.627 } } },
+        { mapID = 809, poiKind = "quest", mapLabel = "Soul Fragment 4", availableDifficulties = { 16 },
+          summonFor = 11, summonOrder = 4,
+          points = { { 0.734, 0.206 } } },
     },
 
     bosses = {
@@ -42,6 +73,7 @@ RetroRuns_DungeonData[860] = {
             aliases            = { "Opera Hall" },
             scenarioCriteriaID = 35483,
             achievements       = {
+                { id = 11335, name = "Season Tickets", soloable = "kinda" },
             },
             loot = {
                 { id = 142298, slot = "Feet", name = "Astonishingly Scarlet Slippers", sources = { [15]=83079, [16]=83079 } },
@@ -61,6 +93,7 @@ RetroRuns_DungeonData[860] = {
             dungeonEncounterID = 1957,
             aliases            = { "Opera Hall" },
             achievements       = {
+                { id = 11335, name = "Season Tickets", soloable = "kinda" },
             },
             loot = {
                 { id = 142201, slot = "Shoulder", name = "Mantle of Conflicted Loyalties", sources = { [15]=83065, [16]=83065 } },
@@ -76,6 +109,7 @@ RetroRuns_DungeonData[860] = {
             dungeonEncounterID = 1957,
             aliases            = { "Opera Hall" },
             achievements       = {
+                { id = 11335, name = "Season Tickets", soloable = "kinda" },
             },
             loot = {
                 { id = 142206, slot = "Back", name = "Cloak of Sweltering Flame", sources = { [15]=83070, [16]=83070 } },
@@ -190,7 +224,6 @@ RetroRuns_DungeonData[860] = {
             journalEncounterID = 1838,
             dungeonEncounterID = 2017,
             achievements       = {
-                { id = 11335, name = "Season Tickets", soloable = "kinda" },
             },
             loot = {
                 { id = 142132, slot = "Feet", name = "Doomstride Footguards", sources = { [15]=83042, [16]=83042 } },
@@ -200,6 +233,674 @@ RetroRuns_DungeonData[860] = {
             },
             specialLoot = {
                 { id = 246865, kind = "decor", name = "Tome of Reliquary Insights", decorID = 2531 },
+            },
+        },
+        {
+            -- Not a journal boss. Mythic only, summoned at Medivh's image on
+            -- Master's Terrace once all five Soul Fragments are clicked in time.
+            index              = 11,
+            name               = "Nightbane",
+            npcID              = 114895,
+            dungeonEncounterID = 2031,
+            availableDifficulties = { 16 },
+            -- The first door opens an 8-minute window to click the first
+            -- Soul Fragment; Medivh's image calls both ends. The click puts
+            -- Medivh's Echo on the player, and its time takes over. The fifth
+            -- fragment swaps it for Medivh's Presence, the time left to talk
+            -- to the image. Either buff running out ends the attempt.
+            summonWindow = {
+                seconds   = 480,
+                aura      = 229074,
+                readyAura = 229077,
+                opens     = { dialog = { npc = "Image of Medivh", match = "The strange chill of a dark presence" } },
+                fails     = { dialog = { npc = "Image of Medivh", match = "The air grows slightly warmer" } },
+                summoned  = { dialog = { npc = "Image of Arcanagos", match = "An ancient being awakens" } },
+            },
+            achievements       = {
+                { id = 11430, name = "One Night in Karazhan", soloable = "yes" },
+            },
+            loot = {
+                { id = 142303, slot = "Chest", name = "Chestplate of Impenetrable Darkness", sources = { [16]=83084 }, mythicOnly = true },
+                { id = 142203, slot = "Chest", name = "Harness of Smoldering Betrayal", sources = { [16]=83067 }, mythicOnly = true },
+                { id = 142301, slot = "Chest", name = "Hauberk of Warped Intuition", sources = { [16]=83082 }, mythicOnly = true },
+                { id = 142297, slot = "Chest", name = "Robes of the Ancient Chronicle", sources = { [16]=83078 }, mythicOnly = true },
+            },
+            specialLoot = {
+                { id = 142552, kind = "mount", name = "Smoldering Ember Wyrm", mythicOnly = true },
+            },
+        },
+    },
+
+    exitNote    = "The portal leads to a nearby ship, which has a portal to Dalaran. If you jump off that ship, you will respawn in the Karazhan library.",
+    minExitNote = "Portal leads to Dalaran",
+
+    routing = {
+        -- 1. Opera Hall (bosses 1-3), whichever play is on this week.
+        {
+            step      = 1,
+            priority  = 1,
+            bossIndex = { 1, 2, 3 },
+            title     = "Opera Hall",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 814 },
+                    kind    = "path",
+                    note    = "After zoning in, go right to climb some stairs. In ^The Opera Hall^, take another right and go down the ramp at the map exit labeled ^Opera Hall Balcony^.",
+                    minNote = "Right to Opera Hall Balcony, Down Ramp",
+                    points  = {
+                        { 0.615, 0.638 },
+                        { 0.572, 0.617 },
+                        { 0.516, 0.508 },
+                        { 0.515, 0.467 },
+                        { 0.537, 0.441 },
+                        { 0.526, 0.426 },
+                        { 0.488, 0.465 },
+                        { 0.421, 0.335 },
+                        { 0.439, 0.291 },
+                        { 0.442, 0.225 },
+                        { 0.412, 0.166 },
+                        { 0.392, 0.150 },
+                        { 0.398, 0.140 },
+                    },
+                },
+                {
+                    when    = { mapID = 813 },
+                    kind    = "path",
+                    note    = "At the bottom of the ramp, go left and work your way around the middle balcony. Go down the ramp at the end of the path and find ^Barnes^ on the stage. Talk to him to start the ^Opera Hall^ encounter.",
+                    minNote = "Left path, talk to Barnes for Opera",
+                    points  = {
+                        { 0.639, 0.296 },
+                        { 0.752, 0.399 },
+                        { 0.788, 0.565 },
+                        { 0.752, 0.734 },
+                        { 0.633, 0.833 },
+                        { 0.454, 0.844 },
+                    },
+                },
+                {
+                    when    = { mapID = 812 },
+                    kind    = "path",
+                    points  = {
+                        { 0.213, 0.500 },
+                        { 0.192, 0.474 },
+                        { 0.194, 0.440 },
+                        { 0.209, 0.389 },
+                    },
+                },
+                {
+                    when        = { mapID = 812 },
+                    kind        = "poi",
+                    poiKind     = "talk",
+                    mapLabel    = "Talk to Barnes",
+                    mapLabelPos = "right",
+                    points      = {
+                        { 0.218, 0.344 },
+                    },
+                },
+            },
+        },
+
+        -- 2. Maiden of Virtue (boss 4).
+        {
+            step      = 2,
+            priority  = 1,
+            bossIndex = 4,
+            title     = "Maiden of Virtue",
+            requires  = { },
+            segments  = {
+                -- With Nightbane: the first Soul Fragment, in the audience.
+                -- Without him this leg reads as the way to Maiden.
+                {
+                    when    = { mapID = 812 },
+                    kind    = "path",
+                    note    = "After defeating the ^Opera Hall^, exit the stage to the north. Follow the linear path to the first ^Soul Fragment^ in the audience across from the stage.",
+                    minNote = "Path to first Soul Fragment in audience",
+                    points  = {
+                        { 0.210, 0.262 },
+                        { 0.121, 0.257 },
+                        { 0.110, 0.422 },
+                        { 0.203, 0.430 },
+                        { 0.261, 0.189 },
+                        { 0.234, 0.187 },
+                        { 0.232, 0.229 },
+                        { 0.296, 0.235 },
+                        { 0.280, 0.331 },
+                    },
+                    skipWhenBoss = 11,
+                    skipNote     = "After defeating the ^Opera Hall^, exit the stage to the north. Follow the linear path behind the stage and down the ramp below the stage. From the bottom floor of the ^Opera Hall^, continue on the path to eventually reach ^Maiden of Virtue^.",
+                    skipMinNote  = "Follow path to Maiden",
+                    skipPoints   = {
+                        { 0.211, 0.264 },
+                        { 0.121, 0.256 },
+                        { 0.113, 0.418 },
+                        { 0.207, 0.430 },
+                        { 0.244, 0.254 },
+                        { 0.254, 0.235 },
+                        { 0.257, 0.189 },
+                        { 0.237, 0.187 },
+                        { 0.236, 0.224 },
+                        { 0.326, 0.242 },
+                        { 0.379, 0.279 },
+                        { 0.404, 0.341 },
+                        { 0.405, 0.389 },
+                        { 0.525, 0.404 },
+                        { 0.564, 0.370 },
+                        { 0.569, 0.307 },
+                        { 0.657, 0.325 },
+                        { 0.712, 0.359 },
+                        { 0.811, 0.470 },
+                    },
+                },
+                -- The second Soul Fragment, once the first's Medivh's Echo lands.
+                {
+                    when    = { mapID = 812 },
+                    kind    = "path",
+                    triggeredBy = { aura = 229074 },
+                    drawWhenOpen = true,
+                    note    = "From the first ^Soul Fragment^, continue on the path out of the ^Opera Hall^ toward ^The Guest Chambers^. Before reaching ^Maiden of Virtue^, turn north into the bedroom to find the second ^Soul Fragment^.",
+                    minNote = "Path to second Soul Fragment in bedroom",
+                    points  = {
+                        { 0.285, 0.361 },
+                        { 0.520, 0.405 },
+                        { 0.565, 0.363 },
+                        { 0.567, 0.306 },
+                        { 0.650, 0.324 },
+                        { 0.717, 0.367 },
+                        { 0.747, 0.399 },
+                        { 0.810, 0.267 },
+                    },
+                    -- Lost after the first fragment: straight on to Maiden.
+                    skipWhenBoss = 11,
+                    skipNote     = "Continue on the path out of the ^Opera Hall^ toward ^The Guest Chambers^ to reach ^Maiden of Virtue^.",
+                    skipMinNote  = "Follow path to Maiden",
+                    skipPoints   = {
+                        { 0.285, 0.361 },
+                        { 0.520, 0.405 },
+                        { 0.565, 0.363 },
+                        { 0.567, 0.306 },
+                        { 0.650, 0.324 },
+                        { 0.717, 0.367 },
+                        { 0.747, 0.399 },
+                        { 0.802, 0.459 },
+                    },
+                },
+                -- On to Maiden once the second fragment's stack lands.
+                {
+                    when    = { mapID = 812 },
+                    kind    = "path",
+                    triggeredBy = { aura = 229074, stacks = 2 },
+                    drawWhenOpen = true,
+                    note    ="After collecting the second ^Soul Fragment^, exit the bedroom and take a left to reach ^Maiden of Virtue^.",
+                    minNote = "Exit bedroom, left to Maiden",
+                    points  = {
+                        { 0.809, 0.268 },
+                        { 0.750, 0.399 },
+                        { 0.802, 0.459 },
+                    },
+                },
+            },
+        },
+
+        -- 3. Moroes (boss 6).
+        {
+            step      = 3,
+            priority  = 1,
+            bossIndex = 6,
+            title     = "Moroes",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 812 },
+                    kind    = "path",
+                    note    = "After defeating ^Maiden of Virtue^, backtrack out of her room down the hall. Go left back into the ^Banquet Hall^, and jump over the ledge to reach ^Moroes^.",
+                    minNote = "Back to Banquet Hall, Jump down to Moroes",
+                    points  = {
+                        { 0.779, 0.428 },
+                        { 0.669, 0.328 },
+                        { 0.570, 0.309 },
+                        { 0.564, 0.371 },
+                        { 0.482, 0.503 },
+                        { 0.440, 0.605 },
+                    },
+                },
+            },
+        },
+
+        -- 4. Attumen the Huntsman (boss 5).
+        {
+            step      = 4,
+            priority  = 1,
+            bossIndex = 5,
+            title     = "Attumen the Huntsman",
+            requires  = { },
+            segments  = {
+                -- With Nightbane: the third Soul Fragment, behind Moroes. Its
+                -- map marker already names it.
+                {
+                    when    = { mapID = 811 },
+                    kind    = "path",
+                    note    = "After killing ^Moroes^, click the third ^Soul Fragment^ right behind him.",
+                    minNote = "Click third soul fragment behind Moroes",
+                    points  = {},
+                },
+                -- Once the third fragment's stack lands, or straight away in
+                -- a run without Nightbane.
+                {
+                    when    = { mapID = 811 },
+                    kind    = "path",
+                    triggeredBy = { aura = 229074, stacks = 3, openWithoutBoss = 11 },
+                    drawWhenOpen = true,
+                    note    ="Collect the ^Rusty Keys^ on the floor near ^Moroes^. Exit northeast into ^The Grand Ballroom^ and go down the south stairwell into ^Servants' Quarters^.",
+                    minNote = "Collect Rusty Keys then path to Servants' Quarters",
+                    points  = {
+                        { 0.323, 0.639 },
+                        { 0.458, 0.555 },
+                        { 0.504, 0.560 },
+                        { 0.545, 0.656 },
+                        { 0.526, 0.900 },
+                    },
+                },
+                {
+                    -- The stairwell down to the Servants' Quarters, ringed.
+                    when            = { mapID = 811 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    points          = {
+                        { 0.523, 0.939 },
+                    },
+                },
+                {
+                    when    = { mapID = 809 },
+                    kind    = "path",
+                    note    = "Once you reach the bottom of the stairs, take a right into the stables to reach ^Attumen the Huntsman^.",
+                    minNote = "Right into stables for Attumen",
+                    points  = {
+                        { 0.532, 0.655 },
+                        { 0.501, 0.725 },
+                        { 0.434, 0.771 },
+                        { 0.444, 0.792 },
+                    },
+                },
+            },
+        },
+
+        -- 5. The Curator (boss 7).
+        {
+            step      = 5,
+            priority  = 1,
+            bossIndex = 7,
+            title     = "The Curator",
+            requires  = { },
+            segments  = {
+                -- With Nightbane: the fourth Soul Fragment, beside the portal.
+                {
+                    when    = { mapID = 809 },
+                    kind    = "path",
+                    note    = "After killing ^Attumen^, follow the path to the far northeast section of the map to locate the fourth ^Soul Fragment^.",
+                    minNote = "Northeast to fourth Soul Fragment",
+                    skipWhenBoss = 11,
+                    skipNote     = "After killing ^Attumen the Huntsman^, go north through the ^Servants' Quarters^ to the far northeast section of the map. Take the ^Portal to Karazhan Entrance^. Kill any spiders that you encounter to avoid getting stuck in combat.",
+                    skipMinNote  = "Northeast to portal",
+                    points  = {
+                        { 0.478, 0.747 },
+                        { 0.509, 0.711 },
+                        { 0.589, 0.700 },
+                        { 0.604, 0.679 },
+                        { 0.579, 0.595 },
+                        { 0.580, 0.553 },
+                        { 0.560, 0.503 },
+                        { 0.590, 0.419 },
+                        { 0.609, 0.184 },
+                        { 0.714, 0.204 },
+                    },
+                },
+                -- The portal once the fourth fragment's stack lands. A run
+                -- without Nightbane starts here, on the whole way to it.
+                {
+                    when    = { mapID = 809 },
+                    kind    = "path",
+                    triggeredBy = { aura = 229074, stacks = 4, openWithoutBoss = 11 },
+                    note    = "Kill all spiders around the portal and drop combat before clicking the ^Portal to Karazhan Entrance^.",
+                    minNote = "Clear spiders, then click portal",
+                    points  = {},
+                    skipWhenBoss = 11,
+                    skipNote     = "After killing ^Attumen the Huntsman^, go north through the ^Servants' Quarters^ to the far northeast section of the map. Take the ^Portal to Karazhan Entrance^. Kill any spiders that you encounter to avoid getting stuck in combat.",
+                    skipMinNote  = "Northeast to portal",
+                    skipPoints   = {
+                        { 0.478, 0.747 },
+                        { 0.509, 0.711 },
+                        { 0.589, 0.700 },
+                        { 0.604, 0.679 },
+                        { 0.579, 0.595 },
+                        { 0.580, 0.553 },
+                        { 0.560, 0.503 },
+                        { 0.590, 0.419 },
+                        { 0.609, 0.184 },
+                        { 0.714, 0.204 },
+                    },
+                },
+                {
+                    when    = { mapID = 814 },
+                    kind    = "path",
+                    note    = "After teleporting, go left down the ramp. Loop around to climb the ramp above towards ^Lower Broken Stair^.",
+                    minNote = "Climb ramp to Lower Broken Stair",
+                    points  = {
+                        { 0.610, 0.637 },
+                        { 0.621, 0.710 },
+                        { 0.603, 0.730 },
+                        { 0.578, 0.721 },
+                        { 0.556, 0.737 },
+                        { 0.574, 0.764 },
+                        { 0.608, 0.761 },
+                        { 0.626, 0.745 },
+                        { 0.644, 0.715 },
+                    },
+                },
+                {
+                    when    = { mapID = 815 },
+                    kind    = "path",
+                    note    = "Follow the linear path as you climb your way to the ^Upper Broken Stair^.",
+                    minNote = "Climb to Upper Broken Stair",
+                    points  = {
+                        { 0.719, 0.606 },
+                        { 0.715, 0.512 },
+                        { 0.685, 0.398 },
+                        { 0.608, 0.299 },
+                        { 0.579, 0.289 },
+                        { 0.561, 0.341 },
+                        { 0.526, 0.367 },
+                        { 0.464, 0.544 },
+                        { 0.469, 0.631 },
+                        { 0.516, 0.545 },
+                        { 0.539, 0.566 },
+                        { 0.501, 0.656 },
+                        { 0.516, 0.668 },
+                        { 0.531, 0.635 },
+                    },
+                },
+                {
+                    when    = { mapID = 816 },
+                    kind    = "path",
+                    note    = "Continue on the path into ^The Menagerie^.",
+                    minNote = "Continue into The Menagerie",
+                    points  = {
+                        { 0.485, 0.411 },
+                        { 0.432, 0.423 },
+                        { 0.323, 0.517 },
+                        { 0.292, 0.607 },
+                        { 0.463, 0.739 },
+                        { 0.557, 0.478 },
+                        { 0.476, 0.317 },
+                    },
+                },
+                {
+                    when    = { mapID = 817 },
+                    kind    = "path",
+                    note    = "Continue into ^The Menagerie^ to reach ^The Curator^.",
+                    minNote = "Continue to The Curator",
+                    points  = {
+                        { 0.584, 0.285 },
+                        { 0.467, 0.266 },
+                        { 0.439, 0.293 },
+                        { 0.403, 0.299 },
+                        { 0.323, 0.387 },
+                        { 0.469, 0.669 },
+                    },
+                },
+            },
+        },
+
+        -- 6. Nightbane (boss 11), Mythic only. Optional: the question on
+        -- arrival keeps him on the route or leaves him out.
+        {
+            step      = 6,
+            priority  = 1,
+            bossIndex = 11,
+            optional  = true,
+            skipWhenCollected = true,
+            -- Once Medivh's Echo runs out he cannot be summoned this lockout.
+            skipIrreversible = true,
+            title     = "Nightbane",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 817 },
+                    kind    = "path",
+                    note    = "After defeating ^The Curator^, click the last ^Soul Fragment^ he drops, then backtrack to the ^Upper Broken Stair^.",
+                    minNote = "Click his fragment, backtrack",
+                    points  = {
+                        { 0.465, 0.667 },
+                        { 0.320, 0.382 },
+                        { 0.401, 0.301 },
+                        { 0.479, 0.265 },
+                        { 0.573, 0.285 },
+                        { 0.621, 0.308 },
+                    },
+                },
+                {
+                    when    = { mapID = 816 },
+                    kind    = "path",
+                    note    = "Jump down or descend the stairs into the ^Lower Broken Stair^.",
+                    minNote = "Jump down into Lower Broken Stair",
+                    points  = {
+                        { 0.473, 0.321 },
+                        { 0.505, 0.434 },
+                        { 0.463, 0.536 },
+                    },
+                },
+                {
+                    when    = { mapID = 815 },
+                    kind    = "path",
+                    note    = "Continue jumping down or descending until you reach the area near the entrance. Head south to go outside on ^The Master's Terrace^ and talk to ^Image of Medivh^ to start the encounter with ^Nightbane^.",
+                    minNote = "Jump down to entrance, outside to Medivh",
+                    points  = {
+                        { 0.469, 0.626 },
+                        { 0.444, 0.529 },
+                        { 0.529, 0.330 },
+                        { 0.477, 0.231 },
+                    },
+                },
+                {
+                    when    = { mapID = 814 },
+                    kind    = "path",
+                    points  = {
+                        { 0.596, 0.611 },
+                        { 0.621, 0.703 },
+                        { 0.590, 0.743 },
+                        { 0.590, 0.828 },
+                        { 0.586, 0.898 },
+                        { 0.542, 0.936 },
+                    },
+                },
+                {
+                    when        = { mapID = 814 },
+                    kind        = "poi",
+                    poiKind     = "talk",
+                    mapLabel    = "Talk to Medivh",
+                    mapLabelPos = "right",
+                    points      = {
+                        { 0.447, 0.860 },
+                    },
+                },
+            },
+        },
+
+        -- 7. Shade of Medivh (boss 8).
+        {
+            step      = 7,
+            priority  = 1,
+            bossIndex = 8,
+            title     = "Shade of Medivh",
+            requires  = { },
+            segments  = {
+                -- After Nightbane, the climb back up to the portal. A player
+                -- who skipped him starts on the portal ring; one back down
+                -- here without him climbs from the entrance.
+                {
+                    when    = { mapID = 814 },
+                    kind    = "path",
+                    note    = "After defeating ^Nightbane^, go back inside from ^Master's Terrace^ and loop around to climb the ramp above you towards ^Lower Broken Stair^.",
+                    minNote = "Climb ramp to Lower Broken Stair",
+                    points  = {
+                        { 0.587, 0.811 },
+                        { 0.593, 0.726 },
+                        { 0.571, 0.723 },
+                        { 0.554, 0.737 },
+                        { 0.567, 0.757 },
+                        { 0.579, 0.765 },
+                        { 0.606, 0.763 },
+                        { 0.627, 0.746 },
+                        { 0.644, 0.715 },
+                    },
+                    skipWhenBoss = 11,
+                    skipNote     = "Climb the ramp towards ^Lower Broken Stair^.",
+                    skipPoints   = {
+                        { 0.610, 0.637 },
+                        { 0.621, 0.710 },
+                        { 0.603, 0.730 },
+                        { 0.578, 0.721 },
+                        { 0.556, 0.737 },
+                        { 0.574, 0.764 },
+                        { 0.608, 0.761 },
+                        { 0.626, 0.745 },
+                        { 0.644, 0.715 },
+                    },
+                },
+                {
+                    when    = { mapID = 815 },
+                    kind    = "path",
+                    note    = "Follow the linear path as you climb your way to the ^Upper Broken Stair^.",
+                    minNote = "Climb to Upper Broken Stair",
+                    points  = {
+                        { 0.719, 0.606 },
+                        { 0.715, 0.512 },
+                        { 0.685, 0.398 },
+                        { 0.608, 0.299 },
+                        { 0.579, 0.289 },
+                        { 0.561, 0.341 },
+                        { 0.526, 0.367 },
+                        { 0.464, 0.544 },
+                        { 0.469, 0.631 },
+                        { 0.516, 0.545 },
+                        { 0.539, 0.566 },
+                        { 0.501, 0.656 },
+                        { 0.516, 0.668 },
+                        { 0.531, 0.635 },
+                    },
+                },
+                {
+                    when    = { mapID = 816 },
+                    kind    = "path",
+                    note    = "Continue on the path into ^The Menagerie^.",
+                    minNote = "Continue into The Menagerie",
+                    points  = {
+                        { 0.485, 0.411 },
+                        { 0.432, 0.423 },
+                        { 0.323, 0.517 },
+                        { 0.292, 0.607 },
+                        { 0.463, 0.739 },
+                        { 0.557, 0.478 },
+                        { 0.476, 0.317 },
+                    },
+                },
+                {
+                    -- The portal to the Guardian's Library, ringed.
+                    when            = { mapID = 817 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    note            = "Walk into the portal at the end of ^The Curator^'s hallway.",
+                    minNote         = "Walk into portal",
+                    points          = {
+                        { 0.516, 0.758 },
+                    },
+                },
+                {
+                    when    = { mapID = 818 },
+                    kind    = "path",
+                    note    = "After teleporting to the ^Guardian's Library^, follow the linear path until you reach ^Shade of Medivh^.",
+                    minNote = "Follow path to Shade of Medivh",
+                    points  = {
+                        { 0.230, 0.180 },
+                        { 0.231, 0.414 },
+                        { 0.250, 0.424 },
+                        { 0.264, 0.466 },
+                        { 0.703, 0.467 },
+                    },
+                },
+            },
+        },
+
+        -- 8. Mana Devourer (boss 9).
+        {
+            step      = 8,
+            priority  = 1,
+            bossIndex = 9,
+            title     = "Mana Devourer",
+            requires  = { },
+            segments  = {
+                {
+                    -- The drop to the Library Floor, ringed.
+                    when            = { mapID = 818 },
+                    kind            = "poi",
+                    noMarker        = true,
+                    highlightCircle = true,
+                    note            = "After defeating ^Shade of Medivh^, exit south and jump off the ledge.",
+                    minNote         = "South to jump off ledge",
+                    points          = {
+                        { 0.731, 0.585 },
+                    },
+                },
+                {
+                    when    = { mapID = 819 },
+                    kind    = "path",
+                    note    = "After you land, jump down to the floor to find ^Mana Devourer^ patrolling around.",
+                    minNote = "Jump down to Mana Devourer",
+                    points  = {
+                        { 0.477, 0.700 },
+                        { 0.517, 0.676 },
+                        { 0.552, 0.566 },
+                    },
+                },
+            },
+        },
+
+        -- 9. Viz'aduum the Watcher (boss 10).
+        {
+            step      = 9,
+            priority  = 1,
+            bossIndex = 10,
+            title     = "Viz'aduum the Watcher",
+            requires  = { },
+            segments  = {
+                {
+                    when    = { mapID = 820 },
+                    kind    = "path",
+                    note    = "After defeating ^Mana Devourer^, grab the chest nearby and follow the linear path to ^Gamesman's Hall^.",
+                    minNote = "Path to Gamesman's Hall",
+                    points  = {
+                        { 0.225, 0.261 },
+                        { 0.599, 0.260 },
+                        { 0.598, 0.441 },
+                        { 0.583, 0.521 },
+                        { 0.580, 0.614 },
+                        { 0.568, 0.787 },
+                    },
+                },
+                {
+                    when    = { mapID = 821 },
+                    kind    = "path",
+                    note    = "Inside the chess room, kill the enemies to unblock the path, then continue on the path to ^Netherspace^. The NPCs will open the door after a brief dialog. Enter the room to face the final boss, ^Viz'aduum the Watcher^.",
+                    minNote = "Chess Room then Viz'aduum",
+                    points  = {
+                        { 0.491, 0.161 },
+                        { 0.495, 0.861 },
+                        { 0.477, 0.903 },
+                        { 0.446, 0.903 },
+                    },
+                },
             },
         },
     },

@@ -26,6 +26,36 @@
 local RR = RetroRuns
 RR.WhatsNew = {
 {
+    version  = "3.5.4",
+    date     = "2026-11-22",
+    sections = {
+        {
+            heading = "Added",
+            bullets = {
+                "**Return to Karazhan is routed**, including the Opera Hall play of the week.",
+                "**Nightbane on Mythic Return to Karazhan:** Want to farm the mount but don't want to hassle with learning how to spawn Nightbane? We've got step by step routing to get you there without thinking.",
+                "**Shift-click an item on the End of Run Summary to link it in chat, or ctrl-click to preview it.**",
+            },
+        },
+        {
+            heading = "Changed",
+            bullets = {
+                "**Entering a dungeon or raid no longer flashes the panel you had open outside.** It opens with the route.",
+                "**The Skip prompt's question uses the font you picked in Settings.**",
+                "**Special Loot on the End of Run Summary shows each item in its own quality color and icon**, and trash and event drops will say where they drop.",
+            },
+        },
+        {
+            heading = "Fixed",
+            bullets = {
+                "**A mount you already own no longer shows as \"Unlocked This Run\"** after a login or reload.",
+                "**Brazilian Portuguese route notes read properly.** 532 notes and labels, mostly in the older raids, had English words left in them or broken grammar.",
+                "**German text uses the formal \"Ihr\" throughout**, as the rest of RetroRuns does; 60 lines, mostly route notes in the Classic raids, used \"du\".",
+            },
+        },
+    },
+},
+{
     version  = "3.5.3",
     date     = "2026-11-13",
     sections = {
@@ -140,40 +170,6 @@ RR.WhatsNew = {
                 "**The travel note no longer briefly shows an earlier note as you walk into the next area.**",
                 "**Missing pets, mounts and decor are in Special Loot:** the Raiding with Leashes pets in Molten Core, Blackwing Lair and Temple of Ahn'Qiraj, Drafty from the Conclave of Wind, Felsteel Annihilator from Mythic Archimonde, G.M.O.D. from Raid Finder Jaina, and the Everbloom Forest Floor from Yalnu.",
                 "**Twelve Legion dungeon weapons and shields are back in the transmog browser,** in Halls of Valor, Court of Stars, Neltharion's Lair, Black Rook Hold and Darkheart Thicket.",
-            },
-        },
-    },
-},
-{
-    version  = "3.4.0",
-    date     = "2026-10-28",
-    sections = {
-        {
-            heading = "Added",
-            bullets = {
-                "**Every Warlords of Draenor dungeon is routed:** Auchindoun, Bloodmaul Slag Mines, Grimrail Depot, Iron Docks, Shadowmoon Burial Grounds, Skyreach, The Everbloom and Upper Blackrock Spire.",
-                "**The Picker: Difficulties, lockouts and missing appearances at every entrance.** Walk up to a dungeon or raid entrance and a bar shows each difficulty with the appearances you still need there and whether you're saved. Hover for reset times. Move it, scale it and lock it in place from its settings page.",
-                "**Instance Limit list.** Click Instance Limit in the panel footer for a shortcut to the new Picker settings, which also displays a list of your existing lockouts contributing to the hourly limit.",
-                "**Reset Here and Reset All** in settings, reset one page or reset every setting back to its default.",
-                "**Hover a dungeon's difficulty pill** to see which difficulties you're saved to, how far along you are, and when each resets.",
-                "**Three more illusions are tracked:** Mark of Shadowmoon from Ner'zhul in Shadowmoon Burial Grounds, and Mongoose and Sunfire from Moroes and the Shade of Medivh in Return to Karazhan.",
-            },
-        },
-        {
-            heading = "Changed",
-            bullets = {
-                "**Clicking an achievement opens the Achievements window at that achievement** instead of the small link popup, on the main panel, in the RetroRuns Achievements window and in the skip details. Shift-click still links it in chat.",
-                "**The transmog browser, Achievements and Skips windows open on the left of the main panel when there is no room on the right**, so a panel parked at the right edge of the screen no longer gets covered. A window you drag stays where you put it.",
-                "**Class-locked special loot is tagged with its class**, such as \"(Shaman)\" on Illusion: Flametongue.",
-            },
-        },
-        {
-            heading = "Fixed",
-            bullets = {
-                "**Dungeons that never save a lockout on Heroic, like Skyreach and Pit of Saron, no longer show a Heroic pill in the dungeon list.**",
-                "**Illusion: Colossus in Mogu'shan Vaults now tracks the right illusion.**",
-                "**Clicking a mount or item in Special Loot no longer throws an error.** Hover it for its tooltip; shift-click links it in chat.",
-                "**Garrisons no longer count toward the Instance Limit.**",
             },
         },
     },

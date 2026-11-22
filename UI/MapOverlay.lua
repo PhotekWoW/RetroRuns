@@ -964,6 +964,7 @@ function overlay:DrawGlobalPOIsForMap(mapID)
     -- Read at draw time: at file scope the player unit may not exist yet.
     local playerFaction = UnitFactionGroup and UnitFactionGroup("player")
     local _, playerClassToken, playerClassID = UnitClass("player")
+    local activeBucket = RR:FoldDifficulty(raid, RR.state and RR.state.currentDifficultyID)
     -- A POI tagged with a faction or class draws only for the player it
     -- belongs to; untagged entries stay shared. ICC's tier vendors are a
     -- different NPC per class per faction, so one shared pin sends a Death
@@ -973,6 +974,29 @@ function overlay:DrawGlobalPOIsForMap(mapID)
         if poi.class and poi.class ~= playerClassID then return false end
         -- A marker for one route draws only while that route is chosen.
         if poi.routeVariant and poi.routeVariant ~= RR:ActiveVariantKey() then
+            return false
+        end
+        -- A marker for some difficulties draws only on them; a difficulty
+        -- not yet detected filters nothing.
+        if poi.availableDifficulties and activeBucket then
+            local allowed = false
+            for _, bucket in ipairs(poi.availableDifficulties) do
+                if bucket == activeBucket then allowed = true end
+            end
+            if not allowed then return false end
+        end
+        -- A marker that waits on bosses draws once they are dead.
+        if poi.requires and not RR:RequirementsMet(poi.requires) then
+            return false
+        end
+        -- A marker serving a boss's summon goes once the boss is dead or out
+        -- of the run: skipped, left out as collected, or his summon failed.
+        if poi.summonFor and (RR:IsBossKilled(poi.summonFor)
+            or RR:IsBossBypassed(poi.summonFor)) then
+            return false
+        end
+        -- And each draws once the one before it is clicked.
+        if poi.summonFor and not RR:IsSummonMarkerReached(poi) then
             return false
         end
         return true
@@ -1095,6 +1119,9 @@ function overlay:DrawGlobalPOIsForMap(mapID)
         local kindTint = (poi.poiKind == "rare" and spotColor)
             or GLOBAL_POI_TINTS[poi.poiKind] or GLOBAL_POI_WHITE
         local texture = GLOBAL_POI_TEXTURES[poi.poiKind] or GLOBAL_POI_DEFAULT
+        -- A summon marker whose turn has passed grays with a check, as a
+        -- completed route marker does.
+        local poiDone = RR:IsSummonMarkerDone(poi)
         if not poi.noMarker then
             local icon = self.poiIcons[iconIdx]
             PlaceAt(icon, self, mark[1], mark[2])
@@ -1111,7 +1138,11 @@ function overlay:DrawGlobalPOIsForMap(mapID)
                 icon:SetTexCoord(0, 1, 0, 1)
             end
             local tint = classCoords and GLOBAL_POI_WHITE or kindTint
-            icon:SetVertexColor(tint[1], tint[2], tint[3], 1)
+            if poiDone then
+                icon:SetVertexColor(0.45, 0.45, 0.45, 0.7)
+            else
+                icon:SetVertexColor(tint[1], tint[2], tint[3], 1)
+            end
             icon:SetRotation(0)
             -- Drawn above the route's lines, dots, chevrons and end markers.
             icon:SetDrawLayer("OVERLAY", 2)
@@ -1119,7 +1150,7 @@ function overlay:DrawGlobalPOIsForMap(mapID)
             icon:SetSize(iconSize, iconSize)
             icon:Show()
             local glowColor = GLOWING_POI_KINDS[poi.poiKind]
-            if glowColor then
+            if glowColor and not poiDone then
                 -- Same pool index as the marker it sits behind, so the two
                 -- can never drift apart.
                 local glow = self.poiGlows[iconIdx]
@@ -1158,7 +1189,8 @@ function overlay:DrawGlobalPOIsForMap(mapID)
         if labelText then
             local label = self.poiLabels[labelIdx]
             if label then
-                label:SetText(labelText)
+                label:SetText(poiDone and ("|cff9d9d9d" .. labelText
+                    .. "|r |TInterface\\RaidFrame\\ReadyCheck-Ready:14|t") or labelText)
                 local pos    = labelPosFor[poi] or poi.mapLabelPos
                 local corner = LEGEND_CORNERS[pos or ""]
                 local fontFile = label:GetFont()

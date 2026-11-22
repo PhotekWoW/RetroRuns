@@ -2555,6 +2555,7 @@ local function ReleaseProgressListLines()
         fs:SetText("")
         fs.cell:Hide()
         fs.cell:ClearAllPoints()
+        if fs.clockLabel then fs.clockLabel:Hide() end
         table.insert(panel.progressListLinePool, fs)
     end
     wipe(panel.progressListLines)
@@ -2617,6 +2618,10 @@ end
 -- journal's boss order and leaving every row unmarked until it is killed.
 function UI.RenderBossProgressList()
     ReleaseProgressListLines()
+    -- A clock is set again below if its row still carries one.
+    if UI.auraCountdown and UI.auraCountdown.section == panel then
+        UI.auraCountdown = nil
+    end
     local progressFontSize = RR:GetSetting("fontSize", 12)
     local geometry = UI.ProgressCellGeometry(progressFontSize)
     local rowTopPx = 0
@@ -2624,6 +2629,7 @@ function UI.RenderBossProgressList()
         local fs = AcquireProgressListLine()
         rowTopPx = rowTopPx + UI.PlaceCellRow(fs, row, geometry, progressFontSize,
             panel.listHeader, "BOTTOMLEFT", -8 - rowTopPx * geometry.unit)
+        UI.PlaceClockLabel(panel, fs, row)
         table.insert(panel.progressListLines, fs)
         -- Bounded to the rendered text, not the field width, so the
         -- highlight band stops where the row's name stops.
@@ -2787,8 +2793,8 @@ function UI.PlaceUseButton()
     button:Show()
 end
 
--- A worn buff's time left, in the cyan the row used to carry, after the
--- row's text; the countdown keeps it current.
+-- A worn buff's time left, or the time to a row's deadline, in the cyan the
+-- row used to carry, after the row's text; the countdown keeps it current.
 function UI.PlaceClockLabel(section, line, row)
     if not row.countdown then
         if line.clockLabel then line.clockLabel:Hide() end
@@ -2797,7 +2803,7 @@ function UI.PlaceClockLabel(section, line, row)
     local label = UI.RowTailLabel(section, line, "clockLabel")
     label:SetText(("|cff4dccff%s|r"):format(UI.ClockText(row.countdown.seconds)))
     label:Show()
-    UI.StartAuraCountdown(section, label, row.countdown.spellID)
+    UI.StartAuraCountdown(section, label, row.countdown.spellID, row.countdown.deadline)
 end
 
 -- A main-panel section's cell rows (Achievements, Special Loot) under its
@@ -5095,14 +5101,27 @@ function UI.ClockText(seconds)
     return ("%d:%02d"):format(math.floor(seconds / 60), seconds % 60)
 end
 
--- Keeps the clock label showing a buff's time left current once a second;
--- stops when the label or the buff goes, repainting once when the buff ends.
-function UI.StartAuraCountdown(section, label, spellID)
-    UI.auraCountdown = { section = section, label = label, spellID = spellID }
+-- Whole seconds until a time() deadline, or nil once it has passed.
+function UI.DeadlineSecondsLeft(deadline)
+    local left = math.ceil(deadline - time())
+    if left <= 0 then return nil end
+    return left
+end
+
+-- Keeps the clock label current once a second, counting a buff's time left
+-- or, given a deadline, the time to it; stops when the label goes or the
+-- count runs out, repainting once when it runs out.
+function UI.StartAuraCountdown(section, label, spellID, deadline)
+    UI.auraCountdown = { section = section, label = label, spellID = spellID, deadline = deadline }
     if UI.auraCountdownTicker then return end
     UI.auraCountdownTicker = C_Timer.NewTicker(1, function()
         local countdown = UI.auraCountdown
-        local seconds = countdown and UI.PlayerAuraSecondsLeft(countdown.spellID)
+        local seconds
+        if countdown and countdown.deadline then
+            seconds = UI.DeadlineSecondsLeft(countdown.deadline)
+        elseif countdown then
+            seconds = UI.PlayerAuraSecondsLeft(countdown.spellID)
+        end
         if countdown and seconds and countdown.label:IsShown() then
             countdown.label:SetText(("|cff4dccff%s|r"):format(UI.ClockText(seconds)))
             return
@@ -13704,6 +13723,8 @@ end
 function UI.Update()
     if not RetroRunsDB or not RR:IsPanelAllowed() then
         panel:Hide()
+        -- A route held back for the summon question puts the question up.
+        if RR:SummonChoiceQuestion() then UI.AskSummonChoice() end
         return
     end
 
@@ -14324,6 +14345,9 @@ function UI._GetOrCreateSkipPrompt()
     question:SetWordWrap(true)
     question:SetJustifyH("CENTER")
     prompt.question = question
+    -- Links in the question (the summon question's rewards) hover and click
+    -- like the panel's.
+    UI.WireItemLinks(prompt)
 
     local metrics = UI.CHOICE_BUTTON
     local pairOffset = (metrics.WIDTH + metrics.GAP) / 2
@@ -14349,7 +14373,17 @@ function UI._GetOrCreateSkipPrompt()
     -- Closed by the [X] or Esc: a cancel. IsShown stays true when only
     -- UIParent went away (Alt-Z, a cinematic), which is no choice at all.
     prompt:SetScript("OnHide", function(self)
-        if not self:IsShown() then UI.ChooseSkipPrompt("onCancel") end
+        if not self:IsShown() then UI.SkipPromptClosed(self) end
+    end)
+    -- The game closes it while the world loads, from leaving the world to
+    -- a moment after entering it; such a close is no choice either.
+    prompt:RegisterEvent("PLAYER_LEAVING_WORLD")
+    prompt:RegisterEvent("PLAYER_ENTERING_WORLD")
+    prompt:SetScript("OnEvent", function(self, event)
+        self.worldLoading = true
+        if event == "PLAYER_ENTERING_WORLD" then
+            C_Timer.After(2, function() self.worldLoading = nil end)
+        end
     end)
 
     prompt:Hide()
@@ -14357,21 +14391,43 @@ function UI._GetOrCreateSkipPrompt()
     return prompt
 end
 
+-- The prompt went away with no button pressed: the [X] or Esc cancels. One
+-- the game closed while the world loaded answers nothing, and its question
+-- asks again once it still stands.
+function UI.SkipPromptClosed(prompt)
+    -- Nothing asked (the frame hiding itself as it is made): nothing to answer.
+    if not prompt.handlers then return end
+    if prompt.worldLoading then
+        RR:ZoneLog("skip prompt: closed by a loading screen")
+        UI.HideSkipPrompt()
+        return
+    end
+    -- What closed it: the [X], Esc, or another window the game opened.
+    RR:ZoneLog("skip prompt: closed from " .. (debugstack(3, 4, 0) or "?"):gsub("%s*\n%s*", " | "))
+    UI.ChooseSkipPrompt("onCancel")
+end
+
 -- The one skip question, whichever way it was reached, for one boss. The
--- wording follows the boss, not the path that opened the prompt.
--- handlers: onSkip, onKill, onCancel.
+-- wording follows the boss, not the path that opened the prompt, unless
+-- `handlers.question` brings its own (and `handlers.justify` its alignment,
+-- `handlers.width` the frame's width). The question reads in the panel's
+-- body font and size.
+-- handlers: onSkip, onKill, onCancel, question, justify, width.
 function UI.ShowSkipPrompt(bossIndex, handlers)
     local prompt = UI._GetOrCreateSkipPrompt()
     UI.HideSkipPrompt()
     prompt.handlers = handlers
     prompt:SetBackdropColor(1, 1, 1, RR:GetSetting("panelOpacity", 1.0))
-    SafeSetFont(prompt.question, RR:GetChromeFont(), 14, "")
+    SetBodyFont(prompt.question, RR:GetSetting("fontSize", 12))
+    prompt.question:SetJustifyH((handlers and handlers.justify) or "CENTER")
+    prompt:SetWidth((handlers and handlers.width) or 340)
 
     local boss = RR:GetBossByIndex(bossIndex)
     local bossName = (boss and RR:GetLocalizedBossName(boss)) or RR.L["Unknown"]
     local coloredName = ("|cffffff00%s|r"):format(bossName)
-    prompt.question:SetText(RR:BossHasNothingLeft(boss)
-        and (RR.L["%s has nothing left to collect."]):format(coloredName)
+    prompt.question:SetText((handlers and handlers.question)
+        or (RR:BossHasNothingLeft(boss)
+            and (RR.L["%s has nothing left to collect."]):format(coloredName))
         or (RR.L["Skip %s for this lockout?\n\nThe route will continue past this boss."])
             :format(coloredName))
 
@@ -14394,6 +14450,7 @@ function UI.HideSkipPrompt()
     if not prompt then return end
     prompt.handlers = nil
     UI._collectedSkipBoss = nil
+    UI._summonChoiceBoss = nil
     prompt:Hide()
 end
 
@@ -14410,7 +14467,12 @@ end
 function UI.AskAfterSettings()
     if UI._askAfterSettingsHooked or not SettingsPanel then return end
     UI._askAfterSettingsHooked = true
-    SettingsPanel:HookScript("OnHide", function() C_Timer.After(0, UI.AskCollectedSkip) end)
+    SettingsPanel:HookScript("OnHide", function()
+        C_Timer.After(0, function()
+            UI.AskCollectedSkip()
+            UI.AskSummonChoice()
+        end)
+    end)
 end
 
 -- Closes the prompt and runs the choice, so the handler can open the next one.
@@ -14499,6 +14561,96 @@ function UI.AnswerCollectedSkip(bossIndex, answer)
     RR:SetCollectedSkipAnswer(bossIndex, answer)
     RR:ComputeNextStep()
     UI.Update()
+end
+
+-- The question a summoned boss (Return to Karazhan's Nightbane) asks as the
+-- run starts: what he still has, as a left-aligned list. KILL keeps him;
+-- SKIP leaves him out for the lockout; the [X] or Esc puts the question off
+-- until the next arrival. Waits out combat and Settings the way Prompt Me's
+-- question does, and never covers another.
+-- The panel stays down while it is up, and returns once it is answered.
+function UI.AskSummonChoice()
+    local bossIndex = RR:SummonChoiceQuestion()
+    if not bossIndex then
+        if UI._summonChoiceBoss then UI.HideSkipPrompt() end
+        return
+    end
+    if bossIndex == UI._summonChoiceBoss or UI.IsSkipPromptShown() then return end
+    if SettingsPanel and SettingsPanel:IsShown() then
+        UI.AskAfterSettings()
+        return
+    end
+    if InCombatLockdown() then
+        if not UI._summonChoiceCombatFrame then
+            UI._summonChoiceCombatFrame = CreateFrame("Frame")
+            UI._summonChoiceCombatFrame:SetScript("OnEvent", function(frame)
+                frame:UnregisterEvent("PLAYER_REGEN_ENABLED")
+                UI.AskSummonChoice()
+            end)
+        end
+        UI._summonChoiceCombatFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        return
+    end
+    UI.ShowSkipPrompt(bossIndex, {
+        question = UI.SummonChoiceText(RR:GetBossByIndex(bossIndex)),
+        justify  = "LEFT",
+        width    = 420,
+        onSkip   = function() UI.AnswerSummonChoice(bossIndex, "skip") end,
+        onKill   = function() UI.AnswerSummonChoice(bossIndex, "kill") end,
+        onCancel = function() UI.AnswerSummonChoice(bossIndex, "later") end,
+    })
+    UI._summonChoiceBoss = bossIndex
+    -- The route waits for the answer; the panel's gate keeps it down.
+    if RetroRunsUI then RetroRunsUI:Hide() end
+end
+
+function UI.AnswerSummonChoice(bossIndex, answer)
+    if RR:SummonChoiceQuestion() ~= bossIndex then return end
+    RR:AnswerSummonChoice(bossIndex, answer)
+    UI.Update()
+    if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
+end
+
+-- The summon question's text: the boss can be summoned, then what he still
+-- has for the character, one indented line each, or that he has nothing.
+function UI.SummonChoiceText(boss)
+    local coloredName = ("|cffffff00%s|r"):format(RR:GetLocalizedBossName(boss) or "?")
+    local parts = { (RR.L["%s can be summoned this run."]):format(coloredName) }
+    local owed = {}
+    if not RR:BossHasNothingLeft(boss) then
+        for _, item in ipairs(boss.specialLoot or {}) do
+            if RR:SpecialLootForPlayer(item)
+                and SpecialCollectionStateForItem(item) ~= "collected" then
+                -- The item link, as Special Loot shows it; plain on a cold cache.
+                local itemLink = item.id and select(2, C_Item.GetItemInfo(item.id))
+                owed[#owed + 1] = itemLink or item.name
+            end
+        end
+        local diffID, missing = ActiveDifficulty(), 0
+        if diffID then
+            UI.ForEachBossLookAt(boss, diffID, RR.PlayerClassID(), function(_, state)
+                if state == "missing" then missing = missing + 1 end
+            end)
+        end
+        if missing > 0 then
+            owed[#owed + 1] = (RR.L["%d missing appearances"]):format(missing)
+        end
+        for _, achievement in ipairs(boss.achievements or {}) do
+            local _, achievementName, _, completed = GetAchievementInfo(achievement.id)
+            if not completed then
+                owed[#owed + 1] = GetAchievementLink(achievement.id)
+                    or achievementName or achievement.name
+            end
+        end
+    end
+    if #owed > 0 then
+        local list = { RR.L["Still to collect:"] }
+        for _, entry in ipairs(owed) do list[#list + 1] = "    " .. entry end
+        parts[#parts + 1] = table.concat(list, "\n")
+    else
+        parts[#parts + 1] = (RR.L["%s has nothing left to collect."]):format(coloredName)
+    end
+    return table.concat(parts, "\n\n")
 end
 
 -- A copy-URL popup: the heading over an EditBox holding data.url, selected

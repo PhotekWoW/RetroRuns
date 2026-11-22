@@ -68,8 +68,9 @@ local function AcquireText()
     return fs
 end
 
--- An invisible frame over a region that shows a tooltip on hover.
-local function AddHover(region, width, height, fill)
+-- An invisible frame over a region that shows a tooltip on hover and runs
+-- `click`, when given, on a click.
+local function AddHover(region, width, height, fill, click)
     used.hits = used.hits + 1
     local hit = hits[used.hits]
     if not hit then
@@ -86,6 +87,7 @@ local function AddHover(region, width, height, fill)
         fill(GameTooltip)
         GameTooltip:Show()
     end)
+    hit:SetScript("OnMouseUp", click)
     hit:Show()
     return hit
 end
@@ -511,6 +513,19 @@ local function ItemTooltip(itemID)
     return function(tip) tip:SetItemByID(itemID) end
 end
 
+-- Shift-click links the item and ctrl-click previews it, through the
+-- addon's one link handler.
+local function ItemClick(itemID)
+    return function(_, button)
+        local _, link = C_Item.GetItemInfo(itemID)
+        if link then
+            UI.OpenLink("item:" .. itemID, link, button)
+        elseif C_Item.RequestLoadItemDataByID then
+            C_Item.RequestLoadItemDataByID(itemID)
+        end
+    end
+end
+
 local function AddIconGrid(items)
     local shown = #items
     local capacity = ICONS_PER_ROW * ICON_ROWS
@@ -538,6 +553,7 @@ local function AddIconGrid(items)
                 GameTooltip:SetItemByID(item.itemID)
                 GameTooltip:Show()
             end)
+            icon:SetScript("OnMouseUp", ItemClick(item.itemID))
         else
             icon.edge:SetColorTexture(GRID_EDGE[1], GRID_EDGE[2], GRID_EDGE[3], 1)
             icon.art:Hide()
@@ -550,6 +566,7 @@ local function AddIconGrid(items)
                 end
                 GameTooltip:Show()
             end)
+            icon:SetScript("OnMouseUp", nil)
         end
     end
     local rowsUsed = math.ceil(slots / ICONS_PER_ROW)
@@ -583,7 +600,8 @@ local function RenderAppearances(raid, record)
         if #items <= NAMES_MAX then
             for _, item in ipairs(items) do
                 local fs = AddItemRow(item.icon, QualityText(item.quality, item.name))
-                AddHover(fs, fs:GetStringWidth(), fs:GetStringHeight(), ItemTooltip(item.itemID))
+                AddHover(fs, fs:GetStringWidth(), fs:GetStringHeight(), ItemTooltip(item.itemID),
+                    ItemClick(item.itemID))
             end
         else
             AddIconGrid(items)
@@ -637,28 +655,52 @@ local function SpecialName(item)
     return RR.L[item.name] ~= item.name and RR.L[item.name] or name or item.name or "?"
 end
 
--- A special-loot row's icon: the item's own where it is an item, an
--- illusion's from the wardrobe, else the question mark.
+-- A special-loot row's icon: an illusion's from the wardrobe when the game
+-- has one, else the item's own.
 local function SpecialIcon(item)
-    if item.kind == "mount" or item.kind == "pet" or item.kind == "toy" then
-        return C_Item.GetItemIconByID and C_Item.GetItemIconByID(item.id)
-    end
     if item.kind == "illusion" and C_TransmogCollection and C_TransmogCollection.GetIllusionInfo then
         local info = C_TransmogCollection.GetIllusionInfo(item.id)
-        return info and info.icon
+        if info and info.icon then return info.icon end
+    end
+    return item.id and C_Item.GetItemIconByID and C_Item.GetItemIconByID(item.id) or nil
+end
+
+-- A special-loot row's quality: the item's own, epic until the game has
+-- loaded it.
+local function SpecialQuality(item)
+    local quality = item.id and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(item.id)
+    if quality then return quality end
+    if item.id and C_Item.RequestLoadItemDataByID then
+        C_Item.RequestLoadItemDataByID(item.id)
+        RepaintSoon()
+    end
+    return 4
+end
+
+-- Where a special-loot row drops: its boss, the named source of a trash
+-- drop, else the trash or event section's own label.
+local function SpecialSource(row, raid)
+    if row.boss then return RR:GetLocalizedBossName(row.boss) or row.boss.name end
+    local item = row.item
+    if row.section == "trash" then
+        local named = item.bossNpc or item.rareNpc or item.eventNpc or item.tag
+        if named then return RR.L[named] end
+        return UI.StripTrailingColon(RR.L["Trash Drops:"])
+    end
+    if row.section == "event" and raid and raid.eventLabel then
+        return RR.L[raid.eventLabel]
     end
     return nil
 end
 
-local function AddSpecialLine(row, withSource)
+local function AddSpecialLine(row, withSource, raid)
     local item = row.item
-    local text = QualityText(4, SpecialName(item))
-    if withSource and row.boss then
-        text = text .. " " .. Color(GRAY_HEX, RR:GetLocalizedBossName(row.boss) or row.boss.name)
-    end
+    local text = QualityText(SpecialQuality(item), SpecialName(item))
+    local source = withSource and SpecialSource(row, raid)
+    if source then text = text .. " " .. Color(GRAY_HEX, source) end
     local fs = AddItemRow(SpecialIcon(item), text)
-    if item.kind == "mount" or item.kind == "pet" or item.kind == "toy" then
-        AddHover(fs, fs:GetStringWidth(), fs:GetStringHeight(), ItemTooltip(item.id))
+    if item.id then
+        AddHover(fs, fs:GetStringWidth(), fs:GetStringHeight(), ItemTooltip(item.id), ItemClick(item.id))
     end
 end
 
@@ -678,7 +720,7 @@ local function RenderSpecialLoot(raid, record)
     end
     if #unlocked > 0 then
         AddLine(Color(GREEN_HEX, (RR.L["Unlocked This Run (%d):"]):format(#unlocked)))
-        for _, row in ipairs(unlocked) do AddSpecialLine(row, false) end
+        for _, row in ipairs(unlocked) do AddSpecialLine(row, false, raid) end
     end
     local leftToCollect = Color(VALUE_HEX, RR.L["Left to Collect:"])
     if #missing == 0 then
@@ -691,7 +733,7 @@ local function RenderSpecialLoot(raid, record)
             AddLine(Color(GRAY_HEX, "+" .. (#missing - SPECIALS_MAX)), CONTENT_X + ROW_ICON + 6)
             break
         end
-        AddSpecialLine(row, true)
+        AddSpecialLine(row, true, raid)
     end
 end
 

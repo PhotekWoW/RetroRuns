@@ -432,6 +432,10 @@ end
 -- latched item gate past it is.
 function RR:IsSegGateOpen(stepIndex, seg, segIndex, segments)
     if not seg or not seg.triggeredBy then return true end
+    -- A gate on a boss's part of the route stands open in a run without him.
+    if seg.triggeredBy.openWithoutBoss and self:IsBossBypassed(seg.triggeredBy.openWithoutBoss) then
+        return true
+    end
     if segments and segIndex and self:LatchedGateOpenBeyond(stepIndex, segments, segIndex) then
         return true
     end
@@ -446,8 +450,9 @@ function RR:IsSegGateOpen(stepIndex, seg, segIndex, segments)
         return true
     end
     if seg.triggeredBy.aura then
-        return self:HasAuraBeenSeen(seg.triggeredBy.aura)
-            or self:PlayerHasAura(seg.triggeredBy.aura)
+        return (self:HasAuraBeenSeen(seg.triggeredBy.aura)
+            or self:PlayerHasAura(seg.triggeredBy.aura))
+            and self:AuraGateStacksReached(seg.triggeredBy)
     end
     if seg.triggeredBy.scenario then
         return self:IsScenarioCriterionComplete(seg.triggeredBy.scenario,
@@ -458,6 +463,20 @@ function RR:IsSegGateOpen(stepIndex, seg, segIndex, segments)
     end
     if seg.triggeredBy.vehicle then
         return UnitInVehicle and UnitInVehicle("player") or false
+    end
+    return false
+end
+
+-- An aura gate with `stacks` waits until the buff has reached that many:
+-- read live, or from a summon window's record of the most it reached.
+function RR:AuraGateStacksReached(gate)
+    if not gate.stacks then return true end
+    if (self:PlayerAuraStacks(gate.aura) or 0) >= gate.stacks then return true end
+    local run = self.RunHistory and self.RunHistory.CurrentRun(false)
+    for _, boss in ipairs(self.currentRaid and self.currentRaid.bosses or {}) do
+        local entry = boss.summonWindow and boss.summonWindow.aura == gate.aura
+            and run and run.summonWindows and run.summonWindows[boss.index]
+        if entry and (entry.stacks or 0) >= gate.stacks then return true end
     end
     return false
 end
@@ -1887,6 +1906,9 @@ end
 -- that buff has landed on the player, and stays open after it fades.
 local function TriggerMatches(seg, event, eventData)
     if not seg or not seg.triggeredBy then return true end
+    if seg.triggeredBy.openWithoutBoss and RR:IsBossBypassed(seg.triggeredBy.openWithoutBoss) then
+        return true
+    end
 
     if seg.triggeredBy.encounter then
         if event ~= "encounter-end" then return false end
@@ -1926,8 +1948,9 @@ local function TriggerMatches(seg, event, eventData)
     end
 
     if seg.triggeredBy.aura then
-        return RR:HasAuraBeenSeen(seg.triggeredBy.aura)
-            or RR:PlayerHasAura(seg.triggeredBy.aura)
+        return (RR:HasAuraBeenSeen(seg.triggeredBy.aura)
+            or RR:PlayerHasAura(seg.triggeredBy.aura))
+            and RR:AuraGateStacksReached(seg.triggeredBy)
     end
 
     -- triggeredBy.widget is a state check as well: the counter is the truth.
