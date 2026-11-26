@@ -464,6 +464,9 @@ function RR:IsSegGateOpen(stepIndex, seg, segIndex, segments)
     if seg.triggeredBy.vehicle then
         return UnitInVehicle and UnitInVehicle("player") or false
     end
+    if seg.triggeredBy.clues then
+        return self:GetClueCount() >= seg.triggeredBy.clues
+    end
     return false
 end
 
@@ -1958,6 +1961,11 @@ local function TriggerMatches(seg, event, eventData)
         return RR:IsWidgetAtValue(seg.triggeredBy.widget, seg.triggeredBy.value)
     end
 
+    -- triggeredBy.clues opens once the run holds that many gossip clues.
+    if seg.triggeredBy.clues then
+        return RR:GetClueCount() >= seg.triggeredBy.clues
+    end
+
     if seg.triggeredBy.dialog then
         if event ~= "npc-dialog" then return false end
         if not eventData then return false end
@@ -2117,6 +2125,15 @@ local function ComputeAdvancedProgress(segments, progress, state, event, eventDa
                     then
                         gatePasses = true
                     end
+                elseif event == "clue" then
+                    -- The last clue is heard standing at its NPC.
+                    local nextSeg = segments[progress + 1]
+                    if nextSeg and nextSeg.triggeredBy
+                        and nextSeg.triggeredBy.clues
+                        and TriggerMatches(nextSeg, event, eventData)
+                    then
+                        gatePasses = true
+                    end
                 end
                 -- A landed counter releases on any event: the last kill
                 -- happens wherever the player already stands, and the
@@ -2146,7 +2163,8 @@ local function ComputeAdvancedProgress(segments, progress, state, event, eventDa
         local heardNow = seg.triggeredBy
             and (seg.triggeredBy.dialog or seg.triggeredBy.encounter
                  or seg.triggeredBy.taxi or seg.triggeredBy.vehicle
-                 or seg.triggeredBy.cinematic or seg.triggeredBy.quest)
+                 or seg.triggeredBy.cinematic or seg.triggeredBy.quest
+                 or seg.triggeredBy.clues)
             and TriggerMatches(seg, event, eventData) or false
         -- A landed counter is proof of the same kind, on record or live.
         if not heardNow and seg.triggeredBy and seg.triggeredBy.widget

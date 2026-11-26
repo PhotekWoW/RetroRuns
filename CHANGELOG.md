@@ -2,6 +2,23 @@
 
 All notable changes to RetroRuns are documented here.
 
+## [3.5.5] - 2026-11-26
+
+### Added
+- **Court of Stars is routed**, finishing the Legion dungeons. During the spy hunt, the panel builds the spy's profile from each Chatty Rumormonger's clue, so you know exactly which Suspicious Noble to accuse.
+- **Karazhan's Opera Hall loot is tagged to each boss in the tmog browser.**
+- **Return to Karazhan's Soul Fragments are tracked under Nightbane in Boss Progress.** The fragment you're heading for pulses, and if you pass one, the route note tells you to go back for it before Medivh's Echo runs out.
+- **A mount, pet or toy you haven't learned, or can still sell, gets its own toast when it drops**, instead of only counting toward "Special" in the loot summary.
+- **Updated TOC for patch 12.1.7.**
+
+### Changed
+- **Patch 12.1.7 gives the "added to your appearance collection" chat line its own chat type.** RetroRuns hides it there too, so with Loot Summary on, new appearances still show only in the summary.
+- **The Nightbane question asks whether you want to kill him and shows how many collectibles he has left for you.**
+- **Skipping Nightbane keeps his summon clock on his row**, in case you change your mind.
+
+### Fixed
+- **Learning a new mount shows its Special Loot toast.**
+
 ## [3.5.4] - 2026-11-22
 
 ### Added

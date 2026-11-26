@@ -964,6 +964,80 @@ function RR:DetectSpawnFromGossip()
     return false
 end
 
+-------------------------------------------------------------------------------
+-- Gossip clues
+-------------------------------------------------------------------------------
+-- A seg's `clues = { options = { [gossipOptionID] = { trait, value } }, traits,
+-- total }` keeps one clue per listed option a gossip window offers;
+-- `triggeredBy = { clues = N }` opens on the Nth. The NPC's GUID and name
+-- read secret inside the instance; the option ID does not.
+
+function RR:ActiveClueSpec()
+    local step = self.state and self.state.activeStep
+    for _, seg in ipairs(step and step.segments or {}) do
+        if seg.clues then return seg.clues end
+    end
+    return nil
+end
+
+-- The run's clue list; a session list where no run record exists (test mode).
+local function ClueList(create)
+    local run = RR.RunHistory and RR.RunHistory.CurrentRun(create)
+    if run then
+        if create and not run.clues then run.clues = {} end
+        return run.clues
+    end
+    if create and not RR.state.sessionClues then RR.state.sessionClues = {} end
+    return RR.state.sessionClues
+end
+
+function RR:GetClues()
+    return ClueList(false) or {}
+end
+
+function RR:GetClueCount()
+    return #self:GetClues()
+end
+
+local function IsSecret(value)
+    return issecretvalue and issecretvalue(value) or false
+end
+
+-- Every gossip window on the clue leg is logged with its option IDs, so a
+-- capture run names the options a clue table needs.
+function RR:DetectGossipClue()
+    local spec = self:ActiveClueSpec()
+    if not (spec and C_GossipInfo and C_GossipInfo.GetOptions) then return false end
+    local text = C_GossipInfo.GetText and C_GossipInfo.GetText()
+    local shownIDs, matched = {}, nil
+    for _, option in ipairs(C_GossipInfo.GetOptions() or {}) do
+        local optionID = option.gossipOptionID
+        if optionID == nil or IsSecret(optionID) then
+            shownIDs[#shownIDs + 1] = "secret"
+        else
+            shownIDs[#shownIDs + 1] = tostring(optionID)
+            if not matched and spec.options and spec.options[optionID] then
+                matched = optionID
+            end
+        end
+    end
+    self:ZoneLog(("gossip on clue leg: options=%s text=%s"):format(
+        #shownIDs > 0 and table.concat(shownIDs, ",") or "none",
+        IsSecret(text) and "secret" or ("%q"):format(tostring(text))))
+    if not matched then return false end
+    local clues = ClueList(true)
+    for _, clue in ipairs(clues) do
+        if clue.option == matched then return false end
+    end
+    clues[#clues + 1] = { option = matched }
+    local option = spec.options[matched]
+    self:ZoneLog(("clue %d/%d: option %d (%s: %s)"):format(#clues, spec.total or 0,
+        matched, tostring(option.trait), tostring(option.value)))
+    self:AdvanceProgress("clue")
+    if self.RefreshAll then self:RefreshAll() end
+    return true
+end
+
 function RR:IsPoolMember(bossIndex)
     local pool = self:GetBossPool()
     if not pool then return false end
@@ -1920,6 +1994,13 @@ function RR:GetProgressRows()
         end
     end
 
+    -- A summon piece holding the arrow takes it off the route's boss row.
+    local pieceHoldsArrow = false
+    for _, boss in ipairs(self.currentRaid.bosses or {}) do
+        local progress = self:SummonPieceProgress(boss)
+        if progress and progress.arrow then pieceHoldsArrow = true end
+    end
+
     local function bossRow(boss)
         local displayName = self:GetLocalizedBossName(boss)
         -- Optional bosses carry a tag in every state, so the list reads the
@@ -2009,7 +2090,7 @@ function RR:GetProgressRows()
                 displayName, RR.L["(ignored: missing Archaeology)"]) }
         elseif self.state.activeStep
             and self.state.activeStep.bossIndex == boss.index
-            and not poolActiveSlot then
+            and not poolActiveSlot and not pieceHoldsArrow then
             row = { cell = "active", text = ("|cffffff00%s|r%s"):format(
                 displayName, optionalTag) }
         else
@@ -2019,11 +2100,8 @@ function RR:GetProgressRows()
         -- A summon against a clock: the time left to start it, then the
         -- buff's time once it is under way, or Failed. Both count to a
         -- kept end time, so combat hiding the buff leaves the clock running.
+        -- A boss the route leaves out keeps it, in case the player changes their mind.
         local windowState, windowValue = self:SummonWindowState(boss)
-        -- A boss the route leaves out carries neither.
-        if self:IsBossSkipped(boss.index) or self:IsBossCollectedSkipped(boss.index) then
-            windowState = nil
-        end
         if windowState == "failed" then
             row.text = row.text .. " |cffff3333" .. RR.L["Failed"] .. "|r"
             -- Nothing dead yet, so nothing saved: a reset brings a fresh try.
@@ -2117,6 +2195,9 @@ function RR:GetProgressRows()
             end
         else
             table.insert(rows, bossRow(boss))
+            for _, pieceRow in ipairs(self:SummonPieceRows(boss) or {}) do
+                table.insert(rows, pieceRow)
+            end
         end
     end
     return rows
@@ -2323,14 +2404,20 @@ function RR:SummonAuraChanged()
             local secondsLeft = up and self.UI and self.UI.PlayerAuraSecondsLeft
                 and self.UI.PlayerAuraSecondsLeft(readyUp and window.readyAura or spellID)
             local ends = secondsLeft and time() + secondsLeft or nil
-            local run = self.RunHistory and self.RunHistory.CurrentRun((stacks or ends) ~= nil)
+            local worthKeeping = (stacks or ends or readyUp) and true or false
+            local run = self.RunHistory and self.RunHistory.CurrentRun(worthKeeping)
             local entry = run and run.summonWindows and run.summonWindows[boss.index]
-            if run and (stacks or ends) then
+            if run and worthKeeping then
                 run.summonWindows = run.summonWindows or {}
                 entry = entry or {}
                 run.summonWindows[boss.index] = entry
                 if stacks and stacks > (entry.stacks or 0) then
                     entry.stacks = stacks
+                    changed = true
+                end
+                -- The ready buff means the last piece is in.
+                if readyUp and not entry.ready then
+                    entry.ready = true
                     changed = true
                 end
                 -- A second either way is the read's rounding, not new time.
@@ -2395,6 +2482,71 @@ function RR:IsSummonMarkerDone(poi)
     return entry ~= nil and (entry.stacks or 0) >= poi.summonOrder
 end
 
+-- Where a summon's pieces stand (Nightbane's Soul Fragments): how many are
+-- clicked, the one to click now while the window or buff runs, and whether
+-- the route has gone past it. Nil while the boss is off the route.
+function RR:SummonPieceProgress(boss)
+    local pieces = boss and boss.summonWindow and boss.summonWindow.pieces
+    if not pieces or self:IsBossKilled(boss.index) or self:IsBossBypassed(boss.index) then
+        return nil
+    end
+    local run = self.RunHistory and self.RunHistory.CurrentRun(false)
+    local entry = run and run.summonWindows and run.summonWindows[boss.index]
+    if entry and entry.summoned then return nil end
+    local collected = entry and (entry.ready and pieces.count or entry.stacks) or 0
+    collected = math.min(collected, pieces.count)
+    local current = nil
+    if collected < pieces.count and self:SummonWindowState(boss) then
+        current = collected + 1
+    end
+    local passedBy = current and pieces.passedAfter and pieces.passedAfter[current]
+    local passed = passedBy ~= nil and self:IsBossKilled(passedBy)
+    -- The arrow is the piece's while the route is on its leg (the step of the
+    -- boss that passes it, the summoned boss's own for the last), or once passed.
+    local legBoss = passedBy or boss.index
+    local step = self.state.activeStep
+    local onLeg = current ~= nil and step ~= nil and step.bossIndex == legBoss
+    return { pieces = pieces, collected = collected, current = current,
+             passed = passed, arrow = current ~= nil and (passed or onLeg) }
+end
+
+-- A summoned boss's rows under him in Boss Progress, one per piece: a check
+-- once clicked, the arrow on the one the route is on, "Go back" once passed.
+function RR:SummonPieceRows(boss)
+    local progress = self:SummonPieceProgress(boss)
+    if not progress then return nil end
+    local rows = {}
+    for index = 1, progress.pieces.count do
+        local label = RR.L[progress.pieces.label]:format(index)
+        local row
+        if index <= progress.collected then
+            row = { cell = "killed", text = ("|cff00ff00%s|r"):format(label) }
+        elseif index == progress.current and progress.arrow then
+            row = { cell = "active", text = ("|cffffff00%s|r"):format(label) }
+            if progress.passed then
+                row.text = row.text .. " |cffff8000" .. RR.L["Go back"] .. "|r"
+            end
+        else
+            row = { cell = "pending", text = ("|cff9d9d9d%s|r"):format(label) }
+        end
+        row.indentSpaces = 4
+        rows[#rows + 1] = row
+    end
+    return rows
+end
+
+-- The reminder under the route note while the route has gone past the piece
+-- to click now, or nil.
+function RR:SummonPieceReminder()
+    for _, boss in ipairs(self.currentRaid and self.currentRaid.bosses or {}) do
+        local progress = self:SummonPieceProgress(boss)
+        if progress and progress.passed and progress.pieces.reminder then
+            return RR.L[progress.pieces.reminder]:format(progress.current)
+        end
+    end
+    return nil
+end
+
 -------------------------------------------------------------------------------
 -- Dialog-trigger advancement
 -------------------------------------------------------------------------------
@@ -2406,6 +2558,7 @@ local dialogTriggerFrame = nil
 local function DialogTriggerHandler(_, event, ...)
     if event == "GOSSIP_SHOW" then
         RR:DetectSpawnFromGossip()
+        RR:DetectGossipClue()
         return
     end
     local text   = ...            -- arg1 = dialog text

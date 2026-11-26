@@ -1824,8 +1824,8 @@ local function OnDropEvent(_, event, ...)
 
     if kind == "collection" then
         local id = ...
-        -- Toast only a genuinely new collection; suppress for an item the
-        -- player already owns.
+        -- A new mount or toy always toasts; a pet toasts only the first of
+        -- its species.
         if event == "NEW_PET_ADDED" and C_PetJournal then
             -- Toast only the first of a pet species; suppress owned dupes.
             local speciesID
@@ -1836,17 +1836,6 @@ local function OnDropEvent(_, event, ...)
                 local numCollected = C_PetJournal.GetNumCollectedInfo(speciesID)
                 if numCollected and numCollected > 1 then
                     T("NEW_PET_ADDED suppressed (dupe, owned " .. numCollected .. ")")
-                    return
-                end
-            end
-        elseif event == "NEW_MOUNT_ADDED" and C_MountJournal then
-            -- isCollected is position 11; suppress the popup for an owned mount.
-            if C_MountJournal.GetMountInfoByID then
-                local isCollected = select(11, C_MountJournal.GetMountInfoByID(id))
-                if isCollected == false then
-                    -- genuinely new, allow toast
-                elseif isCollected == true then
-                    T("NEW_MOUNT_ADDED suppressed (already collected)")
                     return
                 end
             end
@@ -2157,7 +2146,10 @@ end
 
 local function ChattynatorAppearanceFilter(data)
     local typeInfo = data and data.typeInfo
-    if not (typeInfo and typeInfo.event == "CHAT_MSG_SYSTEM") then return true end
+    if not (typeInfo and (typeInfo.event == "CHAT_MSG_SYSTEM"
+            or typeInfo.event == "CHAT_MSG_COLLECTED_APPEARANCE")) then
+        return true
+    end
     if not (issecretvalue and issecretvalue(data.text)) then return true end
     local stamp = data.timestamp
     if type(stamp) ~= "number" then return true end
@@ -2175,6 +2167,36 @@ local function InstallChattynatorFilter()
         end
     end
     T("Chattynator filter installed")
+end
+
+-- Bind types a looted item can still be sold under: none, on equip, on use.
+local SELLABLE_BIND = { [0] = true, [2] = true, [3] = true }
+
+-- A looted mount, pet or toy toasts when the character has not learned it
+-- or can still sell it. Decor toasts on its own acquisition event.
+local function SpecialDropWorthToast(special)
+    if not special.itemID or special.kind == "Decor" then return false end
+    local state = RR.SpecialCollectionStateForItem
+        and RR.SpecialCollectionStateForItem({ kind = special.kind:lower(), id = special.itemID })
+    if state and state ~= "collected" then return true end
+    local bindType = special.link and select(14, C_Item.GetItemInfo(special.link))
+    return SELLABLE_BIND[bindType] == true
+end
+
+-- The Special Loot toast for such a drop, named for the looted item.
+local function SpecialDropToast(special)
+    return {
+        header      = "Special Loot",
+        icon        = C_Item.GetItemIconByID and C_Item.GetItemIconByID(special.itemID),
+        name        = special.name or (special.link and special.link:match("|h%[(.-)%]|h")) or "",
+        quality     = nil,
+        isSpecial   = true,
+        specialKind = special.kind,
+        itemID      = special.kind == "Toy" and special.itemID or nil,
+        link        = special.link,
+        mountID     = special.kind == "Mount" and C_MountJournal and C_MountJournal.GetMountFromItem
+            and C_MountJournal.GetMountFromItem(special.itemID) or nil,
+    }
 end
 
 -- Flush the batch: reveal the toast cascade, print one consolidated chat line,
@@ -2230,8 +2252,15 @@ FlushBatch = function()
             end
             if specialKind then
                 local name = itemID and C_Item.GetItemInfo("item:" .. itemID)
-                lootSpecials[#lootSpecials + 1] =
-                    { name = name, link = entry.link, itemID = itemID, kind = specialKind }
+                local special = { name = name, link = entry.link, itemID = itemID, kind = specialKind }
+                -- One worth a toast joins the batch, which also counts and lists it.
+                if SpecialDropWorthToast(special) then
+                    T(("SPECIAL-DROP toast item=%s kind=%s"):format(tostring(itemID), specialKind))
+                    batch = batch or {}
+                    batch[#batch + 1] = SpecialDropToast(special)
+                else
+                    lootSpecials[#lootSpecials + 1] = special
+                end
             elseif itemID and newApp[itemID] and not appSeen[itemID] then
                 appSeen[itemID] = true
                 excludedAsApp = excludedAsApp + 1
@@ -2741,6 +2770,8 @@ local function ActivateToaster()
     if not M.chatFilterInstalled then
         ChatFrame_AddMessageEventFilter("CHAT_MSG_LOOT", LootChatFilter)
         ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", TransmogChatFilter)
+        -- From 12.1.7 the collected line arrives on its own chat type.
+        ChatFrame_AddMessageEventFilter("CHAT_MSG_COLLECTED_APPEARANCE", TransmogChatFilter)
         ChatFrame_AddMessageEventFilter("CHAT_MSG_COMBAT_FACTION_CHANGE", ReputationChatFilter)
 
         M.chatFilterInstalled = true

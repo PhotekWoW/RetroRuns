@@ -255,6 +255,14 @@ RetroRuns_DungeonData[860] = {
                 opens     = { dialog = { npc = "Image of Medivh", match = "The strange chill of a dark presence" } },
                 fails     = { dialog = { npc = "Image of Medivh", match = "The air grows slightly warmer" } },
                 summoned  = { dialog = { npc = "Image of Arcanagos", match = "An ancient being awakens" } },
+                -- The Soul Fragments as rows under him in Boss Progress, each
+                -- left behind once the boss in passedAfter dies first.
+                pieces    = {
+                    count       = 5,
+                    label       = "Soul Fragment %d",
+                    reminder    = "Go back for Soul Fragment %d before Medivh's Echo runs out.",
+                    passedAfter = { 4, 4, 5, 7 },
+                },
             },
             achievements       = {
                 { id = 11430, name = "One Night in Karazhan", soloable = "yes" },

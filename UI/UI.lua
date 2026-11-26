@@ -2618,6 +2618,12 @@ end
 -- journal's boss order and leaving every row unmarked until it is killed.
 function UI.RenderBossProgressList()
     ReleaseProgressListLines()
+    -- Arrows already breathing, so one this rebuild lights can be told apart.
+    local wasBreathing = {}
+    for _, fs in ipairs(panel.progressListLinePool) do
+        local breath = fs.cell.icon.evenBreath
+        if breath and breath:IsPlaying() then wasBreathing[fs.cell.icon] = true end
+    end
     -- A clock is set again below if its row still carries one.
     if UI.auraCountdown and UI.auraCountdown.section == panel then
         UI.auraCountdown = nil
@@ -2652,6 +2658,7 @@ function UI.RenderBossProgressList()
     for _, fs in ipairs(panel.progressListLinePool) do
         UI.SetBreathing(fs.cell.icon, false)
     end
+    UI.BreatheArrowsInStep(panel.progressListLines, wasBreathing)
 end
 
 -- A list bullet: the StatusDot texture, small and tinted light gray.
@@ -2741,6 +2748,23 @@ function UI.BreatheInStepWithArrow(region)
             return
         end
     end
+end
+
+-- Boss Progress arrows on one curve: when a rebuild lights one beside another
+-- already breathing, all restart together once.
+function UI.BreatheArrowsInStep(lines, wasBreathing)
+    local breaths, lit = {}, false
+    for _, fs in ipairs(lines or {}) do
+        local icon = fs.cell and fs.cell.icon
+        local breath = icon and icon.evenBreath
+        if breath and breath:IsPlaying() then
+            breaths[#breaths + 1] = breath
+            if not wasBreathing[icon] then lit = true end
+        end
+    end
+    if not lit or #breaths < 2 then return end
+    for _, breath in ipairs(breaths) do breath:Stop() end
+    for _, breath in ipairs(breaths) do breath:Play() end
 end
 
 -- The secure button behind a row's [Use]: on UIParent, laid over the label
@@ -4963,6 +4987,38 @@ function UI.ApplySkipToken(text, step)
     return (text:gsub("{skip}", word))
 end
 
+-- The run's gossip clues under the note, on the seg collecting them and the
+-- seg they open: one line per trait, "?" until a clue names it.
+function UI.ClueBlock(seg)
+    if not seg then return "" end
+    local spec = RR:ActiveClueSpec()
+    if not (spec and (seg.clues or (seg.triggeredBy and seg.triggeredBy.clues))) then
+        return ""
+    end
+    local clues = RR:GetClues()
+    local known = {}
+    for _, clue in ipairs(clues) do
+        local option = spec.options and spec.options[clue.option]
+        if option then known[option.trait] = option.value end
+    end
+    local lines = { ("\n\n|cff%s%s|r"):format(C_LABEL,
+        RR.L["Clues (%d/%d):"]:format(#clues, spec.total or #clues)) }
+    for _, trait in ipairs(spec.traits or {}) do
+        local value = known[trait]
+        lines[#lines + 1] = ("\n    |cff%s%s:|r %s"):format(C_PINK_HEX, RR.L[trait],
+            value and OrangeText(RR.L[value]) or "|cff888888?|r")
+    end
+    return table.concat(lines)
+end
+
+-- The line under the note while the route has gone past a summon piece still
+-- to click.
+function UI.SummonPieceReminder()
+    local text = RR.SummonPieceReminder and RR:SummonPieceReminder()
+    if not text then return "" end
+    return ("\n\n|cffff8000%s|r"):format(text)
+end
+
 local function BuildTravelText(step)
     local prefix = ("|cff%s%s|r "):format(C_LABEL, RR.L["Traveling:"])
     if not step then return prefix .. "|cff888888" .. RR.L["N/A"] .. "|r" end
@@ -4994,12 +5050,15 @@ local function BuildTravelText(step)
         local note = RR:ResolveSegNote(seg, "note")
         if note then
             return prefix .. UI.ApplySkipToken(HighlightNames(note), step)
+                .. UI.ClueBlock(seg) .. UI.SummonPieceReminder()
         end
         if step.travelText then
             return prefix
                 .. UI.ApplySkipToken(HighlightNames(RR.L[step.travelText]), step)
+                .. UI.SummonPieceReminder()
         end
         return prefix .. "|cff888888" .. RR.L["Open the map and select a section to see directions."] .. "|r"
+            .. UI.SummonPieceReminder()
     end
 
     local text = compute()
@@ -5914,9 +5973,12 @@ BuildSpecialLootSection = function(boss)
             -- quality color in BOTH states so collected rows stay
             -- clickable (players still want preview/link access).
             local collected = SpecialCollectionStateForItem(item) == "collected"
+            local bossTags = {}
+            UI.AppendAcquisitionTags({ bossNpc = item.bossNpc }, bossTags)
             table.insert(lines, { cell = collected and "collected" or "missing",
                 text = ("%s |c%s(%s)|r"):format(display, kindColor, kindInner)
-                    .. (classTag and (" " .. classTag) or "") })
+                    .. (classTag and (" " .. classTag) or "")
+                    .. (bossTags[1] and (" " .. bossTags[1]) or "") })
         end
     end
     return header, lines
@@ -7975,9 +8037,13 @@ BuildTransmogDetail = function(stepOrCtx)
         end
         return lo
     end
+    -- Rows tagged with a dropping boss group under it, untagged rows first.
+    local function bossGroup(item) return item.bossNpc or "" end
     table.sort(binaryItems, function(a, b)
         local ka, kb = classKey(a), classKey(b)
         if ka ~= kb then return ka < kb end
+        local ga, gb = bossGroup(a), bossGroup(b)
+        if ga ~= gb then return ga < gb end
         return (a.name or "") < (b.name or "")
     end)
     -- Tier rows sort as a block above regular gear, by class ID then name.
@@ -8032,6 +8098,8 @@ BuildTransmogDetail = function(stepOrCtx)
         -- Rows with a vendor upgrade follow the plain drops as a block.
         local ua, ub = a.upgrade ~= nil, b.upgrade ~= nil
         if ua ~= ub then return ub end
+        local ga, gb = bossGroup(a), bossGroup(b)
+        if ga ~= gb then return ga < gb end
         return (a.name or "") < (b.name or "")
     end
     table.sort(perDiffItems, CompareRegularRows)
@@ -8388,8 +8456,15 @@ BuildTransmogDetail = function(stepOrCtx)
         EmitItemRow(mainRows, item, true)
     end
 
-    -- Ordinary loot, binary shape first, then per-difficulty.
+    -- Ordinary loot, binary shape first, then per-difficulty. A tagged
+    -- dropping boss starts its own block.
+    local lastBossGroup
     for _, item in ipairs(binaryLoot) do
+        local bossGroup = item.bossNpc or ""
+        if lastBossGroup and bossGroup ~= lastBossGroup then
+            table.insert(mainRows, { kind = "blank" })
+        end
+        lastBossGroup = bossGroup
         EmitItemRow(mainRows, item, false)
     end
 
@@ -8411,6 +8486,7 @@ BuildTransmogDetail = function(stepOrCtx)
         -- section it shares difficulties with rather than starting one;
         -- upgrade rows close their section as a block of their own.
         local sig = rawSignature(item) .. (item.upgrade and "+upgrade" or "")
+            .. "|" .. (item.bossNpc or "")
         if lastSignature and sig ~= lastSignature then
             table.insert(mainRows, { kind = "blank" })
         end
@@ -14593,7 +14669,6 @@ function UI.AskSummonChoice()
     end
     UI.ShowSkipPrompt(bossIndex, {
         question = UI.SummonChoiceText(RR:GetBossByIndex(bossIndex)),
-        justify  = "LEFT",
         width    = 420,
         onSkip   = function() UI.AnswerSummonChoice(bossIndex, "skip") end,
         onKill   = function() UI.AnswerSummonChoice(bossIndex, "kill") end,
@@ -14611,46 +14686,32 @@ function UI.AnswerSummonChoice(bossIndex, answer)
     if RetroRunsMapOverlay then RetroRunsMapOverlay:Refresh() end
 end
 
--- The summon question's text: the boss can be summoned, then what he still
--- has for the character, one indented line each, or that he has nothing.
+-- The summon question's text: whether to kill the boss, then how many of his
+-- Special Loot items, missing appearances and achievements are still owed.
 function UI.SummonChoiceText(boss)
     local coloredName = ("|cffffff00%s|r"):format(RR:GetLocalizedBossName(boss) or "?")
-    local parts = { (RR.L["%s can be summoned this run."]):format(coloredName) }
-    local owed = {}
+    local remaining = 0
     if not RR:BossHasNothingLeft(boss) then
         for _, item in ipairs(boss.specialLoot or {}) do
             if RR:SpecialLootForPlayer(item)
                 and SpecialCollectionStateForItem(item) ~= "collected" then
-                -- The item link, as Special Loot shows it; plain on a cold cache.
-                local itemLink = item.id and select(2, C_Item.GetItemInfo(item.id))
-                owed[#owed + 1] = itemLink or item.name
+                remaining = remaining + 1
             end
         end
-        local diffID, missing = ActiveDifficulty(), 0
+        local diffID = ActiveDifficulty()
         if diffID then
             UI.ForEachBossLookAt(boss, diffID, RR.PlayerClassID(), function(_, state)
-                if state == "missing" then missing = missing + 1 end
+                if state == "missing" then remaining = remaining + 1 end
             end)
         end
-        if missing > 0 then
-            owed[#owed + 1] = (RR.L["%d missing appearances"]):format(missing)
-        end
         for _, achievement in ipairs(boss.achievements or {}) do
-            local _, achievementName, _, completed = GetAchievementInfo(achievement.id)
-            if not completed then
-                owed[#owed + 1] = GetAchievementLink(achievement.id)
-                    or achievementName or achievement.name
+            if not select(4, GetAchievementInfo(achievement.id)) then
+                remaining = remaining + 1
             end
         end
     end
-    if #owed > 0 then
-        local list = { RR.L["Still to collect:"] }
-        for _, entry in ipairs(owed) do list[#list + 1] = "    " .. entry end
-        parts[#parts + 1] = table.concat(list, "\n")
-    else
-        parts[#parts + 1] = (RR.L["%s has nothing left to collect."]):format(coloredName)
-    end
-    return table.concat(parts, "\n\n")
+    return (RR.L["Do you want to kill %s?"]):format(coloredName) .. "\n\n"
+        .. (RR.L["Collectibles Remaining: %d"]):format(remaining)
 end
 
 -- A copy-URL popup: the heading over an EditBox holding data.url, selected
